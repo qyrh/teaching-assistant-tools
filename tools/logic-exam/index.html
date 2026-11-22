@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>海量逻辑推理题库 · 通用生成引擎 v2（22 题型 · 双重校验 · 难度递增）</title>
+<style>
+    body {
+        font-family: 'Kaiti', 'STKaiti', 'Microsoft YaHei', sans-serif;
+        background-color: #e9ecef;
+        color: #333;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .controls {
+        background: #fff;
+        padding: 12px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        position: sticky;
+        top: 10px;
+        z-index: 100;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: center;
+        font-size: 14px;
+    }
+    .controls label { display:flex; align-items:center; gap:6px; color:#2c3e50; }
+    .controls select, .controls input[type=number] {
+        padding: 4px 8px; border: 1px solid #bbb; border-radius: 4px; font-size: 14px;
+        font-family: inherit; background: #fff;
+    }
+    button {
+        background-color: #007bff; color: white; border: none;
+        padding: 9px 22px; font-size: 15px; font-weight: bold;
+        border-radius: 5px; cursor: pointer; transition: background .3s;
+        font-family: inherit;
+    }
+    button:hover { background-color: #0056b3; }
+    button.print-btn { background-color: #28a745; }
+    button.print-btn:hover { background-color: #218838; }
+    .paper {
+        background: #fff; width: 210mm; min-height: 297mm;
+        padding: 18mm 18mm; box-sizing: border-box;
+        box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    }
+    .paper-header { text-align:center; margin-bottom: 6px; }
+    .paper-header h1 { font-size: 24px; margin: 0 0 6px 0; color:#2c3e50; letter-spacing: 2px; }
+    .paper-header .sub { font-size: 12px; color: #7f8c8d; }
+    .audit-bar {
+        font-size: 12px; color: #1e7e34; background: #eaf7ec;
+        border: 1px solid #b7dfc0; border-radius: 6px;
+        padding: 6px 12px; margin: 10px 0 4px 0; text-align: center;
+    }
+    .audit-bar.bad { color:#c0392b; background:#fdecea; border-color:#f5b7b1; }
+    .section-title {
+        font-size: 19px; font-weight: bold; color: #2c3e50;
+        margin: 26px 0 10px 0; padding-bottom: 7px;
+        border-bottom: 2px solid #3498db;
+        page-break-after: avoid;
+    }
+    .section-desc {
+        font-size: 13px; color: #7f8c8d; margin-bottom: 16px;
+        font-style: italic; line-height: 1.5;
+    }
+    .question-card {
+        margin-bottom: 22px; padding-bottom: 12px;
+        border-bottom: 1px dashed #ccc;
+        page-break-inside: avoid;
+    }
+    .q-head { display:flex; align-items:center; gap:8px; margin-bottom: 6px; flex-wrap: wrap; }
+    .q-title { font-size: 16px; font-weight: bold; color: #2c3e50; }
+    .q-type-badge {
+        font-size: 11px; color: #fff; background: #7f8c8d;
+        padding: 1px 8px; border-radius: 9px; white-space: nowrap;
+    }
+    .q-stars { font-size: 12px; color: #e67e22; letter-spacing: 1px; }
+    .q-content { font-size: 15px; line-height: 1.75; margin-bottom: 6px; text-indent: 2em; }
+    .q-clues { font-size: 15px; line-height: 1.9; margin: 4px 0 4px 1em; }
+    .q-options { font-size: 15px; margin-top: 6px; padding-left: 2em; line-height: 1.9; }
+    .q-rule { color: #d35400; font-weight: bold; margin-top: 6px; padding-left: 2em; font-size: 13.5px; line-height: 1.6; }
+    .answer-page { page-break-before: always; }
+    .answer-title {
+        text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px;
+        border-bottom: 2px solid #333; padding-bottom: 8px;
+    }
+    .answer-cols { columns: 2; column-gap: 36px; }
+    .answer-item {
+        font-size: 12.5px; line-height: 1.65; margin-bottom: 12px;
+        page-break-inside: avoid;
+    }
+    .answer-item strong { color: #d35400; }
+    .answer-item .ans-line { color:#1e7e34; }
+    @media print {
+        body { background: none; padding: 0; display: block; }
+        .controls { display: none !important; }
+        .paper { width: 100%; box-shadow: none; padding: 0; min-height: auto; }
+        @page { size: A4; margin: 14mm; }
+        .question-card { border-bottom: none; margin-bottom: 18px; }
+    }
+</style>
+</head>
+<body>
+    <div class="controls">
+        <label>题目数量 <input type="number" id="cfgTotal" min="10" max="120" value="40" style="width:64px"></label>
+        <label>人物规模
+            <select id="cfgPeople">
+                <option value="3,4">精简（3–4人）</option>
+                <option value="3,6" selected>标准（3–6人）</option>
+                <option value="4,8">宏大（4–7人，天平/密码等专项题型除外）</option>
+            </select>
+        </label>
+        <label>选项规模
+            <select id="cfgOptions">
+                <option value="0" selected>跟随题型/人数（推荐）</option>
+                <option value="4">4 个选项</option>
+                <option value="5">5 个选项</option>
+                <option value="6">6 个选项</option>
+            </select>
+        </label>
+        <label>整体难度
+            <select id="cfgHard">
+                <option value="0.55">轻松卷</option>
+                <option value="1" selected>标准卷</option>
+                <option value="0.4,0.6">困难卷</option>
+            </select>
+        </label>
+        <label>题型分布
+            <select id="cfgDedup">
+                <option value="0" selected>允许少量重复（题量大时）</option>
+                <option value="1">每题型最多 1 次（建议 ≤22 题）</option>
+            </select>
+        </label>
+        <button id="btnGenerate" onclick="generateExam()">🔄 重新生成试卷</button>
+        <button class="print-btn" onclick="window.print()">🖨️ 一键打印（双面）</button>
+    </div>
+    <div class="paper" id="paper"></div>
+
+<script>
+/* =====================================================================
+ * 海量逻辑推理题库 · 通用生成引擎 v2
+ * ---------------------------------------------------------------------
+ * 设计要点（对应需求）：
+ *  1) 通用内核：所有题型统一为「世界(world) + 声称(claim)」模型——
+ *     出题 = 植入一个隐藏解；答案 = 在全部世界里筛选自洽解；
+ *     解析 = 程序化逐一代入生成真值表（绝不手写，杜绝解析与题干错位）。
+ *  2) 两道终检（最后 2 次检查）：
+ *     passA 题干结构检查（占位符/选项唯一/人物齐全/规则完整）
+ *     passB 答案与多解检查（逐选项逻辑判定恰有一个成立 + 全解空间唯一解 +
+ *             引擎独立复算 verifyAgain）——任何一关不过即重新生成。
+ *  3) 22 种题型注册表，每种参数化（人数/选项/线索/真话数/深度可任意扩大）。
+ *  4) 试卷装配：题型随机穿插分布，参数随位置递增 → 总体难度严格呈上升趋势。
+ *  5) 控制台 API：__LOGIC_EXAM.gen(题型id, 参数) 单题生成；
+ *     __LOGIC_EXAM.paper(配置) 整卷生成；__LOGIC_EXAM.audit(卷) 复检。
+ * ===================================================================== */
+
+/* ================= 0. 基础工具 ================= */
+const LETTERS = 'ABCDEFGHIJ'.split('');
+const NAMES = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+const CIRCLED = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫'];
+
+const rnd = {
+    int: (a, b) => a + Math.floor(Math.random() * (b - a + 1)),
+    pick: arr => arr[Math.floor(Math.random() * arr.length)],
+    next: () => Math.random(),
+    chance: p => Math.random() < p,
+    shuffle(arr) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; },
+    sample: (arr, n) => rnd.shuffle(arr).slice(0, n)
+};
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* 题型注册表（须先于各题型定义声明） */
+const TYPES = [];
+function registerType(def) { TYPES.push(def); }
+/* 选项规模上限（由 generateOne 按用户设置写入；0 = 跟随题型/人数） */
+let OPTION_CAP = 0;
+const distinctIdx2 = n => { let a = rnd.int(0, n - 1), b = rnd.int(0, n - 1); while (b === a) b = rnd.int(0, n - 1); return [a, b]; };
+const andText = arr => arr.length <= 1 ? (arr[0] || '') : arr.slice(0, -1).join('、') + '和' + arr[arr.length - 1];
+const stars = d => '★'.repeat(clamp(Math.round((d - 1) / 1.9), 1, 5));
+
+/* n 的全排列（n ≤ 7，5040 种，直接枚举用于唯一解证明） */
+function permEnumerate(n) {
+    const res = [], cur = Array.from({ length: n }, (_, i) => i);
+    (function rec(k) {
+        if (k === n) { res.push(cur.slice()); return; }
+        for (let i = k; i < n; i++) {
+            [cur[k], cur[i]] = [cur[i], cur[k]];
+            rec(k + 1);
+            [cur[k], cur[i]] = [cur[i], cur[k]];
+        }
+    })(0);
+    return res;
+}
+function sameArr(a, b) { return a.length === b.length && a.every((v, i) => v === b[i]); }
+
+/* ================= 1. 通用两道终检 ================= */
+/* 第一关：题干结构检查 */
+function passA(q) {
+    if (!q.stem || q.stem.length < 12) return '题干过短';
+    if (!q.rule || q.rule.length < 4) return '缺少规则说明';
+    const allText = q.stem + q.rule + (q.options || []).join('') + (q.explanation || '');
+    if (/undefined|NaN|\$\{|\[object/.test(allText)) return '含未解析占位符';
+    const opts = q.options;
+    if (!Array.isArray(opts) || opts.length < 2) return '选项数量异常';
+    if (new Set(opts).size !== opts.length) return '选项重复';
+    if (opts.some(o => !String(o).trim())) return '存在空选项';
+    if (!Number.isInteger(q.answer) || q.answer < 0 || q.answer >= opts.length) return '答案越界';
+    if (!q.explanation || q.explanation.length < 10) return '解析缺失';
+    if (q.check && Array.isArray(q.check.names)) {
+        for (const nm of q.check.names) if (!q.stem.includes(nm)) return '人物「' + nm + '」未出现在题干';
+    }
+    return null;
+}
+/* 第二关：答案与多解检查 */
+function passB(q) {
+    const c = q.check;
+    if (!c) return '缺少校验模型';
+    let trueCnt = 0, trueIdx = -1;
+    for (let i = 0; i < c.optionCandidates.length; i++) {
+        if (c.isOptionConsistent(c.optionCandidates[i])) { trueCnt++; trueIdx = i; }
+    }
+    if (trueCnt !== 1) return '选项自洽数=' + trueCnt + '（应恰为1，防多解）';
+    if (trueIdx !== q.answer) return '逻辑答案与标注答案不一致';
+    if (Array.isArray(c.fullSpace) && c.requireUniqueWorld !== false) {
+        let n = 0;
+        for (const w of c.fullSpace) {
+            if (c.isWorldConsistent(w)) { n++; if (n > 1) return '全解空间存在多解'; }
+        }
+        if (n !== 1) return '全解空间解数=' + n + '（应为1）';
+    }
+    if (typeof c.verifyAgain === 'function') {
+        const r = c.verifyAgain();
+        if (r !== true) return '引擎独立复算失败：' + r;
+    }
+    return null;
+}
+
+/* 统一出题内核：声称(claim) × 世界(world)
+ * claims: [{text, match(world)->bool}]；fullSpace: 全部可能世界；
+ * isWorldConsistent(w): 该世界是否满足题设全部条件。
+ * 内核保证：恰好一个声称成立（否则返回 null 触发重生成）。 */
+function buildClaimQuestion(o) {
+    /* semantics:'all'（默认 'some'）：选项判定改为"在所有自洽世界中恒成立"（必然真语义） */
+    const isOpt = c => {
+        try {
+            if (o.semantics === 'all') return o.fullSpace.every(w => !o.isWorldConsistent(w) || c.match(w));
+            return o.fullSpace.some(w => o.isWorldConsistent(w) && c.match(w));
+        }
+        catch (e) { return false; }
+    };
+    let ans = -1, cnt = 0;
+    o.claims.forEach((c, i) => { if (isOpt(c)) { cnt++; ans = i; } });
+    if (cnt !== 1) return null;
+    const correct = o.claims[ans];
+    let claims = o.claims;
+    /* 选项规模控制：用户设定上限时，保留正确项并随机抽错误项 */
+    if (OPTION_CAP >= 4 && claims.length > OPTION_CAP) {
+        const wrongs = claims.filter(c => c !== correct);
+        claims = rnd.shuffle([correct, ...rnd.sample(wrongs, OPTION_CAP - 1)]);
+    }
+    /* 选项不足 4 个时补充逻辑上恒假的兜底项（解唯一 ⇒ 「无法确定」必假）；noPad 用于选项语义天然对分的题型（如红/蓝/无法确定） */
+    if (!o.noPad) {
+        if (claims.length === 3) claims = [...claims, { text: '无法确定（信息不足）', match: () => false }];
+        else if (claims.length <= 2) claims = [...claims, { text: '无法确定（信息不足）', match: () => false }, { text: '以上选项都不对', match: () => false }];
+    }
+    /* 答案位置均匀化：无序选项（人名/物品/断言等）默认洗牌；有序选项（楼层/星期/名次/枚数等）由题型传 keepOrder 保持自然顺序 */
+    if (!o.keepOrder) claims = rnd.shuffle(claims);
+    const ansIdx = claims.indexOf(correct);
+    const explanation = o.explanation + `\n因此正确答案为 ${LETTERS[ansIdx]}（${correct.text}）。`;
+    return {
+        typeId: o.typeId, typeName: o.typeName,
+        stem: o.stem, rule: o.rule,
+        options: claims.map(c => c.text),
+        answer: ansIdx,
+        explanation,
+        difficulty: o.difficulty,
+        check: {
+            names: o.names || null,
+            fullSpace: o.fullSpace,
+            requireUniqueWorld: o.requireUniqueWorld !== false,
+            isWorldConsistent: o.isWorldConsistent,
+            optionCandidates: claims,
+            isOptionConsistent: isOpt,
+            verifyAgain: o.verifyAgain || null
+        }
+    };
+}
+
+/* ================= 2. 题材素材库 ================= */
+const CRIME_STORIES = [
+    '深夜的荒岛上，最后一罐救命的罐头被人偷吃了。',
+    '博物馆的镇馆名画在暴雨夜不翼而飞。',
+    '办公室冰箱里那块生日蛋糕，只剩下一个空盘子。',
+    '实验室里最贵的试剂瓶被人打翻，现场只留下脚印。',
+    '公司服务器机房的数据一夜之间被删得干干净净。',
+    '渔村里晒着的鱼干少了一大半。',
+    '教室里的花瓶碎了一地，玻璃渣还闪着光。',
+    '金库的钻石在交接途中凭空消失。',
+    '厨房里刚出炉的饼干只剩下一地碎屑。',
+    '酒庄地窖里最陈年的橡木桶被人凿开了。',
+    '马厩里明天的赛马被人偷偷剪了鬃毛。',
+    '剧场的道具宝剑在首演前夜变成了真铁片。',
+    '观测站记录流星的关键底片不翼而飞。',
+    '面包房的天然酵母种被人换成了清水。',
+    '拍卖行预展的翡翠印章被人调了包。',
+    '灯塔的备用灯泡在暴风雨前夜全部失踪。',
+    '药房的最后一瓶解毒剂被人下了糖水。',
+    '棋院决赛用的名贵云子少了一枚黑子。',
+    '老宅祠堂的族谱被人撕去了关键一页。',
+    '气象站的探空气球在放飞前被人扎破。'
+];
+/* 卷内唯一性预算：同一份试卷内故事场景、双门场景与变体强制错开（防"只换名字"式重复） */
+let PAPER_BUDGET = null;
+function pickStory() {
+    if (!PAPER_BUDGET) return rnd.pick(CRIME_STORIES);
+    const fresh = CRIME_STORIES.filter(s => !PAPER_BUDGET.stories.has(s));
+    const s = rnd.pick(fresh.length ? fresh : CRIME_STORIES);
+    PAPER_BUDGET.stories.add(s);
+    return s;
+}
+/* 双门题卷内场景/变体预算（同一卷两道双门题须一易一难且场景不重复） */
+function pickDoorScene(scenes, variant) {
+    if (!PAPER_BUDGET) return rnd.int(0, scenes.length - 1);
+    const fresh = scenes.map((_, i) => i).filter(i => !PAPER_BUDGET.doors.has(variant + ':' + i));
+    return rnd.pick(fresh.length ? fresh : scenes.map((_, i) => i));
+}
+function useDoorScene(idx, variant) {
+    if (!PAPER_BUDGET) return;
+    PAPER_BUDGET.doors.add(variant + ':' + idx);
+    if (variant === 'classic') PAPER_BUDGET.doorClassic++;
+    else PAPER_BUDGET.doorEasy++;
+}
+/* 通用卷内形状记忆：同题型第二题必须换规模参数，避免结构同构 */
+function shapeDiffers(typeId, shape) {
+    if (!PAPER_BUDGET) return true;
+    if (!PAPER_BUDGET.shapes) PAPER_BUDGET.shapes = {};
+    return PAPER_BUDGET.shapes[typeId] !== String(shape);
+}
+function recordShape(typeId, shape) {
+    if (!PAPER_BUDGET) return;
+    if (!PAPER_BUDGET.shapes) PAPER_BUDGET.shapes = {};
+    PAPER_BUDGET.shapes[typeId] = String(shape);
+}
+function guiltShapeDiffers(typeId, n, k) { return shapeDiffers(typeId, n + '-' + k); }
+function recordGuiltShape(typeId, n, k) { recordShape(typeId, n + '-' + k); }
+/* 真话数量规则的措辞变体（避免同卷多题结尾逐字雷同） */
+function truthRuleText(n, k) {
+    const v = rnd.int(0, 2);
+    if (v === 0) return `（已知 ${n} 人中恰好有 ${k} 人说真话、${n - k} 人说假话，且作案者就是这 ${n} 人之一。请选出真正的作案者。）`;
+    if (v === 1) return `（以上 ${n} 句口供中只有 ${k} 句是真话，其余均为谎言；作案者就在这 ${n} 人之中。他是谁？）`;
+    return `（已知作案者必在这 ${n} 人之中，且他们的口供恰好 ${k} 真 ${n - k} 假。请指认作案者。）`;
+}
+const JOBS = ['医生','律师','教师','工程师','警察','画家','司机','厨师','船长','作家'];
+const TREASURES = ['夜明珠','翡翠原石','玛瑙印章','琥珀吊坠','珍珠项链','水晶球'];
+const LAMPS = ['红灯','蓝灯','绿灯','黄灯','紫灯','白灯'];
+const NATIONS = ['中国人','美国人','英国人','法国人','日本人'];
+const PETS = ['猫','狗','鹦鹉','金鱼','乌龟'];
+const DRINKS = ['茶','咖啡','牛奶','橙汁','可乐'];
+const DAY_NAMES = ['星期一','星期二','星期三','星期四','星期五','星期六','星期日'];
+const KIN_TERMS = ['父亲','母亲','儿子','女儿','哥哥','姐姐','弟弟','妹妹','爷爷','奶奶','外公','外婆','孙子','孙女','外孙','外孙女','伯伯','叔叔','姑姑','舅舅','姨妈','侄子','侄女','外甥','外甥女','堂哥','堂弟','堂姐','堂妹','表哥','表弟','表姐','表妹'];
+
+/* ================= 3. 引擎A：口供真值家族（捉凶/条件句/转述/半真半假/必然为真） ================= */
+function makeBaseStatement(i, names, opt) {
+    const n = names.length;
+    /* 形态白名单：不同口供题型用不同句式子集，避免同卷内两道口供题句式观感同构 */
+    const allow = f => !opt.forms || opt.forms.includes(f);
+    const pool = [];
+    if (opt.conditional) {
+        pool.push(() => { const a = rnd.int(0, n - 1); return { text: `要我说，这种事就是${names[a]}干的`, fn: w => w === a }; });
+        pool.push(() => { const [a, b] = distinctIdx2(n); return { text: `要是${names[a]}是清白的，那凶手就是${names[b]}`, fn: w => (w === a || w === b) }; });
+        pool.push(() => { const [a, b] = distinctIdx2(n); return { text: `除非是${names[a]}干的，否则一定是${names[b]}干的`, fn: w => (w === a || w === b) }; });
+        pool.push(() => { const a = rnd.int(0, n - 1); return { text: `我敢肯定，这件事除${names[a]}之外没别人`, fn: w => w === a }; });
+    } else {
+        if (allow('accuse')) pool.push(() => { const a = rnd.int(0, n - 1); return { text: `就是${names[a]}干的`, fn: w => w === a }; });
+        if (allow('denySelf')) pool.push(() => ({ text: `反正不是我干的`, fn: w => w !== i }));
+        if (allow('denyOther')) pool.push(() => { const a = rnd.int(0, n - 1); return { text: `绝对不是${names[a]}干的`, fn: w => w !== a }; });
+        if (n >= 4 && allow('orAccuse')) pool.push(() => { const [a, b] = distinctIdx2(n); return { text: `要么是${names[a]}，要么是${names[b]}干的`, fn: w => w === a || w === b }; });
+        if (n >= 4 && allow('neither')) pool.push(() => { const [a, b] = distinctIdx2(n); return { text: `不是${names[a]}干的，也不是${names[b]}干的`, fn: w => w !== a && w !== b }; });
+    }
+    return rnd.pick(pool)();
+}
+function makeMetaStatement(i, names, stmts, preferDepth) {
+    const pool = preferDepth ? stmts.map((s, j) => s.meta ? j : -1).filter(j => j >= 0) : [];
+    const candidates = pool.length && rnd.chance(0.7) ? pool : stmts.map((_, j) => j);
+    const a = rnd.pick(candidates);
+    if (rnd.chance(0.5)) return { meta: true, text: `${names[a]}的那句话「${stmts[a].text}」纯属一派胡言`, fn: w => !stmts[a].fn(w) };
+    return { meta: true, text: `我可以作证，${names[a]}说的「${stmts[a].text}」句句属实`, fn: w => stmts[a].fn(w) };
+}
+function genTruthCore(o) {
+    for (let att = 0; att < 900; att++) {
+        const names = rnd.sample(NAMES, o.n);
+        const plant = rnd.int(0, o.n - 1);
+        const stmts = [];
+        let ok = true;
+        for (let i = 0; i < o.n; i++) {
+            let s = null;
+            for (let t = 0; t < 12; t++) {
+                const wantMeta = (o.metaHeavy && stmts.length >= 2 && i >= 2) || (o.allowMeta && stmts.length > 0 && rnd.chance(o.metaBias || 0.25));
+                s = wantMeta ? makeMetaStatement(i, names, stmts, o.metaHeavy) : makeBaseStatement(i, names, o);
+                if (!s) continue;
+                if (stmts.some(x => x.text === s.text || x.text.includes(s.text))) continue;
+                break;
+            }
+            if (!s) { ok = false; break; }
+            stmts.push(s);
+        }
+        if (!ok) continue;
+        const countTrue = w => stmts.reduce((acc, st) => acc + (st.fn(w) ? 1 : 0), 0);
+        const k = countTrue(plant);
+        if (k < 1 || k > o.maxK) continue;
+        const sols = [];
+        for (let w = 0; w < o.n; w++) if (countTrue(w) === k) sols.push(w);
+        if (sols.length !== 1 || sols[0] !== plant) continue;
+        if (o.metaHeavy) {
+            /* 单hinges检测：若全部口供真值只随一个命题翻转（≤2种真值组合），跨题同构感过强，弃用 */
+            const vecs = new Set();
+            for (let w = 0; w < o.n; w++) vecs.add(stmts.map(s => s.fn(w) ? 1 : 0).join(''));
+            if (vecs.size <= 2) continue;
+        }
+        return { names, stmts, plant, k, countTrue };
+    }
+    return null;
+}
+function guiltExplain(core) {
+    const { names, stmts, plant, k, countTrue } = core;
+    const rows = names.map((_, w) =>
+        `若${names[w]}作案：${stmts.map((st, si) => names[si] + (st.fn(w) ? '真' : '假')).join('、')}，共${countTrue(w)}句真话${w === plant ? '【符合】' : ''}`
+    ).join('；\n');
+    return `设作案者未知，把 ${names.length} 种可能逐一代入数真话：\n${rows}。\n只有当${names[plant]}作案时，真话数恰好为 ${k} 句。`;
+}
+function buildGuiltTypeQuestion(core, o) {
+    const { names, stmts, plant, k, countTrue } = core;
+    const claims = names.map((nm, i) => ({ text: nm, match: w => w === i }));
+    const worldSpace = names.map((_, i) => i);
+    const story = pickStory();
+    const stmtLines = stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n');
+    const q = buildClaimQuestion({
+        typeId: o.typeId, typeName: o.typeName,
+        stem: `${story}\n${stmtLines}`,
+        rule: truthRuleText(names.length, k),
+        claims,
+        fullSpace: worldSpace,
+        isWorldConsistent: w => countTrue(w) === k,
+        names,
+        explanation: guiltExplain(core),
+        difficulty: o.difficulty,
+        verifyAgain: () => {
+            let n = 0, who = -1;
+            for (let w = 0; w < names.length; w++) if (countTrue(w) === k) { n++; who = w; }
+            return (n === 1 && who === plant && countTrue(plant) === k) ? true : '复算解数=' + n;
+        }
+    });
+    if (q) { recordGuiltShape(o.typeId, names.length, k); if (o.typeId === 'guiltCount' || o.typeId === 'nestedLies' || o.typeId === 'halfTrue') recordShape('huntIdentify', o.typeId); }
+    return q;
+}
+/* 同题型第二题强制改变 (人数, 真话数) 形状，避免卷内结构同构 */
+function coreWithDistinctShape(typeId, n, lo, hi, opt) {
+    let core = genTruthCore(Object.assign({ n }, opt));
+    if (!core) return null;
+    if (guiltShapeDiffers(typeId, core.names.length, core.k)) return core;
+    for (let t = 0; t < 8; t++) {
+        const n2 = clamp(n + ((t % 2) ? 1 : -1) * (1 + Math.floor(t / 2)), lo, hi);
+        const c2 = genTruthCore(Object.assign({ n: n2 }, opt));
+        if (!c2) continue;
+        if (guiltShapeDiffers(typeId, c2.names.length, c2.k)) return c2;
+    }
+    return core; /* 尽力后仍同形状则接受（场景/语句仍随机） */
+}
+
+/* ---------- 题型1：真话数量·捉凶 ---------- */
+registerType({ id: 'guiltCount', name: '真话捉凶', base: 2.6, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(7, cfg.pmax), cfg.target)), 3, 7);
+    const maxK = cfg.target > 0.6 ? 3 : (cfg.target > 0.3 ? 2 : 1);
+    /* 与"必然为真"跨题型错开人数与真话数；转述句式为"转述口供"题型专属 */
+    const prevMNK = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['mustBeTrueNK']) || '';
+    const [pn2, pk2] = prevMNK.includes('-') ? prevMNK.split('-').map(Number) : [0, 0];
+    let core = null;
+    for (let t = 0; t < 6; t++) {
+        const c = coreWithDistinctShape('guiltCount', n, 3, 7, { maxK, allowMeta: false, metaBias: 0, forms: ['accuse', 'denySelf', 'orAccuse'] }); /* 句式专属：指认/自我开脱/二选一 */
+        if (!c) break;
+        core = c;
+        if (!(c.names.length === pn2 && c.k === pk2)) break;
+        n = n >= 7 ? 3 : n + 1;
+    }
+    if (!core) return null;
+    return buildGuiltTypeQuestion(core, {
+        typeId: 'guiltCount', typeName: '真话捉凶',
+        difficulty: 2.6 + 0.45 * (n - 3) + 0.5 * (core.k - 1) + (cfg.target > 0.45 ? 0.7 : 0)
+    });
+}});
+
+/* ---------- 题型3：条件句口供·捉凶 ---------- */
+registerType({ id: 'condGuilt', name: '条件口供', base: 5.0, gen(cfg) {
+    const n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    const core = coreWithDistinctShape('condGuilt', n, 3, 6, { maxK: cfg.target > 0.55 ? 3 : 2, allowMeta: false, metaBias: 0, conditional: true });
+    if (!core) return null;
+    /* 口供家族问法分化：卷内已有"数真话定凶·指认"问法（真话捉凶/半真半假）时，条件口供切换为
+     * "必然正确"断言问法，避免口供三兄弟同用"枚举数真话→指认"骨架 */
+    const huntUsed = !!(PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['huntIdentify']);
+    if (!huntUsed || n < 4) { /* B 问法需 ≥4 人（n=3 时错误组合不足），n=3 恒用 A 指认问法 */
+        const q = buildGuiltTypeQuestion(core, { typeId: 'condGuilt', typeName: '条件口供', difficulty: 5.0 + 0.4 * (n - 3) + 0.5 * (core.k - 1) });
+        if (q) recordShape('huntIdentify', 'condGuilt');
+        return q;
+    }
+    const { names, stmts, plant, k, countTrue } = core;
+    /* B 问法（独特）：问"作案者可锁定为哪两人之一"——与必然为真/转述口供的断言问法彻底区分 */
+    const pairs = [];
+    for (let x = 0; x < n; x++) for (let y = x + 1; y < n; y++) pairs.push([x, y]);
+    const correctPair = [plant, rnd.pick(names.map((_, i) => i).filter(i => i !== plant))];
+    const wrongPairs = rnd.sample(pairs.filter(p => !p.includes(plant)), 3);
+    if (wrongPairs.length < 3) return null;
+    const chosenPairs = rnd.shuffle([correctPair, ...wrongPairs]);
+    const pairText = p => `${names[p[0]]}和${names[p[1]]}`;
+    const q2 = buildClaimQuestion({
+        typeId: 'condGuilt', typeName: '条件口供',
+        stem: `${pickStory()}\n${stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n')}`,
+        rule: `（已知 ${n} 人中恰好有 ${k} 人说真话，且作案者仅一人在上述 ${n} 人之中。以下哪一组两人中至少有一人是作案者？）`,
+        claims: chosenPairs.map(p => ({ text: pairText(p), match: w => p.includes(w) })),
+        fullSpace: names.map((_, i) => i),
+        isWorldConsistent: w => countTrue(w) === k,
+        names,
+        explanation: `${guiltExplain(core)}\n作案者唯一为${names[plant]}，因此包含${names[plant]}的组合「${pairText(correctPair)}」中"至少一人作案"成立；其余三个组合的两人都已被排除。`,
+        difficulty: 5.2 + 0.4 * (n - 3) + 0.5 * (core.k - 1),
+        verifyAgain: () => chosenPairs.filter(p => p.includes(plant)).length === 1 ? true : '组合真值异常'
+    });
+    return q2;
+}});
+
+/* ---------- 题型20：转述与批注（高密度元口供） ---------- */
+registerType({ id: 'nestedLies', name: '转述口供', base: 5.8, gen(cfg) {
+    const n = clamp(Math.round(lerp(Math.max(4, cfg.pmin), Math.min(7, cfg.pmax), cfg.target)), 4, 7);
+    const core = coreWithDistinctShape('nestedLies', n, 4, 7, { maxK: 2, allowMeta: true, metaHeavy: true, metaBias: 0.9 });
+    if (!core) return null;
+    /* 双问法：A=指认作案者；B=判断口供真假断言；卷内第二题强制换问法；
+     * 与"必然为真"的 B 问法互斥；且纳入口供家族 huntIdentify 互斥——
+     * 当真话捉凶/条件口供/半真半假已用"指认作案者"问法时，转述口供切换 B 断言问法，避免双题同骨架 */
+    const prevMode = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['nestedLies']) || null;
+    const mBTUsedB = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['mustBeTrue']) === 'B';
+    const huntTaken = PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['huntIdentify'] && PAPER_BUDGET.shapes['huntIdentify'] !== 'nestedLies';
+    const mode = mBTUsedB || huntTaken ? 'B' : (prevMode === 'A' ? 'B' : (prevMode === 'B' ? 'A' : (rnd.chance(0.5) ? 'A' : 'B')));
+    if (mode === 'A') {
+        const q = buildGuiltTypeQuestion(core, { typeId: 'nestedLies', typeName: '转述口供', difficulty: 5.8 + 0.4 * (n - 4) });
+        if (q) { recordShape('nestedLies', 'A'); recordShape('huntIdentify', 'nestedLies'); }
+        return q;
+    }
+    const { names, stmts, plant, k, countTrue } = core;
+    const tSpk = [], fSpk = [];
+    stmts.forEach((st, j) => (st.fn(plant) ? tSpk : fSpk).push(j));
+    if (!tSpk.length || !fSpk.length) {
+        const q = buildGuiltTypeQuestion(core, { typeId: 'nestedLies', typeName: '转述口供', difficulty: 5.8 + 0.4 * (n - 4) });
+        if (q) { recordShape('nestedLies', 'A'); recordShape('huntIdentify', 'nestedLies'); }
+        return q;
+    }
+    const mkClaim = (j, saidTrue) => ({ j, saidTrue, truth: stmts[j].fn(plant) === saidTrue, text: `${names[j]}${saidTrue ? '说了真话' : '说了假话'}`, match: w => stmts[j].fn(w) === saidTrue });
+    const trueClaim = mkClaim(rnd.pick(tSpk), true);
+    const falsePool = [];
+    fSpk.forEach(j => falsePool.push(mkClaim(j, true)));
+    tSpk.forEach(j => { if (j !== trueClaim.j) falsePool.push(mkClaim(j, false)); });
+    const chosen = [trueClaim, ...rnd.sample(falsePool.filter(c => c.text !== trueClaim.text), 3)];
+    if (chosen.length < 4) {
+        const q = buildGuiltTypeQuestion(core, { typeId: 'nestedLies', typeName: '转述口供', difficulty: 5.8 + 0.4 * (n - 4) });
+        if (q) { recordShape('nestedLies', 'A'); recordShape('huntIdentify', 'nestedLies'); }
+        return q;
+    }
+    const q2 = buildClaimQuestion({
+        typeId: 'nestedLies', typeName: '转述口供',
+        stem: `${pickStory()}\n${stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n')}`,
+        rule: `（已知 ${n} 人中恰好有 ${k} 人说真话，且作案者就是这 ${n} 人之一。根据以上全部条件，以下哪一项必然正确？）`,
+        claims: rnd.shuffle(chosen),
+        fullSpace: names.map((_, i) => i),
+        isWorldConsistent: w => countTrue(w) === k,
+        names,
+        explanation: `${guiltExplain(core)}\n据此核对四个断言：${chosen.map(c => `「${c.text}」${c.truth ? '成立' : '不成立'}`).join('；')}。`,
+        difficulty: 5.9 + 0.4 * (n - 4),
+        verifyAgain: () => chosen.filter(c => c.truth).length === 1 ? true : '断言真值异常'
+    });
+    if (q2) recordShape('nestedLies', 'B');
+    return q2;
+}});
+
+/* ---------- 题型5：一真一假 ---------- */
+registerType({ id: 'halfTrue', name: '半真半假', base: 3.9, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    /* 卷内同题型第二题强制换人数 */
+    if (!guiltShapeDiffers('halfTrue', n, 0)) n = n >= 6 ? 3 : n + 1;
+    for (let att = 0; att < 700; att++) {
+        const names = rnd.sample(NAMES, n);
+        const plant = rnd.int(0, n - 1);
+        const pairs = [];
+        let ok = true;
+        for (let i = 0; i < n; i++) {
+            let s1 = null, s2 = null;
+            for (let t = 0; t < 12; t++) {
+                s1 = makeBaseStatement(i, names, {});
+                s2 = makeBaseStatement(i, names, {});
+                if (s1.text !== s2.text) break;
+            }
+            if (!s1 || !s2 || s1.text === s2.text) { ok = false; break; }
+            pairs.push([s1, s2]);
+        }
+        if (!ok) continue;
+        const consistent = w => pairs.every(([a, b]) => (a.fn(w) ? 1 : 0) + (b.fn(w) ? 1 : 0) === 1);
+        const sols = [];
+        for (let w = 0; w < n; w++) if (consistent(w)) sols.push(w);
+        if (sols.length !== 1 || sols[0] !== plant) continue;
+        const claims = names.map((nm, i) => ({ text: nm, match: w => w === i }));
+        const rows = names.map((_, w) =>
+            `若${names[w]}作案：${pairs.map(([a, b], pi) => `${names[pi]}(${(a.fn(w) ? 1 : 0) + (b.fn(w) ? 1 : 0)}真)`).join('、')}${w === plant ? '【人人恰好一真一假】' : ''}`
+        ).join('；\n');
+        const q = buildClaimQuestion({
+            typeId: 'halfTrue', typeName: '半真半假',
+            stem: `${pickStory()}\n${pairs.map(([a, b], i) => `${names[i]}说："第一句：${a.text}；第二句：${b.text}"`).join('\n')}`,
+            rule: rnd.chance(0.5)
+                ? `（已知每人说的两句话中都恰好一句为真、一句为假，且作案者就是这 ${n} 人之一。谁才是作案者？）`
+                : `（每人的两句话都是一真一假；作案者就在这 ${n} 人之中。他是谁？）`,
+            claims, fullSpace: names.map((_, i) => i),
+            isWorldConsistent: consistent, names,
+            explanation: `对每个候选作案者，数每个人两句口供的真话数（必须恰好为 1）：\n${rows}。`,
+            difficulty: 3.9 + 0.45 * (n - 3),
+            verifyAgain: () => {
+                let c = 0, who = -1;
+                for (let w = 0; w < n; w++) if (consistent(w)) { c++; who = w; }
+                return (c === 1 && who === plant) ? true : '复算解数=' + c;
+            }
+        });
+        if (q) { recordGuiltShape('halfTrue', n, 0); recordShape('huntIdentify', 'halfTrue'); }
+        return q;
+    }
+    return null;
+}});
+
+/* ---------- 题型4：必然为真 ---------- */
+registerType({ id: 'mustBeTrue', name: '必然为真', base: 5.4, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    /* 与"真话捉凶"跨题型错开人数与真话数；句式限否定系（观感区分，避免两题口供形态同构） */
+    const prevGNK = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['guiltCount']) || '';
+    const [pn, pk] = prevGNK.includes('-') ? prevGNK.split('-').map(Number) : [0, 0];
+    let core = null;
+    for (let t = 0; t < 6; t++) {
+        const c = coreWithDistinctShape('mustBeTrue', n, 3, 6, { maxK: 2, allowMeta: false, metaBias: 0, forms: ['denyOther', 'neither'] }); /* 句式专属：仅否定他人/双否定，与真话捉凶句式互斥 */
+        if (!c) break;
+        core = c;
+        if (!(c.names.length === pn && c.k === pk)) break;
+        n = n >= 6 ? 3 : n + 1;
+    }
+    if (!core) return null;
+    const { names, stmts, plant, k, countTrue } = core;
+    /* 双问法：A=混合断言（作案者/清白/口供真假），B=纯口供真假描述；卷内第二题强制换问法 */
+    const prevMode = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['mustBeTrue']) || null;
+    /* 卷内已有转述题时禁用"口供真假描述"问法（与转述口供的 B 问法撞车） */
+    const nestedUsed = !!(PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['nestedLies']);
+    /* 卷内已有"口供真假"类断言问法（转述口供B/条件口供B）时，mode A 的选项里口供真假类断言至多 1 条（观感防撞车） */
+    const stmtClaimCap = nestedUsed || !!(PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['huntIdentify'] === 'condGuilt') ? 1 : 2;
+    let mode = nestedUsed ? 'A' : (prevMode === 'A' ? 'B' : (prevMode === 'B' ? 'A' : (rnd.chance(0.5) ? 'A' : 'B')));
+    let claimPool = [];
+    names.forEach((_, r) => claimPool.push({ text: `作案的是${names[r]}`, match: w => w === r, truth: r === plant }));
+    names.forEach((_, r) => claimPool.push({ text: `作案的不是${names[r]}`, match: w => w !== r, truth: plant !== r }));
+    const stmtClaims = [];
+    stmts.forEach((_, j) => {
+        stmtClaims.push({ text: `${names[j]}说了真话`, match: w => stmts[j].fn(w), truth: stmts[j].fn(plant) });
+        stmtClaims.push({ text: `${names[j]}说了假话`, match: w => !stmts[j].fn(w), truth: !stmts[j].fn(plant) });
+    });
+    claimPool.push(...rnd.sample(stmtClaims, Math.min(stmtClaimCap, stmtClaims.length)));
+    if (mode === 'B') {
+        claimPool = [];
+        stmts.forEach((_, j) => {
+            claimPool.push({ text: `${names[j]}说了真话`, match: w => stmts[j].fn(w), truth: stmts[j].fn(plant) });
+            claimPool.push({ text: `${names[j]}说了假话`, match: w => !stmts[j].fn(w), truth: !stmts[j].fn(plant) });
+        });
+        if (claimPool.filter(c => c.truth).length < 1 || claimPool.filter(c => !c.truth).length < 3) mode = 'A';
+    }
+    const trues = claimPool.filter(c => c.truth), falses = claimPool.filter(c => !c.truth);
+    if (trues.length < 1 || falses.length < 3) return null;
+    let chosen;
+    if (mode === 'A') {
+        /* 断言混合度：身份类断言（作案的是/不是X）至多 2 条，保证 ≥2 条口供真假类断言，避免整题退化为"指认凶手"；凑不齐时回退放开 */
+        const isId = c => c.text.startsWith('作案');
+        const pickLimited = cap => {
+            let idCnt = 0;
+            const truePick = rnd.shuffle(trues).find(c => !isId(c) || idCnt < cap) || trues[0];
+            idCnt = isId(truePick) ? 1 : 0;
+            const falsePicks = [];
+            for (const c of rnd.shuffle(falses)) {
+                if (falsePicks.length >= 3) break;
+                if (isId(c)) { if (idCnt >= cap) continue; idCnt++; }
+                falsePicks.push(c);
+            }
+            return falsePicks.length >= 3 ? [truePick, ...falsePicks] : null;
+        };
+        chosen = pickLimited(2) || pickLimited(9);
+        if (!chosen) return null;
+    } else {
+        chosen = [rnd.pick(trues), ...rnd.sample(falses, 3)];
+    }
+    const shuffled = rnd.shuffle(chosen);
+    const story = pickStory();
+    const stmtLines = stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n');
+    const q = buildClaimQuestion({
+        typeId: 'mustBeTrue', typeName: '必然为真',
+        stem: `${story}\n${stmtLines}`,
+        rule: mode === 'A'
+            ? `（已知恰好 ${k} 人说真话，且作案者仅一人、就在上述 ${n} 人之中。根据以上全部条件，以下哪个断言必然为真？）`
+            : `（已知恰好 ${k} 人说真话，且作案者仅一人、就在上述 ${n} 人之中。根据以上全部条件，以下关于各人"这次口供真假"的判断，哪一项必然正确？）`,
+        claims: shuffled,
+        fullSpace: names.map((_, i) => i),
+        isWorldConsistent: w => countTrue(w) === k,
+        names,
+        explanation: `先解出口供谜题：${guiltExplain(core)}\n据此逐一核对四个判断：${chosen.map(c => `「${c.text}」${c.truth ? '成立' : '不成立'}`).join('；')}。`,
+        difficulty: 5.4 + 0.4 * (n - 3) + (mode === 'B' ? 0.3 : 0),
+        verifyAgain: () => shuffled.length === 4 ? true : '选项数异常'
+    });
+    if (q) { recordShape('mustBeTrue', mode); recordShape('mustBeTrueNK', core.names.length + '-' + core.k); }
+    return q;
+}});
+
+/* ================= 4. 引擎B：排列线索家族（职业/座次/名次/楼层/宝物/开关） ================= */
+function makePermPuzzle(o) {
+    const perms = permEnumerate(o.n);
+    for (let att = 0; att < 90; att++) {
+        /* 正面指派线索至多 1 条（强化关系/否定推理，防"排除剩一"与跨题同构）；多次尝试难收敛时放宽保证成功 */
+        const directCap = att < 45 ? 1 : o.n;
+        const plant = rnd.pick(perms);
+        const clues = [], seen = new Set();
+        let directCnt = 0, guard = 0, solved = null;
+        while (guard++ < 60) {
+            const mk = rnd.pick(o.makers);
+            const c = mk(plant, o, { clues, directCnt });
+            if (!c || !c.text || seen.has(c.text)) continue;
+            if (c.direct && directCnt >= directCap) continue;
+            if (c.direct) directCnt++;
+            seen.add(c.text);
+            clues.push(c);
+            const sols = perms.filter(p => clues.every(cl => cl.ok(p)));
+            if (sols.length === 1 && clues.length >= Math.min(3, o.n)) { solved = sols; break; }
+        }
+        if (!solved) {
+            const sols = perms.filter(p => clues.every(cl => cl.ok(p)));
+            if (!(sols.length === 1 && clues.length >= 3)) continue;
+            solved = sols;
+        }
+        if (!clues.every(cl => cl.ok(plant))) continue;
+        /* 线索最小化裁剪（保持唯一解） */
+        for (let ci = clues.length - 1; ci >= 0 && clues.length > 3; ci--) {
+            const rest = clues.filter((_, j) => j !== ci);
+            if (perms.filter(p => rest.every(cl => cl.ok(p))).length === 1) clues.splice(ci, 1);
+        }
+        if (!clues.every(cl => cl.ok(plant))) continue;
+        if (o.postCheck && !o.postCheck(clues, perms)) continue;
+        const consistent = p => clues.every(cl => cl.ok(p));
+        /* 深解检测：所问对象的取值不能被任意 2 条线索的子集直接锁定（防"锚定+1条关系两步出答案"的浅定位） */
+        const fixedBy2 = getter => {
+            for (let i = 0; i < clues.length; i++) for (let j = i + 1; j < clues.length; j++) {
+                const s2 = perms.filter(p => clues[i].ok(p) && clues[j].ok(p));
+                if (s2.length && new Set(s2.map(getter)).size === 1) return true;
+            }
+            return false;
+        };
+        const shallowOk = clues.length <= 3;
+        const deepP = Array.from({ length: o.n }, (_, i) => i).filter(i => shallowOk || !fixedBy2(p => p[i]));
+        const deepV = Array.from({ length: o.n }, (_, v) => v).filter(v => shallowOk || !fixedBy2(p => p.indexOf(v)));
+        /* 提问对象必须避开被单条线索直接"点名"的人物/位置，防止送分题 */
+        const ask = o.buildAsk(plant, o, clues.filter(cl => cl.reveal).map(cl => cl.reveal), { deepP, deepV });
+        if (!ask) continue;
+        const q = buildClaimQuestion({
+            typeId: o.typeId, typeName: o.typeName,
+            stem: o.stemIntro(o, clues),
+            rule: ask.rule,
+            claims: ask.claims,
+            keepOrder: !!o.keepOrder,
+            fullSpace: perms,
+            isWorldConsistent: consistent,
+            names: o.names,
+            explanation: `将全部 ${perms.length} 种排列逐一代入检验，只有一种排列同时满足所有线索：${o.plantDesc(plant, o)}。\n${ask.expTail}`,
+            difficulty: o.difficultyBase + 0.45 * (o.n - 3) + 0.25 * (clues.length - 3),
+            verifyAgain: () => {
+                let c = 0;
+                for (const p of perms) if (consistent(p)) c++;
+                return (c === 1 && consistent(plant)) ? true : '复算解数=' + c;
+            }
+        });
+        if (q) { q.clueCount = clues.length; recordShape(o.typeId, o.shapeOf ? o.shapeOf(q) : o.n); return q; }
+    }
+    return null;
+}
+function clueLines(clues) { return clues.map((c, i) => `${CIRCLED[i] || '·'} ${c.text}`).join('\n'); }
+
+/* ---------- 题型6：职业匹配 ---------- */
+registerType({ id: 'jobMatch', name: '职业匹配', base: 2.4, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    if (!shapeDiffers('jobMatch', 'P:' + n) && !shapeDiffers('jobMatch', 'S:' + n)) n = n >= 6 ? 3 : n + 1; /* 同人数双问法都已用过才换人数 */
+    const names = rnd.sample(NAMES, n);
+    const slots = rnd.sample(JOBS, n);
+    return makePermPuzzle({
+        n, names, typeId: 'jobMatch', typeName: '职业匹配', difficultyBase: 2.4,
+        makers: [
+            (plant) => { const i = rnd.int(0, n - 1); return { direct: true, text: `${names[i]}的职业是${slots[plant[i]]}`, ok: p => p[i] === plant[i], reveal: { p: i, v: plant[i] } }; },
+            (plant) => { const i = rnd.int(0, n - 1); let j = rnd.int(0, n - 1); while (j === plant[i]) j = rnd.int(0, n - 1); return { text: `${names[i]}不是${slots[j]}`, ok: p => p[i] !== j }; },
+            (plant) => { const [i1, i2] = distinctIdx2(n); let j = rnd.int(0, n - 1); while (j === plant[i1] || j === plant[i2]) j = rnd.int(0, n - 1); return { text: `${names[i1]}和${names[i2]}都不是${slots[j]}`, ok: p => p[i1] !== j && p[i2] !== j }; }
+        ],
+        stemIntro: (o, clues) => `${andText(names)}分别从事不同的职业（职业恰为：${slots.join('、')}，每人一种、一一对应）。已知以下线索全部属实：\n${clueLines(clues)}`,
+        shapeOf: q => (q.rule.includes('的职业是') && q.rule.startsWith('（请问：谁') ? 'S:' : 'P:') + n,
+        plantDesc: plant => names.map((nm, i) => `${nm}=${slots[plant[i]]}`).join('，'),
+        buildAsk: (plant, o, reveals, deep) => {
+            /* 双问法：问"某人的职业" / 问"某职业是谁"，卷内第二题强制换问法；优先选需深推理的对象 */
+            const prevJ = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['jobMatch']) || '';
+            const wantSlot = prevJ ? !prevJ.startsWith('S') : rnd.chance(0.5);
+            if (wantSlot) {
+                const freeSlots = slots.map((_, j) => j).filter(j => !reveals.some(r => r.v === j));
+                const pool = freeSlots.filter(j => deep.deepV.includes(j));
+                if (pool.length) {
+                    const j = rnd.pick(pool);
+                    return {
+                        rule: `（请问：谁的职业是${slots[j]}？）`,
+                        claims: names.map((nm, i) => ({ text: nm, match: p => p[i] === j })),
+                        expTail: `所以 ${slots[j]} 是 ${names[plant.indexOf(j)]} 的职业。`
+                    };
+                }
+            }
+            const free = names.map((_, i) => i).filter(i => !reveals.some(r => r.p === i));
+            if (!free.length) return null;
+            const pool2 = free.filter(i => deep.deepP.includes(i));
+            const x = rnd.pick(pool2.length ? pool2 : free);
+            return {
+                rule: `（请问：${names[x]}的职业是什么？）`,
+                claims: slots.map((s, j) => ({ text: s, match: p => p[x] === j })),
+                expTail: `所以 ${names[x]} 是 ${slots[plant[x]]}。`
+            };
+        }
+    });
+}});
+
+/* ---------- 题型7：座次推理 ---------- */
+registerType({ id: 'seating', name: '座次推理', base: 2.9, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    if (!shapeDiffers('seating', 'P:' + n) && !shapeDiffers('seating', 'S:' + n)) n = n >= 6 ? 3 : n + 1;
+    /* 跨题型互斥：与"名次推理/楼层推理"同卷时强制错开人数（同为 N 元线性排序时路径雷同） */
+    for (const other of ['ranking', 'rooms']) {
+        const oN = ((PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes[other]) || '').split(':')[1];
+        if (oN && parseInt(oN, 10) === n) n = n >= 6 ? 4 : n + 2;
+    }
+    const names = rnd.sample(NAMES, n);
+    const posText = i => `第${i + 1}位`;
+    return makePermPuzzle({
+        n, names, typeId: 'seating', typeName: '座次推理', difficultyBase: 2.9, keepOrder: true,
+        makers: [
+            (plant) => { const i = rnd.int(0, n - 1); return { direct: true, text: `${names[i]}坐在从左数第${plant[i] + 1}个位置`, ok: p => p[i] === plant[i], reveal: { p: i, v: plant[i] } }; },
+            (plant) => { const i = rnd.int(0, n - 1); let k = rnd.int(0, n - 1); while (k === plant[i]) k = rnd.int(0, n - 1); return { text: `${names[i]}不坐在第${k + 1}位`, ok: p => p[i] !== k }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (plant[j] !== plant[i] + 1) return null; return { text: `${names[i]}紧挨着坐在${names[j]}的左边`, ok: p => p[j] === p[i] + 1 }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (!(plant[j] > plant[i])) return null; return { text: `${names[i]}坐在${names[j]}的左边（不一定紧挨着）`, ok: p => p[j] > p[i] }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (Math.abs(plant[i] - plant[j]) !== 1) return null; return { text: `${names[i]}和${names[j]}相邻而坐`, ok: p => Math.abs(p[i] - p[j]) === 1 }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (Math.abs(plant[i] - plant[j]) <= 1) return null; return { text: `${names[i]}和${names[j]}不相邻`, ok: p => Math.abs(p[i] - p[j]) > 1 }; },
+            (plant) => { const cand = plant.map((v, i) => v === 0 || v === n - 1 ? i : -1).filter(i => i >= 0); if (!cand.length) return null; const i = rnd.pick(cand); const side = plant[i] === 0 ? '最左边' : '最右边'; return { direct: true, text: `${names[i]}坐在${side}`, ok: p => p[i] === plant[i], reveal: { p: i, v: plant[i] } }; }
+        ],
+        stemIntro: (o, clues) => `${andText(names)}从左到右坐成一排，共 ${n} 个位置。已知：\n${clueLines(clues)}`,
+        plantDesc: plant => '从左到右为 ' + names.slice().sort((a, b) => plant[names.indexOf(a)] - plant[names.indexOf(b)]).map(nm => nm).join('、'),
+        shapeOf: q => (q.rule.includes('坐的是谁') ? 'S:' : 'P:') + n,
+        buildAsk: (plant, o, reveals, deep) => {
+            /* 双问法卷内强制交替：问"某位置是谁" / 问"某人坐第几位"；优先选需深推理的对象 */
+            const prevS = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['seating']) || '';
+            const wantSlot = prevS ? !prevS.startsWith('S') : rnd.chance(0.5);
+            if (wantSlot) {
+                const freeSlots = Array.from({ length: n }, (_, k) => k).filter(k => !reveals.some(r => r.v === k));
+                const pool = freeSlots.filter(k => deep.deepV.includes(k));
+                if (pool.length) {
+                    const k = rnd.pick(pool);
+                    return {
+                        rule: `（请问：从左数第 ${k + 1} 个位置坐的是谁？）`,
+                        claims: names.map((nm, i) => ({ text: nm, match: p => p[i] === k })),
+                        expTail: `所以第 ${k + 1} 位是 ${names[plant.indexOf(k)]}。`
+                    };
+                }
+            }
+            const freeP = names.map((_, i) => i).filter(i => !reveals.some(r => r.p === i));
+            if (!freeP.length) return null;
+            const pool2 = freeP.filter(i => deep.deepP.includes(i));
+            const x = rnd.pick(pool2.length ? pool2 : freeP);
+            return {
+                rule: `（请问：${names[x]} 坐在从左数第几位？）`,
+                claims: Array.from({ length: n }, (_, k) => ({ text: posText(k), match: p => p[x] === k })),
+                expTail: `所以 ${names[x]} 坐在第 ${plant[x] + 1} 位。`
+            };
+        }
+    });
+}});
+
+/* ---------- 题型8：名次推理 ---------- */
+registerType({ id: 'ranking', name: '名次推理', base: 3.0, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    if (!shapeDiffers('ranking', 'P:' + n) && !shapeDiffers('ranking', 'S:' + n)) n = n >= 6 ? 3 : n + 1;
+    /* 跨题型互斥：与"座次推理/楼层推理"同卷时强制错开人数（同为 N 元线性排序时路径雷同） */
+    for (const other of ['seating', 'rooms']) {
+        const oN = ((PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes[other]) || '').split(':')[1];
+        if (oN && parseInt(oN, 10) === n) n = n >= 6 ? 4 : n + 2;
+    }
+    const names = rnd.sample(NAMES, n);
+    return makePermPuzzle({
+        n, names, typeId: 'ranking', typeName: '名次推理', difficultyBase: 3.0, keepOrder: true,
+        makers: [
+            (plant) => { const i = rnd.int(0, n - 1); return { direct: true, text: `${names[i]}获得了第${plant[i] + 1}名`, ok: p => p[i] === plant[i], reveal: { p: i, v: plant[i] } }; },
+            (plant) => { const i = rnd.int(0, n - 1); let k = rnd.int(0, n - 1); while (k === plant[i]) k = rnd.int(0, n - 1); return { text: `${names[i]}不是第${k + 1}名`, ok: p => p[i] !== k }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (!(plant[i] < plant[j])) return null; return { text: `${names[i]}的名次比${names[j]}好`, ok: p => p[i] < p[j] }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (plant[i] !== plant[j] + 1) return null; return { text: `${names[i]}的名次紧随${names[j]}之后`, ok: p => p[i] === p[j] + 1 }; },
+            (plant) => { const cand = plant.map((v, i) => v === 0 ? i : -1).filter(i => i >= 0); if (!cand.length) return null; const i = rnd.pick(cand); return { direct: true, text: `${names[i]}拿了第一名`, ok: p => p[i] === 0, reveal: { p: i, v: 0 } }; },
+            (plant) => { const cand = plant.map((v, i) => v === n - 1 ? i : -1).filter(i => i >= 0); if (!cand.length) return null; const i = rnd.pick(cand); return { direct: true, text: `${names[i]}排名垫底`, ok: p => p[i] === n - 1, reveal: { p: i, v: n - 1 } }; }
+        ],
+        stemIntro: (o, clues) => `${andText(names)}同场竞技，名次互不相同（第 1 名最好）。赛后得知：\n${clueLines(clues)}`,
+        shapeOf: q => (q.rule.includes('获得了第') ? 'S:' : 'P:') + n,
+        plantDesc: plant => names.slice().sort((a, b) => plant[names.indexOf(a)] - plant[names.indexOf(b)]).map((nm, r) => `第${r + 1}名:${nm}`).join('，'),
+        buildAsk: (plant, o, reveals, deep) => {
+            /* 双问法卷内强制交替：问"第k名是谁" / 问"某人第几名"；优先选需深推理的对象 */
+            const prevR = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['ranking']) || '';
+            const wantSlot = prevR ? !prevR.startsWith('S') : rnd.chance(0.5);
+            const freeSlots = Array.from({ length: n }, (_, k) => k).filter(k => !reveals.some(r => r.v === k));
+            const slotPool = freeSlots.filter(k => deep.deepV.includes(k));
+            if (wantSlot && slotPool.length) {
+                const k = rnd.pick(slotPool);
+                return {
+                    rule: `（请问：谁获得了第 ${k + 1} 名？）`,
+                    claims: names.map((nm, i) => ({ text: nm, match: p => p[i] === k })),
+                    expTail: `所以第 ${k + 1} 名是 ${names[plant.indexOf(k)]}。`
+                };
+            }
+            const free = names.map((_, i) => i).filter(i => !reveals.some(r => r.p === i));
+            if (!free.length) return null;
+            const pool2 = free.filter(i => deep.deepP.includes(i));
+            const x = rnd.pick(pool2.length ? pool2 : free);
+            return {
+                rule: `（请问：${names[x]} 获得了第几名？）`,
+                claims: Array.from({ length: n }, (_, k) => ({ text: `第${k + 1}名`, match: p => p[x] === k })),
+                expTail: `所以 ${names[x]} 得了第 ${plant[x] + 1} 名。`
+            };
+        }
+    });
+}});
+
+/* ---------- 题型9：楼层推理 ---------- */
+registerType({ id: 'rooms', name: '楼层推理', base: 2.2, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    /* 跨题型互斥：与"座次推理/名次推理"同卷时强制错开人数（同为 N 元线性排序时路径雷同） */
+    for (const other of ['seating', 'ranking']) {
+        const oN = ((PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes[other]) || '').split(':')[1];
+        if (oN && parseInt(oN, 10) === n) n = n >= 6 ? 4 : n + 2;
+    }
+    const names = rnd.sample(NAMES, n);
+    return makePermPuzzle({
+        n, names, typeId: 'rooms', typeName: '楼层推理', difficultyBase: 2.2, keepOrder: true,
+        makers: [
+            (plant) => { const i = rnd.int(0, n - 1); return { direct: true, text: `${names[i]}住在${plant[i] + 1}楼`, ok: p => p[i] === plant[i], reveal: { p: i, v: plant[i] } }; },
+            (plant) => { const i = rnd.int(0, n - 1); let k = rnd.int(0, n - 1); while (k === plant[i]) k = rnd.int(0, n - 1); return { text: `${names[i]}不住${k + 1}楼`, ok: p => p[i] !== k }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (!(plant[i] > plant[j])) return null; return { text: `${names[i]}住在${names[j]}楼上`, ok: p => p[i] > p[j] }; },
+            (plant) => { const [i, j] = distinctIdx2(n); if (Math.abs(plant[i] - plant[j]) !== 2) return null; return { text: `${names[i]}和${names[j]}的楼层相差 2 层`, ok: p => Math.abs(p[i] - p[j]) === 2 }; },
+            (plant) => { const [i, j] = distinctIdx2(n); const d = plant[i] - plant[j]; if (d !== 1 && d !== 2) return null; return { text: `${names[i]}恰好在${names[j]}的上面第 ${d} 层`, ok: p => p[i] - p[j] === d }; }
+        ],
+        stemIntro: (o, clues) => `一栋 ${n} 层的小楼里，${andText(names)}各住一层（每层仅住一人）。已知：\n${clueLines(clues)}`,
+        shapeOf: q => (q.rule.includes('住的是谁') ? 'S:' : 'P:') + n,
+        plantDesc: plant => names.map((nm, i) => `${nm}=${plant[i] + 1}楼`).join('，'),
+        buildAsk: (plant, o, reveals, deep) => {
+            /* 双问法卷内强制交替：问"某人住几楼" / 问"某楼住的是谁"；优先选需深推理的对象 */
+            const prevR2 = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['rooms']) || '';
+            const wantSlot = prevR2 ? !prevR2.startsWith('S') : rnd.chance(0.5);
+            if (wantSlot) {
+                const freeSlots = Array.from({ length: n }, (_, k) => k).filter(k => !reveals.some(r => r.v === k));
+                const pool = freeSlots.filter(k => deep.deepV.includes(k));
+                if (pool.length) {
+                    const k = rnd.pick(pool);
+                    return {
+                        rule: `（请问：${k + 1} 楼住的是谁？）`,
+                        claims: names.map((nm, i) => ({ text: nm, match: p => p[i] === k })),
+                        expTail: `所以 ${k + 1} 楼住的是 ${names[plant.indexOf(k)]}。`
+                    };
+                }
+            }
+            const free = names.map((_, i) => i).filter(i => !reveals.some(r => r.p === i));
+            if (!free.length) return null;
+            const pool2 = free.filter(i => deep.deepP.includes(i));
+            const x = rnd.pick(pool2.length ? pool2 : free);
+            return {
+                rule: `（请问：${names[x]} 住在几楼？）`,
+                claims: Array.from({ length: n }, (_, k) => ({ text: `${k + 1} 楼`, match: p => p[x] === k })),
+                expTail: `所以 ${names[x]} 住 ${plant[x] + 1} 楼。`
+            };
+        }
+    });
+}});
+
+/* ---------- 题型15：条件配对（宝物） ---------- */
+registerType({ id: 'condPerm', name: '条件配对', base: 4.2, gen(cfg) {
+    const n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(5, cfg.pmax), cfg.target)), 3, 5);
+    const names = rnd.sample(NAMES, n);
+    const items = rnd.sample(TREASURES, n);
+    return makePermPuzzle({
+        n, names, typeId: 'condPerm', typeName: '条件配对', difficultyBase: 4.2,
+        makers: [
+            (plant) => { const i = rnd.int(0, n - 1); return { direct: true, text: `${names[i]}拿到的正是${items[plant[i]]}`, ok: p => p[i] === plant[i], reveal: { p: i, v: plant[i] } }; },
+            (plant, o, ctx) => {
+                for (let t2 = 0; t2 < 6; t2++) {
+                    const i = rnd.int(0, n - 1); let j = rnd.int(0, n - 1); while (j === plant[i]) j = rnd.int(0, n - 1);
+                    if ((ctx && ctx.clues ? ctx.clues : []).filter(c => c.negSlot === j).length >= 2) continue; /* 同物否定线索至多 2 条 */
+                    return { negSlot: j, negP: i, text: `${names[i]}拿的不是${items[j]}`, ok: p => p[i] !== j };
+                }
+                return null;
+            },
+            (plant, o, ctx) => {
+                for (let t2 = 0; t2 < 8; t2++) {
+                    const [a, b] = distinctIdx2(n);
+                    const A = plant[a];
+                    /* 前件避免已被正面线索点名，否则形成"直读条件链"送分 */
+                    const revealed = (ctx && ctx.clues ? ctx.clues : []).some(c => c.direct && c.reveal && c.reveal.p === a && c.reveal.v === A);
+                    if (revealed) continue;
+                    if (rnd.chance(0.5)) {
+                        const B = plant[b];
+                        return { ante: { p: a, v: A }, text: `如果${names[a]}拿的是${items[A]}，那么${names[b]}拿的就是${items[B]}`, ok: p => p[a] !== A || p[b] === B };
+                    }
+                    /* 反向条件句：前件在真实分配下为假，但排除特定组合，有真实约束力 */
+                    let A2 = rnd.int(0, n - 1); while (A2 === plant[a]) A2 = rnd.int(0, n - 1);
+                    const B2 = plant[b];
+                    return { ante: { p: a, v: A2 }, text: `如果${names[a]}拿的不是${items[A2]}，那么${names[b]}拿的一定是${items[B2]}`, ok: p => p[a] === A2 || p[b] === B2 };
+                }
+                return null;
+            }
+        ],
+        postCheck: (clues, perms) => {
+            /* 条件配对必须名副其实：≥1 条条件句；前件不被任何线索（正面指派或否定式）就同一(人,物)先行断定，
+             * 防止"④的前件就是②的原文"这类条件句坍缩为直接断言、与纯排除法题型路径同构 */
+            const conds = clues.filter(c => c.ante);
+            if (!conds.length) return false;
+            const directs = clues.filter(c => c.direct && c.reveal);
+            const negs = clues.filter(c => c.negSlot !== undefined);
+            if (!conds.every(c =>
+                !directs.some(d => d.reveal.p === c.ante.p && d.reveal.v === c.ante.v) &&
+                !negs.some(n => n.negP === c.ante.p && n.negSlot === c.ante.v)
+            )) return false;
+            const nonCond = clues.filter(c => !c.ante);
+            return perms.filter(p => nonCond.every(cl => cl.ok(p))).length > 1;
+        },
+        stemIntro: (o, clues) => `寻宝结束后，${andText(names)}各分得一件宝物（${items.join('、')}，每人一件、互不相同）。以下线索全部属实：\n${clueLines(clues)}`,
+        shapeOf: q => (q.rule.includes('谁拿到的是') ? 'S:' : 'P:') + n,
+        plantDesc: plant => names.map((nm, i) => `${nm}=${items[plant[i]]}`).join('，'),
+        buildAsk: (plant, o, reveals, deep) => {
+            /* 双问法：问"某人拿到什么" / 问"某物被谁拿到"，卷内第二题强制换问法；优先选需深推理的对象 */
+            const prevC = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['condPerm']) || '';
+            const wantSlot = prevC ? !prevC.startsWith('S') : rnd.chance(0.5);
+            if (wantSlot) {
+                const freeSlots = items.map((_, j) => j).filter(j => !reveals.some(r => r.v === j));
+                const pool = freeSlots.filter(j => deep.deepV.includes(j));
+                if (pool.length) {
+                    const j = rnd.pick(pool);
+                    return {
+                        rule: `（请问：谁拿到的是${items[j]}？）`,
+                        claims: names.map((nm, i) => ({ text: nm, match: p => p[i] === j })),
+                        expTail: `所以 ${items[j]} 在 ${names[plant.indexOf(j)]} 手上。`
+                    };
+                }
+            }
+            const free = names.map((_, i) => i).filter(i => !reveals.some(r => r.p === i));
+            if (!free.length) return null;
+            const pool2 = free.filter(i => deep.deepP.includes(i));
+            const x = rnd.pick(pool2.length ? pool2 : free);
+            return {
+                rule: `（请问：${names[x]} 拿到的是什么？）`,
+                claims: items.map((it, j) => ({ text: it, match: p => p[x] === j })),
+                expTail: `所以 ${names[x]} 拿的是 ${items[plant[x]]}。`
+            };
+        }
+    });
+}});
+
+/* ---------- 题型18：开关谜题 ---------- */
+registerType({ id: 'switchLamp', name: '开关谜题', base: 4.5, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(5, cfg.pmax), cfg.target)), 3, 5);
+    if (!shapeDiffers('switchLamp', 'P:' + n) && !shapeDiffers('switchLamp', 'S:' + n)) n = n >= 5 ? 3 : n + 1;
+    const lamps = rnd.sample(LAMPS, n);
+    const sw = i => `开关${i + 1}`;
+    const lampSet = (p, subset) => subset.map(i => lamps[p[i]]).sort().join('＋');
+    let singleUsed = false;
+    return makePermPuzzle({
+        n, names: null, typeId: 'switchLamp', typeName: '开关谜题', difficultyBase: 4.5,
+        makers: [
+            (plant, o, ctx) => {
+                if (singleUsed || rnd.chance(0.75)) {
+                    const [a, b] = distinctIdx2(n);
+                    const subset = [a, b];
+                    const obs = lampSet(plant, subset);
+                    /* 按开关集合（无序）去重：避免"开1和3"与"开3和1"成为重复实验 */
+                    const key = 'pair:' + subset.slice().sort((x, y) => x - y).join(',');
+                    if (ctx.clues.some(c => c.pairKey === key)) return null;
+                    return { pairKey: key, text: `同时打开 ${sw(a)} 和 ${sw(b)}，亮起来的是：${obs}`, ok: p => lampSet(p, subset) === obs };
+                }
+                singleUsed = true;
+                const i = rnd.int(0, n - 1);
+                const obs = lampSet(plant, [i]);
+                return { direct: true, text: `只打开 ${sw(i)}，亮起来的是：${obs}`, ok: p => lampSet(p, [i]) === obs, reveal: { p: i, v: plant[i] } };
+            }
+        ],
+        stemIntro: (o, clues) => `配电室里有 ${n} 个开关，一一对应控制隔壁房间的 ${n} 盏灯（${lamps.join('、')}，一一对应、无交叉）。电工做了几次实验：\n${clueLines(clues)}`,
+        plantDesc: plant => plant.map((l, i) => `${sw(i)}→${lamps[l]}`).join('，'),
+        shapeOf: q => (q.rule.includes('由哪个开关') ? 'S:' : 'P:') + n,
+        buildAsk: (plant, o, reveals, deep) => {
+            /* 双问法卷内强制交替：问"开关控制哪盏灯" / 问"灯由哪个开关控制"；优先选需深推理的对象 */
+            const prevW = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['switchLamp']) || '';
+            const wantSlot = prevW ? !prevW.startsWith('S') : rnd.chance(0.5);
+            if (wantSlot) {
+                const freeLamps = lamps.map((_, j) => j).filter(j => !reveals.some(r => r.v === j));
+                const pool = freeLamps.filter(j => deep.deepV.includes(j));
+                if (pool.length) {
+                    const j = rnd.pick(pool);
+                    return {
+                        rule: `（请问：${lamps[j]} 由哪个开关控制？）`,
+                        claims: Array.from({ length: n }, (_, i) => ({ text: sw(i), match: p => p[i] === j })),
+                        expTail: `所以 ${lamps[j]} 由 ${sw(plant.indexOf(j))} 控制。`
+                    };
+                }
+            }
+            const free = Array.from({ length: n }, (_, i) => i).filter(i => !reveals.some(r => r.p === i));
+            if (!free.length) return null;
+            const pool2 = free.filter(i => deep.deepP.includes(i));
+            const k = rnd.pick(pool2.length ? pool2 : free);
+            return {
+                rule: `（请问：${sw(k)} 控制的是哪盏灯？）`,
+                claims: lamps.map((l, j) => ({ text: l, match: p => p[k] === j })),
+                expTail: `所以 ${sw(k)} 控制 ${lamps[plant[k]]}。`
+            };
+        }
+    });
+}});
+
+/* ================= 5. 引擎C：身份指派家族（骑士/数量骑士/三种身份） ================= */
+function enumBitMasks(n) { const r = []; for (let m = 0; m < (1 << n); m++) r.push(m); return r; }
+function maskToArr(m, n) { const a = []; for (let i = 0; i < n; i++) a.push(!!(m & (1 << i))); return a; }
+
+/* ---------- 题型2：骑士与骗子 ---------- */
+registerType({ id: 'knights', name: '骑士骗子', base: 3.8, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    if (!shapeDiffers('knights', n)) n = n >= 6 ? 3 : n + 1;
+    for (let att = 0; att < 600; att++) {
+        const names = rnd.sample(NAMES, n);
+        const stmts = [];
+        let ok = true;
+        for (let i = 0; i < n; i++) {
+            let s = null;
+            for (let t = 0; t < 10; t++) {
+                const r = Math.random();
+                if (r < 0.3) { const a = rnd.int(0, n - 1); s = { text: `${names[a]}是骑士`, fn: m => !!(m & (1 << a)) }; }
+                else if (r < 0.55) { const a = rnd.int(0, n - 1); s = { text: `${names[a]}是骗子`, fn: m => !(m & (1 << a)) }; }
+                else if (r < 0.65) s = { text: `我如假包换，是骑士`, fn: m => !!(m & (1 << i)) }; /* 内容=说话人确是骑士：两种身份都自洽（骗子说此话内容为假），是干扰句 */
+                else if (r < 0.78) { const m = rnd.int(1, n - 1); let c = 0; for (let b = 0; b < n; b++) if (m & (1 << b)) c++; s = { text: `我们之中恰好有 ${m} 个骑士`, fn: mm => { let c2 = 0; for (let b = 0; b < n; b++) if (mm & (1 << b)) c2++; return c2 === m; } }; }
+                else if (r < 0.88) { const [a, b] = distinctIdx2(n); s = { text: `${names[a]}和${names[b]}是同一种人`, fn: m => !!((m & (1 << a)) > 0) === !!(m & (1 << b)) }; }
+                else { const [a, b] = distinctIdx2(n); s = { text: `${names[a]}和${names[b]}都是骑士`, fn: m => (m & (1 << a)) && (m & (1 << b)) }; }
+                if (!stmts.some(x => x.text === s.text)) break;
+            }
+            if (!s) { ok = false; break; }
+            stmts.push(s);
+        }
+        if (!ok) continue;
+        const consistent = m => stmts.every((st, i) => st.fn(m) === !!(m & (1 << i)));
+        const sols = enumBitMasks(n).filter(consistent);
+        if (sols.length !== 1) continue;
+        const sol = sols[0];
+        const knightCount = maskToArr(sol, n).filter(Boolean).length;
+        const claims = [];
+        let askName = null;
+        if (knightCount === 1) {
+            askName = '谁是唯一的骑士';
+            names.forEach((nm, i) => claims.push({ text: `只有${nm}是骑士`, match: m => m === (1 << i) }));
+        } else if (knightCount === n - 1) {
+            askName = '谁是唯一的骗子';
+            names.forEach((nm, i) => claims.push({ text: `只有${nm}是骗子`, match: m => m === (((1 << n) - 1) ^ (1 << i)) }));
+        } else {
+            const x = rnd.int(0, n - 1);
+            askName = `${names[x]}的真实身份是`;
+            /* 第三干扰项：选一个与 x 身份不同的人，"同类"断言在唯一解下为假 */
+            const solArr = maskToArr(sol, n);
+            const diffY = names.map((_, i) => i).filter(i => i !== x && solArr[i] !== solArr[x]);
+            claims.push({ text: `${names[x]}是骑士`, match: m => !!(m & (1 << x)) });
+            claims.push({ text: `${names[x]}是骗子`, match: m => !(m & (1 << x)) });
+            if (diffY.length) {
+                const y = rnd.pick(diffY);
+                claims.push({ text: `${names[x]}和${names[y]}是同一种人`, match: m => !!((m & (1 << x)) > 0) === !!((m & (1 << y)) > 0) });
+            } else {
+                claims.push({ text: `${names[x]}既是骑士又是骗子`, match: () => false });
+            }
+            claims.push({ text: `无法确定${names[x]}的身份`, match: () => false });
+        }
+        const chosen = claims.length > 6 ? rnd.shuffle([...claims.slice(0, 1), ...rnd.sample(claims.slice(1), Math.min(5, claims.length - 1))]) : claims;
+        const ver = maskToArr(sol, n);
+        const expRows = stmts.map((st, i) => `${names[i]}（${ver[i] ? '骑士' : '骗子'}）说「${st.text}」→ 该话实际为${st.fn(sol) ? '真' : '假'}，与其身份${st.fn(sol) === ver[i] ? '相符' : '矛盾'}`).join('；\n');
+        const q = buildClaimQuestion({
+            typeId: 'knights', typeName: '骑士骗子',
+            stem: `真理之门前的 ${n} 名守卫，要么是永远说真话的骑士，要么是永远说假话的骗子。\n${stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n')}`,
+            rule: `（请判断：${askName}？）`,
+            claims: chosen,
+            fullSpace: enumBitMasks(n),
+            isWorldConsistent: consistent,
+            names,
+            explanation: `骑士的话必须为真、骗子的话必须为假。对 ${1 << n} 种身份组合全部程序化检验，仅有一种自洽：${names.map((nm, i) => `${nm}=${ver[i] ? '骑士' : '骗子'}`).join('，')}。\n代入核验：\n${expRows}。`,
+            difficulty: 3.8 + 0.45 * (n - 3) + (knightCount === 1 || knightCount === n - 1 ? 0 : 0.4),
+            verifyAgain: () => sols.length === 1 && consistent(sol) ? true : '复算失败'
+        });
+        if (q) { recordShape('knights', n); return q; }
+    }
+    return null;
+}});
+
+/* ---------- 题型22：数量骑士 ---------- */
+registerType({ id: 'quantKnights', name: '数量骑士', base: 5.9, gen(cfg) {
+    let n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(6, cfg.pmax), cfg.target)), 3, 6);
+    if (!shapeDiffers('quantKnights', 'A' + n) && !shapeDiffers('quantKnights', 'B' + n)) n = n >= 6 ? 3 : n + 1;
+    for (let att = 0; att < 600; att++) {
+        const names = rnd.sample(NAMES, n);
+        const kc = m => { let c = 0; for (let b = 0; b < n; b++) if (m & (1 << b)) c++; return c; };
+        const stmts = [];
+        let ok = true;
+        for (let i = 0; i < n; i++) {
+            let s = null;
+            for (let t = 0; t < 10; t++) {
+                const r = Math.random();
+                if (r < 0.3) { const m = rnd.int(1, n - 1); s = { text: `我们之中至少有 ${m} 个骗子`, fn: mm => (n - kc(mm)) >= m }; }
+                else if (r < 0.55) { const m = rnd.int(1, n - 1); s = { text: `说真话的人顶多 ${m} 个`, fn: mm => kc(mm) <= m }; }
+                else if (r < 0.7) s = { text: `骗子的人数比骑士多`, fn: mm => (n - kc(mm)) > kc(mm) };
+                else if (r < 0.85) { const [a, b] = distinctIdx2(n); s = { text: `${names[a]}和${names[b]}中恰有一人在撒谎`, fn: mm => !!((mm & (1 << a)) > 0) !== !!(mm & (1 << b)) }; }
+                else { const [a, b] = distinctIdx2(n); s = { text: `${names[a]}和${names[b]}是同一种人`, fn: mm => !!((mm & (1 << a)) > 0) === !!(mm & (1 << b)) }; }
+                if (!stmts.some(x => x.text === s.text)) break;
+            }
+            if (!s) { ok = false; break; }
+            stmts.push(s);
+        }
+        if (!ok) continue;
+        const consistent = m => stmts.every((st, i) => st.fn(m) === !!(m & (1 << i)));
+        const sols = enumBitMasks(n).filter(consistent);
+        if (sols.length !== 1) continue;
+        const sol = sols[0], cnt = kc(sol);
+        /* 双问法：A=数骑士（数量论证）；B=判断某人身份（定性论证）；卷内第二题强制换问法 */
+        const prevQ = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['quantKnights']) || '';
+        const mode = prevQ.startsWith('A') ? 'B' : (prevQ.startsWith('B') ? 'A' : (rnd.chance(0.5) ? 'A' : 'B'));
+        const ver = maskToArr(sol, n);
+        let q;
+        if (mode === 'B') {
+            const x = rnd.int(0, n - 1);
+            q = buildClaimQuestion({
+                typeId: 'quantKnights', typeName: '数量骑士',
+                stem: `${andText(names)}围坐一圈，每人非骑士即骗子（骑士永真、骗子永假）。\n${stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n')}`,
+                rule: `（请判断：${names[x]} 到底是骑士还是骗子？）`,
+                claims: [
+                    { text: `${names[x]}是骑士`, match: w => !!(w & (1 << x)) },
+                    { text: `${names[x]}是骗子`, match: w => !(w & (1 << x)) },
+                    { text: `${names[x]}既是骑士又是骗子`, match: () => false },
+                    { text: `无法确定${names[x]}的身份`, match: () => false }
+                ],
+                fullSpace: enumBitMasks(n),
+                isWorldConsistent: consistent,
+                names,
+                explanation: `对 ${1 << n} 种身份组合逐一程序化检验，仅有一种自洽：${names.map((nm, i) => `${nm}=${ver[i] ? '骑士' : '骗子'}`).join('，')}（共 ${cnt} 个骑士）。据此 ${names[x]} 是${ver[x] ? '骑士' : '骗子'}。`,
+                difficulty: 5.7 + 0.4 * (n - 3),
+                verifyAgain: () => sols.length === 1 ? true : '复算失败'
+            });
+        }
+        if (!q) {
+            const cands = [cnt, cnt + 1, cnt + 2, Math.max(0, cnt - 1), cnt + 3].filter((v, i, a) => v >= 0 && v <= n && a.indexOf(v) === i);
+            const claims = cands.map(m => ({ text: `${m} 个骑士`, match: w => kc(w) === m }));
+            q = buildClaimQuestion({
+                typeId: 'quantKnights', typeName: '数量骑士',
+                stem: `${andText(names)}围坐一圈，每人非骑士即骗子（骑士永真、骗子永假）。\n${stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n')}`,
+                rule: `（请判断：这 ${n} 人中到底有几个骑士？）`,
+                claims,
+                fullSpace: enumBitMasks(n),
+                isWorldConsistent: consistent,
+                names,
+                explanation: `对 ${1 << n} 种身份组合逐一程序化检验，仅有一种自洽：${names.map((nm, i) => `${nm}=${ver[i] ? '骑士' : '骗子'}`).join('，')}，共 ${cnt} 个骑士。其余组合都会出现「骑士说了假话」或「骗子说了真话」的矛盾。`,
+                difficulty: 5.9 + 0.4 * (n - 3),
+                verifyAgain: () => sols.length === 1 ? true : '复算失败'
+            });
+        }
+        if (q) { recordShape('quantKnights', (q.rule.includes('几个骑士') ? 'A' : 'B') + ':' + n); return q; }
+    }
+    return null;
+}});
+
+/* ---------- 题型19：三种身份 ---------- */
+registerType({ id: 'triRoles', name: '三种身份', base: 5.2, gen(cfg) {
+    const n = clamp(Math.round(lerp(Math.max(3, cfg.pmin), Math.min(5, cfg.pmax), cfg.target)), 3, 5);
+    if (!globalThis.__TRI_SPACE) globalThis.__TRI_SPACE = {};
+    if (!globalThis.__TRI_SPACE[n]) {
+        const sp = [];
+        for (let m = 0; m < Math.pow(3, n); m++) { const g = []; let t = m; for (let i = 0; i < n; i++) { g.push(t % 3); t = Math.floor(t / 3); } sp.push(g); }
+        globalThis.__TRI_SPACE[n] = sp;
+    }
+    const space = globalThis.__TRI_SPACE[n];
+    for (let att = 0; att < 500; att++) {
+        const names = rnd.sample(NAMES, n);
+        const focus = rnd.int(0, n - 1); /* 焦点人物：被多句谈论，保证其身份可由他人陈述网络锁定 */
+        const stmts = [];
+        let ok = true;
+        for (let i = 0; i < n; i++) {
+            let s = null;
+            for (let t = 0; t < 10; t++) {
+                const r = Math.random();
+                const other = () => { if (rnd.chance(0.6) && focus !== i) return focus; let a = rnd.int(0, n - 1); while (a === i) a = rnd.int(0, n - 1); return a; };
+                const maybeSelf = () => rnd.chance(0.12) ? i : other();
+                if (r < 0.25) { const a = maybeSelf(); s = { selfRef: a === i, text: a === i ? `我是老实人` : `${names[a]}是老实人`, fn: g => g[a] === 0 }; }
+                else if (r < 0.5) { const a = maybeSelf(); s = { selfRef: a === i, text: a === i ? `我是骗子` : `${names[a]}是骗子`, fn: g => g[a] === 1 }; }
+                else if (r < 0.68) { const a = maybeSelf(); s = { selfRef: a === i, text: a === i ? `我就是个糊涂虫` : `${names[a]}是糊涂虫`, fn: g => g[a] === 2 }; }
+                else if (r < 0.8) { const [a, b] = distinctIdx2(n); s = { text: `${names[a]}和${names[b]}是同一种人`, fn: g => g[a] === g[b] }; }
+                else if (r < 0.9) { const a = other(); s = { text: `${names[a]}绝不是骗子`, fn: g => g[a] !== 1 }; }
+                else s = { selfRef: true, text: `我是老实人`, fn: g => g[i] === 0 }; /* 内容依赖身份：老实人说真、骗子说假，两种身份都自洽，是干扰句 */
+                if (!stmts.some(x => x.text === s.text)) break;
+            }
+            if (!s) { ok = false; break; }
+            stmts.push(s);
+        }
+        if (!ok) continue;
+        const consistent = g => stmts.every((st, i) => g[i] === 0 ? st.fn(g) === true : (g[i] === 1 ? st.fn(g) === false : true));
+        const sols = space.filter(consistent);
+        if (sols.length === 0) continue;
+        /* 糊涂虫不受限 ⇒ 允许多个自洽分配；问法 A：被问者身份在所有自洽分配中恒定；问法 B：糊涂虫数恒定。
+         * 卷内第二题强制换问法，避免"同自指 hinges + 同问法"式重复 */
+        const prevShape = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['triRoles']) || null;
+        const wantMode = prevShape && prevShape[0] === 'A' ? 'B' : (prevShape && prevShape[0] === 'B' ? 'A' : (rnd.chance(0.5) ? 'A' : 'B'));
+        const roleName = ['老实人', '骗子', '糊涂虫'];
+        const stemTxt = `小岛上有三种人：永远说真话的老实人、永远说假话的骗子、时真时假的糊涂虫。${andText(names)}接受问询：\n${stmts.map((st, i) => `${names[i]}说："${st.text}"`).join('\n')}`;
+        /* 优先问"由他人陈述网络锁定"的人；自指句秒答式提问全卷至多一次 */
+        const selfSpk = new Set(stmts.map((st, i) => st.selfRef ? i : -1).filter(i => i >= 0));
+        const canAskSelf = !(PAPER_BUDGET && PAPER_BUDGET.triSelfAsked);
+        const otherDetermined = [], selfDetermined = [];
+        for (let x = 0; x < n; x++) {
+            if (new Set(sols.map(g => g[x])).size !== 1) continue;
+            (selfSpk.has(x) ? selfDetermined : otherDetermined).push(x);
+        }
+        const determined = otherDetermined.length ? otherDetermined : (canAskSelf ? selfDetermined : []);
+        const confusedCounts = new Set(sols.map(g => g.filter(v => v === 2).length));
+        let q = null, usedMode = null, askedIdx = -1;
+        if (wantMode === 'A' && determined.length) {
+            const x = rnd.pick(determined), solRole = sols[0][x];
+            usedMode = 'A'; askedIdx = x;
+            q = buildClaimQuestion({
+                typeId: 'triRoles', typeName: '三种身份',
+                stem: stemTxt,
+                rule: `（请判断：${names[x]} 到底是哪一种人？）`,
+                claims: [
+                    { text: `老实人（永说真话）`, match: g => g[x] === 0 },
+                    { text: `骗子（永说假话）`, match: g => g[x] === 1 },
+                    { text: `糊涂虫（时真时假）`, match: g => g[x] === 2 },
+                    { text: `无法确定`, match: () => false }
+                ],
+                fullSpace: space,
+                requireUniqueWorld: false,
+                isWorldConsistent: consistent,
+                names,
+                explanation: `对全部 ${space.length} 种身份分配逐一检验（老实人的话必须为真、骗子必须为假、糊涂虫说什么都行），自洽分配共 ${sols.length} 种；但在每一种自洽分配里，${names[x]} 的身份都相同——是${roleName[solRole]}。`,
+                difficulty: 5.2 + 0.4 * (n - 3),
+                verifyAgain: () => (sols.length > 0 && sols.every(g => g[x] === solRole)) ? true : '复算失败'
+            });
+        } else {
+            /* 问法 B：身份事实断言（"X 是/不是某身份"在所有自洽分配中恒真者为答案） */
+            const constFacts = [], varFacts = [];
+            for (let x2 = 0; x2 < n; x2++) {
+                for (let v = 0; v < 3; v++) {
+                    if (sols.every(g => g[x2] === v)) constFacts.push({ text: `${names[x2]}是${roleName[v]}`, match: g => g[x2] === v });
+                    else varFacts.push({ text: `${names[x2]}是${roleName[v]}`, match: g => g[x2] === v });
+                    if (sols.every(g => g[x2] !== v)) constFacts.push({ text: `${names[x2]}绝不是${roleName[v]}`, match: g => g[x2] !== v });
+                    else varFacts.push({ text: `${names[x2]}绝不是${roleName[v]}`, match: g => g[x2] !== v });
+                }
+            }
+            if (constFacts.length >= 1 && varFacts.length >= 3) {
+                usedMode = 'B';
+                const picked = [rnd.pick(constFacts), ...rnd.sample(varFacts, 3)];
+                q = buildClaimQuestion({
+                    typeId: 'triRoles', typeName: '三种身份',
+                    stem: stemTxt,
+                    rule: `（请判断：以下哪一项必然正确？）`,
+                    claims: picked,
+                    fullSpace: space,
+                    requireUniqueWorld: false,
+                    semantics: 'all',
+                    isWorldConsistent: consistent,
+                    names,
+                    explanation: `对全部 ${space.length} 种身份分配逐一检验（老实人的话必须为真、骗子必须为假、糊涂虫说什么都行），自洽分配共 ${sols.length} 种。断言「${picked[0].text}」在每一种自洽分配里都成立，其余断言均存在反例。`,
+                    difficulty: 5.6 + 0.4 * (n - 3),
+                    verifyAgain: () => (sols.length > 0 && sols.every(g => picked[0].match(g))) ? true : '复算失败'
+                });
+
+            }
+        }
+        if (!q && determined.length) { /* 首选问法不可用时回退另一问法 */
+            const x = rnd.pick(determined), solRole = sols[0][x];
+            usedMode = 'A'; askedIdx = x;
+            q = buildClaimQuestion({
+                typeId: 'triRoles', typeName: '三种身份',
+                stem: stemTxt,
+                rule: `（请判断：${names[x]} 到底是哪一种人？）`,
+                claims: [
+                    { text: `老实人（永说真话）`, match: g => g[x] === 0 },
+                    { text: `骗子（永说假话）`, match: g => g[x] === 1 },
+                    { text: `糊涂虫（时真时假）`, match: g => g[x] === 2 },
+                    { text: `无法确定`, match: () => false }
+                ],
+                fullSpace: space,
+                requireUniqueWorld: false,
+                isWorldConsistent: consistent,
+                names,
+                explanation: `对全部 ${space.length} 种身份分配逐一检验（老实人的话必须为真、骗子必须为假、糊涂虫说什么都行），自洽分配共 ${sols.length} 种；但在每一种自洽分配里，${names[x]} 的身份都相同——是${roleName[solRole]}。`,
+                difficulty: 5.2 + 0.4 * (n - 3),
+                verifyAgain: () => (sols.length > 0 && sols.every(g => g[x] === solRole)) ? true : '复算失败'
+            });
+        }
+        if (q) {
+            recordShape('triRoles', usedMode + ':' + n);
+            if (usedMode === 'A' && askedIdx >= 0 && selfSpk.has(askedIdx) && PAPER_BUDGET) PAPER_BUDGET.triSelfAsked = true;
+            return q;
+        }
+    }
+    return null;
+}});
+
+/* ================= 6. 专项引擎 ================= */
+
+/* ---------- 题型10：三维匹配 ---------- */
+registerType({ id: 'grid3', name: '三维匹配', base: 5.6, gen(cfg) {
+    const K0 = cfg.target > 0.6 ? 4 : 3;
+    const K = shapeDiffers('grid3', K0) ? K0 : (K0 === 4 ? 3 : 4); /* 卷内第二题换规模 */
+    const names = rnd.sample(NAMES, K);
+    const nats = rnd.sample(NATIONS, K), pets = rnd.sample(PETS, K), drinks = rnd.sample(DRINKS, K);
+    const perms = permEnumerate(K);
+    if (!globalThis.__GRID_SPACE) globalThis.__GRID_SPACE = {};
+    if (!globalThis.__GRID_SPACE[K]) {
+        const sp = [];
+        for (const pn of perms) for (const pp of perms) for (const pd of perms) sp.push({ nat: pn, pet: pp, drink: pd });
+        globalThis.__GRID_SPACE[K] = sp;
+    }
+    const space = globalThis.__GRID_SPACE[K];
+    for (let att = 0; att < 40; att++) {
+        const plant = { nat: rnd.pick(perms), pet: rnd.pick(perms), drink: rnd.pick(perms) };
+        const clues = [], seen = new Set();
+        const makers = [
+            () => { const i = rnd.int(0, K - 1); return { text: `${names[i]}养${pets[plant.pet[i]]}`, ok: a => a.pet[i] === plant.pet[i], reveal: { pet: plant.pet[i], person: i } }; },
+            () => { const i = rnd.int(0, K - 1); return { text: `${names[i]}喝的是${drinks[plant.drink[i]]}`, ok: a => a.drink[i] === plant.drink[i], reveal: { drink: plant.drink[i], person: i } }; },
+            () => { const i = rnd.int(0, K - 1); let j = rnd.int(0, K - 1); while (j === plant.nat[i]) j = rnd.int(0, K - 1); return { text: `${names[i]}不是${nats[j]}`, ok: a => a.nat[i] !== j }; },
+            () => { const i = rnd.int(0, K - 1); return { text: `${names[i]}是${nats[plant.nat[i]]}`, ok: a => a.nat[i] === plant.nat[i], reveal: { nat: plant.nat[i], natPerson: i } }; },
+            () => { const i = rnd.int(0, K - 1); return { text: `养${pets[plant.pet[i]]}的人喝${drinks[plant.drink[i]]}`, ok: a => { const p = a.pet.indexOf(plant.pet[i]); return p >= 0 && a.drink[p] === plant.drink[i]; }, reveal: { crossPet: plant.pet[i], crossDrink: plant.drink[i] } }; },
+            () => { const i = rnd.int(0, K - 1); let j = rnd.int(0, K - 1); while (j === plant.nat[i]) j = rnd.int(0, K - 1); return { text: `喝${drinks[plant.drink[i]]}的人不是${nats[j]}`, ok: a => { const p = a.drink.indexOf(plant.drink[i]); return p >= 0 && a.nat[p] !== j; } }; },
+            () => { const i = rnd.int(0, K - 1); let j = rnd.int(0, K - 1); while (j === plant.pet[i]) j = rnd.int(0, K - 1); return { text: `养${pets[j]}的人不是${names[i]}`, ok: a => { const p = a.pet.indexOf(j); return !(p === i); } }; }
+        ];
+        let guard = 0, directCnt = 0;
+        const directCap = att < 25 ? 1 : K; /* 正面直陈线索至多1条（强化交叉推理），难收敛时放宽 */
+        while (guard++ < 50 && clues.length < 12) {
+            const c = rnd.pick(makers)();
+            if (!c || seen.has(c.text)) continue;
+            const isDirect = c.reveal && (c.reveal.pet !== undefined || c.reveal.drink !== undefined || c.reveal.nat !== undefined);
+            if (isDirect && directCnt >= directCap) continue;
+            if (isDirect) directCnt++;
+            seen.add(c.text);
+            clues.push(c);
+            const sols = space.filter(a => clues.every(cl => cl.ok(a)));
+            if (sols.length === 1 && clues.length >= 3) break;
+        }
+        const consistent = a => clues.every(cl => cl.ok(a));
+        const sols = space.filter(consistent);
+        if (sols.length !== 1 || !consistent(plant) || clues.length < 3) continue;
+        for (let ci = clues.length - 1; ci >= 0 && clues.length > 3; ci--) {
+            const rest = clues.filter((_, j) => j !== ci);
+            if (space.filter(a => rest.every(cl => cl.ok(a))).length === 1) clues.splice(ci, 1);
+        }
+        /* 提问避开被单条线索直接点名的目标（防送分）：六种问法，总有一种可用 */
+        const dirPet = new Set(), dirDrink = new Set(), crossPet = new Set(), crossDrink = new Set(), dirNat = new Set(), dirNatPerson = new Set();
+        clues.forEach(cl => {
+            if (cl.reveal) {
+                if (cl.reveal.pet !== undefined) dirPet.add(cl.reveal.pet);
+                if (cl.reveal.drink !== undefined) dirDrink.add(cl.reveal.drink);
+                if (cl.reveal.crossPet !== undefined) { crossPet.add(cl.reveal.crossPet); crossDrink.add(cl.reveal.crossDrink); }
+                if (cl.reveal.nat !== undefined) { dirNat.add(cl.reveal.nat); dirNatPerson.add(cl.reveal.natPerson); }
+            }
+        });
+        const asks = [];
+        pets.forEach((_, j) => { if (!dirPet.has(j)) asks.push({ kind: 'petPerson', pet: j, get: a => a.pet.indexOf(j) }); });
+        pets.forEach((_, j) => { if (!crossPet.has(j)) asks.push({ kind: 'petDrink', pet: j, get: a => a.drink[a.pet.indexOf(j)] }); });
+        drinks.forEach((_, j) => { if (!dirDrink.has(j)) asks.push({ kind: 'drinkPerson', drink: j, get: a => a.drink.indexOf(j) }); });
+        drinks.forEach((_, j) => { if (!crossDrink.has(j)) asks.push({ kind: 'drinkPet', drink: j, get: a => a.pet[a.drink.indexOf(j)] }); });
+        names.forEach((_, i) => { if (!dirNatPerson.has(i)) asks.push({ kind: 'personNat', person: i, get: a => a.nat[i] }); });
+        nats.forEach((_, j) => { if (!dirNat.has(j)) asks.push({ kind: 'natPerson', nat: j, get: a => a.nat.indexOf(j) }); });
+        if (!asks.length) continue;
+        /* 深解检测：所问值不能被任意 2 条线索的子集锁定（防"两条线索直读答案"） */
+        const fixedBy2g = get => {
+            for (let i = 0; i < clues.length; i++) for (let j = i + 1; j < clues.length; j++) {
+                const s2 = space.filter(a => clues[i].ok(a) && clues[j].ok(a));
+                if (s2.length && new Set(s2.map(get)).size === 1) return true;
+            }
+            return false;
+        };
+        const deepAsks = asks.filter(ak => !fixedBy2g(ak.get));
+        const ask = rnd.pick(deepAsks.length ? deepAsks : asks);
+        let claims, ruleTxt;
+        if (ask.kind === 'petPerson') {
+            claims = names.map((nm, i) => ({ text: nm, match: a => a.pet[i] === ask.pet }));
+            ruleTxt = `（请问：养${pets[ask.pet]}的人是谁？）`;
+        } else if (ask.kind === 'petDrink') {
+            claims = drinks.map((d, j) => ({ text: d, match: a => a.drink[a.pet.indexOf(ask.pet)] === j }));
+            ruleTxt = `（请问：养${pets[ask.pet]}的人喝的是什么饮料？）`;
+        } else if (ask.kind === 'drinkPerson') {
+            claims = names.map((nm, i) => ({ text: nm, match: a => a.drink[i] === ask.drink }));
+            ruleTxt = `（请问：喝${drinks[ask.drink]}的人是谁？）`;
+        } else if (ask.kind === 'drinkPet') {
+            claims = pets.map((p, j) => ({ text: p, match: a => a.pet[a.drink.indexOf(ask.drink)] === j }));
+            ruleTxt = `（请问：喝${drinks[ask.drink]}的人养的是什么宠物？）`;
+        } else if (ask.kind === 'personNat') {
+            claims = nats.map((nt, j) => ({ text: nt, match: a => a.nat[ask.person] === j }));
+            ruleTxt = `（请问：${names[ask.person]}是哪国人？）`;
+        } else {
+            claims = names.map((nm, i) => ({ text: nm, match: a => a.nat[i] === ask.nat }));
+            ruleTxt = `（请问：${nats[ask.nat]}是谁？）`;
+        }
+        const intro = rnd.chance(0.5)
+            ? `${andText(names)}分别来自不同国家、养不同宠物、喝不同饮料（国家恰为：${nats.join('、')}；宠物恰为：${pets.join('、')}；饮料恰为：${drinks.join('、')}，一一对应）。`
+            : `${andText(names)}围桌而坐。他们的国籍（${nats.join('、')}）、宠物（${pets.join('、')}）、饮料（${drinks.join('、')}）各不相同、一一对应。`;
+        const q = buildClaimQuestion({
+            typeId: 'grid3', typeName: '三维匹配',
+            stem: `${intro}\n已知：\n${clueLines(clues)}`,
+            rule: ruleTxt,
+            claims,
+            fullSpace: space,
+            isWorldConsistent: consistent,
+            names,
+            explanation: `对全部 ${space.length} 种「国籍×宠物×饮料」组合程序化检验，仅一种自洽：${names.map((nm, i) => `${nm}=${nats[plant.nat[i]]}/养${pets[plant.pet[i]]}/喝${drinks[plant.drink[i]]}`).join('；')}。`,
+            difficulty: 5.6 + 1.2 * (K - 3),
+            verifyAgain: () => sols.length === 1 && consistent(plant) ? true : '复算失败'
+        });
+        if (q) { recordShape('grid3', K); return q; }
+    }
+    return null;
+}});
+
+/* ---------- 题型11：帽子颜色（认知推理） ---------- */
+registerType({ id: 'hats', name: '帽子颜色', base: 6.2, gen(cfg) {
+    /* 题型专属 3 人规模（3红2蓝经典局）："防争议可宣布性过滤"与"N≥4 首人必不知"在
+     * 4 人以上结构性互斥（中间人合法宣布必使首人看见双蓝而先知），实测 0/200，故固定 3 人 */
+    const N = 3;
+    const R = N - 1; /* 袋中红帽 R+1 顶、蓝帽 2 顶，取出 N 顶戴上，剩 2 顶在袋中 */
+    const prevPattern = ((PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['hats']) || '').split(':')[0] || '';
+    let patternClash = 0;
+    for (let att = 0; att < 300; att++) {
+        const names = rnd.sample(NAMES, N);
+        const plant = Array.from({ length: N }, () => rnd.chance((R + 1) / (R + 3)) ? 1 : 0);
+        if (plant.filter(v => v === 0).length > 2) continue; /* 蓝帽只有 2 顶 */
+        const space = [];
+        for (let m = 0; m < (1 << N); m++) {
+            const a = []; for (let i = 0; i < N; i++) a.push((m >> i) & 1);
+            if (a.filter(v => v === 0).length <= 2) space.push(a);
+        }
+        /* 认知模拟：维护公共知识集合 S，逐人生成「知道/不知道」并更新 S */
+        let S = space.slice();
+        const transcript = [];
+        for (let i = 0; i < N && S.length > 0; i++) {
+            const key = a => a.slice(i + 1).join(',');
+            const groups = new Map();
+            for (const a of S) { const k2 = key(a); if (!groups.has(k2)) groups.set(k2, []); groups.get(k2).push(a); }
+            const Ki = groups.get(key(plant)) || [];
+            const knows = Ki.length > 0 && new Set(Ki.map(a => a[i])).size === 1;
+            if (knows) {
+                const color = Ki[0][i];
+                transcript.push(`${names[i]}说："我知道了——我能推出自己帽子的颜色。"`);
+                S = S.filter(a => { const g = groups.get(key(a)) || []; return a[i] === color && g.length > 0 && new Set(g.map(x => x[i])).size === 1; });
+            } else {
+                transcript.push(`${names[i]}说："抱歉，我猜不出来。"`);
+                S = S.filter(a => { const g = groups.get(key(a)) || []; return !(g.length > 0 && new Set(g.map(x => x[i])).size === 1); });
+            }
+        }
+        if (S.length === 0 || !S.some(a => sameArr(a, plant))) continue;
+        if (!transcript[0].includes('猜不出来') && N > 3) continue; /* 保证有推理含量 */
+        /* 可宣布性过滤：宣布"知道"的人若能看见别人，其结论必须能仅凭所见+帽子池上限朴素推出
+         * （防止"严格公共知识解"与朴素直觉冲突的高争议题）；完全看不见的队尾不受限（经典纯推理模式） */
+        let naiveOk = true;
+        for (let i = 0; i < N && naiveOk; i++) {
+            if (!transcript[i].includes('我知道了') || i === N - 1 || N === 3) continue; /* 3人经典局允许中间人依赖公共知识宣布 */
+            const naive = space.filter(a => sameArr(a.slice(i + 1), plant.slice(i + 1)));
+            if (new Set(naive.map(a => a[i])).size !== 1) naiveOk = false;
+        }
+        if (!naiveOk) continue;
+        /* 对话模式软约束：与卷内上一题相同模式时优先重试（最多 5 次），避免"同模式仅换人名" */
+        const pattern = transcript.map(t => t.includes('我知道了') ? 'k' : 'u').join('');
+        if (pattern === prevPattern && patternClash < 5) { patternClash++; continue; }
+        const determined = [];
+        for (let p = 0; p < N; p++) if (new Set(S.map(a => a[p])).size === 1) determined.push(p);
+        if (!determined.length) continue;
+        /* 对话中宣布者只说"能推出"不念颜色，答案未泄露，所有确定位均匀可问 */
+        const askP = rnd.pick(determined);
+        const ansColor = S[0][askP];
+        const q = buildClaimQuestion({
+            typeId: 'hats', typeName: '帽子颜色',
+            stem: `袋子里有 ${R + 1} 顶红帽和 2 顶蓝帽（共 ${R + 3} 顶），蒙眼取出 ${N} 顶，分别戴在${andText(names)}头上。他们从前到后排成一列（最前是${names[0]}，最后是${names[N - 1]}），每人都能看清排在自己后面的人，但看不见自己和排在自己前面的人；所有人都绝顶聪明且从不说谎。裁判按 ${names.join('→')} 的顺序依次问："你知道自己帽子的颜色吗？"\n${transcript.join('\n')}`,
+            rule: `（请严格推理：${names[askP]} 的帽子到底是什么颜色？）`,
+            claims: [
+                { text: '红色', match: a => a[askP] === 1 },
+                { text: '蓝色', match: a => a[askP] === 0 },
+                { text: '无法确定', match: () => false }
+            ],
+            noPad: true,
+            fullSpace: S.slice(),          /* 世界 = 对话后仍可能的戴法 */
+            requireUniqueWorld: false,      /* 戴法可以不唯一，被问人的颜色必须唯一 */
+            isWorldConsistent: () => true,
+            names,
+            explanation: `与「${R + 1} 红 2 蓝、每人只见身后、人人绝顶聪明」这一公共知识相容、且能逐句复现上述对话的戴法只剩 ${S.length} 种：${S.map(a => a.map(v => v ? '红' : '蓝').join('')).join(' / ')}。每一次「猜不出来」都排除了说话人本可确定颜色的那些戴法。在这些戴法中 ${names[askP]} 的帽色唯一，为${ansColor ? '红' : '蓝'}色。`,
+            difficulty: 6.2 + 0.6 * (N - 3),
+            verifyAgain: () => (S.length >= 1 && S.some(a => sameArr(a, plant)) && new Set(S.map(a => a[askP])).size === 1 && S[0][askP] === ansColor) ? true : '复算失败'
+        });
+        if (q) { recordShape('hats', pattern + ':' + N); return q; }
+    }
+    return null;
+}});
+
+/* ---------- 题型12：说谎星期 ---------- */
+registerType({ id: 'lyingDays', name: '说谎星期', base: 2.0, gen(cfg) {
+    const names = rnd.sample(NAMES, 2);
+    const prevShape = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['lyingDays']) || null;
+    for (let att = 0; att < 800; att++) {
+        const mkSet = () => { const len = rnd.int(2, 3); const s = rnd.int(1, 8 - len); return new Set(Array.from({ length: len }, (_, i) => s + i)); };
+        const S1 = mkSet(), S2 = mkSet();
+        const kind1 = rnd.int(0, 2), kind2 = rnd.int(0, 2);
+        /* 卷内第二题强制换句式组合（无序比较），避免"同两句式仅换人名"式雷同 */
+        const shapeKey = [kind1, kind2].sort().join('');
+        if (prevShape && prevShape === shapeKey) continue;
+        const prev = d => d === 1 ? 7 : d - 1, next = d => d === 7 ? 1 : d + 1;
+        const content = (d, S, kind) => kind === 0 ? !S.has(prev(d)) : (kind === 1 ? S.has(next(d)) : !S.has(next(d)));
+        const sentence = kind => kind === 0 ? '昨天是我的说谎日' : (kind === 1 ? '明天是我说真话的日子' : '明天是我说谎的日子');
+        const rangeText = S => { const arr = [...S]; const a = arr[0], b = arr[arr.length - 1]; return `${DAY_NAMES[a - 1]}到${DAY_NAMES[b - 1]}`; };
+        const consistent = d => (content(d, S1, kind1) === S1.has(d)) && (content(d, S2, kind2) === S2.has(d));
+        const sols = [1, 2, 3, 4, 5, 6, 7].filter(consistent);
+        if (sols.length !== 1) continue;
+        const dSol = sols[0];
+        const claims = DAY_NAMES.map((nm, i) => ({ text: nm, match: d => d === i + 1 }));
+        const rows = [1, 2, 3, 4, 5, 6, 7].map(d =>
+            `${DAY_NAMES[d - 1]}：${names[0]}${S1.has(d) ? '说真话' : '说谎'}而其话内容为${content(d, S1, kind1) ? '真' : '假'}${content(d, S1, kind1) === S1.has(d) ? '✓' : '✗'}；${names[1]}${S2.has(d) ? '说真话' : '说谎'}而其话内容为${content(d, S2, kind2) ? '真' : '假'}${content(d, S2, kind2) === S2.has(d) ? '✓' : '✗'}`
+        ).join('；\n');
+        const q = buildClaimQuestion({
+            typeId: 'lyingDays', typeName: '说谎星期',
+            stem: `${rnd.pick([
+                `${names[0]}在${rangeText(S1)}说真话，其余日子说谎；${names[1]}在${rangeText(S2)}说真话，其余日子说谎。某个时刻两人不约而同地说：`,
+                `${names[0]}只有在${rangeText(S1)}才讲真话，其余日子满嘴谎言；${names[1]}则只在${rangeText(S2)}诚实。这天清晨，两人异口同声：`,
+                `${names[0]}的真话日是${rangeText(S1)}，${names[1]}的真话日是${rangeText(S2)}（其余日子都在撒谎）。审判时两人同时宣称：`
+            ])}\n${names[0]}："${sentence(kind1)}。"\n${names[1]}："${sentence(kind2)}。"`,
+            rule: `（约定：星期一的昨天是星期日，星期日的明天是星期一。请判断：今天是星期几？）`,
+            claims,
+            fullSpace: [1, 2, 3, 4, 5, 6, 7],
+            isWorldConsistent: consistent,
+            names,
+            keepOrder: true,
+            explanation: `逐日核对「当天是否说真话」与「这句话的内容真假」是否一致：\n${rows}。\n只有${DAY_NAMES[dSol - 1]}两人的话都自洽。`,
+            difficulty: 2.0 + (kind1 === 2 || kind2 === 2 ? 0.6 : 0) + (S1.size === 3 || S2.size === 3 ? 0.3 : 0),
+            verifyAgain: () => sols.length === 1 ? true : '复算失败'
+        });
+        if (q) { recordShape('lyingDays', [kind1, kind2].sort().join('')); return q; }
+    }
+    return null;
+}});
+
+/* ---------- 题型13：天平次品 ---------- */
+registerType({ id: 'balance', name: '天平次品', base: 3.2, gen(cfg) {
+    const n = 9; /* 恒 9 枚两称（末级避开式）：3 枚单称题无论如何编排都存在"一称直读"浅解，已弃用 */
+    const coins = Array.from({ length: n }, (_, i) => i);
+    const weighingsFor = odd => {
+        const res = []; let cur = coins.slice();
+        while (cur.length > 1) {
+            const third = cur.length / 3;
+            let A = cur.slice(0, third), B = cur.slice(third, 2 * third), C = cur.slice(2 * third);
+            /* 末级三分的"避开式"称量：当组内恰 3 枚且假币在其中时，称另外两枚——
+             * 保证前一次称量（缩小范围）是必要环节，杜绝"末次不平衡单独定案"的浅解 */
+            if (cur.length === 3 && cur.includes(odd)) {
+                const others = cur.filter(x => x !== odd);
+                A = [others[0]]; B = [others[1]]; C = [odd];
+            }
+            const out = A.includes(odd) ? '左盘轻' : (B.includes(odd) ? '右盘轻' : '平衡');
+            res.push({ A, B, out });
+            cur = out === '左盘轻' ? A : (out === '右盘轻' ? B : C);
+        }
+        return res;
+    };
+    const plant = rnd.int(0, n - 1);
+    const record = weighingsFor(plant);
+    const coinText = i => `第${i + 1}枚`;
+    const claims = coins.map(i => ({ text: coinText(i), match: () => false }));
+    /* 候选世界 = 每种"次品是第 i 枚"的假设 */
+    const worlds = coins.map(i => i);
+    const isCons = w => { const r = weighingsFor(w); return r.length === record.length && r.every((x, j) => x.out === record[j].out && sameArr(x.A, record[j].A) && sameArr(x.B, record[j].B)); };
+    claims.forEach((c, i) => c.match = w => w === i);
+    const rows = coins.map(i => { const r = weighingsFor(i); const fit = r.every((x, j) => x.out === record[j].out); return `假设次品是${coinText(i)}：称量结果应为 ${r.map(x => x.out).join('、')}${fit ? '——吻合✔' : '——不符✘'}`; }).join('；\n');
+    const q = buildClaimQuestion({
+        typeId: 'balance', typeName: '天平次品',
+        stem: `有 ${n} 枚外观完全相同的金币，其中恰有 1 枚是假币，已知假币比真币轻。用精密天平称了 ${record.length} 次：\n${record.map((r, j) => `第${j + 1}次：左盘放 ${r.A.map(coinText).join('、')}，右盘放 ${r.B.map(coinText).join('、')} → 结果：${r.out}`).join('\n')}`,
+        rule: `（请判断：哪一枚是假币？）`,
+        claims,
+        fullSpace: worlds,
+        isWorldConsistent: isCons,
+        names: null,
+        keepOrder: true,
+        explanation: `把"假币是第 i 枚"逐一假设并重放称量：\n${rows}。\n只有一种假设与全部称量结果吻合。`,
+        difficulty: 3.2 + (n === 9 ? 1.8 : 0),
+        verifyAgain: () => { const r = weighingsFor(plant); return r.every((x, j) => x.out === record[j].out) && worlds.filter(isCons).length === 1 ? true : '复算失败'; }
+    });
+    if (q) recordShape('balance', n);
+    return q;
+}});
+
+/* ---------- 题型14：数字密码 ---------- */
+registerType({ id: 'mastermind', name: '数字密码', base: 6.0, gen(cfg) {
+    const L = shapeDiffers('mastermind', cfg.target > 0.55 ? 4 : 3) ? (cfg.target > 0.55 ? 4 : 3) : (cfg.target > 0.55 ? 3 : 4);
+    if (!globalThis.__MM_SPACE) globalThis.__MM_SPACE = {};
+    if (!globalThis.__MM_SPACE[L]) {
+        const sp = [];
+        (function build(cur) {
+            if (cur.length === L) { sp.push(cur.slice()); return; }
+            for (let d = 0; d <= 9; d++) { if (d === 0 && cur.length === 0) continue; if (!cur.includes(d)) { cur.push(d); build(cur); cur.pop(); } }
+        })([]);
+        globalThis.__MM_SPACE[L] = sp;
+    }
+    const space = globalThis.__MM_SPACE[L];
+    for (let att = 0; att < 60; att++) {
+        const code = rnd.pick(space);
+        const fb = (g, c) => { const set = new Set(c); let exact = 0, partial = 0; g.forEach((d, i) => { if (c[i] === d) exact++; else if (set.has(d)) partial++; }); return { exact, partial }; };
+        const clues = [];
+        let survivors = space.slice();
+        let guard = 0;
+        while (guard++ < 9 && (survivors.length > 1 || clues.length < 3)) {
+            const g = rnd.pick(space);
+            if (sameArr(g, code)) continue;
+            const f = fb(g, code);
+            if (clues.some(c => sameArr(c.g, g))) continue;
+            clues.push({ g, f });
+            const prev = survivors.length;
+            survivors = survivors.filter(s => { const f2 = fb(g, s); return f2.exact === f.exact && f2.partial === f.partial; });
+            clues[clues.length - 1].remain = survivors.length;
+            if (survivors.length === 1 && clues.length >= 3) break;
+            if (survivors.length === prev && clues.length > 4) break;
+        }
+        if (survivors.length !== 1 || !sameArr(survivors[0], code) || clues.length < 3) continue;
+        const isCons = s => clues.every(c => { const f2 = fb(c.g, s); return f2.exact === c.f.exact && f2.partial === c.f.partial; });
+        const fbText = f => f.exact === 0 && f.partial === 0 ? '一个数字都不对' : `${f.exact > 0 ? f.exact + ' 个数字正确且位置正确' : ''}${f.exact > 0 && f.partial > 0 ? '，' : ''}${f.partial > 0 ? f.partial + ' 个数字正确但位置不对' : ''}`;
+        /* 双问法：A=完整密码；B=问某一位数字；卷内第二题强制换问法 */
+        const prevMode = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['mastermind']) || '';
+        const mode = prevMode.startsWith('A') ? 'B' : (prevMode.startsWith('B') ? 'A' : (rnd.chance(0.5) ? 'A' : 'B'));
+        let claims, ruleTxt, expTail;
+        if (mode === 'A') {
+            const pool = rnd.shuffle(space.filter(s => !isCons(s) && s.filter(d => code.includes(d)).length >= L - 1));
+            const distract = pool.slice(0, 3);
+            if (distract.length < 3) continue;
+            claims = rnd.shuffle([code, ...distract]).map(v => ({ text: v.join(''), match: s => sameArr(s, v) }));
+            ruleTxt = `（请推理：正确的密码是什么？）`;
+            expTail = `唯一幸存者即密码。`;
+        } else {
+            const d = rnd.int(0, L - 1);
+            const posName = ['第 1 位', '第 2 位', '第 3 位', '第 4 位'][d];
+            const others = rnd.shuffle(Array.from({ length: 10 }, (_, x) => x).filter(x => x !== code[d])).slice(0, 3);
+            claims = rnd.shuffle([code[d], ...others]).map(v => ({ text: String(v), match: s => s[d] === v }));
+            ruleTxt = `（请推理：密码从左数${posName}的数字是多少？）`;
+            expTail = `唯一幸存密码为 ${code.join('')}，其从左数${posName}是 ${code[d]}。`;
+        }
+        const q = buildClaimQuestion({
+            typeId: 'mastermind', typeName: '数字密码',
+            stem: `一个 ${L} 位数字密码锁，各位数字互不相同且不为 0 开头。侦探试了 ${clues.length} 次：\n${clues.map((c, i) => `${CIRCLED[i]} 输入 ${c.g.join('')} → ${fbText(c.f)}`).join('\n')}`,
+            rule: ruleTxt,
+            claims,
+            fullSpace: space,
+            isWorldConsistent: isCons,
+            names: null,
+            keepOrder: mode === 'B', /* 问"某位数字"时选项为有序数字；问完整密码时洗牌 */
+            explanation: `在全部 ${space.length} 个候选密码上逐条过滤：\n${clues.map((c, i) => `${CIRCLED[i]} 之后剩余 ${c.remain} 种可能`).join('；')}。\n${expTail}`,
+            difficulty: 6.0 + (L === 4 ? 1.5 : 0) + (mode === 'B' ? 0.2 : 0),
+            verifyAgain: () => space.filter(isCons).length === 1 && isCons(code) ? true : '复算失败'
+        });
+        if (q) { recordShape('mastermind', mode + ':' + L); return q; }
+    }
+    return null;
+}});
+
+/* ---------- 题型16：血缘推理 ---------- */
+registerType({ id: 'kinship', name: '血缘推理', base: 2.7, gen(cfg) {
+    const M = '男', F = '女';
+    const gG = rnd.chance(0.5) ? M : F;
+    const kidG = rnd.shuffle([M, M, F, F, M, F]).slice(0, 3);
+    const c1g = rnd.chance(0.5) ? M : F, c2g = rnd.chance(0.5) ? M : F;
+    /* 节点: 0=祖辈G, 1..3=子辈(出生顺序即 1<2<3), 4=子辈1的孩子, 5=子辈2的孩子 */
+    const nodes = [
+        { g: gG, parent: -1, age: 70 },
+        { g: kidG[0], parent: 0, age: 40 },
+        { g: kidG[1], parent: 0, age: 38 },
+        { g: kidG[2], parent: 0, age: 36 },
+        { g: c1g, parent: 1, age: 10 },
+        { g: c2g, parent: 2, age: 8 }
+    ];
+    const nameIdx = rnd.shuffle([0, 1, 2, 3, 4, 5]);
+    const names = nameIdx.map(i => NAMES[i]);
+    const nm = i => names[i];
+    const older = (a, b) => nodes[a].age > nodes[b].age;
+    function relation(a, b) {
+        if (a === b) return null;
+        const A = nodes[a], B = nodes[b];
+        if (A.parent === b) return A.g === M ? '儿子' : '女儿';
+        if (B.parent === a) return A.g === M ? '父亲' : '母亲';
+        if (A.parent >= 0 && A.parent === B.parent) return older(a, b) ? (A.g === M ? '哥哥' : '姐姐') : (A.g === M ? '弟弟' : '妹妹');
+        if (A.parent >= 0 && nodes[A.parent].parent === b) return nodes[A.parent].g === M ? (A.g === M ? '孙子' : '孙女') : (A.g === M ? '外孙' : '外孙女');
+        if (B.parent >= 0 && nodes[B.parent].parent === a) return nodes[B.parent].g === M ? (A.g === M ? '爷爷' : '奶奶') : (A.g === M ? '外公' : '外婆');
+        if (B.parent >= 0) { const P = nodes[B.parent]; if (A.parent >= 0 && A.parent === P.parent && a !== B.parent) { if (P.g === M) { return A.g === M ? (older(a, B.parent) ? '伯伯' : '叔叔') : '姑姑'; } return A.g === M ? '舅舅' : '姨妈'; } }
+        if (A.parent >= 0) { const P = nodes[A.parent]; if (B.parent >= 0 && B.parent === P.parent && b !== A.parent) { if (P.g === M) return A.g === M ? '侄子' : '侄女'; return A.g === M ? '外甥' : '外甥女'; } }
+        if (A.parent >= 0 && B.parent >= 0 && nodes[A.parent].parent >= 0 && nodes[A.parent].parent === nodes[B.parent].parent) {
+            const tang = nodes[A.parent].g === M && nodes[B.parent].g === M;
+            return (tang ? '堂' : '表') + (older(a, b) ? (A.g === M ? '哥' : '姐') : (A.g === M ? '弟' : '妹'));
+        }
+        return null;
+    }
+    const supported = [];
+    for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) {
+        const t = relation(a, b);
+        /* 排除直系单边（答案即题干原句）、同辈长幼（排序句直读）、祖辈称谓（爷爷/外公等依赖题干未陈述的祖辈自身性别），保留需组合推导的关系 */
+        if (t && !['父亲', '母亲', '儿子', '女儿', '哥哥', '姐姐', '弟弟', '妹妹', '爷爷', '奶奶', '外公', '外婆'].includes(t)) supported.push([a, b]);
+    }
+    if (!supported.length) return null;
+    let qa = 0, qb = 0, term = null;
+    for (let t = 0; t < 8; t++) {
+        const [a, b] = rnd.pick(supported);
+        const tm = relation(a, b);
+        if (shapeDiffers('kinship', tm) || t === 7) { qa = a; qb = b; term = tm; break; } /* 卷内第二题换关系类别 */
+    }
+    /* 只列出"所问关系必需"的家谱边（两人到最近共同祖先的路径），其余成员不进场，杜绝线索冗余 */
+    const chainOf = x => { const s = []; let cur = x; while (cur >= 0) { s.push(cur); cur = nodes[cur].parent; } return s; };
+    const chA = chainOf(qa), setB = new Set(chainOf(qb));
+    const lca = chA.find(x => setB.has(x));
+    const needed = new Set([...chA.slice(0, chA.indexOf(lca) + 1), ...chainOf(qb).slice(0, chainOf(qb).indexOf(lca) + 1)]);
+    const stEdges = [];
+    const edgeSeen = new Set();
+    const addEdge = i2 => {
+        if (nodes[i2].parent < 0) return;
+        const t2 = `${nm(i2)}是${nm(nodes[i2].parent)}的${nodes[i2].g === M ? '儿子' : '女儿'}`;
+        if (!edgeSeen.has(t2)) { edgeSeen.add(t2); stEdges.push(t2); }
+    };
+    needed.forEach(addEdge);
+    /* 补齐路径上"被作为父母引用"的中间辈性别边，杜绝"姨妈/姑姑"式性别歧义 */
+    const refParents = new Set();
+    needed.forEach(i2 => { if (nodes[i2].parent >= 0) refParents.add(nodes[i2].parent); });
+    refParents.forEach(addEdge);
+    /* 长幼信息按需给出：伯/叔需父辈排序，堂/表需孙辈比较，其余关系不需要 */
+    const stAges = [];
+    if (/[伯叔]/.test(term)) stAges.push(`${nm(0)}的三个孩子，论长幼依次是：${nm(1)}、${nm(2)}、${nm(3)}`);
+    if (/[堂表]/.test(term)) stAges.push(`孙辈当中，${nm(4)}比${nm(5)}年长`);
+    const statements = rnd.shuffle([...stEdges, ...stAges]);
+    const others = rnd.sample(KIN_TERMS.filter(t => t !== term), 4);
+    const claims = rnd.shuffle([{ text: term, match: () => true }, ...others.map(t => ({ text: t, match: () => false }))]);
+    const q = buildClaimQuestion({
+        typeId: 'kinship', typeName: '血缘推理',
+        stem: `一个家族聚会上，${andText(names)}聊起家事，以下说法全部属实：\n${statements.map((s, i) => `${CIRCLED[i]} ${s}`).join('\n')}`,
+        rule: `（请判断：${nm(qa)} 是 ${nm(qb)} 的什么人？）`,
+        claims,
+        fullSpace: [{ tree: true }],
+        isWorldConsistent: () => true,
+        names,
+        explanation: `把家谱画出来：${nm(0)}是祖辈；${nm(1)}、${nm(2)}、${nm(3)}都是${nm(0)}的孩子（按长幼排序）；${nm(4)}是${nm(1)}的孩子，${nm(5)}是${nm(2)}的孩子。据此沿亲属链推导：${nm(qa)} 与 ${nm(qb)} 的关系是「${term}」。`,
+        difficulty: 2.7 + (term.length >= 2 && /[堂表伯叔姑舅姨侄甥]/.test(term) ? 1.1 : 0) + (Math.abs(nodes[qa].age - nodes[qb].age) >= 28 ? 0.3 : 0),
+        verifyAgain: () => relation(qa, qb) === term ? true : '复算失败'
+    });
+    if (q) recordShape('kinship', term);
+    return q;
+}});
+
+/* ---------- 题型17：年龄推算 ---------- */
+registerType({ id: 'ages', name: '年龄推算', base: 3.1, gen(cfg) {
+    /* 人数翻转用独立键 agesN（'ages' 键存问法 A/B，格式不同曾致翻转恒失效、低难度段恒 2 人） */
+    const nP = shapeDiffers('agesN', cfg.target > 0.5 ? 3 : 2) ? (cfg.target > 0.5 ? 3 : 2) : (cfg.target > 0.5 ? 2 : 3);
+    const names = rnd.sample(NAMES, nP);
+    if (!globalThis.__AGE_SPACE) globalThis.__AGE_SPACE = {};
+    if (!globalThis.__AGE_SPACE[nP]) {
+        const sp = [];
+        if (nP === 2) { for (let a = 6; a <= 60; a++) for (let b = 6; b <= 60; b++) if (a !== b) sp.push([a, b]); }
+        else { for (let a = 6; a <= 60; a++) for (let b = 6; b <= 60; b++) { if (b === a) continue; for (let c = 6; c <= 60; c++) if (c !== a && c !== b) sp.push([a, b, c]); } }
+        globalThis.__AGE_SPACE[nP] = sp;
+    }
+    const space = globalThis.__AGE_SPACE[nP];
+    for (let att = 0; att < 80; att++) {
+        const ages = [];
+        while (ages.length < nP) { const v = rnd.int(8, 55); if (!ages.includes(v)) ages.push(v); }
+        const clueMakers = [
+            () => { const [i, j] = distinctIdx2(nP); const d = ages[i] - ages[j]; if (d <= 0) return null; return { key: `diff:${i}_${j}`, text: `${names[i]}比${names[j]}大 ${d} 岁`, ok: t => t[i] - t[j] === d }; },
+            () => { const [i, j] = distinctIdx2(nP); if (ages[i] !== 2 * ages[j]) return null; return { key: `x2:${i}_${j}`, text: `${names[i]}的年龄恰好是${names[j]}的两倍`, ok: t => t[i] === 2 * t[j] }; },
+            () => { const [i, j] = distinctIdx2(nP); const a = Math.min(i, j), b = Math.max(i, j); return { key: `sum:${a}_${b}`, text: `${names[i]}和${names[j]}的年龄之和是 ${ages[i] + ages[j]}`, ok: t => t[i] + t[j] === ages[i] + ages[j] }; },
+            () => { if (nP < 3) return null; return { key: 'sum3', text: `三人年龄之和是 ${ages[0] + ages[1] + ages[2]}`, ok: t => t[0] + t[1] + t[2] === ages[0] + ages[1] + ages[2] }; },
+            () => { const [i, j] = distinctIdx2(nP); if (!(ages[i] > ages[j])) return null; return { key: `old:${i}_${j}`, text: `${names[i]}比${names[j]}年长`, ok: t => t[i] > t[j] }; },
+            /* 弱线索（排除法）仅作点缀：强线索不足 3 条且已用少于 2 条时才允许 */
+            () => {
+                if (clues.length < 3 || junk >= 2 || !rnd.chance(0.25)) return null;
+                const i = rnd.int(0, nP - 1); let x = rnd.int(8, 55); if (x === ages[i]) return null;
+                junk++;
+                return { key: `not:${i}_${x}`, text: `${names[i]}不可能是 ${x} 岁`, ok: t => t[i] !== x };
+            }
+        ];
+        let junk = 0;
+        const clues = [], seen = new Set();
+        let survivors = null;
+        /* 预注入一条"年长"关系线索（保证非线性线索在场，防两式一步直解） */
+        for (let t2 = 0; t2 < 8; t2++) {
+            const c0 = clueMakers[4]();
+            if (c0 && !seen.has(c0.key)) { seen.add(c0.key); clues.push(c0); break; }
+        }
+        let guard = 0;
+        while (guard++ < 30) {
+            const c = rnd.pick(clueMakers)();
+            if (!c || seen.has(c.key)) continue;
+            seen.add(c.key);
+            clues.push(c);
+            survivors = space.filter(t => clues.every(cl => cl.ok(t)));
+            if (survivors.length === 1 && clues.length >= 2) break;
+        }
+        if (!survivors || survivors.length !== 1 || !sameArr(survivors[0], ages) || clues.length < 2) continue;
+        /* 裁剪冗余线性线索（保持唯一解，至少留 2 条；非线性关系线索受保护不删） */
+        for (let ci = clues.length - 1; ci >= 0 && clues.length > 2; ci--) {
+            if (!['sum', 'diff', 'sum3'].includes(clues[ci].key.split(':')[0])) continue;
+            const rest = clues.filter((_, j) => j !== ci);
+            if (space.filter(t => rest.every(cl => cl.ok(t))).length === 1) clues.splice(ci, 1);
+        }
+        /* 卷内第二题强制换线索形态组合（防"和差消元"同构）；问年龄值时必须含非线性/关系线索，防两式一步直解 */
+        const clueKey = clues.map(c => c.key.split(':')[0]).sort().join('+');
+        if (!shapeDiffers('agesClues', clueKey)) continue;
+        const linearOnly = clues.every(c => ['sum', 'diff', 'sum3'].includes(c.key.split(':')[0]));
+        if (linearOnly) continue;
+        const isCons = t => clues.every(cl => cl.ok(t));
+        /* 双问法：A=问某人年龄；B=问长幼排序（nP≥3）/年龄差（nP=2）；卷内第二题强制换问法 */
+        const prevMode = (PAPER_BUDGET && PAPER_BUDGET.shapes && PAPER_BUDGET.shapes['ages']) || null;
+        let mode = prevMode === 'A' ? 'B' : (prevMode === 'B' ? 'A' : (rnd.chance(0.65) ? 'B' : 'A'));
+        if (mode === 'B' && nP < 3) mode = 'A'; /* 两人题禁用排序问法余地小，仍问年龄值 */
+        let q;
+        if (mode === 'B') {
+            const eldest = ages.indexOf(Math.max(...ages));
+            const sortedAges = [...ages].sort((a, b) => b - a);
+            const second = ages.indexOf(sortedAges[1]);
+            q = buildClaimQuestion({
+                typeId: 'ages', typeName: '年龄推算',
+                stem: `${rnd.pick([
+                    `问起年龄，${andText(names)}只肯透露以下几点（均为真）：`,
+                    `关于各自的年龄，${andText(names)}给出了几条真实信息：`,
+                    `${andText(names)}对年龄守口如瓶，只承认以下几条（全部属实）：`
+                ])}\n${clueLines(clues)}`,
+                rule: `（已知每人年龄都是整数且互不相同。请问：这 ${nP} 人中谁的年龄第二大？）`,
+                claims: names.map((nm, i) => ({ text: nm, match: t => t.indexOf([...t].sort((a, b) => b - a)[1]) === i })),
+                fullSpace: space,
+                isWorldConsistent: isCons,
+                names,
+                explanation: `在全部整数年龄组合上穷举过滤，同时满足所有条件的组合仅剩 1 组：${names.map((nm2, i) => `${nm2}=${ages[i]}岁`).join('，')}；从大到小排为 ${[...ages].sort((a, b) => b - a).map(v => v + '岁').join('、')}，第二大的是 ${names[second]}（最大的是 ${names[eldest]}，但不能只看谁最大）。`,
+                difficulty: 3.4 + (nP === 3 ? 1.2 : 0),
+                verifyAgain: () => space.filter(isCons).length === 1 && isCons(ages) ? true : '复算失败'
+            });
+        }
+        if (!q) {
+            const x = rnd.int(0, nP - 1);
+            const cands = [ages[x]];
+            for (const d of [1, -1, 2, -2, 3]) { const v = ages[x] + d; if (v >= 6 && v <= 60 && !cands.includes(v)) cands.push(v); if (cands.length >= 4) break; }
+            const claims = rnd.shuffle(cands).map(v => ({ text: `${v} 岁`, match: t => t[x] === v }));
+            q = buildClaimQuestion({
+                typeId: 'ages', typeName: '年龄推算',
+                stem: `${rnd.pick([
+                    `问起年龄，${andText(names)}只肯透露以下几点（均为真）：`,
+                    `关于各自的年龄，${andText(names)}给出了几条真实信息：`,
+                    `${andText(names)}对年龄守口如瓶，只承认以下几条（全部属实）：`
+                ])}\n${clueLines(clues)}`,
+                rule: `（已知每人年龄都是整数且互不相同。请问：${names[x]} 今年多少岁？）`,
+                claims,
+                fullSpace: space,
+                isWorldConsistent: isCons,
+                names,
+                explanation: `在全部整数年龄组合上穷举过滤，同时满足所有条件的组合仅剩 1 组：${names.map((nm2, i) => `${nm2}=${ages[i]}岁`).join('，')}。`,
+                difficulty: 3.1 + (nP === 3 ? 1.2 : 0),
+                verifyAgain: () => space.filter(isCons).length === 1 && isCons(ages) ? true : '复算失败'
+            });
+        }
+        if (q) { recordShape('ages', q.rule.includes('多少岁') ? 'A' : 'B'); recordShape('agesN', nP); recordShape('agesClues', clueKey); return q; }
+    }
+    return null;
+}});
+
+/* ---------- 题型21：生死双门 ---------- */
+registerType({ id: 'twoDoors', name: '生死双门', base: 1.6, gen(cfg) {
+    let classic = cfg.target > 0.45;
+    /* 卷内预算：同一份卷若出现两道双门题，强制一易一难（经典转述/单骗子直指），避免"只换名字" */
+    if (PAPER_BUDGET) {
+        if (classic && PAPER_BUDGET.doorClassic >= 1 && PAPER_BUDGET.doorEasy === 0) classic = false;
+        if (!classic && PAPER_BUDGET.doorEasy >= 1 && PAPER_BUDGET.doorClassic === 0) classic = true;
+    }
+    const doorText = d => d === 0 ? '左边那扇' : '右边那扇';
+    for (let att = 0; att < 100; att++) {
+        const names = rnd.sample(NAMES, 2);
+        const [A, B] = names;
+        const safe = rnd.int(0, 1);
+        if (classic) {
+            const X = 1 - safe; /* 无论谁说谎，A 转述 B 的答案必指向死门 */
+            const worlds = [0, 1, 2, 3].map(w => ({ safe: w % 2, aLiar: w < 2 }));
+            const isCons = w => {
+                const bTruthful = w.aLiar;              /* 两人恰一真一假：B 诚实 ⟺ 甲是说谎者 */
+                const bAnswer = bTruthful ? w.safe : 1 - w.safe;
+                const aTruthful = !w.aLiar;
+                const rep = aTruthful ? bAnswer : 1 - bAnswer;
+                return rep === X;
+            };
+            const sols = worlds.filter(isCons);
+            if (sols.length < 1 || new Set(sols.map(w => w.safe)).size !== 1 || sols[0].safe !== safe) continue;
+            const scenes = [
+                `你被困在两扇一模一样的门前：一扇生门、一扇死门。门口站着${A}和${B}两名守卫——其中一人永远说真话、另一人永远说谎，但你不知道谁是谁。\n你只被允许问${A}一个问题。你问："如果我去问${B}哪扇是生门，他会指哪扇？"${A}回答："他会指${doorText(X)}。"`,
+                `古堡出口只有左右两扇门，一生一死。守卫${A}与${B}恰好一个只说真话、一个只说假话（谁真谁假无人知晓）。\n你向${A}提了唯一的问题："要是我问${B}生门在哪，他会怎么回答？"${A}说："${B}会告诉我，生门是${doorText(X)}。"`,
+                `审判庭尽头并排两扇门，仅一扇通向自由。两名守卫${A}、${B}中一位是诚实者、另一位是说谎者。\n你问${A}："${B}会说哪扇门是生门？" ${A}毫不犹豫地指向了${doorText(X)}。`,
+                `地牢出口的两扇门一生一死。双守卫${A}和${B}，一个句句属实、一个句句掺假。\n你争取到一个问题，问${A}："${B}会指哪扇门当生门？" ${A}答道："${B}会指${doorText(X)}。"`
+            ];
+            const idx = pickDoorScene(scenes, 'classic');
+            if (idx < 0) continue;
+            const q = buildClaimQuestion({
+                typeId: 'twoDoors', typeName: '生死双门',
+                stem: scenes[idx],
+                rule: `（请推理：生门到底是哪一扇？）`,
+                claims: [
+                    { text: '左边那扇', match: w => w.safe === 0 },
+                    { text: '右边那扇', match: w => w.safe === 1 },
+                    { text: '无法判断', match: () => false },
+                    { text: '两扇门都通向绝路', match: () => false }
+                ],
+                fullSpace: worlds,
+                requireUniqueWorld: false, /* 谁在说谎可有两种自洽，但生门唯一——按选项级唯一判定 */
+                isWorldConsistent: isCons,
+                names,
+                explanation: `分四种情况讨论（生门在左/右 × ${A}是否说谎）：若${B}说谎，被问到生门时他会指死门，${A}如实转述→指向死门；若${B}诚实，他会真指生门，${A}说谎反着转述→仍指向死门。可见无论哪种情况，"${A}说他指${doorText(X)}"指向的必然是死门，生门只能是${doorText(safe)}。`,
+                difficulty: 2.8,
+                verifyAgain: () => { const s2 = worlds.filter(isCons); return s2.length >= 1 && new Set(s2.map(w => w.safe)).size === 1 && s2[0].safe === safe ? true : '复算失败'; }
+            });
+            if (q) { useDoorScene(idx, 'classic'); return q; }
+        } else {
+            const X = 1 - safe;
+            const worlds = [{ safe: 0 }, { safe: 1 }];
+            const isCons = w => X !== w.safe;
+            if (worlds.filter(isCons).length !== 1) continue;
+            const scenes = [
+                `迷宫尽头是左右两扇门，其中恰有一扇通向生路、另一扇通向绝路。只站着一名守卫${A}——他是出了名的骗子，说的每句话都是假话。\n${A}懒洋洋地说："生门是${doorText(X)}。"`,
+                `牢房外是左右两扇门，其中恰有一扇生门、一扇死门。牢门只归狱卒${A}一人看守，而他是满嘴假话的老骗子。\n${A}指着门说："想活命就走${doorText(X)}吧。"`,
+                `左右两扇门一生一死，守门的${A}专门骗人、句句是假。\n${A}说："信我，${doorText(X)}才是生门。"`,
+                `通关的最后一关是左右两扇门，恰有一扇通向出口。守卫${A}有撒谎强迫症，从没说过一句真话。\n${A}笑道："${doorText(X)}，走那边准没错。"`
+            ];
+            const idx = pickDoorScene(scenes, 'easy');
+            if (idx < 0) continue;
+            const q = buildClaimQuestion({
+                typeId: 'twoDoors', typeName: '生死双门',
+                stem: scenes[idx],
+                rule: `（请推理：生门到底是哪一扇？）`,
+                claims: [
+                    { text: '左边那扇', match: w => w.safe === 0 },
+                    { text: '右边那扇', match: w => w.safe === 1 },
+                    { text: '无法判断', match: () => false },
+                    { text: '两扇门都通向绝路', match: () => false }
+                ],
+                fullSpace: worlds,
+                isWorldConsistent: isCons,
+                names: [A],
+                explanation: `${A}句句假话，他说"生门是${doorText(X)}"，那么生门必然是另一扇：${doorText(safe)}。`,
+                difficulty: 1.6,
+                verifyAgain: () => worlds.filter(isCons).length === 1 ? true : '复算失败'
+            });
+            if (q) { useDoorScene(idx, 'easy'); return q; }
+        }
+    }
+    return null;
+}});
+
+/* ================= 7. 单题生成 / 试卷装配 ================= */
+
+function generateOne(typeDef, cfg, sigSet) {
+    OPTION_CAP = cfg.optionCount >= 4 ? cfg.optionCount : 0;
+    const tryCfg = c => {
+        for (let att = 0; att < 40; att++) {
+            let q = null;
+            try { q = typeDef.gen(c); } catch (e) { q = null; }
+            if (!q) continue;
+            const errA = passA(q);
+            if (errA) { continue; }
+            const errB = passB(q);
+            if (errB) { continue; }
+            const sig = q.typeId + '|' + q.stem.slice(0, 120) + '|' + q.options[q.answer];
+            if (sigSet && sigSet.has(sig)) continue;
+            if (sigSet) sigSet.add(sig);
+            q.difficulty += rnd.next() * 0.5;
+            return q;
+        }
+        return null;
+    };
+    let q = tryCfg(cfg);
+    if (!q) q = tryCfg(Object.assign({}, cfg, { target: cfg.target * 0.5 }));
+    if (!q) q = tryCfg(Object.assign({}, cfg, { target: 0.15 }));
+    return q;
+}
+
+function generatePaper(config) {
+    const cfg0 = Object.assign({ total: 40, pmin: 3, pmax: 6, optionCount: 0, hardMode: '1' }, config || {});
+    /* 重置卷内唯一性预算：场景、双门场景与变体在同卷内强制错开 */
+    PAPER_BUDGET = { stories: new Set(), doors: new Set(), doorClassic: 0, doorEasy: 0, shapes: {} };
+    /* 题型穿插 + 卷内题型次数上限（total≤22 时每题型恰 1 次，从结构上消灭"同题型重复"） */
+    const maxPerType = cfg0.maxPerType || Math.max(1, Math.ceil(cfg0.total / TYPES.length));
+    const used = new Map();
+    let typePool = rnd.shuffle(TYPES.slice());
+    const plan = [];
+    while (plan.length < cfg0.total) {
+        if (typePool.length === 0) {
+            typePool = rnd.shuffle(TYPES.filter(t => (used.get(t.id) || 0) < maxPerType));
+            if (typePool.length === 0) typePool = rnd.shuffle(TYPES.slice());
+        }
+        const t = typePool.pop();
+        used.set(t.id, (used.get(t.id) || 0) + 1);
+        plan.push(t);
+    }
+    const [hLo, hSpan] = cfg0.hardMode === '0.55' ? [0, 0.55] : (cfg0.hardMode === '0.4,0.6' ? [0.4, 0.6] : [0, 1]);
+    const sigSet = new Set();
+    const questions = [];
+    const failures = [];
+    plan.forEach((typeDef, i) => {
+        const t = clamp(hLo + hSpan * ((i + 0.5) / cfg0.total) + (rnd.next() - 0.5) * 0.06, 0, 1);
+        const cfg = { target: t, pmin: cfg0.pmin, pmax: cfg0.pmax, optionCount: cfg0.optionCount };
+        let q = generateOne(typeDef, cfg, sigSet);
+        if (!q) {
+            failures.push(typeDef.id);
+            /* 用其它题型补位 */
+            for (let s = 0; s < 6 && !q; s++) {
+                const alt = rnd.pick(TYPES);
+                q = generateOne(alt, Object.assign({}, cfg, { target: clamp(t * 0.7, 0, 1) }), sigSet);
+            }
+        }
+        if (q) questions.push(q);
+    });
+    /* 按难度稳定排序（题型因随机穿插而分散，总体难度上升） */
+    questions.sort((a, b) => a.difficulty - b.difficulty);
+    questions.forEach((q, i) => { q.id = i + 1; });
+    /* 最后两道终检（整体复核） */
+    const audit = auditPaper(questions);
+    return { questions, audit, failures, config: cfg0 };
+}
+
+function auditPaper(questions) {
+    const issues = [];
+    questions.forEach(q => {
+        const a = passA(q); if (a) issues.push({ id: q.id, pass: 'A', msg: a });
+        const b = passB(q); if (b) issues.push({ id: q.id, pass: 'B', msg: b });
+    });
+    const seenStem = new Set();
+    questions.forEach(q => {
+        const sig = q.typeId + '|' + q.stem.slice(0, 120) + '|' + q.options[q.answer];
+        if (seenStem.has(sig)) issues.push({ id: q.id, pass: 'A', msg: '与其他题目重复' });
+        seenStem.add(sig);
+    });
+    return { total: questions.length, issues, ok: issues.length === 0 };
+}
+
+/* ================= 8. 渲染 ================= */
+const BANDS = [
+    { title: '第一部分 · 热身局', stars: '★', desc: '上手题：读懂条件、简单代入即可攻陷。别掉以轻心，陷阱常藏在"恰好"二字里。' },
+    { title: '第二部分 · 渐入佳境', stars: '★★', desc: '条件开始互相咬合。建议先找矛盾对或确定点，再向外扩散。' },
+    { title: '第三部分 · 迷雾局', stars: '★★★', desc: '真话假话交织、线索成网。表格法和假设法是你的好朋友。' },
+    { title: '第四部分 · 高手局', stars: '★★★★', desc: '元口供、复合条件、多维匹配登场。请务必把每种可能列全再排除。' },
+    { title: '第五部分 · 生死局', stars: '★★★★★', desc: '终极压轴：认知推理、穷举过滤、数量论证。慢慢来，逻辑不会骗人。' }
+];
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function render(paper) {
+    const { questions, audit, config } = paper;
+    const typeCover = new Set(questions.map(q => q.typeId)).size;
+    let html = `
+        <div class="paper-header">
+            <h1>海量逻辑推理题库</h1>
+            <div class="sub">共 ${questions.length} 题 · 覆盖题型 ${typeCover}/${TYPES.length} · 题型随机分布、难度递增 · 每题均经「题干结构 + 答案唯一性」两道程序化终检</div>
+        </div>
+        <div class="audit-bar ${audit.ok ? '' : 'bad'}">
+            ${audit.ok
+                ? `✅ 终检通过：题干结构 ${audit.total}/${audit.total} · 答案与唯一解（无多解）${audit.total}/${audit.total}`
+                : `⚠️ 终检发现 ${audit.issues.length} 处问题（生成器已尽力重试，详情见控制台）`}
+        </div>`;
+    const T = questions.length;
+    questions.forEach((q, i) => { q.band = T <= 1 ? 0 : Math.min(4, Math.floor(i / T * 5)); });
+    BANDS.forEach((band, bi) => {
+        const qs = questions.filter(q => q.band === bi);
+        if (!qs.length) return;
+        html += `<div class="section-title">${band.title} ${band.stars}（第${qs[0].id}—${qs[qs.length - 1].id}题，共 ${qs.length} 题）</div>`;
+        html += `<div class="section-desc">${band.desc}</div>`;
+        qs.forEach(q => {
+            html += `
+            <div class="question-card">
+                <div class="q-head">
+                    <span class="q-title">第 ${q.id} 题</span>
+                    <span class="q-type-badge">${q.typeName}</span>
+                    <span class="q-stars">${stars(q.difficulty)}</span>
+                </div>
+                <div class="q-content">${esc(q.stem).replace(/\n/g, '<br>')}</div>
+                <div class="q-options">${q.options.map((o, i) => `${LETTERS[i]}. ${esc(o)}`).join('　　')}</div>
+                <div class="q-rule">${esc(q.rule)}</div>
+            </div>`;
+        });
+    });
+    html += `<div class="answer-page"><div class="answer-title">📝 答案与程序化解析</div><div class="answer-cols">`;
+    questions.forEach(q => {
+        html += `
+        <div class="answer-item">
+            <strong>第 ${q.id} 题</strong>（${q.typeName} ${stars(q.difficulty)}）<br>
+            <span class="ans-line">答案：${LETTERS[q.answer]}（${esc(q.options[q.answer])}）</span><br>
+            ${esc(q.explanation).replace(/\n/g, '<br>')}
+        </div>`;
+    });
+    html += `</div></div>`;
+    const paperEl = document.getElementById('paper');
+    paperEl.innerHTML = html;
+}
+
+function readConfig() {
+    const total = clamp(parseInt(document.getElementById('cfgTotal').value || '40', 10) || 40, 10, 120);
+    const [pmin, pmax] = document.getElementById('cfgPeople').value.split(',').map(Number);
+    const optionCount = parseInt(document.getElementById('cfgOptions').value, 10);
+    const hardMode = document.getElementById('cfgHard').value;
+    const maxPerType = document.getElementById('cfgDedup').value === '1' ? 1 : undefined;
+    return { total, pmin, pmax, optionCount, hardMode, maxPerType };
+}
+
+function generateExam() {
+    /* 生成是同步的（120 题约 5 秒），先把按钮切到「生成中」并让浏览器画一帧，再开工 */
+    const btn = document.getElementById('btnGenerate');
+    if (btn && !btn.dataset.busy) {
+        btn.dataset.busy = '1';
+        btn.dataset.label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ 生成中…';
+        setTimeout(() => {
+            try { generateExamNow(); }
+            finally {
+                btn.disabled = false;
+                btn.textContent = btn.dataset.label || '🔄 重新生成试卷';
+                delete btn.dataset.busy;
+            }
+        }, 30);
+        return;
+    }
+    generateExamNow();
+}
+
+function generateExamNow() {
+    const cfg = readConfig();
+    const t0 = Date.now();
+    let paper = generatePaper(cfg);
+    /* 终检不通过则整体再生成（最多 3 轮） */
+    let rounds = 0;
+    while (!paper.audit.ok && rounds < 3) { paper = generatePaper(cfg); rounds++; }
+    render(paper);
+    const byType = {};
+    paper.questions.forEach(q => byType[q.typeName] = (byType[q.typeName] || 0) + 1);
+    console.log(`✅ 生成完成：共 ${paper.questions.length} 题，耗时 ${Date.now() - t0}ms`);
+    console.log('   题型分布：', byType);
+    console.log(`   两道终检：${paper.audit.ok ? '全部通过' : '存在问题 ' + paper.audit.issues.length + ' 处'}；生成期失败补位：${paper.failures.length} 题`);
+    if (!paper.audit.ok) console.warn('   问题明细：', paper.audit.issues);
+}
+
+/* ================= 9. 控制台通用 API & 初始化 ================= */
+globalThis.__LOGIC_EXAM = {
+    version: '2.0',
+    types: () => TYPES.map(t => ({ id: t.id, name: t.name, base: t.base })),
+    /* 通用单题生成器：gen('knights', {target:0.8, pmin:4, pmax:6}) */
+    gen(id, cfg) {
+        const def = TYPES.find(t => t.id === id);
+        if (!def) return { error: '未知题型，可用 id 见 types()' };
+        const q = generateOne(def, Object.assign({ target: 0.5, pmin: 3, pmax: 6, optionCount: 0 }, cfg || {}), new Set());
+        return q || { error: '生成失败（可降低 target 重试）' };
+    },
+    paper: generatePaper,
+    audit: auditPaper,
+    checks: { passA, passB }
+};
+
+if (typeof document !== 'undefined' && document.getElementById) {
+    generateExam();
+}
+</script>
+</body>
+</html>

@@ -58,7 +58,17 @@ README.md
 
 ## 应用怎么取
 
-- 清单：`repos/qyrh/teaching-assistant-tools/contents/catalog.json?ref=main`（GitHub API，`Accept: application/vnd.github.raw`），失败回落 `raw.githubusercontent.com`，再失败用上次缓存。
-- 文件：`repos/.../contents/tools/<id>/<file>?ref=main`，按 `files` 逐个下载。
-- 本机目录：`<userData>/tools/<id>/`，安装时写入 `meta.json`（工具元数据 + 安装时间）。
+- 清单：优先 `raw.githubusercontent.com/<owner>/<repo>/<branch>/catalog.json`；失败回落 GitHub contents API（`Accept: application/vnd.github.raw`）；再失败用上次缓存。
+- 文件：同样**先 raw 后 API**，按 `files` 逐个下载。contents API 对大文件会截断（实测 709 KB 的文件只回 262 KB），所以 raw 是首选；下载后会核对 `Content-Length`，短了就换下一个源。
+- 本机目录：`<userData>/tools/<id>/`，安装时写入 `meta.json`（工具元数据 + 安装时间）；封面缓存在 `<userData>/tools/covers/`。
+- 更新：清单里 `version` 与本地 `meta.json` 里的不同，卡片就显示「更新到 vX」；点一下重下覆盖。
 - 源可在面板「源」里改：`github:owner/repo@branch` 或任意 `catalog.json` 直链。
+
+## 现有工具
+
+| id | 名称 | 分类 | 版本 |
+| --- | --- | --- | --- |
+| `abacus-3d` | 电子计数器 | 数学 | 1.0.1 |
+| `vertical-calc` | 竖式生成器 | 数学 | 1.0.0 |
+| `square-packing` | 正方形装箱 | 数学 | 1.0.0 |
+| `logic-exam` | 推理题生成器 | 思维 | 1.0.0 |
