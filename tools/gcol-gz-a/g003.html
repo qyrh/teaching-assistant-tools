@@ -1,0 +1,2025 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双曲线初步 · 星光曲线实验室</title>
+<style>
+/* ============ 全局与色板（每局随机换装） ============ */
+:root{
+  --p-bg:#eef3ff; --p-card:#ffffff; --p-main:#3556e0; --p-deep:#1e3a8a;
+  --p-soft:#dbe6ff; --p-ink:#1a2246; --p-good:#189a58; --p-warn:#e0442e; --p-star:#f0a800;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:var(--p-bg); color:var(--p-ink); font-size:17px; line-height:1.55;
+  transition:background .5s;
+}
+.hidden{display:none !important;}
+#app{max-width:1280px; margin:0 auto; padding:14px;}
+button{
+  font-family:inherit; font-size:17px; border:none; border-radius:12px;
+  padding:10px 18px; cursor:pointer; color:#fff; background:var(--p-main);
+  box-shadow:0 3px 0 rgba(0,0,0,.15); transition:transform .08s, filter .2s;
+  touch-action:manipulation; user-select:none;
+}
+button:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.15);}
+button.ghostBtn{background:#fff; color:var(--p-deep); border:2px solid var(--p-main);}
+button.warnBtn{background:var(--p-warn);}
+button:disabled{filter:grayscale(.6); opacity:.6; cursor:not-allowed;}
+
+/* ============ 主菜单 ============ */
+#menuScreen{display:flex; flex-direction:column; gap:18px; padding:22px 14px;}
+.menuHead{text-align:center;}
+.menuHead h1{
+  font-size:40px; letter-spacing:2px; color:var(--p-deep);
+  text-shadow:3px 3px 0 var(--p-soft);
+}
+.menuHead .sub{font-size:19px; color:var(--p-main); margin-top:8px; font-weight:bold;}
+.menuHead .story{
+  margin:14px auto 0; max-width:860px; background:var(--p-card); border-radius:16px;
+  padding:14px 20px; border:2px dashed var(--p-main); font-size:17.5px;
+}
+.diffRow{display:flex; gap:18px; flex-wrap:wrap; justify-content:center;}
+.diffCard{
+  flex:1 1 260px; max-width:380px; background:var(--p-card); border-radius:20px;
+  border-top:8px solid var(--p-main); padding:18px 18px 16px; cursor:pointer;
+  box-shadow:0 6px 18px rgba(30,58,138,.14); transition:transform .15s;
+  text-align:left;
+}
+.diffCard:hover{transform:translateY(-5px);}
+.diffCard h2{font-size:24px; color:var(--p-deep);}
+.diffCard .stars{color:var(--p-star); font-size:21px; letter-spacing:3px; margin:4px 0 8px;}
+.diffCard p{font-size:16.5px; color:#44506e;}
+.diffCard .go{margin-top:12px; font-weight:bold; color:var(--p-main);}
+.menuFoot{text-align:center; padding-bottom:20px;}
+.menuFoot button{margin:0 8px;}
+
+/* ============ 游戏界面 ============ */
+#gameScreen{display:flex; flex-direction:column; gap:12px; height:calc(100vh - 28px); min-height:640px;}
+#gameHeader{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  background:var(--p-card); border-radius:14px; padding:10px 16px;
+  box-shadow:0 3px 10px rgba(30,58,138,.12);
+}
+#gameHeader .title{font-size:21px; font-weight:bold; color:var(--p-deep);}
+#gameHeader .prog{font-size:16.5px; color:#55628a; background:var(--p-soft); border-radius:10px; padding:4px 12px;}
+#hud{
+  margin-left:auto; display:flex; gap:10px; align-items:center;
+}
+#hud .hudBox{
+  background:var(--p-soft); color:var(--p-deep); border-radius:10px;
+  padding:5px 14px; font-size:18px; font-weight:bold; min-width:96px; text-align:center;
+}
+#hud .hudBox span{font-size:14px; font-weight:normal; display:block; color:#5a679a;}
+#gameMain{flex:1; display:flex; gap:12px; min-height:0;}
+#canvasWrap{
+  flex:1 1 58%; position:relative; background:var(--p-card); border-radius:16px;
+  box-shadow:inset 0 0 0 2px var(--p-soft); min-height:340px; overflow:hidden;
+}
+#gameCanvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair;}
+#canvasBadge{
+  position:absolute; top:10px; left:12px; background:var(--p-deep); color:#fff;
+  border-radius:10px; padding:4px 12px; font-size:15px; opacity:.9; pointer-events:none;
+}
+#stagePanel{
+  flex:1 1 42%; min-width:320px; background:var(--p-card); border-radius:16px;
+  padding:14px 16px; overflow:auto; box-shadow:0 3px 10px rgba(30,58,138,.1);
+}
+#stageTitle{font-size:20px; font-weight:bold; color:var(--p-main);}
+#stageGoal{
+  margin:8px 0; background:var(--p-soft); border-radius:12px; padding:10px 12px;
+  font-size:16.5px; white-space:pre-line;
+}
+#stageWidgets{display:flex; flex-direction:column; gap:14px;}
+#gameFooter{
+  display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+  background:var(--p-card); border-radius:14px; padding:10px;
+}
+
+/* ============ 部件通用 ============ */
+.wLabel{font-weight:bold; color:var(--p-deep); font-size:17px;}
+.meterRow{display:flex; justify-content:space-between; align-items:center; font-size:17.5px; padding:3px 4px;}
+.meterRow b{font-family:Consolas,monospace; font-size:19px; color:var(--p-deep);}
+.diffBar{
+  position:relative; height:34px; background:#f2f4fb; border-radius:8px;
+  border:2px solid var(--p-soft); overflow:hidden; margin:6px 0 2px;
+}
+.diffBar .zero{position:absolute; left:50%; top:0; bottom:0; width:2px; background:#9aa4c8;}
+.diffBar .band{position:absolute; top:0; bottom:0; background:rgba(24,154,88,.3); border-left:2px solid var(--p-good); border-right:2px solid var(--p-good);}
+.diffBar .needle{
+  position:absolute; top:2px; bottom:2px; width:5px; margin-left:-3px;
+  background:var(--p-warn); border-radius:3px; transition:left .05s linear;
+}
+.starsRow{display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;}
+.starSlot{
+  width:40px; height:40px; border-radius:10px; background:#f2f4fb; color:#c3c9de;
+  display:flex; align-items:center; justify-content:center; font-size:24px;
+  border:2px solid var(--p-soft);
+}
+.starSlot.lit{background:#fff7dd; color:var(--p-star); border-color:var(--p-star); animation:pop .4s;}
+@keyframes pop{0%{transform:scale(.3);}70%{transform:scale(1.25);}100%{transform:scale(1);}}
+.hintBox{font-size:16px; color:#5a679a; background:#f6f8ff; border-radius:10px; padding:8px 12px;}
+
+/* 拖拽芯片 / 托盘 */
+.chipRow{display:flex; gap:10px; flex-wrap:wrap; min-height:56px;}
+.chip{
+  background:var(--p-main); color:#fff; font-size:17px; font-weight:bold;
+  border-radius:12px; padding:10px 14px; cursor:grab; touch-action:none;
+  box-shadow:0 3px 0 rgba(0,0,0,.2); user-select:none;
+}
+.chip small{display:block; font-weight:normal; font-size:15px; opacity:.9;}
+.chip.docked{cursor:default; opacity:.95;}
+.trayGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.tray{
+  border:3px dashed var(--p-main); border-radius:14px; padding:10px; min-height:96px;
+  background:#fbfcff; transition:background .15s;
+}
+.tray.hot{background:#e8ffee; border-color:var(--p-good);}
+.tray h4{font-size:18px; color:var(--p-deep); margin-bottom:6px;}
+.tray .dockedChip{margin:6px 0;}
+
+/* 方程装配 */
+.eqframe{
+  font-size:26px; font-weight:bold; text-align:center; background:var(--p-soft);
+  border-radius:14px; padding:14px 8px; font-family:Consolas,"Microsoft YaHei",monospace;
+}
+.eqframe .slot{
+  display:inline-block; min-width:64px; border-bottom:4px solid var(--p-deep);
+  margin:0 4px; padding:0 6px; color:var(--p-warn); cursor:pointer; touch-action:none;
+}
+.eqframe .slot.filled{color:var(--p-deep); border-bottom-color:var(--p-good);}
+.tileRack{display:flex; gap:10px; flex-wrap:wrap; min-height:64px;}
+.tile{
+  width:64px; height:56px; border-radius:12px; background:var(--p-deep); color:#fff;
+  font-size:24px; font-weight:bold; display:flex; align-items:center; justify-content:center;
+  cursor:grab; touch-action:none; user-select:none; box-shadow:0 3px 0 rgba(0,0,0,.25);
+}
+.tile.used{opacity:.25; cursor:default;}
+.checkList{display:flex; flex-direction:column; gap:6px;}
+.checkItem{
+  display:flex; justify-content:space-between; background:#f6f8ff; border-radius:10px;
+  padding:7px 12px; font-size:16.5px;
+}
+.checkItem.ok{background:#e8fbee; color:var(--p-good); font-weight:bold;}
+.checkItem.no{background:#fff0ec; color:var(--p-warn);}
+#rodBox{display:flex; gap:12px; align-items:center;}
+#rodCanvas{border-radius:12px; background:#f6f8ff; border:2px solid var(--p-soft); touch-action:none; cursor:grab;}
+.condCard{
+  border-left:6px solid var(--p-main); background:var(--p-soft); border-radius:10px;
+  padding:10px 14px; font-size:17px; white-space:pre-line;
+}
+
+/* 滑块 */
+.sliderRow{display:flex; align-items:center; gap:12px;}
+input[type=range]{flex:1; height:38px; accent-color:var(--p-main); cursor:pointer;}
+.kVal{font-size:24px; font-weight:bold; color:var(--p-main); font-family:Consolas,monospace; min-width:80px; text-align:center;}
+.typeBadge{
+  text-align:center; font-size:19px; font-weight:bold; border-radius:12px; padding:8px;
+  background:#f2f4fb; color:#5a679a;
+}
+.captureSlots{display:flex; gap:10px;}
+.capSlot{
+  flex:1; border:3px dashed var(--p-soft); border-radius:12px; padding:8px; text-align:center;
+  font-size:15.5px; color:#5a679a; min-height:74px; background:#fbfcff;
+}
+.capSlot.got{border-color:var(--p-good); background:#e8fbee; color:var(--p-good); font-weight:bold;}
+
+/* 连线 */
+.linkWrap{position:relative; display:flex; gap:8px;}
+.linkCol{flex:1; display:flex; flex-direction:column; gap:12px;}
+.linkCard{
+  background:var(--p-soft); border-radius:12px; padding:10px 12px; font-size:17px;
+  font-weight:bold; color:var(--p-deep); text-align:center; border:2px solid transparent;
+  touch-action:none; user-select:none;
+}
+.linkCard.done{border-color:var(--p-good); background:#e8fbee;}
+.linkCard .port{
+  position:absolute; width:18px; height:18px; border-radius:50%;
+  background:var(--p-warn); border:3px solid #fff; box-shadow:0 0 0 2px var(--p-warn);
+  cursor:grab; touch-action:none;
+}
+.eChip{
+  background:var(--p-card); border:3px solid var(--p-main); border-radius:12px;
+  padding:8px 6px; text-align:center; font-size:19px; font-weight:bold; color:var(--p-main);
+  touch-action:none; user-select:none;
+}
+.eChip.done{border-color:var(--p-good); color:var(--p-good); background:#e8fbee;}
+#linkSvg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+
+/* 等边星阵 / 直角寻踪 仪表 */
+.gauge{margin:4px 0;}
+.gauge .gBar{height:22px; background:#f2f4fb; border-radius:6px; overflow:hidden; border:2px solid var(--p-soft);}
+.gauge .gFill{height:100%; background:var(--p-main); width:0%; transition:width .1s;}
+.gauge .gCap{display:flex; justify-content:space-between; font-size:16px;}
+
+/* 模态层 */
+#overlayDim{
+  position:fixed; inset:0; background:rgba(16,22,50,.55); z-index:60;
+  display:flex; align-items:center; justify-content:center; padding:18px;
+}
+.modal{
+  background:var(--p-card); border-radius:20px; max-width:720px; width:100%;
+  max-height:86vh; overflow:auto; padding:24px 26px; box-shadow:0 12px 40px rgba(0,0,0,.35);
+}
+.modal h2{color:var(--p-deep); font-size:26px; margin-bottom:12px;}
+.modal .mBody{font-size:17px; white-space:pre-line; margin-bottom:16px;}
+.modal .mBtns{display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;}
+.modal ul{padding-left:22px;}
+.modal li{margin:7px 0;}
+
+/* 烟花彩纸画布 */
+#fxCanvas{position:fixed; inset:0; pointer-events:none; z-index:80;}
+
+/* 提示条 */
+#toast{
+  position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:90;
+  background:var(--p-deep); color:#fff; border-radius:12px; padding:10px 22px;
+  font-size:17px; box-shadow:0 6px 18px rgba(0,0,0,.3); opacity:0; pointer-events:none;
+  transition:opacity .25s; max-width:86vw; text-align:center;
+}
+#toast.show{opacity:1;}
+.ghost{position:fixed; z-index:95; opacity:.88; pointer-events:none; transform:rotate(-3deg) scale(1.05); box-shadow:0 8px 20px rgba(0,0,0,.3);}
+.okFlash{animation:okF .5s;}
+@keyframes okF{0%{filter:brightness(1.6);}100%{filter:brightness(1);}}
+
+/* 小屏适配：面板挪到下方 */
+@media (max-width:880px){
+  #gameMain{flex-direction:column; overflow:auto;}
+  #canvasWrap{min-height:46vh; flex:none; height:46vh;}
+  #stagePanel{flex:none;}
+  #gameScreen{height:auto; min-height:100vh;}
+  .menuHead h1{font-size:30px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 主菜单（难度选择） ============ -->
+  <section id="menuScreen">
+    <div class="menuHead">
+      <h1>双曲线初步 · 星光曲线实验室</h1>
+      <div class="sub">高中数学 · 高二上 · 第6讲 预习篇 —— 玩着玩着，双曲线就懂了</div>
+      <div class="story">
+        你是星光曲线实验室的见习研究员。传说中会"分岔"的星轨——双曲线，就藏在
+        <b>“到两定点距离之差”</b> 的秘密里。拖动探针采样星点、装配标准方程、为渐近线导航、
+        收集离心率能量块……完成全部实验，点亮星空图鉴吧！
+      </div>
+    </div>
+    <div class="diffRow" id="diffRow"></div>
+    <div class="menuFoot">
+      <button id="menuRulesBtn" class="ghostBtn">规则说明</button>
+    </div>
+  </section>
+
+  <!-- ============ 游戏主界面 ============ -->
+  <section id="gameScreen" class="hidden">
+    <header id="gameHeader">
+      <span class="title" id="hdrTitle">星光曲线实验室</span>
+      <span class="prog" id="hdrProg">第 1 / 3 关</span>
+      <div id="hud">
+        <div class="hudBox"><span>计时</span><em id="hudTime" style="font-style:normal">00:00</em></div>
+        <div class="hudBox"><span>操作步数</span><em id="hudSteps" style="font-style:normal">0</em></div>
+      </div>
+    </header>
+    <div id="gameMain">
+      <div id="canvasWrap">
+        <canvas id="gameCanvas"></canvas>
+        <div id="canvasBadge"></div>
+      </div>
+      <aside id="stagePanel">
+        <div id="stageTitle"></div>
+        <div id="stageGoal"></div>
+        <div id="stageWidgets"></div>
+      </aside>
+    </div>
+    <footer id="gameFooter">
+      <button id="btnRules">规则说明</button>
+      <button id="btnReveal" class="ghostBtn">揭示答案</button>
+      <button id="btnRestart" class="ghostBtn">重新开始</button>
+      <button id="btnBack" class="ghostBtn">返回难度选择</button>
+    </footer>
+  </section>
+</div>
+
+<!-- 模态：规则 -->
+<div id="overlayDim" class="hidden"></div>
+<div id="rulesModal" class="modal hidden" style="position:fixed; z-index:70; left:50%; top:50%; transform:translate(-50%,-50%);">
+  <h2>实验室规则说明</h2>
+  <div class="mBody">
+    · 目标：把"到两个焦点的距离之差等于常数"这条规律，亲手变成双曲线！
+    · 每个难度共 3 关，全部点亮即通关，有烟花庆祝哦。
+    <b>通用操作：</b>
+    <ul>
+      <li><b>拖动探针</b>：在画布上按住拖动小圆点，右侧仪表实时显示 |PF₁|、|PF₂| 与距离差。</li>
+      <li><b>拖放芯片/磁贴</b>：按住卡片拖到目标托盘/凹槽上松手即可放置。</li>
+      <li><b>滑块</b>：按住滑块左右滑动，画布图形会实时变化。</li>
+      <li><b>连线</b>：按住左侧卡片的圆点，拖到右侧对应方块上松手。</li>
+    </ul>
+    <b>闯关小锦囊：</b>双曲线定义中，常数必须满足 0 &lt; 2a &lt; |F₁F₂|；标准方程里 c² = a² + b²（注意与椭圆不同！）；渐近线 y=±(b/a)x，离心率 e=c/a&gt;1。
+    · 右上角有计时和步数；卡住了可以点"揭示答案"，但亲手点亮星星更有成就感！
+  </div>
+  <div class="mBtns"><button id="rulesCloseBtn">明白，开始闯关</button></div>
+</div>
+
+<!-- 模态：揭示答案 -->
+<div id="revealModal" class="modal hidden" style="position:fixed; z-index:70; left:50%; top:50%; transform:translate(-50%,-50%);">
+  <h2>本关答案揭示</h2>
+  <div class="mBody" id="revealBody"></div>
+  <div class="mBtns"><button id="revealCloseBtn" class="ghostBtn">关闭，继续挑战</button></div>
+</div>
+
+<!-- 模态：单关完成 -->
+<div id="doneModal" class="modal hidden" style="position:fixed; z-index:70; left:50%; top:50%; transform:translate(-50%,-50%);">
+  <h2 id="doneTitle">本关点亮成功！</h2>
+  <div class="mBody" id="doneBody"></div>
+  <div class="mBtns"><button id="doneNextBtn">下一关</button></div>
+</div>
+
+<!-- 模态：通关庆祝 -->
+<div id="celebrateModal" class="modal hidden" style="position:fixed; z-index:70; left:50%; top:50%; transform:translate(-50%,-50%);">
+  <h2 id="celeTitle">全部通关，星空点亮！</h2>
+  <div class="mBody" id="celeBody"></div>
+  <div class="mBtns">
+    <button id="celeAgainBtn">再玩一次（全新随机关卡）</button>
+    <button id="celeBackBtn" class="ghostBtn">返回难度选择</button>
+  </div>
+</div>
+
+<canvas id="fxCanvas"></canvas>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ==================================================================
+   双曲线初步 · 星光曲线实验室
+   —— 依据教参《第6讲 双曲线初步（预习篇）》设计
+   核心玩法全部围绕：①定义（距离差采样）②标准方程（装配）③几何性质（渐近线/离心率）
+   ================================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+function ri(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }          /* [a,b]随机整数 */
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }     /* 随机取一个 */
+function shuffle(arr){                                                      /* 洗牌（返回新数组） */
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function fmt(n,d){ return Number(n).toFixed(d==null?2:d); }                 /* 数字格式化（默认两位小数） */
+function dist(p,q){ return Math.hypot(p.x-q.x, p.y-q.y); }
+function sup(n){ return n; }
+
+/* ---------------- 色板（每局随机换装 G8） ---------------- */
+const PALETTES = [
+  {name:"星空蓝", bg:"#eef3ff", card:"#ffffff", main:"#3556e0", deep:"#1e3a8a", soft:"#dbe6ff", ink:"#1a2246"},
+  {name:"薄荷绿", bg:"#eafaf1", card:"#ffffff", main:"#0fa878", deep:"#0a6e4f", soft:"#d2f5e4", ink:"#123528"},
+  {name:"蜜桃橙", bg:"#fff3ea", card:"#ffffff", main:"#f0762b", deep:"#b34e0e", soft:"#ffe2cc", ink:"#4a2410"},
+  {name:"柠檬黄", bg:"#fdf8e3", card:"#ffffff", main:"#d8a400", deep:"#8f6c00", soft:"#faeec2", ink:"#4a3a06"},
+  {name:"湖水青", bg:"#e8f7fb", card:"#ffffff", main:"#0d9bb5", deep:"#08697c", soft:"#cdeef5", ink:"#0d3b44"},
+  {name:"玫红紫", bg:"#f9eefb", card:"#ffffff", main:"#a834c9", deep:"#6f1a89", soft:"#f0d8f7", ink:"#3d1149"}
+];
+function applyPalette(){
+  const p = pick(PALETTES);
+  const r = document.documentElement.style;
+  r.setProperty("--p-bg",p.bg); r.setProperty("--p-card",p.card);
+  r.setProperty("--p-main",p.main); r.setProperty("--p-deep",p.deep);
+  r.setProperty("--p-soft",p.soft); r.setProperty("--p-ink",p.ink);
+  return p.name;
+}
+/* 读取当前主色（画布配色跟随色板） */
+function cssColor(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+/* ---------------- 提示条 ---------------- */
+let toastTimer = 0;
+function toast(msg, ms){
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, ms||2400);
+}
+
+/* ---------------- 彩纸 / 星屑特效（庆祝动画 G5） ---------------- */
+const fx = { cv: $("fxCanvas"), g: $("fxCanvas").getContext("2d"), parts: [] };
+function fxResize(){
+  fx.cv.width = innerWidth; fx.cv.height = innerHeight;
+}
+fxResize(); addEventListener("resize", fxResize);
+/* 在屏幕某点炸开一圈星屑 */
+function burst(sx, sy, n, colors){
+  for(let i=0;i<(n||36);i++){
+    const ang = Math.random()*Math.PI*2, sp = 2+Math.random()*5;
+    fx.parts.push({
+      x:sx, y:sy, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-2,
+      r:3+Math.random()*4, life:1, decay:.012+Math.random()*.01,
+      c:(colors||["#f0a800","#e0442e","#3556e0","#0fa878","#a834c9"])[Math.floor(Math.random()*5)],
+      shape:Math.random()<.5?0:1
+    });
+  }
+}
+/* 全屏庆祝彩纸 */
+function bigConfetti(){
+  for(let i=0;i<200;i++){
+    fx.parts.push({
+      x:Math.random()*innerWidth, y:-20-Math.random()*innerHeight*.4,
+      vx:(Math.random()-.5)*2, vy:2+Math.random()*3.5,
+      r:4+Math.random()*5, life:1, decay:.004+Math.random()*.004,
+      c:["#f0a800","#e0442e","#3556e0","#0fa878","#a834c9","#0d9bb5"][Math.floor(Math.random()*6)],
+      shape:Math.random()<.5?0:1
+    });
+  }
+}
+function fxLoop(){
+  fx.g.clearRect(0,0,fx.cv.width,fx.cv.height);
+  for(let i=fx.parts.length-1;i>=0;i--){
+    const p = fx.parts[i];
+    p.x += p.vx; p.y += p.vy; p.vy += .07; p.vx *= .995; p.life -= p.decay;
+    if(p.life<=0 || p.y>innerHeight+30){ fx.parts.splice(i,1); continue; }
+    fx.g.globalAlpha = Math.max(0,p.life);
+    fx.g.fillStyle = p.c;
+    if(p.shape===0){ fx.g.beginPath(); fx.g.arc(p.x,p.y,p.r,0,7); fx.g.fill(); }
+    else{ fx.g.fillRect(p.x-p.r, p.y-p.r*.6, p.r*2, p.r*1.2); }
+  }
+  fx.g.globalAlpha = 1;
+  requestAnimationFrame(fxLoop);
+}
+requestAnimationFrame(fxLoop);
+
+/* ---------------- 主画布管理 ---------------- */
+const cv = $("gameCanvas"), g = cv.getContext("2d");
+let CW = 600, CH = 420;              /* 画布 CSS 尺寸 */
+function resizeCanvas(){
+  const r = $("canvasWrap").getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  CW = Math.max(120, r.width); CH = Math.max(120, r.height);
+  cv.width = Math.round(CW*dpr); cv.height = Math.round(CH*dpr);
+  g.setTransform(dpr,0,0,dpr,0,0);
+  if(stage && stage.onResize) stage.onResize();
+}
+new ResizeObserver(resizeCanvas).observe($("canvasWrap"));
+
+/* 世界坐标 <-> 屏幕坐标（由当前舞台的 scale 决定） */
+function w2s(p){ const s = stage.scale; return { x: CW/2 + p.x*s, y: CH/2 - p.y*s }; }
+function s2w(p){ const s = stage.scale; return { x: (p.x-CW/2)/s, y: (CH/2-p.y)/s }; }
+function evPos(e){ const r = cv.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; }
+
+/* ---------------- 画图小助手 ---------------- */
+function drawGridAndAxes(halfW, halfH){
+  const s = stage.scale;
+  g.strokeStyle = "#e3e7f3"; g.lineWidth = 1;
+  const step = (halfW>12 || halfH>10) ? 2 : 1;
+  const x0 = Math.ceil(-halfW/step)*step, x1 = Math.floor(halfW/step)*step;
+  for(let x=x0; x<=x1; x+=step){ const a=w2s({x:x,y:-halfH}), b=w2s({x:x,y:halfH});
+    g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke(); }
+  const y0 = Math.ceil(-halfH/step)*step, y1 = Math.floor(halfH/step)*step;
+  for(let y=y0; y<=y1; y+=step){ const a=w2s({x:-halfW,y:y}), b=w2s({x:halfW,y:y});
+    g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke(); }
+  /* 坐标轴 */
+  g.strokeStyle = "#8d97ba"; g.lineWidth = 2;
+  const o1 = w2s({x:-halfW,y:0}), o2 = w2s({x:halfW,y:0});
+  g.beginPath(); g.moveTo(o1.x,o1.y); g.lineTo(o2.x,o2.y); g.stroke();
+  const o3 = w2s({x:0,y:-halfH}), o4 = w2s({x:0,y:halfH});
+  g.beginPath(); g.moveTo(o3.x,o3.y); g.lineTo(o4.x,o4.y); g.stroke();
+  /* 轴字母 */
+  g.fillStyle = "#66708f"; g.font = "bold 17px sans-serif";
+  const xt = w2s({x:halfW-0.35, y:0.35}), yt = w2s({x:0.35, y:halfH-0.35});
+  g.fillText("x", xt.x, xt.y); g.fillText("y", yt.x, yt.y);
+  g.fillText("O", w2s({x:0.2,y:0.2}).x-16, w2s({x:0.2,y:0.2}).y+16);
+}
+/* 焦点（×形）+ 标签 */
+function drawFocus(p, label, coordText){
+  const sp = w2s(p);
+  g.strokeStyle = cssColor("--p-warn"); g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(sp.x-8,sp.y-8); g.lineTo(sp.x+8,sp.y+8);
+  g.moveTo(sp.x+8,sp.y-8); g.lineTo(sp.x-8,sp.y+8);
+  g.stroke();
+  g.fillStyle = cssColor("--p-warn"); g.font = "bold 18px sans-serif";
+  g.fillText(label, sp.x+11, sp.y-11);
+  if(coordText){ g.font = "16px sans-serif"; g.fillStyle="#7a84a8"; g.fillText(coordText, sp.x+11, sp.y+16); }
+}
+/* 双曲线：orient='x' 焦点在x轴(a²在x²下)，'y' 焦点在y轴；only='L'/'R' 只画一支 */
+function drawHyperbola(a,b,orient,only,color,width,alpha,dash){
+  if(a<=0.05||b<=0.05) return;
+  const halfW = CW/(2*stage.scale)+0.5, halfH = CH/(2*stage.scale)+0.5;
+  const limA = (orient==="x") ? halfW : halfH;   /* 沿实轴方向能画多远 */
+  const Tmax = Math.min(4, Math.acosh(Math.max(1.05, limA/a)));
+  g.save();
+  g.strokeStyle = color || cssColor("--p-main"); g.lineWidth = width||3.5;
+  g.globalAlpha = (alpha==null?1:alpha);
+  if(dash) g.setLineDash([10,7]);
+  const branches = only ? [only] : ["R","L"];
+  for(let bi=0;bi<branches.length;bi++){
+    const sgn = branches[bi]==="R" ? 1 : -1;
+    g.beginPath();
+    const N = 150;
+    for(let i=0;i<=N;i++){
+      const t = -Tmax + 2*Tmax*i/N;
+      const ch = Math.cosh(t), sh = Math.sinh(t);
+      const wp = (orient==="x") ? {x:sgn*a*ch, y:b*sh} : {x:b*sh, y:sgn*a*ch};
+      const sp = w2s(wp);
+      if(i===0) g.moveTo(sp.x,sp.y); else g.lineTo(sp.x,sp.y);
+    }
+    g.stroke();
+  }
+  g.restore();
+}
+/* 椭圆（用于 k 探测时的对照） */
+function drawEllipse(A,B,color,alpha){
+  if(A<=0.05||B<=0.05) return;
+  g.save(); g.strokeStyle=color; g.lineWidth=3.5; g.globalAlpha=(alpha==null?1:alpha);
+  g.beginPath();
+  const N=150;
+  for(let i=0;i<=N;i++){
+    const t = i/N*Math.PI*2;
+    const sp = w2s({x:Math.sqrt(A)*Math.cos(t), y:Math.sqrt(B)*Math.sin(t)});
+    if(i===0) g.moveTo(sp.x,sp.y); else g.lineTo(sp.x,sp.y);
+  }
+  g.closePath(); g.stroke(); g.restore();
+}
+/* 发光点 */
+function drawDot(p, color, r, glow){
+  const sp = w2s(p);
+  if(glow){
+    g.save(); g.shadowColor=color; g.shadowBlur=18;
+  }
+  g.fillStyle=color; g.beginPath(); g.arc(sp.x,sp.y,r||7,0,7); g.fill();
+  if(glow) g.restore();
+}
+/* 带白边文字（防遮挡，G14） */
+function haloText(txt,sp,color,size,align){
+  g.font = "bold "+(size||17)+"px sans-serif";
+  g.textAlign = align||"left";
+  g.lineWidth = 4; g.strokeStyle = "rgba(255,255,255,.92)";
+  g.strokeText(txt, sp.x, sp.y);
+  g.fillStyle = color; g.fillText(txt, sp.x, sp.y);
+  g.textAlign = "left";
+}
+/* 五角星 */
+function drawStar(sp, r, color){
+  g.fillStyle=color; g.beginPath();
+  for(let i=0;i<10;i++){
+    const ang = -Math.PI/2 + i*Math.PI/5;
+    const rr = (i%2===0) ? r : r*0.45;
+    const x = sp.x+Math.cos(ang)*rr, y = sp.y+Math.sin(ang)*rr;
+    if(i===0) g.moveTo(x,y); else g.lineTo(x,y);
+  }
+  g.closePath(); g.fill();
+}
+/* 虚线段 */
+function seg(p,q,color,width,dash){
+  const a=w2s(p), b=w2s(q);
+  g.save(); g.strokeStyle=color; g.lineWidth=width||2;
+  if(dash) g.setLineDash([7,6]);
+  g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke(); g.restore();
+}
+
+/* ---------------- 拖放系统（DOM 芯片/磁贴通用） ---------------- */
+let dropTargets = [];   /* 当前舞台注册的放置目标 {el, accept(payload, chipEl)} */
+function registerDrop(el, accept){ dropTargets.push({el:el, accept:accept}); }
+function clearDrops(){ dropTargets = []; }
+function makeDraggable(chipEl, payload){
+  chipEl.addEventListener("pointerdown", function(e){
+    if(chipEl.classList.contains("docked") || chipEl.classList.contains("used")) return;
+    e.preventDefault();
+    const rect = chipEl.getBoundingClientRect();
+    const ghost = chipEl.cloneNode(true);
+    ghost.classList.add("ghost");
+    ghost.style.width = rect.width+"px"; ghost.style.left = rect.left+"px"; ghost.style.top = rect.top+"px";
+    document.body.appendChild(ghost);
+    chipEl.style.opacity = ".35";
+    let hotEl = null;
+    function mv(ev){
+      ghost.style.left = (ev.clientX-rect.width/2)+"px";
+      ghost.style.top = (ev.clientY-26)+"px";
+      let found = null;
+      for(let i=0;i<dropTargets.length;i++){
+        const r = dropTargets[i].el.getBoundingClientRect();
+        if(ev.clientX>=r.left && ev.clientX<=r.right && ev.clientY>=r.top && ev.clientY<=r.bottom){ found = dropTargets[i].el; break; }
+      }
+      if(hotEl && hotEl!==found) hotEl.classList.remove("hot");
+      hotEl = found;
+      if(hotEl) hotEl.classList.add("hot");
+    }
+    function up(ev){
+      document.removeEventListener("pointermove", mv);
+      document.removeEventListener("pointerup", up);
+      if(hotEl) hotEl.classList.remove("hot");
+      let done = false;
+      for(let i=0;i<dropTargets.length;i++){
+        const r = dropTargets[i].el.getBoundingClientRect();
+        if(ev.clientX>=r.left && ev.clientX<=r.right && ev.clientY>=r.top && ev.clientY<=r.bottom){
+          dropTargets[i].accept(payload, chipEl, ev); done = true; break;
+        }
+      }
+      if(!done){ chipEl.style.opacity = "1"; toast("放到虚线托盘上试试"); }
+      ghost.remove();
+    }
+    document.addEventListener("pointermove", mv);
+    document.addEventListener("pointerup", up);
+  });
+}
+
+/* ---------------- 舞台框架 ---------------- */
+let stage = null;               /* 当前舞台对象 */
+const Run = {                   /* 一次闯关的全局状态 */
+  diff:"", stages:[], idx:0, steps:0, t0:0, timerId:0, paletteName:""
+};
+function addStep(){ Run.steps++; $("hudSteps").textContent = Run.steps; }
+
+function startRun(diffKey){
+  Run.diff = diffKey; Run.idx = 0; Run.steps = 0;
+  $("hudSteps").textContent = "0";
+  Run.paletteName = applyPalette();
+  Run.stages = buildStages(diffKey);
+  $("menuScreen").classList.add("hidden");
+  $("gameScreen").classList.remove("hidden");
+  resizeCanvas();
+  Run.t0 = Date.now();
+  clearInterval(Run.timerId);
+  Run.timerId = setInterval(function(){
+    const s = Math.floor((Date.now()-Run.t0)/1000);
+    $("hudTime").textContent = (String(Math.floor(s/60)).padStart(2,"0"))+":"+String(s%60).padStart(2,"0");
+  }, 500);
+  openRules();                       /* 进入时弹出规则面板（G6） */
+  loadStage(0);
+  toast("本场配色："+Run.paletteName+"，出发！");
+}
+function loadStage(i){
+  Run.idx = i;
+  const st = Run.stages[i];
+  stage = st;
+  clearDrops();
+  $("hdrTitle").textContent = DIFFS[Run.diff].name + " · " + st.name;
+  $("hdrProg").textContent = "第 "+(i+1)+" / "+Run.stages.length+" 关";
+  $("canvasBadge").textContent = st.badge;
+  $("stageTitle").textContent = st.name;
+  $("stageGoal").textContent = st.goal;
+  const w = $("stageWidgets");
+  w.innerHTML = "";
+  st.buildPanel(w);
+  st.mount();
+  resizeCanvas();
+}
+/* 单关完成 */
+function stageDone(insight){
+  const st = stage;
+  st.locked = true;
+  const wrap = $("canvasWrap").getBoundingClientRect();
+  burst(wrap.left+wrap.width/2, wrap.top+wrap.height/2, 60);
+  const isLast = (Run.idx === Run.stages.length-1);
+  $("doneTitle").textContent = "第 "+(Run.idx+1)+" 关点亮成功！";
+  $("doneBody").innerHTML = insight;
+  $("doneNextBtn").textContent = isLast ? "查看闯关成果" : "下一关";
+  showModal($("doneModal"));
+  if(isLast === false){ /* 中间关不额外处理 */ }
+}
+$("doneNextBtn").addEventListener("click", function(){
+  hideModals();
+  if(Run.idx === Run.stages.length-1){
+    bigConfetti();
+    const s = Math.floor((Date.now()-Run.t0)/1000);
+    $("celeTitle").textContent = DIFFS[Run.diff].name + " 全部通关，星空点亮！";
+    $("celeBody").innerHTML =
+      "用时 <b>"+$("hudTime").textContent+"</b>，共操作 <b>"+Run.steps+"</b> 步。<br>你已经亲手验证了双曲线的定义、标准方程与几何性质，接下来去提升篇挑战焦半径等更高阶结论吧！";
+    showModal($("celebrateModal"));
+  } else {
+    loadStage(Run.idx+1);
+  }
+});
+$("celeAgainBtn").addEventListener("click", function(){ hideModals(); startRun(Run.diff); });
+$("celeBackBtn").addEventListener("click", function(){ hideModals(); backToMenu(); });
+function backToMenu(){
+  clearInterval(Run.timerId);
+  stage = null;
+  $("gameScreen").classList.add("hidden");
+  $("menuScreen").classList.remove("hidden");
+  applyPalette();
+}
+
+/* 模态控制 */
+function showModal(m){ $("overlayDim").classList.remove("hidden"); m.classList.remove("hidden"); }
+function hideModals(){
+  $("overlayDim").classList.add("hidden");
+  ["rulesModal","revealModal","doneModal","celebrateModal"].forEach(function(id){ $(id).classList.add("hidden"); });
+}
+$("overlayDim").addEventListener("click", hideModals);
+function openRules(){ showModal($("rulesModal")); }
+$("rulesCloseBtn").addEventListener("click", hideModals);
+$("btnRules").addEventListener("click", openRules);
+$("menuRulesBtn").addEventListener("click", openRules);
+$("revealCloseBtn").addEventListener("click", hideModals);
+$("btnReveal").addEventListener("click", function(){
+  if(!stage) return;
+  stage.reveal();
+  $("revealBody").innerHTML = stage.revealHTML + "<br><i>（画布上已用虚线标出答案轨迹）</i>";
+  showModal($("revealModal"));
+});
+$("btnRestart").addEventListener("click", function(){
+  if(!stage) return;
+  toast("本关已重新随机生成");
+  Run.stages[Run.idx] = stage.rebuild();
+  loadStage(Run.idx);
+});
+$("btnBack").addEventListener("click", backToMenu);
+
+/* 主画布指针事件 → 转给舞台 */
+cv.addEventListener("pointerdown", function(e){
+  cv.setPointerCapture(e.pointerId);
+  if(stage && stage.pdown) stage.pdown(s2w(evPos(e)), evPos(e));
+});
+cv.addEventListener("pointermove", function(e){
+  if(stage && stage.pmove) stage.pmove(s2w(evPos(e)), evPos(e));
+});
+cv.addEventListener("pointerup", function(e){
+  if(stage && stage.pup) stage.pup(s2w(evPos(e)), evPos(e));
+});
+/* 主渲染循环 */
+function mainLoop(ts){
+  g.clearRect(0,0,CW,CH);
+  if(stage && stage.draw) stage.draw(ts);
+  requestAnimationFrame(mainLoop);
+}
+requestAnimationFrame(mainLoop);
+
+/* ==================================================================
+   舞台一：星光采样（定义）—— 拖动探针 P，让距离差落入目标带
+   数据来自教参 例1 及"思考探究"
+   ================================================================== */
+function makeSampleStage(mode){       /* mode='abs' 双支(例1思想) / 'signed' 单支(练习3思想) */
+  const poolAbs = [
+    {ax:"x", c:3, a2:4, f1:{x:-3,y:0}, f2:{x:3,y:0}},
+    {ax:"y", c:4, a2:6, f1:{x:0,y:-4}, f2:{x:0,y:4}},
+    {ax:"x", c:5, a2:8, f1:{x:-5,y:0}, f2:{x:5,y:0}},
+    {ax:"y", c:3, a2:2, f1:{x:0,y:-3}, f2:{x:0,y:3}},
+    {ax:"x", c:4, a2:2, f1:{x:-4,y:0}, f2:{x:4,y:0}}
+  ];
+  const poolSign = [
+    {f1:{x:1,y:0}, f2:{x:3,y:0}, d:1},
+    {f1:{x:0,y:0}, f2:{x:4,y:0}, d:2},
+    {f1:{x:2,y:0}, f2:{x:6,y:0}, d:2}
+  ];
+  function build(){
+    const isAbs = (mode==="abs");
+    const cfg = isAbs ? pick(poolAbs) : pick(poolSign);
+    let f1,f2,a,cTgt,cHalf,center,b;
+    if(isAbs){
+      f1=cfg.f1; f2=cfg.f2; a=cfg.a2/2; cHalf=cfg.c;
+      center={x:(f1.x+f2.x)/2, y:(f1.y+f2.y)/2};
+      b=Math.sqrt(cHalf*cHalf-a*a);
+    } else {
+      f1=cfg.f1; f2=cfg.f2; a=cfg.d/2;
+      cHalf=dist(f1,f2)/2;
+      center={x:(f1.x+f2.x)/2, y:(f1.y+f2.y)/2};
+      b=Math.sqrt(cHalf*cHalf-a*a);
+    }
+    const st = {
+      name: isAbs ? "星光采样 · 定义探秘" : "单支寻踪 · 距离差的方向",
+      badge: isAbs ? "实验一：距离差的绝对值" : "实验二：带符号的距离差",
+      goal: isAbs
+        ? "焦点 F₁("+f1.x+","+f1.y+")、F₂("+f2.x+","+f2.y+")（|F₁F₂|="+2*cHalf+"）。\n拖动探针 P，当 ||PF₁|−|PF₂|| = "+(2*a)+" 时按住并采样星点（差值落入绿色带即可自动采样）。共采样 5 颗星，且两支曲线各至少 2 颗！"
+        : "定点 F₁("+f1.x+","+f1.y+")、F₂("+f2.x+","+f2.y+")，|F₁F₂|="+fmt(2*cHalf,0)+"。\n拖动探针 P，使带符号的 |PF₂|−|PF₁| 恰好等于 "+cfg.d+"，采样 4 颗星。观察：星点全都落在同一侧吗？",
+      locked:false, revealed:false,
+      stars:[], probe:{x:center.x+1.6, y:center.y+1.4}, drag:false, lastCap:0,
+      scale:40,
+      rebuild:function(){ return build(); },
+      mount:function(){ st.fitScale(); /* 进入时先按画布尺寸定比例 */ },
+      onResize:function(){ st.fitScale(); },
+      fitScale:function(){
+        const reach = cHalf + a + 3.2;
+        st.scale = Math.min((CW-50)/(2*Math.max(reach,b+2.6)), (CH-50)/(2*Math.max(reach*0.8,b+2.8)));
+      },
+      stepNow:function(){ return performance.now(); },
+      tryCapture:function(d1,d2){
+        if(st.locked) return;
+        const now = performance.now();
+        if(now - st.lastCap < 320) return;
+        const signedAbs = Math.abs(d1-d2);
+        const signedDir = d2-d1;
+        const ok = isAbs ? (Math.abs(signedAbs - 2*a) < 0.16) : (Math.abs(signedDir - cfg.d) < 0.16);
+        if(!ok) return;
+        const p = st.probe;
+        for(let i=0;i<st.stars.length;i++){ if(dist(p, st.stars[i].p) < 1.0) return; }
+        const branch = (d1-d2)>0 ? "靠近F₂一侧" : "靠近F₁一侧";  /* |PF₁|>|PF₂| 说明 P 离 F₂ 更近 */
+        st.stars.push({p:{x:p.x,y:p.y}, branch:branch});
+        st.lastCap = now;
+        addStep();
+        const sp = w2s(p);
+        burst(sp.x + cv.getBoundingClientRect().left, sp.y + cv.getBoundingClientRect().top, 22);
+        st.refreshHUD();
+        if(isAbs){
+          const nA = st.stars.filter(function(s){return s.branch==="靠近F₁一侧";}).length;
+          const nB = st.stars.length - nA;
+          if(st.stars.length>=5 && nA>=2 && nB>=2){ st.finish(); }
+        } else {
+          if(st.stars.length>=4){ st.finish(); }
+        }
+      },
+      finish:function(){
+        st.locked = true;
+        stageDone(
+          (isAbs
+          ? "<b>发现：</b>所有满足 ||PF₁|−|PF₂||="+(2*a)+"（0&lt;"+(2*a)+"&lt;|F₁F₂|="+2*cHalf+"）的星点，连成<b>两支</b>对称的曲线——这就是<b>双曲线</b>！<br>定义：平面内与两个定点F₁、F₂的距离的差的绝对值等于常数（小于|F₁F₂|且不等于0）的点的轨迹叫做双曲线。"
+          : "<b>发现：</b>满足 |PF₂|−|PF₁|="+cfg.d+" 的星点全都落在<b>同一支</b>上——因为距离差始终是正数 "+cfg.d+"（不含绝对值），所以轨迹只是<b>双曲线的一支</b>！<br>这正是教参练习的关键：'|PF₁| 比 |PF₂| 少 1' 时，轨迹是双曲线的一支。")
+        );
+      },
+      refreshHUD:function(){
+        /* 更新右侧星槽 */
+        const row = $("starsRow"); if(!row) return;
+        const cells = row.children;
+        for(let i=0;i<cells.length;i++){ cells[i].classList.toggle("lit", i<st.stars.length); }
+        const info = $("capInfo");
+        if(info){
+          if(isAbs){
+            const nA = st.stars.filter(function(s){return s.branch==="靠近F₁一侧";}).length;
+            info.textContent = "已采样 "+st.stars.length+"/5 颗（F₁侧 "+nA+" · F₂侧 "+(st.stars.length-nA)+"），两支各需≥2颗";
+          } else {
+            info.textContent = "已采样 "+st.stars.length+"/4 颗，都在同一支上吗？";
+          }
+        }
+      },
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="wLabel">距离差探测器</div>'+
+          '<div class="meterRow"><span>|PF₁|</span><b id="mPF1">—</b></div>'+
+          '<div class="meterRow"><span>|PF₂|</span><b id="mPF2">—</b></div>'+
+          '<div class="meterRow"><span>'+(isAbs?'||PF₁|−|PF₂||':'|PF₂|−|PF₁|')+'</span><b id="mDiff">—</b></div>'+
+          '<div class="diffBar" id="dbar"><div class="zero"></div><div class="band" id="bandNeg"></div><div class="band" id="bandPos"></div><div class="needle" id="mNeedle"></div></div>'+
+          '<div class="starsRow" id="starsRow">'+ (isAbs?'<span class="starSlot">★</span>'.repeat(5):'<span class="starSlot">★</span>'.repeat(4)) +'</div>'+
+          '<div class="hintBox" id="capInfo">'+(isAbs?'拖动探针，让差值指针滑进绿带，星点会自动采样':'只需差值=+'+cfg.d+'，注意指针只有一个绿带')+'</div>'+
+          '<div class="hintBox">小提示：距离差的最大可能值是 |F₁F₂|='+fmt(2*cHalf,0)+'。绿带只会在 0 和 |F₁F₂| 之间出现。</div>';
+        /* 绿带位置：与指针同一映射（值/range*50%，中心50%） */
+        const range = 2*cHalf+1.6;
+        const applyBand = function(el, centerV){
+          const wPct = 0.34/range*50;   /* 容差带宽度（±0.17 世界单位） */
+          el.style.left = (50 + centerV/range*50 - wPct/2)+"%";
+          el.style.width = wPct+"%";
+        };
+        if(isAbs){ applyBand($("bandPos"), 2*a/range*range*0+2*a); applyBand($("bandNeg"), -2*a); }
+        else { applyBand($("bandPos"), cfg.d); $("bandNeg").style.display="none"; }
+        st.refreshHUD();
+      },
+      pdown:function(wp){ st.drag = true; st.probe={x:wp.x,y:wp.y}; },
+      pmove:function(wp){
+        if(!st.drag) return;
+        st.probe={x:wp.x,y:wp.y};
+        const d1 = dist(st.probe,f1), d2 = dist(st.probe,f2);
+        const val = isAbs ? Math.abs(d1-d2) : (d2-d1);
+        const range = 2*cHalf+1.6;
+        $("mPF1").textContent = fmt(d1); $("mPF2").textContent = fmt(d2);
+        $("mDiff").textContent = (val>=0?"+":"")+fmt(val);
+        $("mNeedle").style.left = (50 + Math.max(-49,Math.min(49, (isAbs? (d1-d2):val)/range*50)) )+"%";
+        st.tryCapture(d1,d2);
+      },
+      pup:function(){ st.drag=false; },
+      reveal:function(){ st.revealed = true; },
+      revealHTML: isAbs
+        ? "答案：满足 ||PF₁|−|PF₂|| = "+(2*a)+"（0&lt;"+(2*a)+"&lt;|F₁F₂|="+2*cHalf+"）的轨迹是双曲线，焦点 F₁("+f1.x+","+f1.y+")、F₂("+f2.x+","+f2.y+")。"+
+          "其中 a="+a+"，c="+cHalf+"，b=√(c²−a²)=√("+ (cHalf*cHalf-a*a) +")="+fmt(b,3)+"。"+
+          "<br>虚线即标准方程 " + (cfg.ax==="x" ? "x²/"+cfg.a2+" − y²/"+fmt(b*b,2)+" = 1" : "y²/"+cfg.a2+" − x²/"+fmt(b*b,2)+" = 1") + "（两支都要哦）。"
+        : "答案：|PF₂|−|PF₁|="+cfg.d+"（定值，0&lt;"+cfg.d+"&lt;|F₁F₂|="+fmt(2*cHalf,0)+"）且不含绝对值，轨迹是<b>双曲线的一支</b>（靠 F₁ 的一支）。虚线已画出该支。",
+      draw:function(ts){
+        const halfW = CW/(2*st.scale), halfH = CH/(2*st.scale);
+        drawGridAndAxes(halfW+1, halfH+1);
+        /* 完成或揭示后：画出曲线 */
+        if(st.locked || st.revealed){
+          if(isAbs){
+            drawHyperbola(a,b,cfg.ax,null,cssColor("--p-main"),4,0.32,true);
+          } else {
+            /* 单支：|PF₂|−|PF₁|=正数，星点全在靠 F₁ 的一支（中心左侧） */
+            g.save();
+            g.strokeStyle = cssColor("--p-main"); g.lineWidth=4; g.globalAlpha=.4; g.setLineDash([10,7]);
+            g.beginPath();
+            const N=140, Tmax=3.6;
+            for(let i=0;i<=N;i++){
+              const t=-Tmax+2*Tmax*i/N;
+              const wp={x:center.x - a*Math.cosh(t), y:center.y + b*Math.sinh(t)};
+              const sp=w2s(wp);
+              if(i===0)g.moveTo(sp.x,sp.y);else g.lineTo(sp.x,sp.y);
+            }
+            g.stroke(); g.restore();
+          }
+        }
+        drawFocus(f1,"F₁","("+f1.x+","+f1.y+")");
+        drawFocus(f2,"F₂","("+f2.x+","+f2.y+")");
+        /* 探针连线与读数 */
+        const d1=dist(st.probe,f1), d2=dist(st.probe,f2);
+        seg(st.probe,f1,"rgba(224,68,46,.55)",2,true);
+        seg(st.probe,f2,"rgba(13,155,181,.55)",2,true);
+        const mid1={x:(st.probe.x+f1.x)/2, y:(st.probe.y+f1.y)/2};
+        const mid2={x:(st.probe.x+f2.x)/2, y:(st.probe.y+f2.y)/2};
+        haloText("|PF₁|="+fmt(d1), w2s({x:mid1.x, y:mid1.y+0.35}), "#c03a24", 16);
+        haloText("|PF₂|="+fmt(d2), w2s({x:mid2.x, y:mid2.y-0.35}), "#08697c", 16);
+        /* 采样星 */
+        for(let i=0;i<st.stars.length;i++){ drawStar(w2s(st.stars[i].p), 11, cssColor("--p-star")); }
+        /* 探针本体（在目标差附近发光提示） */
+        const near = isAbs ? Math.abs(Math.abs(d1-d2)-2*a) : Math.abs((d2-d1)-cfg.d);
+        drawDot(st.probe, near<0.6 ? "#18a558" : cssColor("--p-main"), 9, true);
+        haloText("P", w2s({x:st.probe.x, y:st.probe.y+0.45}), cssColor("--p-deep"), 18);
+        if(st.locked){
+          haloText("双曲线星轨已点亮！", w2s({x:0, y:halfH-0.7}), cssColor("--p-good"), 20, "center");
+        }
+      }
+    };
+    return st;
+  }
+  return build();
+}
+
+/* ==================================================================
+   舞台二：常数判定台 —— 把"常数条件芯片"拖进正确的轨迹托盘
+   对应教参 例1(1) 与 思考探究
+   ================================================================== */
+function makeChipStage(){
+  function build(){
+    const c = pick([2,3,4]);                 /* 焦距之半 */
+    const twoC = 2*c;
+    const valid2a = {2:pick([2,3]), 3:pick([2,4]), 4:pick([4,6])}[c];
+    const chips = shuffle([
+      {id:"hyp",  t:"||PF₁|−|PF₂|| = "+valid2a, s:"含绝对值", tray:"双曲线"},
+      {id:"one",  t:"|PF₁|−|PF₂| = "+valid2a,   s:"不含绝对值", tray:"双曲线的一支"},
+      {id:"ray",  t:"||PF₁|−|PF₂|| = "+twoC,    s:"常数=|F₁F₂|", tray:"两条射线"},
+      {id:"none", t:"||PF₁|−|PF₂|| = "+(twoC+1),s:"常数>|F₁F₂|", tray:"轨迹不存在"}
+    ]);
+    const trayNames = shuffle(["双曲线","双曲线的一支","两条射线","轨迹不存在"]);
+    const st = {
+      name:"常数判定台", badge:"实验三：定义里的常数边界",
+      goal:"F₁、F₂ 是两个定点，|F₁F₂| = "+twoC+"（画布上 P 在漫游，观察两个距离怎样变化）。\n把 4 张条件芯片分别拖进正确的轨迹托盘。想想：常数等于或超过 |F₁F₂| 时会发生什么？",
+      locked:false, revealed:false, docked:0, t:0, scale:40,
+      rebuild:function(){ return build(); },
+      mount:function(){ /* 本舞台无需初始化，画布每帧自绘 */ },
+      onResize:function(){ /* 比例固定为 40px/单位，无需响应 */ },
+      f1:{x:-c,y:0}, f2:{x:c,y:0},
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="condCard">定点 F₁(−'+c+',0)、F₂('+c+',0)，|F₁F₂| = '+twoC+'。</div>'+
+          '<div class="wLabel">条件芯片（拖到下方托盘）</div>'+
+          '<div class="chipRow" id="chipRow"></div>'+
+          '<div class="wLabel">轨迹托盘</div>'+
+          '<div class="trayGrid" id="trayGrid"></div>'+
+          '<div class="hintBox">关键：0 &lt; 常数 &lt; |F₁F₂| 才是双曲线；常数=|F₁F₂| 时轨迹退化成两条射线；再大就无迹可寻；去掉绝对值只剩一支。</div>';
+        const row = $("chipRow");
+        chips.forEach(function(ch){
+          const el = document.createElement("div");
+          el.className = "chip";
+          el.innerHTML = ch.t + "<small>"+ch.s+"</small>";
+          row.appendChild(el);
+          makeDraggable(el, ch);
+        });
+        const grid = $("trayGrid");
+        trayNames.forEach(function(tn){
+          const tr = document.createElement("div");
+          tr.className = "tray";
+          tr.innerHTML = "<h4>"+tn+"</h4>";
+          grid.appendChild(tr);
+          registerDrop(tr, function(payload, chipEl){
+            if(st.locked) return;
+            addStep();
+            if(payload.tray === tn){
+              chipEl.classList.add("docked","okFlash");
+              chipEl.style.opacity = "1";
+              tr.appendChild(chipEl);
+              st.docked++;
+              toast("放置正确！" + st.explain(payload.id));
+              if(st.docked>=4){
+                st.locked = true;
+                stageDone("<b>判定全对！</b><br>0&lt;常数&lt;|F₁F₂|：双曲线；去掉绝对值：双曲线的一支；常数=|F₁F₂|：两条射线；常数&gt;|F₁F₂|：轨迹不存在。<br>这就是定义中'小于|F₁F₂|且不等于零'这句话的意义！");
+              }
+            } else {
+              toast("再想想："+st.hint(payload.id), 3000);
+              chipEl.style.opacity = "1";
+            }
+          });
+        });
+      },
+      explain:function(id){
+        return {
+          hyp:"0<"+valid2a+"<"+twoC+"，是完整双曲线（两支）。",
+          one:"差恒为同一符号，只有靠 F₁ 的一支。",
+          ray:"差的最大值就是 |F₁F₂|，只有在线段F₁F₂延长线外的两条射线上才能取到。",
+          none:"三角形不等式：|‖PF₁|−|PF₂‖| 永远达不到 "+(twoC+1)+"。"
+        }[id];
+      },
+      hint:function(id){
+        return {
+          hyp:"这张芯片的常数在 0 和 "+twoC+" 之间吗？",
+          one:"注意它没有绝对值——差始终同一个符号。",
+          ray:"距离差最大能到多少？在哪里才能取到最大？",
+          none:"|‖PF₁|−|PF₂‖| 可能超过 |F₁F₂| 吗？"
+        }[id];
+      },
+      reveal:function(){ st.revealed = true; },
+      revealHTML:"正确分类：<br>· ||PF₁|−|PF₂|| = "+valid2a+" → <b>双曲线</b>（0&lt;"+valid2a+"&lt;"+twoC+"）<br>· |PF₁|−|PF₂| = "+valid2a+" → <b>双曲线的一支</b><br>· ||PF₁|−|PF₂|| = "+twoC+" → <b>两条射线</b>（线段F₁F₂两侧延长线）<br>· ||PF₁|−|PF₂|| = "+(twoC+1)+" → <b>轨迹不存在</b>（三角不等式）",
+      draw:function(ts){
+        st.t = ts/1000;
+        const halfW = CW/(2*40), halfH = CH/(2*40);
+        st.scale = 40;
+        drawGridAndAxes(halfW+1, halfH+1);
+        drawFocus(st.f1,"F₁","(−"+c+",0)");
+        drawFocus(st.f2,"F₂","("+c+",0)");
+        seg(st.f1,st.f2,"rgba(141,151,186,.8)",2,true);
+        haloText("|F₁F₂| = "+twoC, w2s({x:0,y:-0.45}), "#5a679a", 17, "center");
+        /* 漫游点 P：展示两个距离实时变化 */
+        const px = 2.6*Math.cos(st.t*0.7), py = 1.8*Math.sin(st.t*1.1);
+        const P = {x:px, y:py};
+        seg(P,st.f1,"rgba(224,68,46,.5)",2,true);
+        seg(P,st.f2,"rgba(13,155,181,.5)",2,true);
+        drawDot(P, cssColor("--p-main"), 8, true);
+        const d1=dist(P,st.f1), d2=dist(P,st.f2);
+        haloText("|PF₁|−|PF₂| = "+fmt(d1-d2), w2s({x:0, y:halfH-0.6}), cssColor("--p-deep"), 19, "center");
+        if(st.revealed){
+          /* 画出两种代表轨迹作对照 */
+          const a=valid2a/2, b=Math.sqrt(c*c-a*a);
+          drawHyperbola(a,b,"x",null,cssColor("--p-main"),4,.3,true);
+          g.save(); g.strokeStyle="#18a558"; g.lineWidth=4; g.globalAlpha=.3; g.setLineDash([10,7]);
+          const e1=w2s({x:-halfW,y:0}), e2=w2s({x:-c,y:0});
+          g.beginPath(); g.moveTo(e1.x,e1.y); g.lineTo(e2.x,e2.y); g.stroke();
+          const f1s=w2s({x:c,y:0}), f2s=w2s({x:halfW,y:0});
+          g.beginPath(); g.moveTo(f1s.x,f1s.y); g.lineTo(f2s.x,f2s.y); g.stroke();
+          g.restore();
+          haloText("绿色射线对：常数=|F₁F₂| 的轨迹", w2s({x:0, y:-(halfH-0.6)}), "#18a558", 17, "center");
+        }
+      }
+    };
+    return st;
+  }
+  return build();
+}
+
+/* ==================================================================
+   舞台三：方程装配车间 —— 拖磁贴填 a²、b²，转焦距杆选焦点所在轴
+   对应教参 例2/例3/例4 及配套练习（条件完整呈现）
+   ================================================================== */
+function makeAssemblyStage(){
+  /* 条件库（每条都来自教参题型或其等价变式，条件完整可解） */
+  const SETS = [
+    { id:"A", axis:"x", A:16, B:9,
+      conds:["中心在原点，焦点在x轴上","a + c = 9","b = 3"],
+      checks:[
+        {t:"焦点在x轴", ok:function(r){return r.axis==="x";}},
+        {t:"a+c=9", ok:function(r){return Math.abs(Math.sqrt(r.A)+Math.sqrt(r.A+r.B)-9)<1e-6;}, show:function(r){return "当前 a+c = "+fmt(Math.sqrt(r.A)+Math.sqrt(r.A+r.B));}},
+        {t:"b=3（即 b²=9）", ok:function(r){return r.B===9;}, show:function(r){return "当前 b = "+fmt(Math.sqrt(r.B));}}
+      ],
+      sol:"a+c=9 且 c²−a²=b²=9 ⇒ (c−a)(c+a)=9 ⇒ c−a=1 ⇒ a=4, c=5, b=3。方程 x²/16 − y²/9 = 1。"
+    },
+    { id:"B", axis:"x", A:5, B:1,
+      conds:["中心在原点，焦点在x轴上","c = √6","经过点 (−5, 2)"],
+      checks:[
+        {t:"焦点在x轴", ok:function(r){return r.axis==="x";}},
+        {t:"c=√6（即 a²+b²=6）", ok:function(r){return r.A+r.B===6;}, show:function(r){return "当前 a²+b² = "+(r.A+r.B);}},
+        {t:"曲线经过 (−5,2)", ok:function(r){return Math.abs(25/r.A - 4/r.B - 1)<1e-6;}, show:function(r){return "代入左侧 = "+fmt(25/r.A - 4/r.B,3);}, point:{x:-5,y:2}}
+      ],
+      sol:"设 x²/a² − y²/b² = 1，b²=6−a²；代入 (−5,2)：25/a² − 4/(6−a²) = 1 ⇒ a⁴−35a²+150… 整理得 (a²−5)(a²−30)=0，a²<6 ⇒ a²=5, b²=1。方程 x²/5 − y² = 1。"
+    },
+    { id:"C", axis:"x", A:6, B:3,
+      conds:["中心在原点，焦点在x轴上","与椭圆 x²/12 + y²/3 = 1 有相同的焦点","经过点 (√8, 1)"],
+      checks:[
+        {t:"焦点在x轴", ok:function(r){return r.axis==="x";}},
+        {t:"与椭圆同焦点（c²=12−3=9）", ok:function(r){return r.A+r.B===9;}, show:function(r){return "当前 a²+b² = "+(r.A+r.B);}},
+        {t:"曲线经过 (√8,1)", ok:function(r){return Math.abs(8/r.A - 1/r.B - 1)<1e-6;}, show:function(r){return "代入左侧 = "+fmt(8/r.A - 1/r.B,3);}, point:{x:Math.sqrt(8),y:1}}
+      ],
+      sol:"椭圆焦点 (±3,0)（c²=12−3=9），双曲线 a²+b²=9；代入 (√8,1)：8/a² − 1/b² = 1 ⇒ a⁴−18a²+72=0 ⇒ (a²−6)(a²−12)=0，a²=6, b²=3。方程 x²/6 − y²/3 = 1。"
+    },
+    { id:"D", axis:"y", A:16, B:9,
+      conds:["中心在原点，焦点在y轴上","a + c = 9","b = 3"],
+      checks:[
+        {t:"焦点在y轴", ok:function(r){return r.axis==="y";}},
+        {t:"a+c=9", ok:function(r){return Math.abs(Math.sqrt(r.A)+Math.sqrt(r.A+r.B)-9)<1e-6;}, show:function(r){return "当前 a+c = "+fmt(Math.sqrt(r.A)+Math.sqrt(r.A+r.B));}},
+        {t:"b=3（即 b²=9）", ok:function(r){return r.B===9;}, show:function(r){return "当前 b = "+fmt(Math.sqrt(r.B));}}
+      ],
+      sol:"同 A：a=4, c=5, b=3，但焦点在y轴。方程 y²/16 − x²/9 = 1。"
+    },
+    { id:"E", axis:"x", A:9, B:16,
+      conds:["中心在原点，焦点在x轴上","实轴长为 6","离心率 e = 5/3"],
+      checks:[
+        {t:"焦点在x轴", ok:function(r){return r.axis==="x";}},
+        {t:"实轴长2a=6（a²=9）", ok:function(r){return r.A===9;}, show:function(r){return "当前 a = "+fmt(Math.sqrt(r.A));}},
+        {t:"e=c/a=5/3", ok:function(r){return Math.abs(Math.sqrt(r.A+r.B)/Math.sqrt(r.A)-5/3)<1e-6;}, show:function(r){return "当前 e = "+fmt(Math.sqrt(r.A+r.B)/Math.sqrt(r.A),3);}}
+      ],
+      sol:"a=3，c=ae=5，b²=25−9=16。方程 x²/9 − y²/16 = 1。"
+    },
+    { id:"F", axis:"y", A:16, B:4,
+      conds:["中心在原点，焦点在y轴上","a = 4","c = 2√5"],
+      checks:[
+        {t:"焦点在y轴", ok:function(r){return r.axis==="y";}},
+        {t:"a=4（a²=16）", ok:function(r){return r.A===16;}, show:function(r){return "当前 a = "+fmt(Math.sqrt(r.A));}},
+        {t:"c=2√5（c²=20）", ok:function(r){return r.A+r.B===20;}, show:function(r){return "当前 c² = "+(r.A+r.B);}}
+      ],
+      sol:"b²=c²−a²=20−16=4。方程 y²/16 − x²/4 = 1。"
+    }
+  ];
+  function buildOne(set, otherId){
+    const decoyPool = shuffle([1,3,4,5,6,7,8,9,10,12,16,20,25].filter(function(v){return v!==set.A && v!==set.B;})).slice(0,4);
+    const tiles = shuffle([set.A, set.B].concat(decoyPool));
+    const st = {
+      name:"方程装配车间 · "+set.id+" 号订单", badge:"实验四：装配标准方程",
+      goal:"装配任务（条件完整）：\n"+set.conds.join("；")+"。\n操作：① 把正确的两个数磁贴拖进 a²、b² 凹槽；② 拖动小画布里的焦距杆，让两个焦点吸附到你想要的坐标轴上。装好后机器自动装配检验！",
+      locked:false, revealed:false,
+      tileA:null, tileB:null, axis:null, rodAng:Math.PI/4, runRes:null, lastAxis:null, scale:40,
+      rebuild:function(){
+        /* 重开时换一张不同条件的订单（也避开同场另一关用过的） */
+        const cand = shuffle(SETS.filter(function(s){ return s.id!==set.id && s.id!==otherId; }));
+        return buildOne(cand[0], otherId);
+      },
+      mount:function(){ /* 面板构建即初始化，无需额外挂载逻辑 */ },
+      onResize:function(){ /* 比例在 draw 中自适应 */ },
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="condCard">'+set.conds.join("<br>")+'</div>'+
+          '<div class="eqframe" id="eqFrame"></div>'+
+          '<div style="text-align:center;font-size:16px;color:#5a679a">两个凹槽从左到右依次是 a² 和 b²（c²=a²+b² 由机器自动计算）</div>'+
+          '<div class="wLabel">数字磁贴（拖进上方凹槽）</div>'+
+          '<div class="tileRack" id="tileRack"></div>'+
+          '<div id="rodBox"><canvas id="rodCanvas" width="150" height="150"></canvas>'+
+          '<div class="hintBox" style="flex:1">拖动焦距杆旋转：转到<b>水平</b>＝焦点在x轴（方程形如 x²/a²−y²/b²=1）；转到<b>竖直</b>＝焦点在y轴（y²/a²−x²/b²=1）。靠近水平/竖直会自动吸附。</div></div>'+
+          '<div class="wLabel">装配检验台</div>'+
+          '<div class="checkList" id="checkList"><div class="checkItem">等待装配…（放好磁贴并选定焦距方向后自动开检）</div></div>';
+        /* 方程框架：一次性创建固定元素，之后只更新文字，避免拖放目标失效 */
+        const frame = $("eqFrame");
+        const spTop = document.createElement("span"); spTop.id = "eqTop";
+        const slotA = document.createElement("span"); slotA.className = "slot"; slotA.id = "slotA";
+        const spBot = document.createElement("span"); spBot.id = "eqBot";
+        const slotB = document.createElement("span"); slotB.className = "slot"; slotB.id = "slotB";
+        frame.appendChild(spTop);
+        frame.appendChild(document.createTextNode(" / "));
+        frame.appendChild(slotA);
+        frame.appendChild(document.createTextNode("  −  "));
+        frame.appendChild(spBot);
+        frame.appendChild(document.createTextNode(" / "));
+        frame.appendChild(slotB);
+        frame.appendChild(document.createTextNode("  =  1"));
+        st.renderFrame();
+        /* 磁贴 */
+        const rack = $("tileRack");
+        tiles.forEach(function(v){
+          const el = document.createElement("div");
+          el.className = "tile"; el.textContent = v;
+          rack.appendChild(el);
+          makeDraggable(el, {v:v});
+        });
+        registerDrop(slotA, function(payload, el){
+          if(st.locked) return;
+          addStep(); st.tileA = payload.v; el.classList.add("used");
+          st.renderFrame(); st.evaluate();
+        });
+        registerDrop(slotB, function(payload, el){
+          if(st.locked) return;
+          addStep(); st.tileB = payload.v; el.classList.add("used");
+          st.renderFrame(); st.evaluate();
+        });
+        /* 焦距杆 */
+        const rc = $("rodCanvas"), rg = rc.getContext("2d");
+        let rodDrag = false;
+        function drawRod(){
+          rg.clearRect(0,0,150,150);
+          rg.strokeStyle="#c9d0e8"; rg.lineWidth=2;
+          rg.beginPath(); rg.moveTo(75,10); rg.lineTo(75,140); rg.stroke();
+          rg.beginPath(); rg.moveTo(10,75); rg.lineTo(140,75); rg.stroke();
+          const drawAng = st.axis==="x" ? 0 : (st.axis==="y" ? Math.PI/2 : st.rodAng);
+          const dx = Math.cos(drawAng)*52, dy = -Math.sin(drawAng)*52;
+          const snapped = st.axis!==null;
+          rg.strokeStyle = snapped ? "#18a558" : cssColor("--p-main");
+          rg.lineWidth = 6; rg.lineCap="round";
+          rg.beginPath(); rg.moveTo(75-dx,75-dy); rg.lineTo(75+dx,75+dy); rg.stroke();
+          rg.fillStyle="#e0442e";
+          [[75-dx,75-dy],[75+dx,75+dy]].forEach(function(pt){
+            rg.beginPath(); rg.arc(pt[0],pt[1],8,0,7); rg.fill();
+          });
+          rg.fillStyle="#1a2246"; rg.font="bold 16px sans-serif";
+          rg.fillText(snapped ? (st.axis==="x"?"已吸附：x轴":"已吸附：y轴") : "拖我旋转", 6, 146);
+        }
+        function setAngleFromEvent(ev){
+          const r = rc.getBoundingClientRect();
+          const mx = ev.clientX-r.left-75, my = 75-(ev.clientY-r.top);
+          let ang = Math.atan2(my,mx);
+          const deg = ((ang*180/Math.PI)%180+180)%180;
+          if(deg<12 || deg>168){ ang=0; st.axis="x"; }
+          else if(Math.abs(deg-90)<14){ ang=Math.PI/2; st.axis="y"; }
+          else { st.axis=null; }
+          st.rodAng = ang;
+          drawRod(); st.renderFrame(); st.evaluate();
+          if(st.axis!==st.lastAxis){ addStep(); st.lastAxis = st.axis; } /* 只在方向改变时计一步 */
+        }
+        rc.addEventListener("pointerdown", function(e){
+          if(st.locked) return;
+          rodDrag = true; rc.setPointerCapture(e.pointerId); setAngleFromEvent(e);
+        });
+        rc.addEventListener("pointermove", function(e){ if(rodDrag && !st.locked) setAngleFromEvent(e); });
+        rc.addEventListener("pointerup", function(){ rodDrag = false; });
+        drawRod();
+      },
+      renderFrame:function(){
+        const top = $("eqTop"), bot = $("eqBot"), sa = $("slotA"), sb = $("slotB");
+        if(!top) return;
+        top.textContent = st.axis==="y" ? "y²" : "x²";
+        bot.textContent = st.axis==="y" ? "x²" : "y²";
+        sa.textContent = st.tileA===null ? "a²?" : st.tileA;
+        sb.textContent = st.tileB===null ? "b²?" : st.tileB;
+        sa.classList.toggle("filled", st.tileA!==null);
+        sb.classList.toggle("filled", st.tileB!==null);
+      },
+      evaluate:function(){
+        if(st.locked || st.tileA===null || st.tileB===null || st.axis===null){ return; }
+        const r = {A:st.tileA, B:st.tileB, axis:st.axis};
+        const list = $("checkList");
+        let html = "", allOK = true;
+        set.checks.forEach(function(chk){
+          const okv = chk.ok(r);
+          if(!okv) allOK = false;
+          html += '<div class="checkItem '+(okv?"ok":"no")+'"><span>'+chk.t+'</span><span>'+
+            (okv ? "通过" : (chk.show ? chk.show(r) : "未满足"))+'</span></div>';
+        });
+        const c=Math.sqrt(r.A+r.B);
+        html += '<div class="checkItem"><span>装配结果</span><span>'+
+          (r.axis==="x"?"x":"y")+'²/'+r.A+' − '+(r.axis==="x"?"y":"x")+'²/'+r.B+' = 1（c='+fmt(c,3)+'）</span></div>';
+        list.innerHTML = html;
+        st.runRes = r;
+        if(allOK){
+          st.locked = true;
+          stageDone("<b>装配成功！</b><br>"+set.sol+"<br>别忘了：双曲线里 <b>c² = a² + b²</b>（椭圆是 c²=a²−b²），这就是装配台的秘密。");
+        }
+      }
+    };
+    /* 画布绘制 */
+    st.draw = function(){
+      st.scale = Math.min((CW-50)/16, (CH-50)/13);
+      drawGridAndAxes(CW/(2*st.scale)+1, CH/(2*st.scale)+1);
+      if(st.runRes || st.revealed){
+        const rr = st.revealed ? {A:set.A, B:set.B, axis:set.axis} : st.runRes;
+        const a=Math.sqrt(rr.A), b=Math.sqrt(rr.B), c=Math.sqrt(rr.A+rr.B);
+        drawHyperbola(a,b,rr.axis,null,cssColor("--p-main"),4, st.revealed&&!st.runRes ? .4 : .9);
+        const fp = rr.axis==="x" ? [{x:-c,y:0},{x:c,y:0}] : [{x:0,y:-c},{x:0,y:c}];
+        drawFocus(fp[0],"F₁","("+(rr.axis==="x"?fmt(-c,2):"0")+","+(rr.axis==="x"?"0":fmt(-c,2))+")");
+        drawFocus(fp[1],"F₂","("+(rr.axis==="x"?fmt(c,2):"0")+","+(rr.axis==="x"?"0":fmt(c,2))+")");
+        const pt = set.checks.filter(function(k){return k.point;})[0];
+        if(pt){
+          const onCurve = Math.abs(pt.point.x*pt.point.x/rr.A - pt.point.y*pt.point.y/rr.B - 1) < 1e-6;
+          drawDot(pt.point, onCurve?"#18a558":"#9aa4c8", 8, onCurve);
+          haloText("("+ (pt.point.x<0?"−":"") +(pt.point.x<0?fmt(-pt.point.x):fmt(pt.point.x)) +", "+fmt(pt.point.y)+")",
+            w2s({x:pt.point.x, y:pt.point.y+0.55}), onCurve?"#18a558":"#7a84a8", 16);
+        }
+        if(st.revealed && !st.runRes){
+          haloText("答案轨迹（虚线）：标准方程见右侧", w2s({x:0, y:CH/(2*st.scale)-0.7}), cssColor("--p-deep"), 18, "center");
+        }
+      } else {
+        haloText("把磁贴放进方程，转动焦距杆，机器就会在这里画出你装配的双曲线",
+          w2s({x:0,y:0}), "#8d97ba", 17, "center");
+      }
+    };
+    st.reveal = function(){ st.revealed = true; };
+    st.revealHTML = "答案："+set.sol+"<br>正确装配："+(set.axis==="x"?"x":"y")+"²/"+set.A+" − "+(set.axis==="x"?"y":"x")+"²/"+set.B+" = 1。";
+    return st;
+  }
+  /* 一局随机抽 2 张不同订单（中级共两关装配，条件互不相同） */
+  const chosen = shuffle(SETS).slice(0,2);
+  return {
+    next:function(i){
+      const other = chosen[1-i];
+      return buildOne(chosen[i], other ? other.id : null);
+    }
+  };
+}
+
+/* ==================================================================
+   舞台四：k 值探测舱 —— 滑动 k，观察方程形态变化，捕捉三类画面
+   对应教参 例3 / 学习笔记（方程表示双曲线时 k 的范围）
+   ================================================================== */
+function makeKStage(){
+  function build(){
+    const pq = pick([{p:4,q:2},{p:5,q:3},{p:3,q:1}]);
+    const p = pq.p, q = pq.q;
+    const kMin = -(p+5), kMax = q+5;
+    const slots = [
+      {key:"xh", label:"焦点在x轴的双曲线", got:false},
+      {key:"yh", label:"焦点在y轴的双曲线", got:false},
+      {key:"el", label:"椭圆", got:false}
+    ];
+    const st = {
+      name:"k 值探测舱", badge:"实验五：参数 k 与曲线形态",
+      goal:"研究方程：x²/(k+"+p+") − y²/(k−"+q+") = 1。\n左右滑动 k，观察画布中曲线的形态变化，然后用\"捕捉画面\"收集三种画面各 1 张：焦点在x轴的双曲线、焦点在y轴的双曲线、椭圆。\n思考：什么时候双曲线会“变成”椭圆？",
+      locked:false, revealed:false, k:0.5, capCount:0,
+      rebuild:function(){ return build(); },
+      mount:function(){ /* 面板与状态已在 build 中就绪 */ },
+      onResize:function(){ /* 绘制比例在 draw 中自适应 */ },
+      classify:function(kv){
+        const A = kv+p, B = kv-q;
+        if(A>0.05 && B>0.05) return {type:"xh", A:A, B:B, msg:"焦点在x轴的双曲线：x²/"+fmt(A,2)+" − y²/"+fmt(B,2)+" = 1"};
+        if(A>0.05 && B<-0.05) return {type:"el", A:A, B:-B, msg:"椭圆：x²/"+fmt(A,2)+" + y²/"+fmt(-B,2)+" = 1"};
+        if(A<-0.05 && B<-0.05) return {type:"yh", A:-B, B:-A, msg:"焦点在y轴的双曲线：y²/"+fmt(-B,2)+" − x²/"+fmt(-A,2)+" = 1"};
+        return {type:"de", A:0, B:0, msg:"分母接近零，方程退化，没有曲线"};
+      },
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="eqframe" style="font-size:23px">x²/(k+'+p+') − y²/(k−'+q+') = 1</div>'+
+          '<div class="sliderRow">'+
+            '<span class="wLabel">k =</span>'+
+            '<input type="range" id="kSlider" min="'+kMin+'" max="'+kMax+'" step="0.05" value="0.5">'+
+            '<span class="kVal" id="kVal">0.50</span>'+
+          '</div>'+
+          '<div class="typeBadge" id="typeBadge">—</div>'+
+          '<div class="wLabel">图鉴收集（滑动到目标形态后按\"捕捉画面\"）</div>'+
+          '<div class="captureSlots" id="capSlots"></div>'+
+          '<div class="hintBox" id="capMsg">已捕捉 0 张。提示：k 很大或很小的时候，各是什么？</div>';
+        const cs = $("capSlots");
+        slots.forEach(function(s){
+          const d = document.createElement("div");
+          d.className = "capSlot"; d.id = "cap_"+s.key;
+          d.textContent = s.label;
+          cs.appendChild(d);
+        });
+        const btn = document.createElement("button");
+        btn.textContent = "捕捉画面";
+        btn.style.marginTop = "4px";
+        w.appendChild(btn);
+        btn.addEventListener("click", function(){
+          if(st.locked) return;
+          addStep();
+          const cls = st.classify(st.k);
+          if(cls.type==="de"){ toast("此时方程退化（分母为零附近），换一个 k 再试"); return; }
+          const slot = slots.filter(function(s){return s.key===cls.type;})[0];
+          if(slot.got){ toast("这一类画面已经收集过啦，去收集别的形态吧"); return; }
+          slot.got = true;
+          $("cap_"+cls.type).classList.add("got");
+          $("cap_"+cls.type).textContent = slot.label+"　k="+fmt(st.k);
+          st.capCount++;
+          toast("收集成功："+cls.msg, 3000);
+          if(st.capCount>=3){
+            st.locked = true;
+            stageDone(
+              "<b>图鉴集齐！分类结论：</b><br>· k &gt; "+q+"：k+"+p+" &gt; 0 且 k−"+q+" &gt; 0，两项一加一减，是<b>焦点在x轴的双曲线</b>；<br>· "+(-p)+" &lt; k &lt; "+q+"：k+"+p+" &gt; 0 而 k−"+q+" &lt; 0，−y²/(k−"+q+") 变成 +y²/("+q+"−k)，方程即 x²/(k+"+p+") + y²/("+q+"−k) = 1，是<b>椭圆</b>；<br>· k &lt; "+(-p)+"：两项同时变号，整理成 y²/("+q+"−k) − x²/(−"+p+"−k) = 1，是<b>焦点在y轴的双曲线</b>。<br>这正是教参'方程表示双曲线 / 焦点在y轴的双曲线时求 k 范围'题型背后的道理！"
+            );
+          }
+        });
+        $("kSlider").addEventListener("input", function(e){
+          st.k = Number(e.target.value);
+          $("kVal").textContent = fmt(st.k);
+          const cls = st.classify(st.k);
+          $("typeBadge").textContent = cls.msg;
+          $("typeBadge").style.color = cls.type==="xh" ? "#3556e0" : (cls.type==="yh" ? "#a834c9" : (cls.type==="el" ? "#0fa878" : "#5a679a"));
+        });
+        const cls0 = st.classify(st.k);
+        $("typeBadge").textContent = cls0.msg;
+      },
+      reveal:function(){ st.revealed = true; },
+      revealHTML:"k 的分类答案：<br>· k &gt; "+q+"：焦点在x轴的双曲线<br>· "+(-p)+" &lt; k &lt; "+q+"：椭圆（x²/(k+"+p+") + y²/("+q+"−k) = 1）<br>· k &lt; "+(-p)+"：焦点在y轴的双曲线（y²/("+q+"−k) − x²/(−"+p+"−k) = 1）<br>· k = "+(-p)+" 或 k = "+q+"：分母为零，方程无意义。",
+      draw:function(){
+        st.scale = Math.min((CW-50)/18, (CH-50)/14);
+        drawGridAndAxes(CW/(2*st.scale)+1, CH/(2*st.scale)+1);
+        const cls = st.classify(st.k);
+        const showAll = st.revealed;
+        if(cls.type==="xh"){
+          drawHyperbola(Math.sqrt(cls.A), Math.sqrt(cls.B), "x", null, "#3556e0", 4, .95);
+          const c=Math.sqrt(cls.A+cls.B);
+          drawFocus({x:-c,y:0},"F₁"); drawFocus({x:c,y:0},"F₂");
+        } else if(cls.type==="yh"){
+          drawHyperbola(Math.sqrt(cls.A), Math.sqrt(cls.B), "y", null, "#a834c9", 4, .95);
+          const c=Math.sqrt(cls.A+cls.B);
+          drawFocus({x:0,y:-c},"F₁"); drawFocus({x:0,y:c},"F₂");
+        } else if(cls.type==="el"){
+          drawEllipse(cls.A, cls.B, "#0fa878", .95);
+          const c=Math.sqrt(Math.abs(cls.A-cls.B));
+          if(cls.A>cls.B){ drawFocus({x:-c,y:0},"F₁"); drawFocus({x:c,y:0},"F₂"); }
+          else { drawFocus({x:0,y:-c},"F₁"); drawFocus({x:0,y:c},"F₂"); }
+        } else {
+          haloText("k="+fmt(st.k)+"：分母为零附近，方程退化，画布上没有曲线",
+            w2s({x:0,y:0}), "#5a679a", 18, "center");
+        }
+        if(showAll){
+          /* 揭示：用虚线示意三段的代表曲线 */
+          const kx=q+2, ke=(q-p)/2, ky=-(p+2);
+          const cx1=st.classify(kx), ce1=st.classify(ke), cy1=st.classify(ky);
+          drawHyperbola(Math.sqrt(cx1.A),Math.sqrt(cx1.B),"x",null,"#3556e0",3,.22,true);
+          drawEllipse(ce1.A,ce1.B,"#0fa878",.22);
+          drawHyperbola(Math.sqrt(cy1.A),Math.sqrt(cy1.B),"y",null,"#a834c9",3,.22,true);
+          haloText("虚线示意：蓝=x轴双曲线段，绿=椭圆段，紫=y轴双曲线段",
+            w2s({x:0, y:-(CH/(2*st.scale)-0.7)}), "#5a679a", 16, "center");
+        }
+      }
+    };
+    return st;
+  }
+  return build();
+}
+
+/* ==================================================================
+   舞台五：渐近线导航 —— 拖动两条过原点的直线，对准双曲线的渐近线
+   对应教参 例5/变式4（渐近线方程）
+   ================================================================== */
+function makeAsymStage(){
+  const POOL = [
+    {axis:"x", A:9,  B:4}, {axis:"x", A:16, B:9}, {axis:"x", A:4, B:4},
+    {axis:"x", A:16, B:4}, {axis:"x", A:9,  B:16},{axis:"y", A:16, B:9}
+  ];
+  function build(){
+    const cfg = pick(POOL);
+    const a=Math.sqrt(cfg.A), b=Math.sqrt(cfg.B);
+    const slope = cfg.axis==="x" ? b/a : a/b;
+    const eqText = (cfg.axis==="x"?"x":"y")+"²/"+cfg.A+" − "+(cfg.axis==="x"?"y":"x")+"²/"+cfg.B+" = 1";
+    const eVal = Math.sqrt(cfg.A+cfg.B)/a;
+    let ang1 = 0.35, ang2 = 2.1, holdSince = 0, okSince = 0;
+    const st = {
+      name:"渐近线导航", badge:"实验六：让直线贴上渐近线",
+      goal:"目标双曲线："+eqText+"（画布上淡色曲线）。\n拖动两条虚线各自的圆头手柄，旋转直线，使它们恰好成为这条双曲线的渐近线（斜率读数会实时显示）。两条都对准并保持半秒即过关！\n先算一算：b/a = ?",
+      locked:false, revealed:false, dragWhich:0,
+      rebuild:function(){ return build(); },
+      mount:function(){ /* 面板与状态已在 build 中就绪 */ },
+      onResize:function(){ /* 绘制比例在 draw 中自适应 */ },
+      slopeOf:function(ang){
+        const t = Math.tan(ang);
+        if(!isFinite(t)) return 999;
+        return t;
+      },
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="eqframe" style="font-size:24px">'+eqText+'</div>'+
+          '<div class="meterRow"><span>直线甲 斜率 m₁</span><b id="m1v">—</b></div>'+
+          '<div class="meterRow"><span>直线乙 斜率 m₂</span><b id="m2v">—</b></div>'+
+          '<div class="hintBox">目标：|m₁| 与 |m₂| 都等于 b/a = '+fmt(slope,3)+'，且一正一负（渐近线 y=±(b/a)x）。手柄在画布上两个彩色圆点处。</div>'+
+          '<div class="hintBox" id="asymState">对准状态：未对准</div>';
+        st.refresh();
+      },
+      refresh:function(){
+        const el1=$("m1v"), el2=$("m2v"), stt=$("asymState");
+        if(!el1) return;
+        const m1=st.slopeOf(ang1), m2=st.slopeOf(ang2);
+        el1.textContent = fmt(m1,3); el2.textContent = fmt(m2,3);
+        const ok = st.checkOK();
+        stt.textContent = "对准状态："+(ok ? "已对准！" : "未对准（需要 ±"+fmt(slope,3)+" 各一条）");
+        stt.style.color = ok ? "var(--p-good)" : "#5a679a";
+      },
+      checkOK:function(){
+        const m1=st.slopeOf(ang1), m2=st.slopeOf(ang2);
+        const tol = 0.025;
+        const c1 = Math.abs(m1-slope)<tol && Math.abs(m2+slope)<tol;
+        const c2 = Math.abs(m1+slope)<tol && Math.abs(m2-slope)<tol;
+        return c1||c2;
+      },
+      pdown:function(wp){
+        if(st.locked) return;
+        const h1={x:4.4*Math.cos(ang1), y:4.4*Math.sin(ang1)};
+        const h2={x:4.4*Math.cos(ang2), y:4.4*Math.sin(ang2)};
+        if(dist(wp,h1)<0.7) st.dragWhich=1;
+        else if(dist(wp,h2)<0.7) st.dragWhich=2;
+      },
+      pmove:function(wp){
+        if(st.locked || st.dragWhich===0) return;
+        let ang = Math.atan2(wp.y, wp.x);
+        if(st.dragWhich===1) ang1=ang; else ang2=ang;
+        st.refresh();
+      },
+      pup:function(){ st.dragWhich=0; },
+      reveal:function(){ st.revealed = true; },
+      revealHTML:"答案：渐近线 y = ±"+fmt(slope,3)+"x（即 y=±(b/a)x，b/a="+fmt(slope,3)+"）。离心率 e=c/a="+fmt(eVal,3)+"。",
+      draw:function(){
+        st.scale = Math.min((CW-60)/11, (CH-60)/9);
+        drawGridAndAxes(CW/(2*st.scale)+1, CH/(2*st.scale)+1);
+        /* 对准保持判定：每帧检查，拖动到位停住也能触发（0.5秒） */
+        if(!st.locked){
+          if(st.checkOK()){
+            if(okSince===0) okSince = performance.now();
+            else if(performance.now()-okSince>500){
+              st.locked = true; addStep();
+              stageDone("<b>导航成功！</b><br>"+eqText+" 的渐近线：y = ±(b/a)x = ±"+fmt(slope,3)+"x；离心率 e = c/a = √(a²+b²)/a = "+fmt(eVal,3)+"。<br>记住：双曲线开口被渐近线'框住'，e 越大（c 相对 a 越大），开口越开阔！");
+            }
+          } else { okSince = 0; }
+        }
+        drawHyperbola(a,b,cfg.axis,null,cssColor("--p-main"),4,st.locked?0.95:0.3);
+        /* 真实渐近线（揭示后显示） */
+        if(st.revealed && !st.locked){
+          g.save(); g.strokeStyle="#18a558"; g.lineWidth=3; g.setLineDash([4,4]);
+          [[slope],[-slope]].forEach(function(mm){
+            const m=mm[0];
+            const p1=w2s({x:-7,y:-7*m}), p2=w2s({x:7,y:7*m});
+            g.beginPath(); g.moveTo(p1.x,p1.y); g.lineTo(p2.x,p2.y); g.stroke();
+          });
+          g.restore();
+        }
+        /* 可拖直线 */
+        function drawLine(ang, color, label){
+          const m = st.slopeOf(ang);
+          g.save(); g.strokeStyle=color; g.lineWidth=3; g.setLineDash([12,8]);
+          if(Math.abs(m)>60){
+            const t1=w2s({x:0,y:9}), t2=w2s({x:0,y:-9});
+            g.beginPath(); g.moveTo(t1.x,t1.y); g.lineTo(t2.x,t2.y); g.stroke();
+          } else {
+            const t1=w2s({x:-8,y:-8*m}), t2=w2s({x:8,y:8*m});
+            g.beginPath(); g.moveTo(t1.x,t1.y); g.lineTo(t2.x,t2.y); g.stroke();
+          }
+          g.restore();
+          const hp = w2s({x:4.4*Math.cos(ang), y:4.4*Math.sin(ang)});
+          drawDot({x:4.4*Math.cos(ang), y:4.4*Math.sin(ang)}, color, 10, true);
+          haloText(label, {x:hp.x+10, y:hp.y-10}, color, 18);
+        }
+        drawLine(ang1, "#e0442e", "甲 m="+fmt(st.slopeOf(ang1),2));
+        drawLine(ang2, "#0d9bb5", "乙 m="+fmt(st.slopeOf(ang2),2));
+        if(st.locked){
+          haloText("渐近线已对准：y=±"+fmt(slope,2)+"x", w2s({x:0, y:CH/(2*st.scale)-0.7}), cssColor("--p-good"), 20, "center");
+        }
+      }
+    };
+    return st;
+  }
+  return build();
+}
+
+/* ==================================================================
+   舞台六：离心率连线 —— 把方程卡与 e 值能量块连线配对
+   对应教参 例6/例7（离心率求法）
+   ================================================================== */
+function makeELinkStage(){
+  const POOL = [
+    {axis:"x", A:4, B:4,  e:Math.SQRT2, eTxt:"√2"},
+    {axis:"x", A:9, B:16, e:5/3,       eTxt:"5/3"},
+    {axis:"y", A:16,B:9,  e:5/4,       eTxt:"5/4"},
+    {axis:"x", A:3, B:1,  e:2*Math.sqrt(3)/3, eTxt:"2√3/3"},
+    {axis:"x", A:16,B:4,  e:Math.sqrt(5)/2,   eTxt:"√5/2"},
+    {axis:"y", A:9, B:7,  e:4/3,       eTxt:"4/3"}
+  ];
+  function build(){
+    const chosen = shuffle(POOL).slice(0,4);
+    const cards = shuffle(chosen.slice());
+    const chips = shuffle(chosen.slice());
+    const st = {
+      name:"离心率连线", badge:"实验七：收集离心率能量块",
+      goal:"左边是 4 张双曲线方程卡，右边是 4 块离心率能量块。\n按住方程卡右侧的圆点，拖到正确的 e 值上松手连线。全部连对即过关！（提示：c²=a²+b²，e=c/a>1）",
+      locked:false, revealed:false, done:0,
+      rebuild:function(){ return build(); },
+      mount:function(){ /* 面板与状态已在 build 中就绪 */ },
+      onResize:function(){ /* 绘制比例在 draw 中自适应 */ },
+      eqOf:function(c){ return (c.axis==="x"?"x":"y")+"²/"+c.A+" − "+(c.axis==="x"?"y":"x")+"²/"+c.B+" = 1"; },
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="linkWrap" id="linkWrap">'+
+            '<svg id="linkSvg"></svg>'+
+            '<div class="linkCol" id="colCards"></div>'+
+            '<div class="linkCol" id="colChips"></div>'+
+          '</div>'+
+          '<div class="hintBox" id="linkMsg">已连对 0 / 4。拖动卡片右边的小圆点到右侧能量块上。</div>';
+        const cc = $("colCards"), kk = $("colChips");
+        cards.forEach(function(c,i){
+          const d = document.createElement("div");
+          d.className = "linkCard"; d.dataset.e = String(c.e);
+          d.innerHTML = st.eqOf(c);
+          d.style.position = "relative";
+          const port = document.createElement("div");
+          port.className = "port"; port.dataset.e = String(c.e);
+          port.style.right = "-9px"; port.style.top = "50%"; port.style.marginTop = "-9px";
+          port.style.position = "absolute";
+          d.appendChild(port);
+          cc.appendChild(d);
+          st.wirePort(port, c);
+        });
+        chips.forEach(function(c){
+          const d = document.createElement("div");
+          d.className = "eChip"; d.dataset.e = String(c.e);
+          d.innerHTML = c.eTxt + "<br><small style='font-size:15px;font-weight:normal'>≈"+fmt(c.e,3)+"</small>";
+          kk.appendChild(d);
+        });
+      },
+      wirePort:function(port, card){
+        port.addEventListener("pointerdown", function(e){
+          if(port.dataset.done==="1" || st.locked) return;
+          e.preventDefault();
+          const svg = $("linkSvg");
+          const wrapR = $("linkWrap").getBoundingClientRect();
+          let tempLine = null, hitEl = null;
+          function ptOf(el, side){
+            const r = el.getBoundingClientRect();
+            return { x: (side==="r"? r.right-wrapR.left : r.left-wrapR.left), y: r.top + r.height/2 - wrapR.top };
+          }
+          function mv(ev){
+            svg.innerHTML = st.permanentSVG();
+            tempLine = document.createElementNS("http://www.w3.org/2000/svg","line");
+            const a = ptOf(port.parentElement, "r");
+            tempLine.setAttribute("x1",a.x); tempLine.setAttribute("y1",a.y);
+            tempLine.setAttribute("x2",ev.clientX-wrapR.left); tempLine.setAttribute("y2",ev.clientY-wrapR.top);
+            tempLine.setAttribute("stroke", cssColor("--p-warn")); tempLine.setAttribute("stroke-width","4");
+            svg.appendChild(tempLine);
+            hitEl = null;
+            document.querySelectorAll(".eChip").forEach(function(ch){
+              const r = ch.getBoundingClientRect();
+              ch.style.boxShadow = "";
+              if(ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom) hitEl = ch;
+            });
+            if(hitEl) hitEl.style.boxShadow = "0 0 0 4px "+cssColor("--p-star");
+          }
+          function up(ev){
+            document.removeEventListener("pointermove",mv);
+            document.removeEventListener("pointerup",up);
+            document.querySelectorAll(".eChip").forEach(function(ch){ ch.style.boxShadow=""; });
+            svg.innerHTML = st.permanentSVG();
+            if(!hitEl){ toast("把线拖到右侧的能量块上松手"); return; }
+            addStep();
+            if(Math.abs(Number(hitEl.dataset.e) - card.e) < 1e-9){
+              port.dataset.done = "1"; hitEl.dataset.done = "1";
+              port.parentElement.classList.add("done"); hitEl.classList.add("done");
+              st.links.push({from: port.parentElement, to: hitEl});
+              st.done++;
+              $("linkMsg").textContent = "已连对 "+st.done+" / 4。"+st.eqOf(card)+"：c²=a²+b²="+(card.A+card.B)+"，c=√"+(card.A+card.B)+"，e=c/a="+card.eTxt+"。";
+              svg.innerHTML = st.permanentSVG();
+              if(st.done>=4){
+                st.locked = true;
+                stageDone("<b>能量块收集完毕！</b><br>求离心率三步：① 找 a²（x² 或 y² 下面那个正数分母）；② c²=a²+b²；③ e=c/a>1。<br>离心率越大，双曲线开口越开阔；等轴双曲线（a=b）的 e 恒为 √2。");
+              }
+            } else {
+              toast("不匹配：先算 c=√(a²+b²)，再算 e=c/a 试试", 3000);
+            }
+          }
+          document.addEventListener("pointermove",mv);
+          document.addEventListener("pointerup",up);
+          mv(e);
+        });
+      },
+      links:[],
+      permanentSVG:function(){
+        const svg = $("linkSvg"); if(!svg) return "";
+        const wrapR = $("linkWrap").getBoundingClientRect();
+        let html = "";
+        st.links.forEach(function(l){
+          const r1 = l.from.getBoundingClientRect(), r2 = l.to.getBoundingClientRect();
+          html += '<line x1="'+(r1.right-wrapR.left)+'" y1="'+(r1.top+r1.height/2-wrapR.top)+'" x2="'+(r2.left-wrapR.left)+'" y2="'+(r2.top+r2.height/2-wrapR.top)+'" stroke="'+cssColor("--p-good")+'" stroke-width="5" stroke-linecap="round"/>';
+        });
+        return html;
+      },
+      reveal:function(){
+        st.revealed = true;
+        const m = $("linkMsg");
+        if(m){ m.innerHTML = "答案："+cards.map(function(c){ return st.eqOf(c)+" → e="+c.eTxt; }).join("；"); }
+      },
+      revealHTML: cards.map(function(c){
+        return (c.axis==="x"?"x":"y")+"²/"+c.A+" − "+(c.axis==="x"?"y":"x")+"²/"+c.B+" = 1 → e = c/a = √"+(c.A+c.B)+"/√"+c.A+" = "+c.eTxt;
+      }).join("<br>"),
+      draw:function(){
+        st.scale = Math.min((CW-50)/12, (CH-50)/10);
+        drawGridAndAxes(CW/(2*st.scale)+1, CH/(2*st.scale)+1);
+        /* 画布上展示：即将配对成功的曲线（最后一条） */
+        if(st.links.length>0){
+          const lastCard = cards.filter(function(c){ return Math.abs(c.e - Number(st.links[st.links.length-1].from.dataset.e))<1e-9; })[0];
+          if(lastCard){
+            drawHyperbola(Math.sqrt(lastCard.A), Math.sqrt(lastCard.B), lastCard.axis, null, cssColor("--p-main"), 4, .9);
+            const cc2 = Math.sqrt(lastCard.A+lastCard.B), a2=Math.sqrt(lastCard.A);
+            haloText("e = "+lastCard.eTxt+" ≈ "+fmt(lastCard.e,3), w2s({x:0, y:CH/(2*st.scale)-0.7}), cssColor("--p-deep"), 20, "center");
+            haloText(st.eqOf(lastCard), w2s({x:0, y:-(CH/(2*st.scale)-0.7)}), cssColor("--p-deep"), 18, "center");
+          }
+        } else {
+          haloText("连对一条，这里就会亮出对应的双曲线！", w2s({x:0,y:0}), "#8d97ba", 18, "center");
+        }
+      }
+    };
+    st.links = [];
+    return st;
+  }
+  return build();
+}
+
+/* ==================================================================
+   舞台七A：等边星阵 —— 圆上拖 A 使 △F₂AB 等边，再滑动 a 让双曲线穿过 A、B
+   对应教参 例7(1)★★★（答案 e=√3+1）
+   ================================================================== */
+function makeEquilateralStage(){
+  function build(){
+    const c = pick([3,4]);               /* c=|OF₂| */
+    let theta = 100*Math.PI/180;         /* A 在圆上的方位角 */
+    let phase = 1;                       /* 1=拖A找等边；2=滑a穿点 */
+    let aSlide = 0.6*c;                  /* 当前 a */
+    let eqSince = 0, fitSince = 0;
+    const st = {
+      name:"等边星阵 · 离心率大挑战", badge:"实验八：等边三角形里的双曲线",
+      goal:"双曲线 x²/a² − y²/b² = 1（b²=c²−a²，c="+c+"），F₁、F₂ 是左右焦点。以 O 为圆心、|OF₂|="+c+" 为半径的圆与双曲线左支交于 A、B，且 △F₂AB 是等边三角形。\n第一步：在圆上拖动 A（B 会自动对称），让 |F₂A| = |AB|（看右侧天平）；\n第二步：滑动 a，让双曲线恰好穿过 A、B 两点。最终读出离心率 e = c/a！",
+      locked:false, revealed:false,
+      rebuild:function(){ return build(); },
+      mount:function(){ /* 面板与状态已在 build 中就绪 */ },
+      onResize:function(){ /* 绘制比例在 draw 中自适应 */ },
+      A:function(){ return {x:c*Math.cos(theta), y:c*Math.sin(theta)}; },
+      B:function(){ return {x:c*Math.cos(theta), y:-c*Math.sin(theta)}; },
+      F2:function(){ return {x:c, y:0}; },
+      d2A:function(){ return dist(st.A(), st.F2()); },
+      AB:function(){ return 2*c*Math.abs(Math.sin(theta)); },
+      b2:function(){ return c*c - aSlide*aSlide; },
+      residual:function(){
+        const A = st.A();
+        return (A.x*A.x)/(aSlide*aSlide) - (A.y*A.y)/st.b2() - 1;
+      },
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="condCard">c = |OF₂| = '+c+'，A、B 在圆上且关于 x 轴对称，△F₂AB 是等边三角形。</div>'+
+          '<div class="wLabel">第一步 · 等边天平（拖动画布上的 A）</div>'+
+          '<div class="gauge"><div class="gCap"><span>|F₂A|</span><b id="gFA">—</b></div><div class="gBar"><div class="gFill" id="gFAbar" style="background:#e0442e"></div></div></div>'+
+          '<div class="gauge"><div class="gCap"><span>|AB|</span><b id="gAB">—</b></div><div class="gBar"><div class="gFill" id="gABbar" style="background:#0d9bb5"></div></div></div>'+
+          '<div class="hintBox" id="eqHint">目标：两根指针一样长（|F₂A|=|AB|），保持片刻即锁定。</div>'+
+          '<div class="wLabel">第二步 · 贴合滑块（仅锁定后开启）</div>'+
+          '<div class="sliderRow"><span class="wLabel">a=</span><input type="range" id="aSlider" min="'+(0.25*c)+'" max="'+(0.95*c)+'" step="0.005" value="'+aSlide+'" disabled><b id="aVal">'+fmt(aSlide,3)+'</b></div>'+
+          '<div class="gauge"><div class="gCap"><span>贴合度（越小越好）</span><b id="gFit">—</b></div><div class="gBar"><div class="gFill" id="gFitBar" style="background:#18a558"></div></div></div>'+
+          '<div class="meterRow"><span>e = c/a</span><b id="eVal">—</b></div>'+
+          '<div class="hintBox" id="fitHint">滑动 a，让双曲线穿过 A、B 两个星点。</div>';
+        $("aSlider").addEventListener("input", function(e){
+          if(phase!==2 || st.locked) return;
+          aSlide = Number(e.target.value);
+          st.updateGauges();
+        });
+      },
+      pdown:function(wp){ st.drag = true; st.pmove(wp); },
+      pmove:function(wp){
+        if(!st.drag || st.locked || phase!==1) return;
+        let ang = Math.atan2(wp.y, wp.x);
+        /* 限制在上半圆 55°~150° 之间，保证 A 在左上方 */
+        const lo = 55*Math.PI/180, hi = 150*Math.PI/180;
+        if(ang < lo && ang > -Math.PI/2){ ang = lo; }
+        if(ang > hi || ang <= -Math.PI/2){ ang = hi; }
+        theta = ang;
+        st.updateGauges();
+      },
+      /* 仪表统一刷新（第一步天平 + 第二步贴合度） */
+      updateGauges:function(){
+        if(!$("gFA")) return;
+        if(phase===1){
+          const fa = st.d2A(), ab = st.AB();
+          $("gFA").textContent = fmt(fa); $("gAB").textContent = fmt(ab);
+          const mx = Math.max(fa,ab,0.001);
+          $("gFAbar").style.width = (fa/mx*100)+"%";
+          $("gABbar").style.width = (ab/mx*100)+"%";
+        } else {
+          $("aVal").textContent = fmt(aSlide,3);
+          $("eVal").textContent = fmt(c/aSlide,3);
+          const r = Math.abs(st.residual());
+          $("gFit").textContent = fmt(r,3);
+          $("gFitBar").style.width = Math.max(2, 100 - Math.min(100, r*160))+"%";
+        }
+      },
+      pup:function(){ st.drag=false; },
+      reveal:function(){ st.revealed = true; },
+      revealHTML:"答案：等边 ⇒ A(−c/2, √3c/2)（c="+c+"）。设 A 在双曲线左支上：c²/(4a²) − 3c²/(4b²)=1，b²=c²−a² ⇒ e⁴−8e²+4=0 ⇒ e=√3+1≈2.732。此时 a=c/(√3+1)≈"+fmt(c/(Math.sqrt(3)+1),3)+"，画布虚线即答案双曲线。",
+      draw:function(){
+        st.scale = Math.min((CW-60)/(2*c+5), (CH-60)/(2*c+4));
+        drawGridAndAxes(CW/(2*st.scale)+1, CH/(2*st.scale)+1);
+        /* —— 保持判定（每帧检查，停住不动也能触发）—— */
+        if(!st.locked && phase===1){
+          if(Math.abs(st.d2A()-st.AB())<0.12){
+            if(eqSince===0) eqSince=performance.now();
+            else if(performance.now()-eqSince>350){
+              phase = 2; addStep();
+              theta = 120*Math.PI/180;   /* 吸附到精确等边位置 */
+              $("eqHint").textContent = "等边锁定！A 已吸附到精确位置（x_A=−c/2）。进入第二步：滑动 a 让双曲线穿过 A、B。";
+              $("eqHint").style.color = "var(--p-good)";
+              $("aSlider").disabled = false;
+              toast("等边三角形达成！开始第二步", 2600);
+            }
+          } else eqSince = 0;
+        }
+        if(!st.locked && phase===2){
+          if(Math.abs(st.residual())<0.09){
+            if(fitSince===0) fitSince = performance.now();
+            else if(performance.now()-fitSince>320){
+              st.locked = true; addStep();
+              const aExact = c/(Math.sqrt(3)+1);
+              aSlide = aExact;
+              $("aSlider").value = aExact;
+              st.updateGauges();
+              $("eVal").textContent = "√3+1 ≈ "+fmt(c/aExact,3);
+              stageDone("<b>双曲线穿过了 A、B！</b><br>等边 ⇒ x_A = −c/2，y_A = ±(√3/2)c；代入方程得 c²/(4a²) − 3c²/(4b²) = 1，结合 b²=c²−a² 化简：e⁴ − 8e² + 4 = 0 ⇒ e² = 4+2√3 = (√3+1)² ⇒ <b>e = √3 + 1 ≈ "+fmt(Math.sqrt(3)+1,3)+"</b>。<br>这正是教参例7(1)的结论：等边三角形条件把离心率完全'锁'死了！");
+            }
+          } else fitSince = 0;
+        }
+        /* 圆 */
+        g.save(); g.strokeStyle="#8d97ba"; g.lineWidth=2.5; g.setLineDash([4,5]);
+        g.beginPath();
+        const ctr=w2s({x:0,y:0}), rr=c*st.scale;
+        g.arc(ctr.x, ctr.y, rr, 0, 7);
+        g.stroke(); g.restore();
+        haloText("圆：x²+y²=c²（c="+c+"）", w2s({x:-c*0.0, y:c+0.55}), "#66708f", 16, "center");
+        drawFocus({x:-c,y:0},"F₁","(−"+c+",0)");
+        drawFocus(st.F2(),"F₂","("+c+",0)");
+        const A=st.A(), B=st.B();
+        /* 三角形 */
+        seg(A,B,"rgba(13,155,181,.8)",3);
+        seg(A,st.F2(),"rgba(224,68,46,.8)",3);
+        seg(B,st.F2(),"rgba(224,68,46,.8)",3);
+        drawDot(A, phase===1? cssColor("--p-main") : cssColor("--p-star"), 10, true);
+        drawDot(B, cssColor("--p-star"), 10, true);
+        haloText("A", w2s({x:A.x, y:A.y+0.4}), cssColor("--p-deep"), 19);
+        haloText("B", w2s({x:B.x, y:B.y-0.4}), cssColor("--p-deep"), 19);
+        const fa=st.d2A(), ab=st.AB();
+        haloText("|F₂A|="+fmt(fa), w2s({x:(A.x+c)/2+0.3, y:A.y/2+0.4}), "#c03a24", 16);
+        haloText("|AB|="+fmt(ab), w2s({x:A.x-0.9, y:0}), "#08697c", 16);
+        /* 第二阶段或揭示：画双曲线（b 由当前 a 现算，揭示时用答案 a） */
+        if(phase===2 || st.revealed){
+          const av = (st.revealed && phase===1) ? c/(Math.sqrt(3)+1) : aSlide;
+          const bv = Math.sqrt(Math.max(0.02, c*c - av*av));
+          drawHyperbola(av, bv, "x", null, cssColor("--p-main"), 4, .9);
+          const eNow = c/av;
+          haloText("当前 a="+fmt(av,3)+"，e=c/a="+fmt(eNow,3),
+            w2s({x:0, y:-(CH/(2*st.scale)-0.6)}), cssColor("--p-deep"), 18, "center");
+        }
+        if(phase===1 && !st.revealed){
+          haloText("第一步：拖动 A，让 |F₂A| = |AB|", w2s({x:0, y:-(CH/(2*st.scale)-0.6)}), "#5a679a", 18, "center");
+        }
+        if(st.locked){
+          haloText("e = √3+1 ≈ 2.732，挑战成功！", w2s({x:0, y:CH/(2*st.scale)-0.6}), cssColor("--p-good"), 20, "center");
+        }
+      }
+    };
+    return st;
+  }
+  return build();
+}
+
+/* ==================================================================
+   舞台七B：直角寻踪 —— 拖 A 使 ∠F₁AF₂=90° 且 |AF₁|=3|AF₂|，读出 e
+   对应教参 变式5★★（答案 e=√10/2）
+   ================================================================== */
+function makeRightAngleStage(){
+  function build(){
+    const c = 4;                         /* F₁(−4,0), F₂(4,0) */
+    let A = {x:1.5, y:2.6};
+    let okSince = 0;
+    const st = {
+      name:"直角寻踪 · 离心率探秘", badge:"实验九：直角与三倍距离",
+      goal:"F₁(−4,0)、F₂(4,0) 是双曲线 x²/a² − y²/b² = 1 的左右焦点，双曲线上存在点 A 使 ∠F₁AF₂ = 90° 且 |AF₁| = 3|AF₂|。\n在画布上拖动 A，让右侧两个仪表同时达标：角度 = 90°（±2°内）、倍数 = 3.0（±0.06内）。达成后双曲线自动现形，读出离心率 e = c/a！",
+      locked:false, revealed:false, captured:false,
+      rebuild:function(){ return build(); },
+      mount:function(){ /* 面板与状态已在 build 中就绪 */ },
+      onResize:function(){ /* 绘制比例在 draw 中自适应 */ },
+      angDeg:function(){
+        const v1={x:-c-A.x, y:-A.y}, v2={x:c-A.x, y:-A.y};
+        const dotv = v1.x*v2.x + v1.y*v2.y;
+        const m = Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y);
+        if(m<1e-9) return 0;
+        return Math.acos(Math.max(-1,Math.min(1,dotv/m)))*180/Math.PI;
+      },
+      ratio:function(){ return dist(A,{x:-c,y:0}) / Math.max(dist(A,{x:c,y:0}),1e-9); },
+      aNow:function(){ return (dist(A,{x:-c,y:0}) - dist(A,{x:c,y:0}))/2; },
+      pdown:function(wp){ st.drag=true; A={x:wp.x,y:wp.y}; if(st.refresh2){ st.refresh2(); } },
+      pmove:function(wp){
+        if(!st.drag || st.locked) return;
+        A = {x:wp.x,y:wp.y};
+        st.refresh2 ? st.refresh2() : st.refresh();
+      },
+      pup:function(){ st.drag=false; },
+      refresh:function(){
+        if(!$("angV")) return;
+        const ang=st.angDeg(), r=st.ratio();
+        $("angV").textContent = fmt(ang,1)+"°";
+        $("ratV").textContent = fmt(r,2)+" 倍";
+        $("angBar").style.width = Math.min(100, ang/1.8)+"%";
+        $("ratBar").style.width = Math.min(100, r/3.6*100)+"%";
+        $("stHint").textContent = (Math.abs(ang-90)<1.5?"角度达标 ":"角度 "+fmt(ang,1)+"° ")+(Math.abs(r-3)<0.05?"· 倍数达标":"· 倍数 "+fmt(r,2));
+      },
+      buildPanel:function(w){
+        w.innerHTML =
+          '<div class="condCard">∠F₁AF₂ = 90° 且 |AF₁| = 3|AF₂|（F₁(−4,0)、F₂(4,0)）</div>'+
+          '<div class="wLabel">角度仪表（目标 90°）</div>'+
+          '<div class="gauge"><div class="gCap"><span>∠F₁AF₂</span><b id="angV">—</b></div><div class="gBar"><div class="gFill" id="angBar"></div></div></div>'+
+          '<div class="wLabel">距离倍数仪表（目标 3.0）</div>'+
+          '<div class="gauge"><div class="gCap"><span>|AF₁| : |AF₂|</span><b id="ratV">—</b></div><div class="gBar"><div class="gFill" id="ratBar" style="background:#0d9bb5"></div></div></div>'+
+          '<div class="meterRow"><span>当前假设的 a=(|AF₁|−|AF₂|)/2</span><b id="aNowV">—</b></div>'+
+          '<div class="meterRow"><span>对应 e=c/a（c=4）</span><b id="eNowV">—</b></div>'+
+          '<div class="hintBox" id="stHint">两个仪表同时达标并保持片刻，即可捕获。</div>';
+        st.refresh2 = function(){
+          st.refresh();
+          if($("aNowV")){
+            const av = st.aNow();
+            $("aNowV").textContent = fmt(av);
+            $("eNowV").textContent = av>0.2 ? fmt(c/av,3) : "—";
+          }
+        };
+        st.refresh2();
+      },
+      reveal:function(){ st.revealed = true; },
+      revealHTML:"答案：A=(3.2, ±2.4)。设 |AF₂|=r ⇒ |AF₁|=3r，2a=2r ⇒ a=r；直角条件 9a²+a²=4c²=64 ⇒ a²=6.4 ⇒ e=√10/2≈1.581。画布虚线即 x²/6.4 − y²/9.6 = 1。",
+      draw:function(){
+        st.scale = Math.min((CW-60)/13, (CH-60)/11);
+        drawGridAndAxes(CW/(2*st.scale)+1, CH/(2*st.scale)+1);
+        /* —— 保持判定（每帧检查，停住不动也能触发）—— */
+        if(!st.locked){
+          const angOK = Math.abs(st.angDeg()-90)<2.0;
+          const rOK = Math.abs(st.ratio()-3)<0.06;
+          if(angOK && rOK){
+            if(okSince===0) okSince=performance.now();
+            else if(performance.now()-okSince>400){
+              st.locked = true; addStep();
+              A = {x:3.2, y:(A.y>=0?2.4:-2.4)};   /* 吸附到精确解 */
+              if(st.refresh2){ st.refresh2(); }
+              stageDone("<b>捕获成功！</b><br>设 |AF₂|=r，则 |AF₁|=3r；由定义 |AF₁|−|AF₂|=2a ⇒ 2r=2a ⇒ r=a。<br>直角 ⇒ |AF₁|²+|AF₂|²=|F₁F₂|² ⇒ 9a²+a²=(2c)²=64 ⇒ a²=6.4，c=4。<br><b>e = c/a = 4/√6.4 = √10/2 ≈ "+fmt(Math.sqrt(10)/2,3)+"</b>。双曲线方程 x²/6.4 − y²/9.6 = 1，正是画布上亮起的曲线！");
+            }
+          } else okSince = 0;
+        }
+        drawFocus({x:-c,y:0},"F₁","(−4,0)");
+        drawFocus({x:c,y:0},"F₂","(4,0)");
+        if(st.locked || st.revealed){
+          drawHyperbola(Math.sqrt(6.4), Math.sqrt(9.6), "x", null, cssColor("--p-main"), 4, st.locked?0.95:0.4);
+        }
+        /* 直角标记小方块 */
+        const ang = st.angDeg();
+        seg(A,{x:-c,y:0},"rgba(224,68,46,.8)",3);
+        seg(A,{x:c,y:0},"rgba(13,155,181,.8)",3);
+        drawDot(A, (Math.abs(ang-90)<8) ? "#18a558" : cssColor("--p-main"), 10, true);
+        haloText("A", w2s({x:A.x, y:A.y+0.45}), cssColor("--p-deep"), 19);
+        haloText("∠F₁AF₂="+fmt(ang,1)+"°", w2s({x:A.x, y:A.y-0.5}), "#5a679a", 17);
+        const d1=dist(A,{x:-c,y:0}), d2=dist(A,{x:c,y:0});
+        haloText("|AF₁|="+fmt(d1), w2s({x:(A.x-c)/2, y:A.y/2+0.35}), "#c03a24", 16);
+        haloText("|AF₂|="+fmt(d2), w2s({x:(A.x+c)/2, y:A.y/2+0.35}), "#08697c", 16);
+        if(st.locked){
+          haloText("e = √10/2 ≈ 1.581，双曲线现形！", w2s({x:0, y:CH/(2*st.scale)-0.6}), cssColor("--p-good"), 20, "center");
+        }
+      }
+    };
+    return st;
+  }
+  return build();
+}
+
+/* ==================================================================
+   难度与关卡编排（三档难度 G3）
+   ================================================================== */
+const DIFFS = {
+  easy:   {name:"初级 · 定义探秘", star:"★☆☆", desc:"拖动探针采样星点、分类常数芯片，亲手'画'出双曲线的定义。", make:function(){
+            return [ makeSampleStage("abs"), makeChipStage(), makeSampleStage("signed") ];
+          }},
+  medium: {name:"中级 · 方程装配", star:"★★☆", desc:"装配标准方程、滑动参数 k 观察曲线变形，吃透 x²/a²−y²/b²=1。", make:function(){
+            const asm = makeAssemblyStage();
+            return [ asm.next(0), asm.next(1), makeKStage() ];
+          }},
+  hard:   {name:"高级 · 性质大师", star:"★★★", desc:"为渐近线导航、收集离心率能量块，挑战等边三角形/直角条件下的离心率。", make:function(){
+            return [ makeAsymStage(), makeELinkStage(), (Math.random()<0.5 ? makeEquilateralStage() : makeRightAngleStage()) ];
+          }}
+};
+function buildStages(key){ return DIFFS[key].make(); }
+
+/* 菜单渲染 */
+(function renderMenu(){
+  const row = $("diffRow");
+  ["easy","medium","hard"].forEach(function(k){
+    const d = DIFFS[k];
+    const card = document.createElement("div");
+    card.className = "diffCard";
+    card.innerHTML = "<h2>"+d.name+"</h2><div class='stars'>"+d.star+"</div><p>"+d.desc+"</p><div class='go'>进入挑战 →</div>";
+    card.addEventListener("click", function(){ startRun(k); });
+    row.appendChild(card);
+  });
+})();
+
+/* 初始化 */
+applyPalette();
+resizeCanvas();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-a/g003", "name": "\u53cc\u66f2\u7ebf\u521d\u6b65 \u00b7 \u661f\u5149\u66f2\u7ebf\u5b9e\u9a8c\u5ba4", "file": "g003.html", "jiaocan": "\u30106\u3011\u7b2c6\u8bb2 \u53cc\u66f2\u7ebf\u521d\u6b65\uff08\u9884\u4e60\u7bc7\uff09", "unit": "\u7b2c6\u8bb2", "grade": "", "stage": "\u9ad8\u4e2d", "series": "A\uff1a\u9ad8\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u9ad8\u6570\u540c\u6b65\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>彩虹珠子驿站——十几加几·减几大闯关</title>
+<style>
+/* ================= 基础与色板（每局随机换色） ================= */
+:root{
+  --c-main:#f97316; --c-deep:#c2410c; --c-bg:#fff7ed; --c-soft:#ffedd5; --c-accent:#0ea5e9;
+  --c-ink:#33302c; --c-ok:#16a34a;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+  background:linear-gradient(180deg,var(--c-bg) 0%,#ffffff 100%);
+  color:var(--c-ink); font-size:18px; min-height:100vh;
+  user-select:none; -webkit-user-select:none; touch-action:manipulation;
+}
+.hidden{display:none !important;}
+.screen{max-width:980px; margin:0 auto; padding:14px 12px 30px;}
+
+/* ================= 顶部栏 ================= */
+.topbar{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;}
+.brand{font-size:24px; font-weight:900; color:var(--c-deep);}
+.pal-chip{display:inline-block; margin-left:8px; font-size:15px; font-weight:700; color:#fff;
+  background:var(--c-main); border-radius:999px; padding:2px 12px; vertical-align:middle;}
+.hud{display:flex; gap:8px; align-items:center;}
+.chip{background:#fff; border:3px solid var(--c-main); border-radius:14px; padding:4px 12px;
+  font-size:18px; font-weight:700; color:var(--c-deep);}
+.topbtns{display:flex; gap:8px; flex-wrap:wrap;}
+.meta-row{display:flex; gap:10px; flex-wrap:wrap; margin:6px 0 10px;}
+
+/* ================= 按钮 ================= */
+.btn{
+  border:none; border-radius:16px; cursor:pointer; font-family:inherit;
+  background:#fff; color:var(--c-deep); border:4px solid var(--c-main);
+  font-size:19px; font-weight:800; padding:10px 18px; transition:transform .08s, box-shadow .08s;
+}
+.btn:hover{transform:translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.15);}
+.btn:active{transform:translateY(1px);}
+.btn-small{font-size:16px; padding:6px 12px; border-width:3px; border-radius:12px;}
+.btn-primary{font-size:24px; padding:14px 34px; background:var(--c-main); color:#fff; border-color:var(--c-deep);}
+.btn-bundle{
+  display:block; margin:10px auto 4px; font-size:20px; background:#fde047; color:#7c2d12;
+  border:4px solid #f59e0b; border-radius:18px; padding:10px 22px; font-weight:900;
+  animation:pulse 1s infinite;
+}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.55);}50%{box-shadow:0 0 0 12px rgba(245,158,11,0);}}
+.actions{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px;}
+
+/* ================= 难度选择屏 ================= */
+#scr-diff{text-align:center; padding-top:40px;}
+.logo{font-size:44px; color:var(--c-deep); margin:10px 0 4px; text-shadow:2px 2px 0 var(--c-soft);}
+.subtitle{font-size:21px; font-weight:700; margin:6px 0 26px;}
+.diff-cards{display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin-bottom:26px;}
+.diff-card{
+  width:250px; padding:20px 16px; border-radius:22px; cursor:pointer; font-family:inherit;
+  background:#fff; border:5px solid var(--c-main); box-shadow:0 8px 0 var(--c-soft);
+  display:flex; flex-direction:column; gap:8px; align-items:center; transition:transform .1s;
+}
+.diff-card:hover{transform:translateY(-6px);}
+.diff-card .lv-badge{font-size:17px; font-weight:900; color:#fff; background:var(--c-main);
+  border-radius:999px; padding:4px 18px;}
+.diff-card b{font-size:23px; color:var(--c-deep);}
+.diff-card i{font-style:normal; font-size:16px; color:#6b6259; line-height:1.5;}
+.tip{font-size:20px; font-weight:900; color:var(--c-deep); background:var(--c-soft);
+  display:inline-block; border-radius:14px; padding:8px 20px; margin-top:18px;}
+
+/* ================= 故事卡与算式 ================= */
+.story-card{
+  background:#fff; border:5px solid var(--c-main); border-radius:22px;
+  padding:16px 20px; margin-bottom:12px; min-height:96px;
+  box-shadow:0 6px 0 var(--c-soft);
+}
+.story-card.shake{animation:shake .4s;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-8px);}50%{transform:translateX(8px);}75%{transform:translateX(-5px);}}
+#story-text{font-size:22px; line-height:1.65; font-weight:700;}
+.sentence{margin-top:10px;}
+.expr{font-size:32px; font-weight:900; color:var(--c-deep); letter-spacing:2px;}
+.expr.sub{font-size:26px; color:var(--c-ink);}
+.expr .live{
+  display:inline-block; min-width:64px; text-align:center; color:#fff;
+  background:var(--c-accent); border-radius:12px; padding:0 10px; margin:0 4px;
+}
+.expr .live.ok{background:var(--c-ok);}
+.expr-note{font-size:16px; font-weight:700; color:#8a8177; letter-spacing:0;}
+
+/* ================= 计数器（十位 / 个位） ================= */
+.board{display:flex; gap:14px; align-items:stretch; flex-wrap:wrap;}
+.counter-area{flex:1 1 520px; background:var(--c-soft); border-radius:22px; padding:14px;}
+.counter{display:flex; gap:16px; justify-content:center;}
+.col{
+  width:46%; max-width:270px; min-height:330px; background:#fff;
+  border:5px dashed var(--c-main); border-radius:20px; display:flex; flex-direction:column;
+  transition:background .12s, box-shadow .12s;
+}
+.col.hot{background:#fffbe8; box-shadow:0 0 0 6px var(--c-accent) inset; border-style:solid;}
+.col-head{font-size:19px; font-weight:900; color:var(--c-deep); text-align:center; padding:8px 4px 4px;}
+.col-body{flex:1; display:flex; flex-wrap:wrap; align-content:flex-start; justify-content:center;
+  gap:12px; padding:8px; overflow:visible;}
+.col-foot{font-size:34px; font-weight:900; text-align:center; color:var(--c-deep);
+  border-top:3px solid var(--c-soft); padding:2px 0 6px;}
+.col-foot.warn{color:#dc2626;}
+.value-line{font-size:19px; font-weight:800; color:var(--c-deep); text-align:center; margin-top:8px; min-height:26px;}
+
+/* 珠子（1 个一） */
+.bead{
+  width:42px; height:42px; border-radius:50%; cursor:grab; touch-action:none;
+  background:radial-gradient(circle at 32% 30%, #ffffff 0 18%, var(--c-main) 40%, var(--c-deep) 100%);
+  border:3px solid var(--c-deep); box-shadow:0 3px 0 rgba(0,0,0,.18);
+}
+.bead.dim{opacity:.45;}
+/* 整捆（10 个一） */
+.bundle{
+  width:112px; height:66px; border-radius:14px; cursor:grab; touch-action:none;
+  background:linear-gradient(180deg,#fff 0%, var(--c-soft) 100%);
+  border:4px solid var(--c-main); box-shadow:0 3px 0 rgba(0,0,0,.18);
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.bundle.dim{opacity:.45;}
+.bundle-dots{display:grid; grid-template-columns:repeat(5,13px); grid-auto-rows:13px; gap:4px;}
+.bundle-dots i{width:13px; height:13px; border-radius:50%; background:var(--c-main); border:2px solid var(--c-deep);}
+.bundle-num{font-size:24px; font-weight:900; color:var(--c-deep);}
+.bundle.pop{animation:popin .5s;}
+@keyframes popin{0%{transform:scale(.2) rotate(-30deg);}70%{transform:scale(1.25);}100%{transform:scale(1);}}
+
+/* ================= 站长提示 ================= */
+.side{flex:0 1 330px; display:flex; align-items:flex-start;}
+.mascot{display:flex; gap:10px; align-items:flex-start; width:100%;}
+.face{
+  font-size:52px; width:74px; height:74px; flex:0 0 74px; border-radius:50%;
+  background:var(--c-soft); border:4px solid var(--c-main); display:flex; align-items:center; justify-content:center;
+}
+.bubble{
+  position:relative; background:#fff; border:4px solid var(--c-accent); border-radius:16px;
+  padding:12px 14px; font-size:18px; font-weight:700; line-height:1.55; flex:1;
+}
+.bubble:before{
+  content:""; position:absolute; left:-16px; top:24px; border:8px solid transparent;
+  border-right-color:var(--c-accent);
+}
+.bubble.pop{animation:bpop .35s;}
+@keyframes bpop{0%{transform:scale(.85);}60%{transform:scale(1.06);}100%{transform:scale(1);}}
+
+/* ================= 托盘 ================= */
+.tray{
+  margin-top:14px; background:#fff; border:5px solid var(--c-accent); border-radius:22px;
+  display:flex; gap:20px; align-items:center; justify-content:center; flex-wrap:wrap;
+  padding:14px 16px; transition:box-shadow .12s, background .12s;
+}
+.tray.hot{background:#eaf7ff; box-shadow:0 0 0 6px var(--c-accent) inset;}
+.tray-item{display:flex; flex-direction:column; align-items:center; gap:6px;}
+.tray-stack{display:flex; align-items:center; gap:6px; min-height:72px;}
+.tray-label{font-size:17px; font-weight:800; color:var(--c-deep); text-align:center; line-height:1.4;}
+.tray-hint{font-size:16px; font-weight:700; color:#6b7a86; line-height:1.6; text-align:center;}
+
+/* ================= 拖拽幽灵与漂浮特效 ================= */
+.ghost{position:fixed; left:0; top:0; pointer-events:none; z-index:999; opacity:.95;}
+.ghost.vanish-ok,.ghost.vanish-no{transition:opacity .25s; opacity:0;}
+#fx-layer{position:fixed; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:998;}
+.fly{position:absolute; font-size:34px; animation:flyup 1.2s forwards;}
+@keyframes flyup{0%{transform:translateY(0) scale(.6); opacity:0;}25%{opacity:1;}100%{transform:translateY(-130px) scale(1.3); opacity:0;}}
+#toast{
+  position:fixed; left:50%; bottom:132px; transform:translateX(-50%);
+  background:rgba(51,48,44,.92); color:#fff; font-size:18px; font-weight:800;
+  border-radius:999px; padding:8px 20px; z-index:900; opacity:0; transition:opacity .25s; pointer-events:none;
+}
+#toast.show{opacity:1;}
+
+/* ================= 弹窗与庆祝 ================= */
+.overlay{position:fixed; inset:0; background:rgba(40,35,30,.55); z-index:1000;
+  display:flex; align-items:center; justify-content:center; padding:16px;}
+.modal-card{
+  background:#fff; border-radius:24px; border:6px solid var(--c-main);
+  max-width:640px; width:100%; max-height:86vh; overflow:auto; padding:22px 24px;
+}
+.modal-card h2{margin:0 0 10px; color:var(--c-deep); font-size:28px;}
+.modal-card ol{padding-left:24px; font-size:18px; line-height:1.8; font-weight:700; margin:8px 0 14px;}
+.modal-card .golden{background:var(--c-soft); border-radius:12px; padding:8px 14px; font-weight:900; color:var(--c-deep);}
+#overlay-win{flex-direction:column;}
+#fx{position:absolute; inset:0; width:100%; height:100%;}
+.win-card{
+  position:relative; background:#fff; border:6px solid var(--c-main); border-radius:26px;
+  padding:26px 30px; text-align:center; max-width:520px; width:100%; z-index:2;
+}
+.win-title{font-size:36px; font-weight:900; color:var(--c-deep); margin-bottom:6px;}
+.win-msg{font-size:20px; font-weight:800; margin-bottom:12px;}
+.star-row{font-size:22px; font-weight:800; margin:4px 0;}
+.star-row .stars{color:#f59e0b; letter-spacing:4px; font-size:24px;}
+.win-total{margin-top:10px; font-size:18px; font-weight:800; color:#6b6259;}
+.win-btns{display:flex; gap:12px; justify-content:center; margin-top:16px; flex-wrap:wrap;}
+.finale{margin-top:8px; font-size:18px; font-weight:800; color:var(--c-ok);}
+
+/* ================= 响应式 ================= */
+@media (max-width:640px){
+  .logo{font-size:32px;}
+  #story-text{font-size:19px;}
+  .expr{font-size:26px;} .expr.sub{font-size:22px;}
+  .bead{width:34px; height:34px;}
+  .bundle{width:92px; height:56px;}
+  .bundle-dots{grid-template-columns:repeat(5,11px); grid-auto-rows:11px; gap:3px;}
+  .bundle-dots i{width:11px; height:11px; border-width:1px;}
+  .col{min-height:270px;}
+  .side{flex:1 1 100%;}
+  .tray-hint{display:none;}
+  .btn-primary{font-size:20px; padding:12px 22px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 屏幕一：难度选择 ============ -->
+<div id="scr-diff" class="screen">
+  <h1 class="logo">🌈 彩虹珠子驿站</h1>
+  <p class="subtitle">十几加几（不进位）与十几减几（不退位）· 摆珠子大闯关</p>
+  <div class="diff-cards">
+    <button class="diff-card" data-lv="1">
+      <span class="lv-badge">初级</span><b>小驿站开张</b>
+      <i>十几加几、十几减几的小故事，拖一拖珠子，答案自己亮出来</i>
+    </button>
+    <button class="diff-card" data-lv="2">
+      <span class="lv-badge">中级</span><b>包裹总动员</b>
+      <i>搬走整捆的十、两步连加连减，还要学会捆一捆、拆一拆</i>
+    </button>
+    <button class="diff-card" data-lv="3">
+      <span class="lv-badge">高级</span><b>谜题大闯关</b>
+      <i>数字谜、排队、数楼层——反向搬珠子，点亮神秘图形</i>
+    </button>
+  </div>
+  <button id="btn-rules-0" class="btn">📖 规则说明</button>
+  <div class="tip">口诀：十几加几、减几——十位不变，个位相加减！</div>
+</div>
+
+<!-- ============ 屏幕二：游戏 ============ -->
+<div id="scr-game" class="screen hidden">
+  <div class="topbar">
+    <div class="brand">🌈彩虹珠子驿站<span id="pal-name" class="pal-chip"></span></div>
+    <div class="hud">
+      <span class="chip">⏱ <b id="hud-time">00:00</b></span>
+      <span class="chip">🧺 <b id="hud-steps">0</b> 步</span>
+      <span class="chip">⭐ <b id="hud-stars">0</b></span>
+    </div>
+    <div class="topbtns">
+      <button id="btn-rules" class="btn btn-small">📖 规则说明</button>
+      <button id="btn-back" class="btn btn-small">🏠 返回难度选择</button>
+    </div>
+  </div>
+
+  <div class="meta-row">
+    <span class="chip" id="q-progress">第1题 / 共3题</span>
+    <span class="chip" id="q-stepinfo"></span>
+  </div>
+
+  <div id="story-card" class="story-card">
+    <div id="story-text"></div>
+    <div id="sentence" class="sentence"></div>
+  </div>
+
+  <div class="board">
+    <div class="counter-area">
+      <div class="counter">
+        <div class="col" id="col-tens">
+          <div class="col-head">十位（1捆 = 10）</div>
+          <div class="col-body" id="tens-body"></div>
+          <div class="col-foot" id="tens-foot">0</div>
+        </div>
+        <div class="col" id="col-ones">
+          <div class="col-head">个位（1颗 = 1）</div>
+          <div class="col-body" id="ones-body"></div>
+          <div class="col-foot" id="ones-foot">0</div>
+        </div>
+      </div>
+      <button id="btn-bundle" class="btn-bundle hidden">🎀 捆一捆（10颗换1捆）</button>
+      <div id="value-line" class="value-line"></div>
+    </div>
+    <div class="side">
+      <div class="mascot">
+        <div class="face">🦊</div>
+        <div class="bubble" id="bubble">我是珠珠站长！听故事，拖珠子，让算式亮起来！</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tray" id="tray">
+    <div class="tray-item">
+      <div class="tray-stack">
+        <div class="bead drag-src" data-kind="one" data-origin="tray"></div>
+        <div class="bead dim"></div><div class="bead dim"></div>
+      </div>
+      <div class="tray-label">小珠子（1个一）<br>拖到【个位】</div>
+    </div>
+    <div class="tray-item">
+      <div class="tray-stack">
+        <div class="bundle drag-src" data-kind="bundle" data-origin="tray">
+          <div class="bundle-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="bundle-num">10</div>
+        </div>
+        <div class="bundle dim"><div class="bundle-num">10</div></div>
+      </div>
+      <div class="tray-label">整捆（10个一）<br>拖到【十位】</div>
+    </div>
+    <div class="tray-hint">减法这样做：把计数器里的珠子拖回这里＝搬走<br>把十位的捆拖到个位＝拆成 10 颗小珠子</div>
+  </div>
+
+  <div class="actions">
+    <button id="btn-confirm" class="btn btn-primary">💡 确认亮灯</button>
+    <button id="btn-reveal" class="btn">🔎 揭示答案</button>
+    <button id="btn-restart" class="btn">🔄 重新开始</button>
+  </div>
+</div>
+
+<!-- ============ 规则弹窗 ============ -->
+<div id="modal-rules" class="overlay hidden">
+  <div class="modal-card">
+    <h2>🌈 彩虹珠子驿站 · 规则说明</h2>
+    <ol>
+      <li><b>听故事</b>：每道题是一个小故事，计数器上已经摆好开始的数。</li>
+      <li><b>认计数器</b>：个位放小珠子，1 颗 = 1 个一；十位放整捆，1 捆 = 10 个一（1 个十）。</li>
+      <li><b>加一加</b>：要变多，就把托盘里的珠子拖进计数器——加几拖几颗小珠子到个位；加十就拖整捆到十位。</li>
+      <li><b>减一减</b>：要变少，就把计数器里的珠子拖回下面的托盘。</li>
+      <li><b>捆与拆</b>：个位满 10 颗，点【捆一捆】换成十位的 1 捆；要拆开时，把十位的捆拖到个位，就变成 10 颗小珠子。</li>
+      <li><b>确认亮灯</b>：摆好后点【确认亮灯】，摆对了故事就通关；不对站长会给你贴心提示。</li>
+      <li><b>星星规则</b>：一次就亮灯得 ⭐⭐⭐，错一次得 ⭐⭐，错两次以上得 ⭐。计时和步数在右上角实时显示。</li>
+      <li><b>揭示答案</b>：卡住了可以点【揭示答案】看站长示范，不过这一题就没有星星啦。</li>
+    </ol>
+    <div class="golden">口诀：十几加几、减几——十位不变，个位相加减！</div>
+    <div class="actions"><button id="btn-rules-close" class="btn btn-primary">知道啦，出发！</button></div>
+  </div>
+</div>
+
+<!-- ============ 通关庆祝 ============ -->
+<div id="overlay-win" class="overlay hidden">
+  <canvas id="fx"></canvas>
+  <div class="win-card">
+    <div id="win-body"></div>
+    <div class="win-btns">
+      <button id="btn-again" class="btn btn-primary">🔁 再玩一次</button>
+      <button id="btn-win-back" class="btn">🏠 返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<div id="fx-layer"></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ================================================================
+   彩虹珠子驿站 · 十几加几（不进位）与十几减几（不退位）
+   核心玩法：计数器（十位/个位）摆珠子。
+   加 = 从托盘拖珠子进计数器；减 = 把珠子拖回托盘；
+   个位满10颗捆成1捆；把十位的捆拖到个位可以拆成10颗。
+   算式的结果由学生摆放珠子的操作"长"出来，不是选择题。
+   ================================================================ */
+
+/* ---------------- 小工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+function shuffle(a){
+  for(var i=a.length-1;i>0;i--){
+    var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+function pick(arr,n){ return shuffle(arr.slice()).slice(0,n); }
+
+/* ---------------- 随机色板（G8：每局换色） ---------------- */
+var PALETTES=[
+  {name:'蜜桃橙', main:'#f97316', deep:'#c2410c', bg:'#fff7ed', soft:'#ffedd5', accent:'#0ea5e9'},
+  {name:'天空蓝', main:'#0ea5e9', deep:'#0369a1', bg:'#f0f9ff', soft:'#e0f2fe', accent:'#f97316'},
+  {name:'薄荷绿', main:'#10b981', deep:'#047857', bg:'#ecfdf5', soft:'#d1fae5', accent:'#f59e0b'},
+  {name:'葡萄紫', main:'#8b5cf6', deep:'#6d28d9', bg:'#f5f3ff', soft:'#ede9fe', accent:'#f43f5e'},
+  {name:'樱花粉', main:'#f43f5e', deep:'#be123c', bg:'#fff1f2', soft:'#ffe4e6', accent:'#0ea5e9'}
+];
+function applyPalette(p){
+  var r=document.documentElement.style;
+  r.setProperty('--c-main',p.main); r.setProperty('--c-deep',p.deep);
+  r.setProperty('--c-bg',p.bg); r.setProperty('--c-soft',p.soft);
+  r.setProperty('--c-accent',p.accent);
+  $('pal-name').textContent=p.name;
+}
+
+/* ---------------- 题库（取材于教参，每局随机抽样） ---------------- */
+/* step 字段：story 故事；start 计数器初始（缺省沿用上一步）；
+   mode 'fwd'正向算式 / 'inv'反求数字谜；expr 展示算式；ops 揭示时的操作序列；
+   target 目标读数；done 步骤通关结语 */
+var POOL_EASY=[
+  {name:'铅笔小站', steps:[{story:'货架上有 13 支铅笔，又运来了 2 支。把新来的珠子拖到计数器上，现在一共有多少支铅笔？', start:13, mode:'fwd', expr:'13 + 2', ops:[2], target:15, done:'13 + 2 = 15，现在有 15 支铅笔！十位不变，个位 3+2=5。'}]},
+  {name:'跳绳操场', steps:[{story:'操场上原来有 12 个小朋友在跳绳，又来了 4 个。摆一摆珠子，现在操场上有多少个小朋友？', start:12, mode:'fwd', expr:'12 + 4', ops:[4], target:16, done:'12 + 4 = 16，现在有 16 个小朋友！个位 2+4=6。'}]},
+  {name:'草莓果盘', steps:[{story:'果盘里原来有 15 颗草莓，送给小朋友 2 颗。把珠子搬回托盘试一试，还剩多少颗草莓？', start:15, mode:'fwd', expr:'15 - 2', ops:[-2], target:13, done:'15 - 2 = 13，还剩 13 颗草莓！个位 5-2=3。'}]},
+  {name:'橘子篮子', steps:[{story:'妈妈买来了 18 个橘子，青青吃掉了 7 个。还剩多少个橘子？', start:18, mode:'fwd', expr:'18 - 7', ops:[-7], target:11, done:'18 - 7 = 11，还剩 11 个橘子！个位 8-7=1。'}]},
+  {name:'红花花瓶', steps:[{story:'花瓶里原来插着 15 朵红花，又插进了 3 朵。现在一共有多少朵红花？', start:15, mode:'fwd', expr:'15 + 3', ops:[3], target:18, done:'15 + 3 = 18，现在有 18 朵红花！个位 5+3=8。'}]},
+  {name:'故事书架', steps:[{story:'书架上原来放着 14 本故事书，又摆上了 2 本。现在一共有多少本故事书？', start:14, mode:'fwd', expr:'14 + 2', ops:[2], target:16, done:'14 + 2 = 16，现在有 16 本故事书！个位 4+2=6。'}]},
+  {name:'小鸭池塘', steps:[{story:'池塘里原来有 16 只小鸭，游走了 3 只。还剩多少只小鸭？', start:16, mode:'fwd', expr:'16 - 3', ops:[-3], target:13, done:'16 - 3 = 13，还剩 13 只小鸭！个位 6-3=3。'}]},
+  {name:'苹果果园', steps:[{story:'果园的苹果树上原来有 17 个苹果，摘走了 4 个。还剩多少个苹果？', start:17, mode:'fwd', expr:'17 - 4', ops:[-4], target:13, done:'17 - 4 = 13，还剩 13 个苹果！个位 7-4=3。'}]},
+  {name:'连环画角', steps:[{story:'图书角原来有 11 本连环画，又买来了 6 本。现在一共有多少本连环画？', start:11, mode:'fwd', expr:'11 + 6', ops:[6], target:17, done:'11 + 6 = 17，现在有 17 本连环画！个位 1+6=7。'}]},
+  {name:'蝴蝶花园', steps:[{story:'花园里原来飞着 19 只蝴蝶，飞走了 7 只。还剩多少只蝴蝶？', start:19, mode:'fwd', expr:'19 - 7', ops:[-7], target:12, done:'19 - 7 = 12，还剩 12 只蝴蝶！个位 9-7=2。'}]}
+];
+
+/* 中级 · 整捆搬运（十几减十 / 个位减空） */
+var MID_BUNDLE=[
+  {name:'停车场', steps:[{story:'停车场里原来停着 14 辆小车，开走了 10 辆。整整一捆就是 10，把十位的捆拖回托盘试试！还剩多少辆小车？', start:14, mode:'fwd', expr:'14 - 10', ops:[-10], target:4, done:'14 - 10 = 4，还剩 4 辆小车！搬走十位的一捆，十位变 0。'}]},
+  {name:'积木箱', steps:[{story:'玩具箱里原来有 17 块积木，借给了小朋友 10 块。还剩多少块积木？', start:17, mode:'fwd', expr:'17 - 10', ops:[-10], target:7, done:'17 - 10 = 7，还剩 7 块积木！十位的一捆搬走，剩下个位 7。'}]},
+  {name:'小鸡鸡舍', steps:[{story:'鸡舍里有 16 只小鸡，跑到草地上了 6 只。还剩多少只小鸡？', start:16, mode:'fwd', expr:'16 - 6', ops:[-6], target:10, done:'16 - 6 = 10，还剩 10 只小鸡！个位 6-6=0，剩下 1 个十。'}]},
+  {name:'星星夜空', steps:[{story:'夜空中有 18 颗星星，被云朵挡住了 8 颗。还能看到多少颗星星？', start:18, mode:'fwd', expr:'18 - 8', ops:[-8], target:10, done:'18 - 8 = 10，还能看到 10 颗星星！个位 8-8=0，正好剩 1 捆。'}]}
+];
+/* 中级 · 两步混合 */
+var MID_MIX=[
+  {name:'牛奶仓库', steps:[{story:'仓库里原来有 13 箱牛奶，先运走了 3 箱，又运来了 7 箱。跟着故事一步一步摆珠子，现在仓库里有多少箱牛奶？', start:13, mode:'fwd', expr:'13 - 3 + 7', ops:[-3,7], target:17, done:'13 - 3 + 7 = 17，现在有 17 箱牛奶！先个位 3-3=0，再 0+7=7。'}]},
+  {name:'糖果罐', steps:[{story:'糖果罐里原来有 6 颗奶糖，先放进去 4 颗水果糖，又放进去 5 颗巧克力糖。现在罐子里一共有多少颗糖？（个位满 10 颗记得捆一捆）', start:6, mode:'fwd', expr:'6 + 4 + 5', ops:[4,5], target:15, done:'6 + 4 + 5 = 15，现在有 15 颗糖！6+4=10 捆成 1 捆，再加 5 颗。'}]},
+  {name:'欢乐公交', steps:[{story:'公交车上原来有 10 位乘客，先下车 8 位，又上车 6 位。现在车上有多少位乘客？（个位没有珠子时，把十位的捆拖到个位拆开）', start:10, mode:'fwd', expr:'10 - 8 + 6', ops:[-8,6], target:8, done:'10 - 8 + 6 = 8，现在车上有 8 位乘客！拆开 1 捆是 10 颗，搬走 8 颗剩 2 颗。'}]},
+  {name:'秋千乐园', steps:[{story:'秋千架旁边原来有 9 个小朋友，先来了 1 个，又走了 5 个。现在有多少个小朋友？', start:9, mode:'fwd', expr:'9 + 1 - 5', ops:[1,-5], target:5, done:'9 + 1 - 5 = 5，现在有 5 个小朋友！9+1=10 捆成 1 捆，再拆开搬走 5 颗。'}]}
+];
+/* 中级 · 加餐 */
+var MID_EXTRA=[
+  {name:'母鸡草地', steps:[{story:'草地上有 12 只母鸡，又跑来了 5 只。一共有多少只母鸡？', start:12, mode:'fwd', expr:'12 + 5', ops:[5], target:17, done:'12 + 5 = 17，一共有 17 只母鸡！个位 2+5=7。'}]},
+  {name:'风车手工', steps:[{story:'手工小组做了 15 个小风车，又做了 4 个。现在一共有多少个小风车？', start:15, mode:'fwd', expr:'15 + 4', ops:[4], target:19, done:'15 + 4 = 19，现在有 19 个小风车！个位 5+4=9。'}]}
+];
+
+/* 高级 · 多步大关 */
+var HARD_MAIN=[
+  {name:'神秘包裹（数字谜）', finale:'三个图形全部点亮：□=14，△=3，○=6！从只有 1 个图形的算式入手，再把答案代入别的算式，真是好办法！', steps:[
+    {story:'收到了三个神秘包裹！包裹一：□ + 5 = 19。计数器已经摆好 19——从里面搬走 5 颗，剩下的读数就是 □！', start:19, mode:'inv', expr:'□ + 5 = 19', box:'□', ops:[-5], target:14, done:'□ = 14！因为 14 + 5 = 19。'},
+    {story:'包裹二：14 - △ = 11。从 14 里搬走几颗能正好变成 11？搬走的颗数就是 △！', start:null, mode:'inv', expr:'14 - △ = 11', box:'△', ops:[-3], target:11, done:'△ = 3！因为 14 - 3 = 11。'},
+    {story:'包裹三：○ + △ = 9。已经知道 △ = 3，也就是 ○ + 3 = 9。计数器摆好了 9，搬走 3 颗，○ 就是几？', start:9, mode:'inv', expr:'○ + 3 = 9', box:'○', ops:[-3], target:6, done:'○ = 6！因为 6 + 3 = 9。'}
+  ]},
+  {name:'蘑菇房排队', finale:'排第 13：前面 12 只 + 自己 + 后面 4 只。画一画、摆一摆，排队问题全清楚！', steps:[
+    {story:'森林里的蘑菇房前排着队，小兔喊：我排第 13！她前面有 13 - 1 只兔。已经有多少只兔进了蘑菇房？', start:13, mode:'fwd', expr:'13 - 1', ops:[-1], target:12, done:'13 - 1 = 12，已经有 12 只兔进了蘑菇房！排第几减 1，就是前面的数量。'},
+    {story:'小兔后面还有 4 只小兔。一共有多少只兔？（计数器已重新摆好 13，再加上后面的 4 只）', start:13, mode:'fwd', expr:'13 + 4', ops:[4], target:17, done:'13 + 4 = 17，一共有 17 只兔！'}
+  ]},
+  {name:'笑笑家的大楼', finale:'下面 13 层 + 自己家 1 层 + 上面 5 层 = 19 层，楼层问题层层分明！', steps:[
+    {story:'笑笑住在高楼里，她说：我家下面有 13 层。她家就在这 13 层的上面一层，笑笑家住在第几层？', start:13, mode:'fwd', expr:'13 + 1', ops:[1], target:14, done:'13 + 1 = 14，笑笑家住在第 14 层！'},
+    {story:'笑笑家上面还有 5 层。这栋楼一共有多少层？（接着 14 层继续往上摆 5 层）', start:null, mode:'fwd', expr:'14 + 5', ops:[5], target:19, done:'14 + 5 = 19，这栋楼一共有 19 层！'}
+  ]}
+];
+/* 高级 · 加餐 */
+var HARD_LIGHT=[
+  {name:'小马排队', steps:[{story:'小动物们排队做操。小马说：我前面有 12 只小动物，我排最后。一共有多少只小动物？', start:12, mode:'fwd', expr:'12 + 1', ops:[1], target:13, done:'12 + 1 = 13，一共有 13 只小动物！我排最后：前面 12 只 + 我自己 1 只。'}]},
+  {name:'反向谜题', steps:[{story:'神秘图形挑战：△ - 6 = 12。计数器已经摆好 12，再往里放进 6 颗，计数器变成的读数就是 △！', start:12, mode:'inv', expr:'△ - 6 = 12', box:'△', ops:[6], target:18, done:'△ = 18！因为 18 - 6 = 12。'}]}
+];
+
+function sampleQuestions(lv){
+  if(lv===1){ return pick(POOL_EASY,3); }
+  if(lv===2){
+    var b=pick(MID_BUNDLE,1), m=pick(MID_MIX,1);
+    var rest=shuffle(MID_BUNDLE.concat(MID_MIX,MID_EXTRA));
+    var third=null;
+    for(var i=0;i<rest.length;i++){
+      if(rest[i]!==b[0] && rest[i]!==m[0]){ third=rest[i]; break; }
+    }
+    return shuffle(b.concat(m,[third]));
+  }
+  return pick(HARD_MAIN,2).concat(pick(HARD_LIGHT,1));
+}
+
+/* ---------------- 全局状态 ---------------- */
+var game=null;              /* 当前对局 */
+var counter={tens:0,ones:0};/* 计数器：几捆 + 几颗 */
+var stats={t0:0,timerId:0,steps:0};
+var drag=null;              /* 当前拖拽 */
+var rulesShown=false;
+var confettiOn=false;
+
+function curQ(){ return game.questions[game.qi]; }
+function curStep(){ return curQ().steps[game.si]; }
+function valNow(){ return counter.tens*10+counter.ones; }
+function sumStars(){ var s=0; for(var i=0;i<game.stars.length;i++){s+=game.stars[i];} return s; }
+
+/* ---------------- 计时与步数（G7） ---------------- */
+function fmtTime(s){
+  var m=Math.floor(s/60), r=s%60;
+  return (m<10?'0':'')+m+':'+(r<10?'0':'')+r;
+}
+function tickTime(){ $('hud-time').textContent=fmtTime(Math.floor((Date.now()-stats.t0)/1000)); }
+function startTimer(){ stopTimer(); stats.t0=Date.now(); stats.timerId=setInterval(tickTime,500); tickTime(); }
+function stopTimer(){ if(stats.timerId){ clearInterval(stats.timerId); stats.timerId=0; } }
+function bumpSteps(){ $('hud-steps').textContent=String(stats.steps); }
+
+/* ---------------- 渲染：计数器 ---------------- */
+function makeBead(origin){
+  var d=document.createElement('div');
+  d.className='bead drag-src';
+  d.setAttribute('data-kind','one'); d.setAttribute('data-origin',origin);
+  return d;
+}
+function makeBundle(origin){
+  var d=document.createElement('div');
+  d.className='bundle drag-src';
+  d.setAttribute('data-kind','bundle'); d.setAttribute('data-origin',origin);
+  var dots=document.createElement('div'); dots.className='bundle-dots';
+  for(var i=0;i<10;i++){ dots.appendChild(document.createElement('i')); }
+  var num=document.createElement('div'); num.className='bundle-num'; num.textContent='10';
+  d.appendChild(dots); d.appendChild(num);
+  return d;
+}
+function renderCounter(){
+  var tb=$('tens-body'); tb.innerHTML='';
+  for(var i=0;i<counter.tens;i++){ tb.appendChild(makeBundle('tens')); }
+  var ob=$('ones-body'); ob.innerHTML='';
+  for(var k=0;k<counter.ones;k++){ ob.appendChild(makeBead('ones')); }
+  var tf=$('tens-foot'); tf.textContent=String(counter.tens); tf.className='col-foot';
+  var of=$('ones-foot'); of.textContent=String(counter.ones);
+  of.className='col-foot'+(counter.ones>=10?' warn':'');
+}
+function updateBundleBtn(){
+  var b=$('btn-bundle');
+  if(counter.ones>=10){ b.classList.remove('hidden'); }
+  else{ b.classList.add('hidden'); }
+}
+function renderValueLine(){
+  var v=valNow(), txt;
+  if(counter.ones>=10){
+    txt='现在一共 '+v+' 颗：个位满 10 颗啦，点【捆一捆】换成十位的 1 捆！';
+  }else if(counter.tens>0 && counter.ones>0){
+    txt='现在计数器表示：'+v+'（'+counter.tens+' 个十 和 '+counter.ones+' 个一）';
+  }else if(counter.tens>0){
+    txt='现在计数器表示：'+v+'（'+counter.tens+' 个十）';
+  }else{
+    txt='现在计数器表示：'+v+'（'+counter.ones+' 个一）';
+  }
+  $('value-line').textContent=txt;
+}
+
+/* ---------------- 渲染：算式（读数实时跟随珠子变化） ---------------- */
+function renderSentence(final){
+  var st=curStep(), v=valNow(), el=$('sentence'), html='';
+  if(st.mode==='inv'){
+    html='<div class="expr">'+st.expr+'</div>'
+        +'<div class="expr sub">'+st.box+' = <span class="live'+(final?' ok':'')+'">'+(final?st.target:v)+'</span>'
+        +'<span class="expr-note">（搬动珠子，让 '+st.box+' 亮出来）</span></div>';
+  }else{
+    html='<div class="expr">'+st.expr+' = <span class="live'+(final?' ok':'')+'">'+(final?st.target:v)+'</span>'
+        +'<span class="expr-note">（右边是计数器现在的读数）</span></div>';
+  }
+  el.innerHTML=html;
+}
+function renderAll(){
+  renderCounter(); renderSentence(false); updateBundleBtn(); renderValueLine(); bumpSteps();
+}
+
+/* ---------------- 站长提示 / 轻提示 / 抖动 ---------------- */
+function mascot(msg){
+  var b=$('bubble'); b.textContent=msg;
+  b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+}
+var toastTimer=0;
+function toast(msg){
+  var t=$('toast'); t.textContent=msg; t.classList.add('show');
+  if(toastTimer){ clearTimeout(toastTimer); }
+  toastTimer=setTimeout(function(){ t.classList.remove('show'); },1400);
+}
+function shakeStory(){
+  var c=$('story-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
+}
+function starFx(){
+  var layer=$('fx-layer');
+  var marks=['⭐','✨','🌟'];
+  for(var i=0;i<5;i++){
+    var d=document.createElement('div'); d.className='fly';
+    d.textContent=marks[Math.floor(Math.random()*marks.length)];
+    d.style.left=(38+Math.random()*24)+'%';
+    d.style.top=(44+Math.random()*12)+'%';
+    d.style.animationDelay=(i*0.08)+'s';
+    layer.appendChild(d);
+    (function(el){ setTimeout(function(){ if(el.parentNode){el.parentNode.removeChild(el);} },1400); })(d);
+  }
+}
+
+/* ---------------- 对局流程 ---------------- */
+function showScreen(name){
+  $('scr-diff').classList.toggle('hidden',name!=='diff');
+  $('scr-game').classList.toggle('hidden',name!=='game');
+}
+function startLevel(lv){
+  applyPalette(PALETTES[Math.floor(Math.random()*PALETTES.length)]);
+  game={lv:lv, questions:sampleQuestions(lv), qi:0, si:0, fails:0, revealed:false,
+        stars:[], locked:false, screen:'play', stepStart:0};
+  counter={tens:0,ones:0};
+  stats.steps=0; $('hud-steps').textContent='0'; $('hud-stars').textContent='0';
+  $('overlay-win').classList.add('hidden'); confettiOn=false;
+  showScreen('game');
+  startTimer();
+  applyQuestion();
+  if(!rulesShown){ rulesShown=true; openRules(); }
+}
+function applyQuestion(){
+  game.si=0; game.fails=0; game.revealed=false;
+  $('q-progress').textContent='第'+(game.qi+1)+'题 / 共'+game.questions.length+'题';
+  applyStep();
+}
+function applyStep(){
+  var st=curStep(), q=curQ();
+  if(typeof st.start==='number'){
+    counter={tens:Math.floor(st.start/10), ones:st.start%10};
+  }
+  game.stepStart=valNow();
+  game.locked=false;
+  $('q-stepinfo').textContent=(q.steps.length>1?('第'+(game.si+1)+'步 / 共'+q.steps.length+'步 · '):'')+'『'+q.name+'』';
+  $('story-text').textContent=st.story;
+  renderAll();
+  mascot(st.mode==='inv'
+    ? '反向挑战：搬动珠子，让 '+st.box+' 亮出来！'
+    : '听故事，摆珠子——想想个位上的数怎么变，十位要不要动？');
+}
+function stepSuccess(revealed){
+  game.locked=true;
+  var q=curQ(), st=curStep();
+  renderSentence(true);
+  starFx();
+  mascot(st.done);
+  if(game.si < q.steps.length-1){
+    setTimeout(function(){ game.si++; applyStep(); },1900);
+  }else{
+    var stars=revealed?0:(game.fails===0?3:(game.fails===1?2:1));
+    game.stars.push(stars);
+    $('hud-stars').textContent=String(sumStars());
+    var wait=q.finale?3300:1800;
+    if(q.finale){ setTimeout(function(){ mascot(q.finale); },1900); }
+    if(game.qi < game.questions.length-1){
+      setTimeout(function(){ game.qi++; applyQuestion(); },wait);
+    }else{
+      setTimeout(function(){ stopTimer(); winOverlay(); },wait);
+    }
+  }
+}
+
+/* ---------------- 确认亮灯 ---------------- */
+$('btn-confirm').addEventListener('click',function(){
+  if(!game || game.locked || game.screen!=='play'){ return; }
+  var st=curStep();
+  if(counter.ones>=10){ doBundle(); mascot('站长帮你把 10 颗捆成了 1 捆，再看看现在的读数！'); }
+  var v=valNow();
+  if(v===st.target){ stepSuccess(false); return; }
+  game.fails++;
+  var tt=Math.floor(st.target/10), h;
+  if(counter.tens!==tt){
+    h='先看十位：十几加几、减几，十位不变！数一数十位应该是 '+tt+' 捆，不对就调整一下（多的一捆搬回托盘）。';
+  }else if(v<st.target){
+    h='还差一点：再听一遍故事，还需要再放几颗？想想个位上的数怎么加。';
+  }else{
+    h='多啦：把多出来的珠子搬回托盘，再点一次确认！';
+    if(counter.ones===0 && counter.tens>0){ h+=' 个位没有珠子了？把十位的一捆拖到个位，拆成 10 颗！'; }
+  }
+  mascot(h); shakeStory();
+});
+
+/* ---------------- 捆一捆（10 个一换 1 个十） ---------------- */
+function doBundle(){
+  if(counter.ones<10){ return; }
+  counter.tens++; counter.ones-=10; stats.steps++;
+  toast('10 个一捆成 1 个十，放进十位！');
+  renderAll();
+  var tb=$('tens-body');
+  if(tb.lastChild){ tb.lastChild.classList.add('pop'); }
+}
+$('btn-bundle').addEventListener('click',function(){
+  if(!game || game.locked || game.screen!=='play'){ return; }
+  doBundle();
+});
+
+/* ---------------- 揭示答案（自动示范摆珠过程） ---------------- */
+function movesFromOps(ops,start){
+  var t=Math.floor(start/10), o=start%10, moves=[];
+  for(var i=0;i<ops.length;i++){
+    var d=ops[i];
+    if(d>=10){ moves.push('inB'); t++; }
+    else if(d<=-10){ moves.push('outB'); t--; }
+    else if(d>0){
+      for(var k=0;k<d;k++){
+        o++; moves.push('inO');
+        if(o>=10){ moves.push('bundle'); o-=10; t++; }
+      }
+    }else if(d<0){
+      var need=-d;
+      while(need>0){
+        if(o>0){ o--; moves.push('outO'); need--; }
+        else if(t>0){ t--; o+=10; moves.push('split'); }
+        else{ break; }
+      }
+    }
+  }
+  return moves;
+}
+function runMoves(moves,i,done){
+  if(i>=moves.length){ done(); return; }
+  var m=moves[i];
+  if(m==='inO'){ counter.ones++; }
+  else if(m==='outO'){ counter.ones--; }
+  else if(m==='inB'){ counter.tens++; }
+  else if(m==='outB'){ counter.tens--; toast('搬走 1 捆（10 个一）'); }
+  else if(m==='split'){ counter.tens--; counter.ones+=10; toast('拆开 1 捆 = 10 颗小珠子'); }
+  else if(m==='bundle'){ counter.tens++; counter.ones-=10; toast('10 个一捆成 1 个十！'); }
+  renderAll();
+  setTimeout(function(){ runMoves(moves,i+1,done); },560);
+}
+$('btn-reveal').addEventListener('click',function(){
+  if(!game || game.locked || game.screen!=='play'){ return; }
+  game.locked=true; game.revealed=true;
+  var st=curStep(), start=game.stepStart;
+  counter={tens:Math.floor(start/10), ones:start%10};
+  renderAll();
+  mascot('别着急，看珠珠站长来示范！');
+  var moves=movesFromOps(st.ops,start);
+  runMoves(moves,0,function(){
+    setTimeout(function(){
+      if(counter.ones>=10){ doBundle(); }
+      mascot('答案亮出来啦！'+st.done);
+      stepSuccess(true);
+    },650);
+  });
+});
+
+/* ---------------- 拖拽系统（指针事件，鼠标/触摸/触控笔通用） ---------------- */
+document.addEventListener('pointerdown',function(e){
+  var el=e.target.closest ? e.target.closest('.drag-src') : null;
+  if(!el || !game || game.screen!=='play' || game.locked){ return; }
+  startDrag(e, el.getAttribute('data-kind'), el.getAttribute('data-origin'));
+});
+document.addEventListener('contextmenu',function(e){
+  if(e.target.closest && e.target.closest('.drag-src')){ e.preventDefault(); }
+});
+function startDrag(e,kind,origin){
+  if(drag){ return; }
+  e.preventDefault();
+  var g=document.createElement('div');
+  g.className='ghost '+(kind==='one'?'bead':'bundle');
+  if(kind==='bundle'){
+    var dots=document.createElement('div'); dots.className='bundle-dots';
+    for(var i=0;i<10;i++){ dots.appendChild(document.createElement('i')); }
+    var num=document.createElement('div'); num.className='bundle-num'; num.textContent='10';
+    g.appendChild(dots); g.appendChild(num);
+  }
+  document.body.appendChild(g);
+  drag={kind:kind, origin:origin, ghost:g, x:e.clientX, y:e.clientY,
+        rTens:$('col-tens').getBoundingClientRect(),
+        rOnes:$('col-ones').getBoundingClientRect(),
+        rTray:$('tray').getBoundingClientRect()};
+  moveGhost();
+  window.addEventListener('pointermove',dragMove);
+  window.addEventListener('pointerup',dragUp);
+  window.addEventListener('pointercancel',dragUp);
+}
+function zoneAt(x,y){
+  function inR(r){ return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom; }
+  if(inR(drag.rOnes)){ return 'ones'; }
+  if(inR(drag.rTens)){ return 'tens'; }
+  if(inR(drag.rTray)){ return 'tray'; }
+  return '';
+}
+function moveGhost(){
+  drag.ghost.style.transform='translate('+(drag.x-32)+'px,'+(drag.y-30)+'px)';
+}
+function dragMove(e){
+  if(!drag){ return; }
+  drag.x=e.clientX; drag.y=e.clientY; moveGhost();
+  var z=zoneAt(drag.x,drag.y);
+  $('col-tens').classList.toggle('hot',z==='tens');
+  $('col-ones').classList.toggle('hot',z==='ones');
+  $('tray').classList.toggle('hot',z==='tray');
+}
+function dragUp(e){
+  if(!drag){ return; }
+  window.removeEventListener('pointermove',dragMove);
+  window.removeEventListener('pointerup',dragUp);
+  window.removeEventListener('pointercancel',dragUp);
+  $('col-tens').classList.remove('hot');
+  $('col-ones').classList.remove('hot');
+  $('tray').classList.remove('hot');
+  var z=zoneAt(e.clientX,e.clientY);
+  var ok=applyDrop(drag.kind,drag.origin,z);
+  drag.ghost.classList.add(ok?'vanish-ok':'vanish-no');
+  var g=drag.ghost; drag=null;
+  setTimeout(function(){ if(g.parentNode){ g.parentNode.removeChild(g); } },260);
+  renderAll();
+}
+/* 落点规则：个位只收小珠子；十位只收整捆；整捆拖到个位=拆开；
+   计数器里的珠子拖回托盘=搬走（做减法）。 */
+function applyDrop(kind,origin,zone){
+  var v=valNow();
+  if(kind==='one'){
+    if(zone==='ones'){
+      if(origin==='ones'){ return true; }              /* 原地放回 */
+      if(v+1>19){ mascot('驿站最多表示到 19 哦！'); return false; }
+      if(counter.ones>=10){ mascot('个位已经满 10 颗啦，先点【捆一捆】！'); return false; }
+      counter.ones++; stats.steps++; return true;
+    }
+    if(zone==='tens'){
+      mascot('小珠子是 1 个一，要放在【个位】；十位放的是整捆（10 个一）。');
+      return false;
+    }
+    if(zone==='tray'){
+      if(origin==='ones'){
+        if(counter.ones<1){ return true; }
+        counter.ones--; stats.steps++; toast('搬回托盘 1 颗'); return true;
+      }
+      return false;
+    }
+    return false;
+  }
+  /* 整捆 */
+  if(zone==='tens'){
+    if(origin==='tens'){ return true; }                /* 原地放回 */
+    if(v+10>19){ mascot('超过 19 啦，驿站摆不下咯！'); return false; }
+    counter.tens++; stats.steps++; return true;
+  }
+  if(zone==='ones'){
+    if(origin==='tens'){
+      if(counter.tens<1){ return true; }
+      counter.tens--; counter.ones+=10; stats.steps++;
+      toast('拆开啦：1 捆 = 10 颗小珠子'); return true;
+    }
+    mascot('整捆要放到【十位】。想拆开？把十位里的捆拖到个位！');
+    return false;
+  }
+  if(zone==='tray'){
+    if(origin==='tens'){
+      if(counter.tens<1){ return true; }
+      counter.tens--; stats.steps++; toast('搬回托盘 1 捆（10 个一）'); return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+/* ---------------- 通关庆祝（Canvas 彩纸，G5） ---------------- */
+function winOverlay(){
+  var total=sumStars(), max=game.stars.length*3;
+  var msg = total>=max-1 ? '太棒了，你是闪亮珠子大师！'
+          : total>=Math.ceil(max/2) ? '很不错的成绩，继续加油！'
+          : '完成挑战！再玩一次，收集更多星星吧！';
+  var rows='';
+  for(var i=0;i<game.stars.length;i++){
+    var s='';
+    for(var j=0;j<3;j++){ s += (j<game.stars[i] ? '★' : '☆'); }
+    rows+='<div class="star-row">第'+(i+1)+'题 <span class="stars">'+s+'</span></div>';
+  }
+  $('win-body').innerHTML='<div class="win-title">🎉 全部通关！</div>'
+    +'<div class="win-msg">'+msg+'</div>'+rows
+    +'<div class="win-total">共获得 '+total+' / '+max+' 颗星 · 用时 '+$('hud-time').textContent+' · 搬运 '+stats.steps+' 步</div>';
+  $('overlay-win').classList.remove('hidden');
+  confettiOn=true;
+  confettiStart();
+}
+function confettiStart(){
+  var cv=$('fx'), ctx=cv.getContext('2d');
+  var box=$('overlay-win').getBoundingClientRect();
+  cv.width=box.width; cv.height=box.height;
+  var colors=[getColor('--c-main'),getColor('--c-accent'),'#fde047','#ffffff','#f59e0b'];
+  var parts=[];
+  for(var i=0;i<150;i++){
+    parts.push({
+      x:Math.random()*cv.width, y:-20-Math.random()*cv.height*0.6,
+      vx:(Math.random()-0.5)*3, vy:2.2+Math.random()*4,
+      w:7+Math.random()*9, h:5+Math.random()*7,
+      rot:Math.random()*Math.PI*2, vr:(Math.random()-0.5)*0.25,
+      c:colors[Math.floor(Math.random()*colors.length)]
+    });
+  }
+  function frame(){
+    if(!confettiOn){ ctx.clearRect(0,0,cv.width,cv.height); return; }
+    ctx.clearRect(0,0,cv.width,cv.height);
+    for(var k=0;k<parts.length;k++){
+      var p=parts[k];
+      p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      if(p.y>cv.height+24){ p.y=-20; p.x=Math.random()*cv.width; }
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.c; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+function getColor(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#f97316';
+}
+
+/* ---------------- 规则弹窗（G6） ---------------- */
+function openRules(){ $('modal-rules').classList.remove('hidden'); }
+$('btn-rules').addEventListener('click',openRules);
+$('btn-rules-0').addEventListener('click',openRules);
+$('btn-rules-close').addEventListener('click',function(){ $('modal-rules').classList.add('hidden'); });
+
+/* ---------------- 难度选择 / 返回 / 重新开始 ---------------- */
+var diffBtns=document.querySelectorAll('.diff-card');
+for(var di=0;di<diffBtns.length;di++){
+  (function(btn){
+    btn.addEventListener('click',function(){
+      startLevel(parseInt(btn.getAttribute('data-lv'),10));
+    });
+  })(diffBtns[di]);
+}
+$('btn-back').addEventListener('click',function(){
+  stopTimer(); game=null; confettiOn=false;
+  $('overlay-win').classList.add('hidden');
+  showScreen('diff');
+});
+$('btn-restart').addEventListener('click',function(){
+  if(game){ startLevel(game.lv); }
+});
+$('btn-again').addEventListener('click',function(){
+  if(game){ startLevel(game.lv); }
+});
+$('btn-win-back').addEventListener('click',function(){
+  game=null; confettiOn=false;
+  $('overlay-win').classList.add('hidden');
+  showScreen('diff');
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-l/g021", "name": "\u5f69\u8679\u73e0\u5b50\u9a7f\u7ad9\u2014\u2014\u5341\u51e0\u52a0\u51e0\u00b7\u51cf\u51e0\u5927\u95ef\u5173", "file": "g021.html", "jiaocan": "\u301029\u3011\u4e94 \u8ba4\u8bc611~19\uff1a2 \u5341\u51e0\u52a0\u51e0(\u4e0d\u8fdb\u4f4d)\u548c\u76f8\u5e94\u7684\u51cf\u6cd5(\u4e0d\u9000\u4f4d)", "unit": "", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "L\uff1a\u6559\u6750\u89e3\u8bfb1", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb1\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-l"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>数阵图王国探险 · 复杂的数阵图</title>
+<style>
+/* ================================================================
+   数阵图王国探险 — 全局样式
+   核心玩法：拖动数字填入圆圈，让每条线/每个方阵的数字之和都等于目标和
+   数学方法：先求"重叠数"（中心共用圆圈的值），再分组凑线和
+   ================================================================ */
+
+/* ---- CSS 变量：每局随机换色（G8 配色随机化） ---- */
+:root{
+  --primary:#3498db; --secondary:#5dade2; --accent:#2e86c1;
+  --bg:#ebf5fb; --pool-bg:#d6eaf8; --line-ok:#27ae60; --line-bad:#e67e22;
+  --line-wait:#bdc3c7; --center:#f39c12;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:"Microsoft YaHei","PingFang SC","Helvetica Neue",sans-serif;
+  background:var(--bg);color:#2c3e50;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+
+/* ---- 屏幕容器 ---- */
+.screen{display:none;position:fixed;inset:0;flex-direction:column;opacity:0;transition:opacity .4s}
+.screen.active{display:flex;opacity:1}
+
+/* ==================== 开始界面 ==================== */
+#start-screen{align-items:center;justify-content:center;padding:20px;text-align:center;
+  background:linear-gradient(135deg,var(--bg),#fff)}
+.start-card{max-width:640px;width:100%}
+.start-card h1{font-size:clamp(28px,5vw,46px);color:var(--accent);margin-bottom:8px;
+  text-shadow:2px 2px 0 rgba(0,0,0,.08)}
+.start-card .sub{font-size:clamp(14px,2.5vw,20px);color:#7f8c8d;margin-bottom:30px;line-height:1.6}
+.diff-grid{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-bottom:24px}
+.diff-btn{flex:1;min-width:150px;max-width:200px;padding:24px 16px;border:none;border-radius:18px;
+  cursor:pointer;transition:transform .2s,box-shadow .2s;color:#fff;font-family:inherit;
+  background:linear-gradient(145deg,var(--primary),var(--accent));box-shadow:0 6px 0 rgba(0,0,0,.15)}
+.diff-btn:nth-child(2){background:linear-gradient(145deg,#9b59b6,#7d3c98)}
+.diff-btn:nth-child(3){background:linear-gradient(145deg,#e67e22,#d35400)}
+.diff-btn:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.15)}
+.diff-btn .stars{font-size:22px;display:block;margin-bottom:6px}
+.diff-btn .dname{font-size:24px;font-weight:bold;display:block}
+.diff-btn .ddesc{font-size:13px;opacity:.85;display:block;margin-top:4px}
+.link-btn{background:none;border:2px solid var(--primary);color:var(--primary);padding:10px 28px;
+  border-radius:30px;font-size:16px;cursor:pointer;font-family:inherit;transition:all .2s}
+.link-btn:hover{background:var(--primary);color:#fff}
+
+/* ==================== 游戏界面 ==================== */
+#game-screen{background:var(--bg)}
+/* ---- 顶部信息栏（G7 计时+步数） ---- */
+.hud-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;
+  padding:8px 14px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.08);z-index:5}
+.hud-info,.hud-stats,.hud-buttons{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hud-item{font-size:clamp(13px,2vw,16px);font-weight:bold;white-space:nowrap}
+.hud-item.badge{background:var(--primary);color:#fff;padding:3px 12px;border-radius:20px;font-size:13px}
+.hud-btn{padding:6px 14px;border:2px solid var(--primary);background:#fff;color:var(--primary);
+  border-radius:20px;font-size:14px;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+.hud-btn:active{transform:scale(.95)}
+.hud-btn:hover{background:var(--primary);color:#fff}
+
+/* ---- 游戏主体 ---- */
+.game-body{flex:1;display:flex;overflow:hidden;min-height:0}
+.diagram-section{flex:1;display:flex;flex-direction:column;align-items:center;padding:6px;min-width:0}
+.target-banner{font-size:clamp(14px,2.5vw,18px);text-align:center;padding:4px 12px;margin-bottom:2px}
+.target-big{font-size:clamp(24px,4vw,36px);font-weight:bold;color:var(--accent);
+  display:inline-block;margin-left:6px;vertical-align:middle}
+.diagram-container{flex:1;width:100%;max-width:560px;display:flex;align-items:center;justify-content:center;min-height:0}
+.diagram-container svg{width:100%;height:100%;max-height:100%}
+
+/* ---- 侧面板（实时验证 + 方法揭秘） ---- */
+.side-panel{width:280px;display:flex;flex-direction:column;gap:8px;padding:8px;overflow-y:auto;
+  background:rgba(255,255,255,.6);border-radius:12px;margin:4px}
+.panel-section{background:#fff;border-radius:10px;padding:10px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.panel-title{font-size:15px;color:var(--accent);margin-bottom:8px;border-bottom:2px solid var(--bg);padding-bottom:4px}
+.line-row{display:flex;align-items:center;gap:4px;padding:5px 0;font-size:14px;border-bottom:1px dashed #eee;flex-wrap:wrap}
+.line-row:last-child{border:none}
+.line-row .lname{font-weight:bold;min-width:42px;color:#555}
+.line-row .lcalc{font-family:Courier New,monospace;font-size:13px}
+.line-row .ltarget{color:#999;font-size:12px}
+.line-row .lstatus{font-size:16px;margin-left:auto}
+.line-row.ok{color:var(--line-ok)} .line-row.ok .lstatus:after{content:' ✓'}
+.line-row.bad{color:var(--line-bad)} .line-row.bad .lstatus:after{content:' ✗'}
+.line-row.wait .lstatus:after{content:'…'}
+.method-content{font-size:13px;line-height:1.8;color:#444}
+.method-content .calc-row{padding:3px 0}
+.method-content .highlight{color:var(--accent);font-weight:bold;font-size:15px}
+.method-content .formula{background:var(--bg);padding:4px 8px;border-radius:6px;margin:4px 0;
+  font-family:Courier New,monospace;display:block}
+
+/* ---- 数字库（拖拽源） ---- */
+.pool-section{background:var(--pool-bg);padding:8px 12px;border-top:3px solid var(--secondary);z-index:5}
+.pool-label{font-size:14px;font-weight:bold;color:var(--accent);margin-bottom:6px;text-align:center}
+.number-pool{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;min-height:60px;align-items:center}
+.num-chip{width:clamp(48px,8vw,60px);height:clamp(48px,8vw,60px);border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:clamp(20px,4vw,28px);font-weight:bold;
+  color:#fff;cursor:grab;transition:transform .15s,box-shadow .15s;
+  background:radial-gradient(circle at 30% 30%,var(--secondary),var(--primary));
+  box-shadow:0 4px 8px rgba(0,0,0,.2),inset 0 -3px 0 rgba(0,0,0,.15)}
+.num-chip:active{cursor:grabbing;transform:scale(1.1)}
+.num-chip.dragging{opacity:.3}
+
+/* ---- SVG 图表元素 ---- */
+.circle-hit{fill:transparent;pointer-events:all;cursor:pointer}
+.circle-bg{fill:#fff;stroke:var(--secondary);stroke-width:4;transition:fill .2s,stroke .2s}
+.circle-bg.center{stroke:var(--center);stroke-width:5;stroke-dasharray:none}
+.circle-bg.filled{fill:var(--secondary);stroke:var(--accent)}
+.circle-bg.center-filled{fill:var(--center);stroke:#e67e22}
+.circle-text{font-size:28px;font-weight:bold;text-anchor:middle;fill:#fff;pointer-events:none;
+  user-select:none;font-family:inherit}
+.center-ring{fill:none;stroke:var(--center);stroke-width:2;stroke-dasharray:5,3;opacity:.6}
+.line-stroke{fill:none;stroke:var(--line-wait);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;
+  transition:stroke .3s,stroke-width .3s}
+.line-stroke.ok{stroke:var(--line-ok)}
+.line-stroke.bad{stroke:var(--line-bad)}
+@keyframes pulse{0%,100%{stroke-width:5}50%{stroke-width:8}}
+.line-stroke.flash{animation:pulse .5s ease}
+
+/* ---- 拖拽幽灵 ---- */
+#drag-ghost{position:fixed;width:60px;height:60px;border-radius:50%;display:none;align-items:center;
+  justify-content:center;font-size:28px;font-weight:bold;color:#fff;z-index:9999;pointer-events:none;
+  background:radial-gradient(circle at 30% 30%,var(--secondary),var(--primary));
+  box-shadow:0 8px 20px rgba(0,0,0,.3);transform:translate(-50%,-50%) scale(1.15);transition:transform .1s}
+
+/* ---- 弹窗/遮罩 ---- */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;
+  align-items:center;justify-content:center;padding:20px}
+.modal-overlay.active{display:flex}
+.modal-box{background:#fff;border-radius:20px;padding:28px;max-width:480px;width:100%;
+  max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-box h2{color:var(--accent);margin-bottom:14px;font-size:26px;text-align:center}
+.rules-content{font-size:15px;line-height:2;color:#444}
+.rules-content p{margin-bottom:10px}
+.rules-content ul{padding-left:20px;margin-bottom:10px}
+.rules-content li{margin-bottom:4px}
+.action-btn{display:inline-block;padding:12px 28px;border:none;border-radius:30px;font-size:17px;
+  cursor:pointer;font-family:inherit;margin:6px;transition:transform .15s;
+  background:var(--primary);color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.15)}
+.action-btn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
+.action-btn.primary{background:var(--accent)}
+.victory-box{text-align:center}
+.victory-box .big-stars{font-size:48px;color:#f1c40f;letter-spacing:8px;margin-bottom:8px}
+.victory-buttons{margin-top:16px}
+#confetti-canvas{position:fixed;inset:0;pointer-events:none;z-index:200}
+
+/* ---- 响应式适配（G11） ---- */
+@media(max-width:768px){
+  .game-body{flex-direction:column}
+  .side-panel{width:100%;flex-direction:row;max-height:140px}
+  .panel-section{flex:1;font-size:12px}
+  .hud-buttons .hud-btn{padding:5px 10px;font-size:12px}
+  .circle-text{font-size:22px}
+}
+@media(max-height:600px){
+  .target-banner{font-size:13px}
+  .pool-label{font-size:12px;margin-bottom:2px}
+}
+</style>
+</head>
+<body>
+
+<!-- 庆祝彩纸画布（G5 庆祝动画） -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- ============ 开始界面（含三档难度选择 G3） ============ -->
+<div id="start-screen" class="screen active">
+  <div class="start-card">
+    <h1>数阵图王国探险</h1>
+    <p class="sub">把数字拖进圆圈，让每条线上数字的和都相等<br>先找到中心的"重叠数"，你就拿到了金钥匙！</p>
+    <div class="diff-grid">
+      <button class="diff-btn" data-diff="beginner">
+        <span class="stars">★</span>
+        <span class="dname">初级</span>
+        <span class="ddesc">两条线 · 重叠1次</span>
+      </button>
+      <button class="diff-btn" data-diff="intermediate">
+        <span class="stars">★★</span>
+        <span class="dname">中级</span>
+        <span class="ddesc">三条线 · 重叠2次</span>
+      </button>
+      <button class="diff-btn" data-diff="advanced">
+        <span class="stars">★★★</span>
+        <span class="dname">高级</span>
+        <span class="ddesc">方阵与综合挑战</span>
+      </button>
+    </div>
+    <button class="link-btn" id="show-rules-start">查看游戏规则</button>
+  </div>
+</div>
+
+<!-- ============ 游戏界面 ============ -->
+<div id="game-screen" class="screen">
+  <!-- 顶部栏：关卡名/难度/计时/步数/进度（G7） -->
+  <div class="hud-bar">
+    <div class="hud-info">
+      <span class="hud-item" id="level-name">第1关</span>
+      <span class="hud-item badge" id="diff-label">初级</span>
+    </div>
+    <div class="hud-stats">
+      <span class="hud-item" id="timer">时间 0:00</span>
+      <span class="hud-item" id="steps-counter">步数 0</span>
+      <span class="hud-item" id="progress">已填 0/7</span>
+    </div>
+    <div class="hud-buttons">
+      <button class="hud-btn" id="rules-game-btn">规则</button>
+      <button class="hud-btn" id="method-btn">方法</button>
+      <button class="hud-btn" id="reveal-btn">揭示答案</button>
+      <button class="hud-btn" id="restart-btn">重新开始</button>
+      <button class="hud-btn" id="back-btn">返回</button>
+    </div>
+  </div>
+
+  <!-- 游戏主体：图表 + 侧面板 -->
+  <div class="game-body">
+    <div class="diagram-section">
+      <div class="target-banner">
+        每条线（或每个方阵）数字之和要等于
+        <span class="target-big" id="target-number">20</span>
+      </div>
+      <div class="diagram-container" id="diagram-container"></div>
+    </div>
+    <div class="side-panel">
+      <div class="panel-section" id="line-sums-panel">
+        <h3 class="panel-title">实时验证</h3>
+        <div id="line-sums"></div>
+      </div>
+      <div class="panel-section" id="method-panel" style="display:none">
+        <h3 class="panel-title">方法揭秘</h3>
+        <div class="method-content" id="method-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 数字库（拖拽源） -->
+  <div class="pool-section">
+    <div class="pool-label">数字库 —— 拖动数字到圆圈中</div>
+    <div class="number-pool" id="number-pool"></div>
+  </div>
+</div>
+
+<!-- ============ 规则弹窗（G6） ============ -->
+<div id="rules-modal" class="modal-overlay">
+  <div class="modal-box">
+    <h2>游戏规则</h2>
+    <div class="rules-content">
+      <p><strong>目标：</strong>把数字库中的数字拖入圆圈，让每条线（或每个方阵）上的数字之和都正好等于目标和。</p>
+      <p><strong>核心法宝 —— 重叠数：</strong></p>
+      <ul>
+        <li>找到被多条线共用的"中心圆圈"</li>
+        <li><strong>重叠1次：</strong>重叠数 = 线和 − 数和</li>
+        <li><strong>重叠2次：</strong>重叠数 =（线和 − 数和）÷ 2</li>
+        <li>线和 = 目标和 × 线的条数；数和 = 所有数字加起来</li>
+      </ul>
+      <p><strong>怎么操作：</strong></p>
+      <ul>
+        <li>按住数字拖到圆圈里，松手即放入</li>
+        <li>拖到已有数字的圆圈，两个数字会互换</li>
+        <li>拖回数字库区域，数字就取出来了</li>
+        <li>中心圆圈（虚线圈住的）就是重叠数的位置</li>
+      </ul>
+      <p><strong>小窍门：</strong>先算出中心填什么，再凑其他线就轻松啦！</p>
+    </div>
+    <div style="text-align:center">
+      <button class="action-btn primary" id="close-rules-btn">开始挑战</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 胜利弹窗（G5 庆祝） ============ -->
+<div id="victory-overlay" class="modal-overlay">
+  <div class="modal-box victory-box">
+    <div class="big-stars" id="victory-stars">★★★</div>
+    <h2>太棒了！数阵点亮！</h2>
+    <p id="victory-stats" style="font-size:18px;color:#555;line-height:2"></p>
+    <div class="victory-buttons">
+      <button class="action-btn primary" id="next-level-btn">下一关</button>
+      <button class="action-btn" id="victory-restart-btn">再玩一次</button>
+      <button class="action-btn" id="victory-back-btn">选择难度</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 全部通关弹窗 ============ -->
+<div id="complete-overlay" class="modal-overlay">
+  <div class="modal-box victory-box">
+    <div class="big-stars">★★★</div>
+    <h2>全部通关！</h2>
+    <p style="font-size:18px;color:#555">你已点亮本难度的所有数阵图，真厉害！</p>
+    <div class="victory-buttons">
+      <button class="action-btn primary" id="complete-back-btn">返回选难度</button>
+    </div>
+  </div>
+</div>
+
+<!-- 拖拽幽灵元素 -->
+<div id="drag-ghost"></div>
+
+<script>
+/* ================================================================
+   数阵图王国探险 — 游戏逻辑
+   ================================================================ */
+
+/* ---- 布局模板：每种数阵图的圆圈位置和线/方阵定义 ---- */
+var LAYOUTS = {
+  /* 放射型2条线，每线4个圆圈，中心共用（共7圈） */
+  radial2:{
+    viewBox:'0 0 500 440',
+    positions:{
+      a:{x:250,y:45}, b:{x:250,y:135},
+      c:{x:65,y:260}, d:{x:250,y:260,isCenter:true},
+      e:{x:345,y:260}, f:{x:435,y:260}, g:{x:250,y:390}
+    },
+    lines:[
+      {name:'横线',positions:['c','d','e','f']},
+      {name:'竖线',positions:['a','b','d','g']}
+    ],
+    centerKey:'d'
+  },
+  /* 放射型3条线，每线3个圆圈，中心共用（共7圈） */
+  star3:{
+    viewBox:'0 0 500 440',
+    positions:{
+      a:{x:115,y:70}, b:{x:385,y:70},
+      c:{x:40,y:220}, d:{x:250,y:220,isCenter:true}, e:{x:460,y:220},
+      f:{x:115,y:370}, g:{x:385,y:370}
+    },
+    lines:[
+      {name:'线一',positions:['a','d','g']},
+      {name:'线二',positions:['b','d','f']},
+      {name:'线三',positions:['c','d','e']}
+    ],
+    centerKey:'d'
+  },
+  /* 十字形2条线，每线3个圆圈，中心共用（共5圈） */
+  cross5:{
+    viewBox:'0 0 400 400',
+    positions:{
+      a:{x:200,y:50}, b:{x:55,y:200},
+      c:{x:200,y:200,isCenter:true},
+      d:{x:345,y:200}, e:{x:200,y:350}
+    },
+    lines:[
+      {name:'横线',positions:['b','c','d']},
+      {name:'竖线',positions:['a','c','e']}
+    ],
+    centerKey:'c'
+  },
+  /* 双正方形共享一个顶点（共7圈） */
+  squares:{
+    viewBox:'0 0 500 440',
+    positions:{
+      a:{x:55,y:55}, b:{x:225,y:55},
+      c:{x:55,y:225}, d:{x:225,y:225,isCenter:true},
+      e:{x:395,y:225}, f:{x:225,y:395}, g:{x:395,y:395}
+    },
+    lines:[
+      {name:'方阵一',positions:['a','b','d','c'],isSquare:true},
+      {name:'方阵二',positions:['d','e','g','f'],isSquare:true}
+    ],
+    centerKey:'d'
+  }
+};
+
+/* ---- 关卡数据（全部取自 docx 原题） ----
+   beginner：放射型重叠1次（例1/练习1/练习2）
+   intermediate：放射型重叠2次（例2/练习4/练习6）
+   advanced：方阵 + 综合（例3/练习8/练习9） */
+var ALL_LEVELS = {
+  beginner:[
+    {name:'智慧之门',numbers:[1,2,4,5,6,8,10],target:20,layout:'radial2',overlap:1,
+     solution:{c:1,d:4,e:5,f:10,a:2,b:6,g:8}},
+    {name:'双线挑战',numbers:[8,9,10,11,12,14,16],target:46,layout:'radial2',overlap:1,
+     solution:{c:8,d:12,e:10,f:16,a:9,b:11,g:14}},
+    {name:'十字光辉',numbers:[5,6,7,8,9],target:21,layout:'cross5',overlap:1,
+     solution:{b:5,c:7,d:9,a:6,e:8}}
+  ],
+  intermediate:[
+    {name:'三星汇聚',numbers:[5,9,13,14,17,21,25],target:44,layout:'star3',overlap:2,
+     solution:{a:5,d:14,g:25,b:9,f:21,c:13,e:17}},
+    {name:'星光璀璨',numbers:[5,8,11,14,17,20,23],target:36,layout:'star3',overlap:2,
+     solution:{a:8,d:5,g:23,b:11,f:20,c:14,e:17}},
+    {name:'七彩星阵',numbers:[1,2,3,4,5,6,7],target:14,layout:'star3',overlap:2,
+     solution:{a:1,d:7,g:6,b:2,f:5,c:3,e:4}}
+  ],
+  advanced:[
+    {name:'双子方阵',numbers:[2,3,4,5,6,7,8],target:19,layout:'squares',overlap:1,
+     solution:{a:2,b:6,c:8,d:3,e:4,f:7,g:5}},
+    {name:'数列星辉',numbers:[1,4,7,10,13,16,19],target:30,layout:'star3',overlap:2,
+     solution:{a:1,d:10,g:19,b:4,f:16,c:7,e:13}},
+    {name:'终极数阵',numbers:[8,9,10,11,12,13,14],target:33,layout:'star3',overlap:2,
+     solution:{a:8,d:11,g:14,b:9,f:13,c:10,e:12}}
+  ]
+};
+
+/* ---- 配色主题（G8 每局随机） ---- */
+var COLOR_THEMES=[
+  {primary:'#3498db',secondary:'#5dade2',accent:'#2e86c1',bg:'#ebf5fb',pool:'#d6eaf8'},
+  {primary:'#27ae60',secondary:'#52be80',accent:'#1e8449',bg:'#eafaf1',pool:'#d4efdf'},
+  {primary:'#8e44ad',secondary:'#a569bd',accent:'#6c3483',bg:'#f5eef8',pool:'#e8daef'},
+  {primary:'#e67e22',secondary:'#f39c12',accent:'#d35400',bg:'#fef9e7',pool:'#fdebd0'},
+  {primary:'#16a085',secondary:'#1abc9c',accent:'#0e6655',bg:'#e8f8f5',pool:'#d1f2eb'},
+  {primary:'#c0392b',secondary:'#e74c3c',accent:'#922b21',bg:'#fdedec',pool:'#fadbd8'}
+];
+var DIFF_LABELS={beginner:'初级',intermediate:'中级',advanced:'高级'};
+
+/* ---- 游戏状态 ---- */
+var G={
+  difficulty:null, levels:[], levelIndex:0, current:null,
+  placements:{}, poolOrder:[], startTime:0, timerInt:null, steps:0,
+  draggedNum:null, revealed:false
+};
+var drag={active:false,value:null,sourceType:null,sourcePos:null};
+
+/* ================================================================
+   工具函数
+   ================================================================ */
+function shuffle(arr){
+  var a=arr.slice();
+  for(var i=a.length-1;i>0;i--){
+    var j=Math.floor(Math.random()*(i+1));
+    var t=a[i];a[i]=a[j];a[j]=t;
+  }
+  return a;
+}
+function applyTheme(theme){
+  var r=document.documentElement.style;
+  r.setProperty('--primary',theme.primary);
+  r.setProperty('--secondary',theme.secondary);
+  r.setProperty('--accent',theme.accent);
+  r.setProperty('--bg',theme.bg);
+  r.setProperty('--pool-bg',theme.pool);
+}
+
+/* ================================================================
+   渲染函数
+   ================================================================ */
+
+/* 渲染 SVG 数阵图（圆圈 + 连线） */
+function renderDiagram(){
+  var L=LAYOUTS[G.current.layout];
+  var pos=L.positions;
+  var svg='<svg viewBox="'+L.viewBox+'" preserveAspectRatio="xMidYMid meet">';
+  /* 先画连线/方阵（在圆圈下方） */
+  L.lines.forEach(function(line,i){
+    var pts=line.positions.map(function(p){return pos[p].x+','+pos[p].y;}).join(' ');
+    var tag=line.isSquare?'polygon':'polyline';
+    var cls=line.isSquare?'line-stroke':'line-stroke';
+    svg+='<'+tag+' points="'+pts+'" class="'+cls+'" data-line="'+i+'" '+(line.isSquare?'':'fill="none"')+'/>';
+  });
+  /* 再画圆圈 */
+  Object.keys(pos).forEach(function(key){
+    var p=pos[key];
+    var isCenter=!!p.isCenter;
+    var val=G.placements[key];
+    var hasVal=val!=null;
+    var bgCls='circle-bg'+(isCenter?' center':'')+(hasVal?(isCenter?' center-filled':' filled'):'');
+    svg+='<g class="circle-group" data-pos="'+key+'"'+
+         (hasVal?' data-draggable="true" data-value="'+val+'" data-source="circle"':'')+'>';
+    /* 中心圆圈的虚线提示环 */
+    if(isCenter){svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="46" class="center-ring"/>';}
+    svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="44" class="circle-hit"/>';
+    svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+(isCenter?36:32)+'" class="'+bgCls+'"/>';
+    if(hasVal){svg+='<text x="'+p.x+'" y="'+(p.y+10)+'" class="circle-text">'+val+'</text>';}
+    svg+='</g>';
+  });
+  svg+='</svg>';
+  var dc=document.getElementById('diagram-container');
+  dc.innerHTML=svg;
+  updateLineColors();
+}
+
+/* 更新连线颜色（绿=正确/橙=错误/灰=未填完） */
+function updateLineColors(){
+  var L=LAYOUTS[G.current.layout];
+  L.lines.forEach(function(line,i){
+    var vals=line.positions.map(function(p){return G.placements[p];});
+    var filled=vals.every(function(v){return v!=null;});
+    var sum=vals.reduce(function(a,v){return a+(v||0);},0);
+    var correct=filled&&sum===G.current.target;
+    var el=document.querySelector('[data-line="'+i+'"]');
+    if(!el)return;
+    el.classList.remove('ok','bad','flash');
+    if(correct){el.classList.add('ok');el.classList.add('flash');}
+    else if(filled){el.classList.add('bad');}
+  });
+}
+
+/* 渲染数字库（排除已放置和正在拖拽的数字） */
+function getPoolNums(){
+  var placed={};
+  Object.keys(G.placements).forEach(function(k){
+    if(G.placements[k]!=null)placed[G.placements[k]]=true;
+  });
+  var pool=G.poolOrder.filter(function(n){return!placed[n];});
+  if(G.draggedNum!==null){
+    var idx=pool.indexOf(G.draggedNum);
+    if(idx>=0)pool.splice(idx,1);
+  }
+  return pool;
+}
+function renderPool(){
+  var pool=getPoolNums();
+  var el=document.getElementById('number-pool');
+  el.innerHTML='';
+  pool.forEach(function(n){
+    var chip=document.createElement('div');
+    chip.className='num-chip';
+    chip.textContent=n;
+    chip.setAttribute('data-draggable','true');
+    chip.setAttribute('data-value',n);
+    chip.setAttribute('data-source','pool');
+    el.appendChild(chip);
+  });
+}
+
+/* 渲染侧面板：每条线的实时求和 */
+function renderLineSums(){
+  var L=LAYOUTS[G.current.layout];
+  var html='';
+  L.lines.forEach(function(line){
+    var vals=line.positions.map(function(p){return G.placements[p];});
+    var filled=vals.every(function(v){return v!=null;});
+    var sum=vals.reduce(function(a,v){return a+(v||0);},0);
+    var correct=filled&&sum===G.current.target;
+    var cls=correct?'ok':(filled?'bad':'wait');
+    var calcStr=vals.map(function(v){return v!=null?v:'＿';}).join(' + ');
+    html+='<div class="line-row '+cls+'">'+
+          '<span class="lname">'+line.name+'</span>'+
+          '<span class="lcalc">'+calcStr+'</span>'+
+          '<span class="ltarget"> = '+G.current.target+'</span>'+
+          '<span class="lstatus"></span></div>';
+  });
+  document.getElementById('line-sums').innerHTML=html;
+}
+
+/* 渲染方法揭秘面板（动态计算重叠数） */
+function renderMethod(){
+  var lv=G.current;
+  var L=LAYOUTS[lv.layout];
+  var numSum=lv.numbers.reduce(function(a,b){return a+b;},0);
+  var lineCount=L.lines.length;
+  var lineSumTotal=lv.target*lineCount;
+  var html='';
+  html+='<div class="calc-row">数和 = '+lv.numbers.join(' + ')+' = <b>'+numSum+'</b></div>';
+  html+='<div class="calc-row">线和 = '+lv.target+' × '+lineCount+'条 = <b>'+lineSumTotal+'</b></div>';
+  if(lv.overlap===1){
+    var overlap=lineSumTotal-numSum;
+    html+='<span class="formula">重叠数 = 线和 − 数和 = '+lineSumTotal+' − '+numSum+' = '+overlap+'</span>';
+    html+='<div class="calc-row highlight">中心圆圈应填：'+overlap+'</div>';
+    html+='<div class="calc-row">再把剩下的数分组，使每线之和 = '+lv.target+'</div>';
+  }else{
+    var overlap2=(lineSumTotal-numSum)/2;
+    html+='<div class="calc-row">中心被多算2次，所以要除以2：</div>';
+    html+='<span class="formula">重叠数 =（线和 − 数和）÷ 2 = ('+lineSumTotal+' − '+numSum+') ÷ 2 = '+overlap2+'</span>';
+    html+='<div class="calc-row highlight">中心圆圈应填：'+overlap2+'</div>';
+    html+='<div class="calc-row">再把剩下的数两两配对，每对之和 = '+lv.target+' − '+overlap2+'</div>';
+  }
+  document.getElementById('method-content').innerHTML=html;
+}
+
+/* 更新 HUD 信息（计时/步数/进度） */
+function updateHUD(){
+  var filled=Object.keys(G.placements).filter(function(k){
+    return G.placements[k]!=null;
+  }).length;
+  var total=Object.keys(LAYOUTS[G.current.layout].positions).length;
+  document.getElementById('progress').textContent='已填 '+filled+'/'+total;
+  document.getElementById('steps-counter').textContent='步数 '+G.steps;
+  document.getElementById('level-name').textContent='第'+(G.levelIndex+1)+'关 · '+G.current.name;
+  document.getElementById('diff-label').textContent=DIFF_LABELS[G.difficulty];
+  document.getElementById('target-number').textContent=G.current.target;
+}
+
+/* 统一渲染 */
+function renderAll(){
+  renderDiagram();renderPool();renderLineSums();updateHUD();
+}
+
+/* ================================================================
+   拖拽交互（G1 真正的操作交互——自由拖拽）
+   ================================================================ */
+function findDropTarget(x,y){
+  var el=document.elementFromPoint(x,y);
+  if(!el)return null;
+  var node=el;
+  while(node&&node!==document){
+    if(node.dataset&&node.dataset.pos)return node.dataset.pos;
+    if(node.classList&&node.classList.contains('number-pool'))return 'pool';
+    node=node.parentNode;
+  }
+  return null;
+}
+function startDrag(e){
+  var target=e.target.closest('[data-draggable]');
+  if(!target)return;
+  e.preventDefault();
+  var val=parseInt(target.getAttribute('data-value'));
+  var src=target.getAttribute('data-source');
+  drag.active=true;drag.value=val;drag.sourceType=src;
+  if(src==='circle'){
+    drag.sourcePos=target.getAttribute('data-pos');
+    G.placements[drag.sourcePos]=null; /* 拖走后该圈暂时清空 */
+  }
+  G.draggedNum=val;
+  var ghost=document.getElementById('drag-ghost');
+  ghost.textContent=val;ghost.style.display='flex';
+  ghost.style.left=e.clientX+'px';ghost.style.top=e.clientY+'px';
+  renderAll();
+  document.addEventListener('pointermove',onDragMove);
+  document.addEventListener('pointerup',endDrag);
+}
+function onDragMove(e){
+  if(!drag.active)return;
+  e.preventDefault();
+  var ghost=document.getElementById('drag-ghost');
+  ghost.style.left=e.clientX+'px';ghost.style.top=e.clientY+'px';
+}
+function endDrag(e){
+  if(!drag.active)return;
+  document.removeEventListener('pointermove',onDragMove);
+  document.removeEventListener('pointerup',endDrag);
+  var ghost=document.getElementById('drag-ghost');
+  ghost.style.display='none';
+  var target=findDropTarget(e.clientX,e.clientY);
+  if(target&&target!=='pool'){
+    /* 放到圆圈上 */
+    var existing=G.placements[target];
+    G.placements[target]=drag.value;
+    if(drag.sourceType==='circle'&&drag.sourcePos!==target){
+      G.placements[drag.sourcePos]=existing; /* 互换 */
+    }
+    G.steps++;
+  }else if(drag.sourceType==='circle'){
+    /* 拖回数字库，原圈保持空 */
+    G.steps++;
+  }
+  G.draggedNum=null;
+  drag={active:false,value:null,sourceType:null,sourcePos:null};
+  renderAll();
+  checkWin();
+}
+
+/* ================================================================
+   游戏逻辑
+   ================================================================ */
+
+/* 检查是否通关：所有圈填满且所有线/方阵之和都=目标 */
+function checkWin(){
+  if(G.revealed)return; /* 揭示答案后不再自动通关 */
+  var L=LAYOUTS[G.current.layout];
+  var allFilled=Object.keys(L.positions).every(function(pos){
+    return G.placements[pos]!=null;
+  });
+  if(!allFilled)return;
+  var allCorrect=L.lines.every(function(line){
+    var s=line.positions.reduce(function(a,p){return a+G.placements[p];},0);
+    return s===G.current.target;
+  });
+  if(allCorrect){stopTimer();showVictory();}
+}
+
+/* 计时器 */
+function startTimer(){
+  G.startTime=Date.now();
+  G.timerInt=setInterval(function(){
+    var sec=Math.floor((Date.now()-G.startTime)/1000);
+    var m=Math.floor(sec/60),s=sec%60;
+    document.getElementById('timer').textContent='时间 '+m+':'+(s<10?'0':'')+s;
+  },500);
+}
+function stopTimer(){if(G.timerInt){clearInterval(G.timerInt);G.timerInt=null;}}
+
+/* 胜利展示 + 星级评定 */
+function showVictory(){
+  var sec=Math.floor((Date.now()-G.startTime)/1000);
+  var m=Math.floor(sec/60),s=sec%60;
+  var totalPos=Object.keys(LAYOUTS[G.current.layout].positions).length;
+  var stars=3;
+  if(G.steps>totalPos+4)stars=2;
+  if(G.steps>totalPos+10)stars=1;
+  var starStr='';
+  for(var i=0;i<3;i++)starStr+=(i<stars?'★':'☆');
+  document.getElementById('victory-stars').textContent=starStr;
+  document.getElementById('victory-stats').innerHTML=
+    '用时：'+m+'分'+s+'秒<br>步数：'+G.steps+'<br>评价：'+stars+'星';
+  var nextBtn=document.getElementById('next-level-btn');
+  nextBtn.style.display=(G.levelIndex<G.levels.length-1)?'inline-block':'none';
+  document.getElementById('victory-overlay').classList.add('active');
+  launchConfetti();
+}
+
+/* 揭示答案（G4） */
+function revealAnswer(){
+  Object.keys(G.current.solution).forEach(function(pos){
+    G.placements[pos]=G.current.solution[pos];
+  });
+  G.revealed=true;
+  renderAll();
+  /* 展示提示信息 */
+  var msg='已揭示参考答案。你可以点"重新开始"自己再试一次！';
+  var lineEl=document.getElementById('line-sums');
+  var tip=document.createElement('div');
+  tip.style.cssText='background:#fef9e7;padding:8px;border-radius:8px;margin-top:8px;color:#d35400;font-size:14px;text-align:center;';
+  tip.textContent=msg;
+  lineEl.appendChild(tip);
+}
+
+/* 重新开始当前关（G4） */
+function restartLevel(){
+  G.placements={};
+  G.steps=0;G.revealed=false;
+  Object.keys(LAYOUTS[G.current.layout].positions).forEach(function(pos){
+    G.placements[pos]=null;
+  });
+  G.poolOrder=shuffle(G.current.numbers);
+  startTimer();
+  renderAll();
+}
+
+/* 加载关卡 */
+function loadLevel(){
+  var lv=G.levels[G.levelIndex];
+  G.current={
+    name:lv.name,numbers:lv.numbers,target:lv.target,
+    layout:lv.layout,overlap:lv.overlap,solution:lv.solution
+  };
+  G.placements={};
+  G.steps=0;G.revealed=false;
+  Object.keys(LAYOUTS[G.current.layout].positions).forEach(function(pos){
+    G.placements[pos]=null;
+  });
+  G.poolOrder=shuffle(G.current.numbers);
+  renderMethod();
+  document.getElementById('method-panel').style.display='none';
+  startTimer();
+  renderAll();
+}
+
+/* 选择难度，进入游戏 */
+function selectDifficulty(diff){
+  G.difficulty=diff;
+  G.levels=shuffle(ALL_LEVELS[diff]); /* 反重复：打乱关卡顺序 */
+  G.levelIndex=0;
+  applyTheme(COLOR_THEMES[Math.floor(Math.random()*COLOR_THEMES.length)]); /* 随机配色 */
+  showScreen('game-screen');
+  loadLevel();
+}
+
+/* 屏幕切换 */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  document.getElementById(id).classList.add('active');
+}
+
+/* ================================================================
+   庆祝彩纸动画（Canvas 实现，G5）
+   ================================================================ */
+function launchConfetti(){
+  var canvas=document.getElementById('confetti-canvas');
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+  var ctx=canvas.getContext('2d');
+  var colors=['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22','#1abc9c'];
+  var particles=[];
+  for(var i=0;i<160;i++){
+    particles.push({
+      x:Math.random()*canvas.width,y:-30-Math.random()*200,
+      vx:(Math.random()-0.5)*7,vy:Math.random()*4+2,
+      size:Math.random()*8+5,color:colors[Math.floor(Math.random()*colors.length)],
+      rot:Math.random()*360,rotV:(Math.random()-0.5)*12,
+      shape:Math.random()<0.5?'rect':'circle'
+    });
+  }
+  var running=true;
+  function tick(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    var alive=false;
+    particles.forEach(function(p){
+      p.x+=p.vx;p.y+=p.vy;p.vy+=0.12;p.rot+=p.rotV;
+      if(p.y<canvas.height+60){
+        alive=true;
+        ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot*Math.PI/180);
+        ctx.fillStyle=p.color;
+        if(p.shape==='rect'){ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);}
+        else{ctx.beginPath();ctx.arc(0,0,p.size/2,0,Math.PI*2);ctx.fill();}
+        ctx.restore();
+      }
+    });
+    if(alive&&running)requestAnimationFrame(tick);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  tick();
+  setTimeout(function(){running=false;},5000);
+}
+
+/* ================================================================
+   事件绑定
+   ================================================================ */
+function bindEvents(){
+  /* 难度选择 */
+  document.querySelectorAll('.diff-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){selectDifficulty(this.getAttribute('data-diff'));});
+  });
+  /* 规则弹窗 */
+  document.getElementById('show-rules-start').addEventListener('click',function(){
+    document.getElementById('rules-modal').classList.add('active');
+  });
+  document.getElementById('rules-game-btn').addEventListener('click',function(){
+    document.getElementById('rules-modal').classList.add('active');
+  });
+  document.getElementById('close-rules-btn').addEventListener('click',function(){
+    document.getElementById('rules-modal').classList.remove('active');
+  });
+  /* 方法面板切换 */
+  document.getElementById('method-btn').addEventListener('click',function(){
+    var p=document.getElementById('method-panel');
+    p.style.display=(p.style.display==='none')?'block':'none';
+  });
+  /* 揭示答案 */
+  document.getElementById('reveal-btn').addEventListener('click',revealAnswer);
+  /* 重新开始 */
+  document.getElementById('restart-btn').addEventListener('click',restartLevel);
+  /* 返回难度选择 */
+  document.getElementById('back-btn').addEventListener('click',function(){
+    stopTimer();showScreen('start-screen');
+  });
+  /* 胜利后按钮 */
+  document.getElementById('next-level-btn').addEventListener('click',function(){
+    document.getElementById('victory-overlay').classList.remove('active');
+    G.levelIndex++;
+    if(G.levelIndex>=G.levels.length){
+      document.getElementById('complete-overlay').classList.add('active');
+    }else{
+      loadLevel();
+    }
+  });
+  document.getElementById('victory-restart-btn').addEventListener('click',function(){
+    document.getElementById('victory-overlay').classList.remove('active');
+    restartLevel();
+  });
+  document.getElementById('victory-back-btn').addEventListener('click',function(){
+    document.getElementById('victory-overlay').classList.remove('active');
+    stopTimer();showScreen('start-screen');
+  });
+  document.getElementById('complete-back-btn').addEventListener('click',function(){
+    document.getElementById('complete-overlay').classList.remove('active');
+    stopTimer();showScreen('start-screen');
+  });
+  /* 全局拖拽监听（pointer 事件，兼容鼠标和触摸 G11） */
+  document.addEventListener('pointerdown',startDrag);
+  /* 窗口大小变化时更新画布 */
+  window.addEventListener('resize',function(){
+    var c=document.getElementById('confetti-canvas');
+    c.width=window.innerWidth;c.height=window.innerHeight;
+  });
+}
+
+/* ================================================================
+   初始化
+   ================================================================ */
+function init(){
+  applyTheme(COLOR_THEMES[0]);
+  bindEvents();
+}
+init();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a2b/g029", "name": "\u6570\u9635\u56fe\u738b\u56fd\u63a2\u9669 \u00b7 \u590d\u6742\u7684\u6570\u9635\u56fe", "file": "g029.html", "jiaocan": "\u301029\u3011\u7b2c15\u8bb2 \u590d\u6742\u7684\u6570\u9635\u56fe\uff08\u4e0a\uff09", "unit": "\u7b2c15\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b72\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a2b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

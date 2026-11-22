@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>制订旅游计划 · 小小旅行规划师</title>
+<style>
+/* ============================================================
+   制订旅游计划 · 小小旅行规划师（苏教版六下 总复习 综合与实践）
+   单文件自包含：纯内联 CSS + JS，零外部依赖，支持鼠标与触摸拖拽
+   ============================================================ */
+/* ---- 色板变量（每局开始时由 JS 从预设色板随机注入，保证常玩常新） ---- */
+:root{
+  --c1:#ff7a2f;      /* 主色 */
+  --c2:#ffe3cd;      /* 主色浅底 */
+  --bg:#fff8f0;      /* 页面底色 */
+  --ink:#33241a;     /* 深色文字 */
+  --ok:#178a44;      /* 达成绿 */
+  --bad:#d93025;     /* 提醒红 */
+  --cardbg:#ffffff;  /* 卡片底 */
+  --soft:#f6efe6;    /* 柔和底 */
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",SimHei,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:16px;line-height:1.55;
+  -webkit-tap-highlight-color:transparent;
+}
+button{font-family:inherit;}
+
+/* ================= 顶部栏 ================= */
+#topbar{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:10px 16px;background:var(--c1);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.18);
+}
+#titleBox{font-size:20px;font-weight:800;letter-spacing:1px;}
+#hud{
+  margin-left:auto;display:flex;gap:14px;align-items:center;
+  background:rgba(255,255,255,.18);border-radius:12px;padding:5px 14px;
+  font-size:16px;font-weight:700;white-space:nowrap;
+}
+#btnBox{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{
+  border:none;border-radius:12px;padding:8px 14px;font-size:16px;font-weight:700;
+  background:rgba(255,255,255,.92);color:var(--ink);cursor:pointer;
+  border:2px solid rgba(255,255,255,.65);transition:transform .12s;
+}
+.btn:hover{transform:translateY(-2px);}
+.btn.dark{background:#3d3229;color:#fff;}
+.btn.big{font-size:18px;padding:12px 22px;}
+
+/* ================= 难度选择页 ================= */
+#screenSelect{
+  max-width:1000px;margin:0 auto;padding:34px 18px 50px;text-align:center;
+}
+#screenSelect h1{
+  font-size:clamp(28px,4.6vw,42px);font-weight:900;margin-bottom:10px;color:var(--c1);
+  text-shadow:0 2px 0 rgba(0,0,0,.06);
+}
+#screenSelect .story{
+  max-width:820px;margin:0 auto 8px;font-size:18px;background:var(--cardbg);
+  border:3px solid var(--c1);border-radius:16px;padding:16px 20px;text-align:left;
+}
+#screenSelect .note{font-size:16px;color:#7a6a58;margin:10px 0 22px;}
+.diffRow{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;}
+.diffBtn{
+  flex:1 1 240px;max-width:300px;min-height:190px;border-radius:20px;cursor:pointer;
+  border:4px solid var(--c1);background:var(--cardbg);padding:18px 16px;
+  display:flex;flex-direction:column;gap:8px;align-items:center;transition:transform .15s,box-shadow .15s;
+}
+.diffBtn:hover{transform:translateY(-6px);box-shadow:0 14px 26px rgba(0,0,0,.16);}
+.diffBtn .lv{
+  font-size:26px;font-weight:900;color:#fff;background:var(--c1);
+  border-radius:999px;padding:4px 26px;
+}
+.diffBtn .nm{font-size:20px;font-weight:800;}
+.diffBtn .ds{font-size:16px;color:#6c5d4c;text-align:left;}
+.diffBtn .ic{font-size:34px;}
+
+/* ================= 家庭信息条 ================= */
+#familyBar{
+  max-width:1280px;margin:12px auto 0;padding:8px 16px;display:flex;gap:12px;flex-wrap:wrap;
+  align-items:center;justify-content:center;background:var(--soft);
+  border:2px dashed var(--c1);border-radius:14px;font-size:16px;
+}
+#familyBar b{color:var(--c1);}
+.pill{
+  background:#fff;border:2px solid var(--c1);border-radius:999px;padding:2px 12px;
+  font-size:15px;white-space:nowrap;
+}
+
+/* ================= 主区布局 ================= */
+#gameArea{display:none;max-width:1280px;margin:0 auto;padding:12px 14px 60px;}
+#mainGrid{display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px;align-items:start;}
+@media (max-width:960px){#mainGrid{grid-template-columns:1fr;}}
+
+/* ---- 卡池 ---- */
+#deckWrap{background:var(--cardbg);border:3px solid var(--c1);border-radius:18px;padding:12px;}
+.zoneTitle{
+  font-size:18px;font-weight:800;color:#fff;background:var(--c1);
+  border-radius:10px;padding:5px 12px;margin:8px 0 10px;
+}
+.deckZone{min-height:56px;border-radius:12px;padding:6px;}
+.cardGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+
+/* ---- 卡片 ---- */
+.card{
+  position:relative;background:var(--cardbg);border:3px solid var(--c1);border-radius:14px;
+  padding:10px 12px;cursor:grab;user-select:none;touch-action:none;
+  transition:box-shadow .15s,transform .15s;
+}
+.card:hover{box-shadow:0 8px 18px rgba(0,0,0,.15);transform:translateY(-2px);}
+.card.dragging{opacity:.35;}
+.card .cardTitle{font-size:17px;font-weight:800;color:var(--c1);}
+.card .cardInfo{font-size:16px;}
+.card .price{font-size:17px;font-weight:700;}
+.card .tag{
+  display:inline-block;margin-top:4px;font-size:15px;background:var(--c2);
+  border-radius:8px;padding:1px 8px;color:#6b4a1f;font-weight:700;
+}
+.rmBtn{
+  position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;
+  border:2px solid var(--bad);background:#fff;color:var(--bad);font-size:16px;font-weight:900;
+  cursor:pointer;line-height:1;
+}
+.ghost{
+  position:fixed;z-index:999;pointer-events:none;opacity:.93;
+  transform:rotate(2deg) scale(1.04);box-shadow:0 14px 30px rgba(0,0,0,.3);
+  background:var(--cardbg);border:3px solid var(--c1);border-radius:14px;padding:10px 12px;
+}
+.ghost .rmBtn{display:none;}
+
+/* ---- 规划板 ---- */
+#planWrap{display:flex;flex-direction:column;gap:14px;min-width:0;}
+#missionBox{background:var(--cardbg);border:3px solid var(--c1);border-radius:18px;padding:12px 14px;}
+#missionBox h3, #budgetBox h3{font-size:19px;font-weight:900;color:var(--c1);margin-bottom:8px;}
+.mission{
+  display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border-radius:10px;
+  font-size:17px;margin-bottom:6px;background:var(--soft);
+}
+.mission .dot{
+  flex:0 0 auto;width:22px;height:22px;border-radius:50%;margin-top:2px;
+  border:3px solid #b9a893;background:#fff;color:#8d7c66;font-size:14px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;
+}
+.mission.ok{background:#e8f8ee;border:2px solid var(--ok);}
+.mission.ok .dot{background:var(--ok);border-color:var(--ok);color:#fff;}
+.mission.bad{background:#fdecec;border:2px solid var(--bad);}
+.mission.bad .dot{background:var(--bad);border-color:var(--bad);color:#fff;}
+.mission .mstate{margin-left:auto;font-size:15px;font-weight:800;white-space:nowrap;}
+.mission.ok .mstate{color:var(--ok);}
+.mission.bad .mstate{color:var(--bad);}
+.mission .mstate.pend{color:#8d7c66;}
+
+/* ---- 时间线槽位 ---- */
+#slotsArea{background:var(--cardbg);border:3px solid var(--c1);border-radius:18px;padding:12px 14px;}
+.slotScroll{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;}
+.slotScroll + .slotScroll{margin-top:14px;}
+.slot{
+  flex:1 1 0;min-width:172px;min-height:150px;border:3px dashed #c7b7a2;border-radius:14px;
+  background:var(--soft);padding:8px;display:flex;flex-direction:column;gap:6px;
+  transition:border-color .15s, background .15s, transform .15s;
+}
+.slot .slotLabel{font-size:16px;font-weight:800;text-align:center;color:#6c5d4c;}
+.slot .slotHint{font-size:15px;color:#a2917a;text-align:center;margin:auto 0;}
+.slot.hint{border-color:var(--ok);background:#eafbf0;box-shadow:0 0 0 3px rgba(23,138,68,.18);}
+.slot.hover{background:var(--c2);transform:scale(1.02);}
+.slot.filled{border-style:solid;border-color:var(--c1);background:#fff;}
+.slot.reject{animation:wig .4s;}
+@keyframes wig{25%{transform:translateX(-7px);}75%{transform:translateX(7px);}}
+.arrowBig{
+  flex:0 0 auto;align-self:center;font-size:26px;font-weight:900;color:var(--c1);
+  min-width:44px;text-align:center;
+}
+.hotelNote{font-size:15px;color:#7a6a58;margin-top:6px;}
+
+/* ---- 预算面板 ---- */
+#budgetBox{background:var(--cardbg);border:3px solid var(--c1);border-radius:18px;padding:12px 14px;}
+.bRow{
+  display:flex;justify-content:space-between;gap:12px;font-size:17px;
+  padding:6px 10px;border-bottom:2px dotted #e3d6c4;
+}
+.bRow .bName{font-weight:700;}
+.bRow .bVal{font-weight:800;white-space:nowrap;}
+.bTotal{
+  display:flex;justify-content:space-between;font-size:20px;font-weight:900;
+  color:#fff;background:var(--c1);border-radius:10px;padding:8px 12px;margin-top:8px;
+}
+.bFormula{font-size:15px;color:#8d7c66;text-align:right;}
+
+/* ---- 弹窗 / 提示 ---- */
+#modalOverlay{
+  position:fixed;inset:0;background:rgba(40,28,16,.55);z-index:200;
+  display:none;align-items:center;justify-content:center;padding:16px;
+}
+#modalOverlay.show{display:flex;}
+.modal{
+  background:#fff;border-radius:20px;max-width:760px;width:100%;max-height:86vh;
+  overflow-y:auto;padding:22px 24px;border:5px solid var(--c1);
+  box-shadow:0 20px 50px rgba(0,0,0,.35);animation:pop .25s;
+}
+@keyframes pop{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
+.modal h2{font-size:24px;color:var(--c1);margin-bottom:10px;font-weight:900;}
+.modal .mBody{font-size:17px;}
+.modal .mBody p{margin-bottom:8px;}
+.modal .mBody .hl{background:var(--c2);border-radius:8px;padding:8px 12px;margin:8px 0;}
+.modal .mBtns{display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+#toast{
+  position:fixed;left:50%;bottom:34px;transform:translateX(-50%);
+  background:#3d3229;color:#fff;font-size:17px;font-weight:700;border-radius:999px;
+  padding:10px 22px;z-index:300;opacity:0;pointer-events:none;transition:opacity .25s;
+  max-width:88vw;text-align:center;
+}
+#toast.show{opacity:1;}
+
+/* ---- 庆祝 ---- */
+#confettiCanvas{position:fixed;inset:0;z-index:400;pointer-events:none;}
+.winStars{font-size:40px;letter-spacing:8px;text-align:center;margin:6px 0;}
+.winBadge{
+  display:inline-block;background:var(--c2);border:3px solid var(--c1);border-radius:999px;
+  padding:6px 22px;font-size:19px;font-weight:900;color:#6b4a1f;margin:6px 0;
+}
+.center{text-align:center;}
+footer{max-width:1280px;margin:0 auto;padding:0 16px 30px;text-align:center;font-size:15px;color:#9a8a76;}
+
+/* ---- 小屏适配 ---- */
+@media (max-width:640px){
+  #titleBox{font-size:17px;}
+  #hud{font-size:15px;order:3;margin-left:0;}
+  .btn{font-size:15px;padding:7px 10px;}
+  .card .cardInfo,.card .price{font-size:15px;}
+  .mission{font-size:16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ======================= 顶部栏 ======================= -->
+<div id="topbar">
+  <div id="titleBox">制订旅游计划 · 小小旅行规划师</div>
+  <div id="hud">用时 <span id="timer">00:00</span>｜步数 <span id="steps">0</span></div>
+  <div id="btnBox">
+    <button class="btn" id="btnRules">规则说明</button>
+    <button class="btn" id="btnReveal">揭示答案</button>
+    <button class="btn" id="btnRestart">重新开始</button>
+    <button class="btn" id="btnBack">返回难度</button>
+  </div>
+</div>
+
+<!-- ======================= 难度选择页 ======================= -->
+<div id="screenSelect">
+  <h1>制订旅游计划 · 小小旅行规划师</h1>
+  <div class="story">
+    <b>出行任务：</b>小芳和爸爸、妈妈准备利用暑假外出旅游，计划
+    <b>8月5日</b>从<b>南京</b>乘火车去<b>北京</b>，<b>8月9日</b>从北京乘飞机返回南京，
+    8月6日～8月9日（共4天）在北京游玩。<br>
+    <b>购票规则：</b>火车——已满6周岁且未满14周岁的儿童享受<b>半价票</b>；
+    飞机——已满2周岁且未满12周岁的儿童享受<b>半价票（半价票不再打折）</b>，成人票按折扣价计算。
+    小芳今年<b>11周岁</b>。既要行程舒适便捷，也要<b>尽量节省费用</b>哦！
+  </div>
+  <p class="note">选择挑战难度，用拖拽卡片的方式帮小芳一家做规划吧！（支持鼠标与触屏拖动）</p>
+  <div class="diffRow">
+    <button class="diffBtn" data-level="1">
+      <span class="ic">🚂</span><span class="lv">初级</span>
+      <span class="nm">往返交通篇</span>
+      <span class="ds">为一家挑选去程火车和返程航班，算准半价票与折扣票，达成交通费目标。</span>
+    </button>
+    <button class="diffBtn" data-level="2">
+      <span class="ic">🗺️</span><span class="lv">中级</span>
+      <span class="nm">游览路线篇</span>
+      <span class="ds">把“北京一日游”线路卡片安排到4天时间线上，兼顾心愿与游览预算。</span>
+    </button>
+    <button class="diffBtn" data-level="3">
+      <span class="ic">🧮</span><span class="lv">高级</span>
+      <span class="nm">全程预算篇</span>
+      <span class="ds">交通＋游览＋住宿＋伙食＋市内交通＋其他，全盘规划，总费用不超目标！</span>
+    </button>
+  </div>
+</div>
+
+<!-- ======================= 游戏主区 ======================= -->
+<div id="gameArea">
+  <div id="familyBar"></div>
+  <div id="mainGrid">
+    <!-- 左：卡池 -->
+    <section id="deckWrap">
+      <h3 class="zoneTitle">卡片百宝箱（拖我上车）</h3>
+      <div id="deckZones"></div>
+    </section>
+    <!-- 右：任务 + 时间线 + 预算 -->
+    <section id="planWrap">
+      <div id="missionBox"><h3>挑战目标</h3><div id="missionList"></div></div>
+      <div id="slotsArea"><h3 class="zoneTitle" style="margin-top:0">旅行计划时间线</h3><div id="slotRows"></div><div class="hotelNote" id="hotelNote"></div></div>
+      <div id="budgetBox"><h3>费用预算实时计算</h3><div id="budgetRows"></div></div>
+    </section>
+  </div>
+</div>
+
+<footer>综合与实践：制订旅游计划 —— 边拖边算，做聪明的旅行规划师！</footer>
+
+<!-- 弹窗与特效层 -->
+<div id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+<div id="toast"></div>
+<canvas id="confettiCanvas"></canvas>
+
+<script>
+'use strict';
+/* ============================================================
+   一、基础数据（全部来自教参《制订旅游计划》课本P107~109）
+   ============================================================ */
+/* 去程火车（南京→北京），儿童（已满6周岁且未满14周岁）半价 */
+var TRAINS = [
+  { id:'t1', kind:'train', cat:'空调快车·硬座', dep:'21:29 出发', arr:'次日 09:25 到达',
+    adult:150,  child:75,   overnight:true,  tip:'夜行列车 · 车上过夜' },
+  { id:'t2', kind:'train', cat:'空调快车·硬卧', dep:'21:29 出发', arr:'次日 09:25 到达',
+    adult:265,  child:132.5, overnight:true,  tip:'夜行卧铺 · 休息一夜精神好' },
+  { id:'t3', kind:'train', cat:'动车组·二等座', dep:'15:37 出发', arr:'当日 22:30 到达',
+    adult:315,  child:157.5, overnight:false, tip:'当天傍晚到达北京' },
+  { id:'t4', kind:'train', cat:'高铁·二等座', dep:'8~19时每小时有车', arr:'全程约4小时30分',
+    adult:445,  child:222.5, overnight:false, tip:'白天快车 · 当天到达' }
+];
+/* 返程航班（北京→南京，8月9日），儿童（已满2周岁且未满12周岁）半价505元且不再打折 */
+var FLIGHTS = [
+  { id:'fA', kind:'flight', cat:'航班A（早班）', dep:'08:10 出发', arr:'10:10 到达',
+    base:1010, disc:'七五折', adult:757.5, child:505, tip:'原价1010元 · 七五折' },
+  { id:'fB', kind:'flight', cat:'航班B（午班）', dep:'14:15 出发', arr:'16:20 到达',
+    base:1010, disc:'九折', adult:909, child:505, tip:'原价1010元 · 九折' },
+  { id:'fC', kind:'flight', cat:'航班C（晚班）', dep:'21:50 出发', arr:'23:50 到达',
+    base:1010, disc:'六折', adult:606, child:505, tip:'原价1010元 · 六折' }
+];
+/* “北京一日游”线路（价格含交通费、景点门票，按人数计费） */
+var ROUTES = [
+  { id:'rGreat', kind:'route', cat:'长城之旅', spots:'八达岭长城', price:110 },
+  { id:'rOld',   kind:'route', cat:'古都之旅', spots:'故宫、雍和宫、颐和园、天坛', price:180 },
+  { id:'rEdu',   kind:'route', cat:'文化之旅', spots:'北京大学、清华大学、圆明园、香山', price:160 },
+  { id:'rFolk',  kind:'route', cat:'民俗之旅', spots:'恭亲王府、老北京四合院、民俗博物馆', price:150 },
+  { id:'rOlym',  kind:'route', cat:'奥运之旅', spots:'鸟巢、水立方、奥林匹克公园、国家大剧院', price:100 },
+  { id:'rRed',   kind:'route', cat:'红色之旅', spots:'升旗仪式、毛主席纪念堂、历史博物馆、人民大会堂', price:60 },
+  { id:'rFun',   kind:'route', cat:'休闲之旅', spots:'大观园、海底世界、电影城、中央电视台', price:170 }
+];
+/* 在京其他费用标准（元/天）：住宿、伙食、市内交通、其他支出；伙食等按4天，住宿看行程 */
+var FIXED = { hotel:200, food:120, city:30, other:100, days:4 };
+
+/* 预设色板：每局随机抽取一种主色（G8 配色随机化） */
+var PALETTES = [
+  { c1:'#ff7a2f', c2:'#ffe3cd', bg:'#fff8f0', ink:'#33241a' },
+  { c1:'#2f7bff', c2:'#d6e6ff', bg:'#f2f7ff', ink:'#1c2a3f' },
+  { c1:'#1f9d55', c2:'#cdefd9', bg:'#f2fbf5', ink:'#1d3327' },
+  { c1:'#9b59d0', c2:'#ecd9fa', bg:'#f9f4fe', ink:'#33204a' },
+  { c1:'#e8518f', c2:'#ffd9e8', bg:'#fff4f8', ink:'#41202f' },
+  { c1:'#0ea5a5', c2:'#cdf1ef', bg:'#f1fbfa', ink:'#123736' }
+];
+
+/* ============================================================
+   二、全局状态
+   ============================================================ */
+var state = {
+  level: 0,            /* 1初级 2中级 3高级 */
+  family: [],          /* 本次出行家庭成员 */
+  placed: {},          /* 槽位id -> 卡片对象 */
+  slotDefs: [],        /* 槽位定义 */
+  deckZones: [],       /* 卡池分区（每区标题+可放卡类型） */
+  missions: [],        /* 挑战目标 */
+  cardById: {},        /* 卡片id -> 卡片对象 */
+  steps: 0,            /* 步数 */
+  seconds: 0,          /* 计时 */
+  timerId: null,
+  revealed: false,     /* 是否已揭示答案 */
+  done: false,         /* 本局是否已胜利 */
+  budgetX: 0,          /* 本局预算目标 */
+  ruleExtra: { redFirst:true, wish:null } /* 中级附加规则 */
+};
+
+/* ============================================================
+   三、工具函数
+   ============================================================ */
+function fmt(n){ /* 金额显示：整数不带小数，半价保留一位小数 */
+  var v = Math.round(n*10)/10;
+  return (v % 1 === 0) ? String(v) : v.toFixed(1);
+}
+function shuffle(arr){
+  var a = arr.slice();
+  for (var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s); }
+
+/* ============================================================
+   四、费用计算（核心数学：半价票、折扣票、人数倍乘、住宿天数）
+   ============================================================ */
+/* 一家人乘某种交通工具的总票价：儿童按规则判断是否半价 */
+function transportPrice(card){
+  var total = 0;
+  for (var i=0;i<state.family.length;i++){
+    var p = state.family[i];
+    var half = (card.kind==='train') ? p.trainHalf : p.flightHalf;
+    total += half ? card.child : card.adult;
+  }
+  return Math.round(total*10)/10;
+}
+/* 交通费明细（用于预算面板展示算式） */
+function transportFormula(card){
+  var adults=0, adultCost=0, kids=0, kidCost=0;
+  for (var i=0;i<state.family.length;i++){
+    var p=state.family[i];
+    var half=(card.kind==='train')?p.trainHalf:p.flightHalf;
+    if(half){ kids++; kidCost+=card.child; } else { adults++; adultCost+=card.adult; }
+  }
+  var parts=[];
+  if(adults>0) parts.push(adults+'×'+fmt(card.adult));
+  if(kids>0) parts.push(kids+'×'+fmt(card.child));
+  return parts.join(' ＋ ')+' ＝ '+fmt(adultCost+kidCost);
+}
+/* 已放置的游览线路总价（单价和 × 人数） */
+function routePersonSum(){
+  var s=0;
+  for (var k in state.placed){ var c=state.placed[k]; if(c.kind==='route') s+=c.price; }
+  return s;
+}
+function routeTotal(){
+  return Math.round(routePersonSum()*state.family.length*10)/10;
+}
+/* 住宿晚数：夜行火车（次日到）→ 8月5日夜在车上，只需住3晚；当天到→住4晚 */
+function hotelNights(){
+  var go = state.placed['go'];
+  if(!go) return null;
+  return go.overnight ? 3 : 4;
+}
+/* 在京固定开销（伙食+市内交通+其他，4天） */
+function fixedDailySum(){ return FIXED.food+FIXED.city+FIXED.other; }
+/* 全程总费用（高级） */
+function grandTotal(){
+  var go=state.placed['go'], back=state.placed['back'];
+  if(!go || !back) return null;
+  if(Object.keys(state.placed).length < state.slotDefs.length) return null;
+  var t = transportPrice(go)+transportPrice(back)+routeTotal()+hotelNights()*FIXED.hotel+fixedDailySum()*FIXED.days;
+  return Math.round(t*10)/10;
+}
+/* 是否包含某条线路 */
+function hasRoute(id){
+  for (var k in state.placed){ var c=state.placed[k]; if(c.kind==='route' && c.id===id) return true; }
+  return false;
+}
+function allSlotsFilled(){
+  for (var i=0;i<state.slotDefs.length;i++){ if(!state.placed[state.slotDefs[i].id]) return false; }
+  return true;
+}
+function allDaysFilled(){
+  for (var i=0;i<state.slotDefs.length;i++){ var s=state.slotDefs[i]; if(s.accept==='route' && !state.placed[s.id]) return false; }
+  return true;
+}
+
+/* ============================================================
+   五、关卡构建（含反重复随机化：家庭成员、心愿线路、卡序、色板）
+   ============================================================ */
+function buildFamily(level){
+  var fam = [
+    { name:'爸爸', childCls:'成人全价' },
+    { name:'妈妈', childCls:'成人全价' },
+    { name:'小芳', age:11 }
+  ];
+  /* 中级/高级随机加入表弟（6岁或13岁），13岁时火车半价但机票已满12周岁要全价——考查规则边界 */
+  if (level>1 && Math.random()<0.5){
+    fam.push({ name:'表弟', age: (Math.random()<0.5?6:13) });
+  }
+  for (var i=0;i<fam.length;i++){
+    var p=fam[i];
+    if (typeof p.age === 'number'){
+      p.trainHalf  = (p.age>=6 && p.age<14);   /* 火车：已满6周岁且未满14周岁 → 半价 */
+      p.flightHalf = (p.age>=2 && p.age<12);   /* 飞机：已满2周岁且未满12周岁 → 半价 */
+      p.childCls = p.age+'周岁'+(p.trainHalf?'·车票半价':'·车票全价')+(p.flightHalf?'·机票半价':'·机票全价');
+    } else {
+      p.trainHalf=false; p.flightHalf=false;
+    }
+  }
+  return fam;
+}
+
+/* 计算中级预算目标：恰好卡在“最省组合”与“次省组合”之间，保证可解且须动脑 */
+function computeL2Budget(fam, r2){
+  var n=fam.length;
+  var reqSum = 110 + r2.price;                 /* 长城之旅110 + 心愿线路 */
+  var free = [];
+  for (var i=0;i<ROUTES.length;i++){
+    var r=ROUTES[i];
+    if (r.id!=='rGreat' && r.id!==r2.id) free.push(r.price);
+  }
+  free.sort(function(a,b){return a-b;});
+  var minTotal=(reqSum+free[0]+free[1])*n;
+  var secondTotal=(reqSum+free[0]+free[2])*n;
+  var X = (secondTotal>minTotal) ? minTotal+Math.floor((secondTotal-minTotal)/2) : minTotal;
+  return Math.round(X*10)/10;
+}
+/* 计算高级预算目标：最省方案 + 140 元余量（能微调线路，但换贵交通就超支） */
+function computeL3Budget(fam){
+  var n=fam.length;
+  var minRoutes=(110+60+100+150)*n;            /* 长城+红色+奥运+民俗（两条最便宜的任选线路） */
+  var saveFam = { family:fam }; var old=state.family; state.family=fam;
+  var minTrain=Infinity;
+  for (var i=0;i<TRAINS.length;i++){ var t=transportPrice(TRAINS[i]); if(t<minTrain) minTrain=t; }
+  var flight=transportPrice(FLIGHTS[2]);       /* 晚班六折最省 */
+  state.family=old;
+  var minTotal = minTrain + flight + 3*FIXED.hotel + minRoutes + fixedDailySum()*FIXED.days;
+  return Math.ceil((minTotal+140)/10)*10;
+}
+
+function startLevel(level){
+  state.level=level;
+  state.placed={}; state.steps=0; state.seconds=0;
+  state.revealed=false; state.done=false;
+  if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+
+  /* 色板随机 */
+  var pal=PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  var root=document.documentElement.style;
+  root.setProperty('--c1',pal.c1); root.setProperty('--c2',pal.c2);
+  root.setProperty('--bg',pal.bg); root.setProperty('--ink',pal.ink);
+
+  state.family=buildFamily(level);
+  state.cardById={};
+  var all=TRAINS.concat(FLIGHTS).concat(ROUTES);
+  for (var i=0;i<all.length;i++) state.cardById[all[i].id]=all[i];
+
+  /* 卡池分区（顺序打乱，反重复） */
+  if (level===1){
+    state.deckZones=[
+      { title:'去程火车（8月5日 南京→北京）', kinds:['train'], cards:shuffle(TRAINS) },
+      { title:'返程航班（8月9日 北京→南京）', kinds:['flight'], cards:shuffle(FLIGHTS) }
+    ];
+    state.slotDefs=[
+      { id:'go',   accept:'train',  label:'去程 · 8月5日', sub:'南京 → 北京', row:0 },
+      { id:'back', accept:'flight', label:'返程 · 8月9日', sub:'北京 → 南京', row:0 }
+    ];
+    state.budgetX=2400;
+    state.missions=[
+      { text:'去程乘夜行火车：8月5日晚出发，在火车上过夜，8月6日上午到北京（还能省一晚住宿）',
+        check:function(){ var c=state.placed['go']; return c? c.overnight : null; } },
+      { text:'返程选晚上出发的航班（8月9日白天还能再游玩一阵）',
+        check:function(){ var c=state.placed['back']; return c? (c.id==='fC') : null; } },
+      { text:'往返交通费合计不超过 '+fmt(state.budgetX)+' 元',
+        check:function(){ if(!state.placed['go']||!state.placed['back']) return null;
+          var t=transportPrice(state.placed['go'])+transportPrice(state.placed['back']);
+          return t<=state.budgetX; } }
+    ];
+  } else if (level===2){
+    /* 心愿线路随机：红色/古都/文化 三选一 */
+    var wishPool=[{r:ROUTES[5],who:'爸爸想看升旗仪式'},{r:ROUTES[1],who:'妈妈想逛故宫'},{r:ROUTES[2],who:'小芳想参观北大清华'}];
+    var wish=wishPool[Math.floor(Math.random()*wishPool.length)];
+    state.ruleExtra={ redFirst:(wish.r.id==='rRed'), wish:wish };
+    state.budgetX=computeL2Budget(state.family, wish.r);
+    state.deckZones=[ { title:'“北京一日游”线路（含交通费、景点门票）', kinds:['route'], cards:shuffle(ROUTES) } ];
+    state.slotDefs=[
+      { id:'d1', accept:'route', label:'8月6日 · 第1天', row:0 },
+      { id:'d2', accept:'route', label:'8月7日 · 第2天', row:0 },
+      { id:'d3', accept:'route', label:'8月8日 · 第3天', row:0 },
+      { id:'d4', accept:'route', label:'8月9日 · 第4天', row:0 }
+    ];
+    var placeMission;
+    if (wish.r.id==='rRed'){
+      placeMission={ text:'升旗仪式要趁早：把「红色之旅」安排在 8月6日（第1天）',
+        check:function(){ var c=state.placed['d1']; return c? (c.id==='rRed') : null; } };
+    } else {
+      placeMission={ text:'8月9日晚上要赶飞机：「长城之旅」不安排在 8月9日（第4天）',
+        check:function(){ if(!hasRoute('rGreat')) return null;
+          var c=state.placed['d4']; return !(c && c.id==='rGreat'); } };
+    }
+    state.missions=[
+      { text:'必须包含「长城之旅」——小芳说：不到长城非好汉！', check:function(){ return hasRoute('rGreat'); } },
+      { text:'必须包含「'+wish.r.cat+'」（'+wish.who+'）', check:function(){ return hasRoute(wish.r.id); } },
+      placeMission,
+      { text:'4天游览费合计不超过 '+fmt(state.budgetX)+' 元（按 '+state.family.length+' 人计算）',
+        check:function(){ if(!allDaysFilled()) return null; return routeTotal()<=state.budgetX; } }
+    ];
+  } else {
+    state.budgetX=computeL3Budget(state.family);
+    state.deckZones=[
+      { title:'去程火车（8月5日 南京→北京）', kinds:['train'], cards:shuffle(TRAINS) },
+      { title:'“北京一日游”线路', kinds:['route'], cards:shuffle(ROUTES) },
+      { title:'返程航班（8月9日 北京→南京）', kinds:['flight'], cards:shuffle(FLIGHTS) }
+    ];
+    state.slotDefs=[
+      { id:'go',   accept:'train',  label:'去程 · 8月5日', sub:'南京 → 北京', row:0 },
+      { id:'back', accept:'flight', label:'返程 · 8月9日', sub:'北京 → 南京', row:0 },
+      { id:'d1', accept:'route', label:'8月6日 · 第1天', row:1 },
+      { id:'d2', accept:'route', label:'8月7日 · 第2天', row:1 },
+      { id:'d3', accept:'route', label:'8月8日 · 第3天', row:1 },
+      { id:'d4', accept:'route', label:'8月9日 · 第4天', row:1 }
+    ];
+    state.missions=[
+      { text:'必须包含「长城之旅」和「红色之旅」（看升旗）',
+        check:function(){ return hasRoute('rGreat') && hasRoute('rRed'); } },
+      { text:'返程选晚上出发的航班（8月9日白天也要游玩）',
+        check:function(){ var c=state.placed['back']; return c? (c.id==='fC') : null; } },
+      { text:'全部费用不超过 '+fmt(state.budgetX)+' 元（交通＋游览＋住宿＋伙食＋市内交通＋其他）',
+        check:function(){ if(!allSlotsFilled()) return null; return grandTotal()<=state.budgetX; } }
+    ];
+  }
+
+  $('screenSelect').style.display='none';
+  $('gameArea').style.display='block';
+  renderAll();
+  startTimer();
+  showModal(rulesHtml());   /* 每局进入先看规则，可随时再看（G6） */
+}
+
+/* ============================================================
+   六、渲染
+   ============================================================ */
+function renderAll(){ renderFamily(); renderDeck(); renderSlots(); renderBudget(); renderMissions(); updateHud(); }
+
+function renderFamily(){
+  var html='<b>本次出行 '+state.family.length+' 人：</b>';
+  for (var i=0;i<state.family.length;i++){
+    var p=state.family[i];
+    html+='<span class="pill">'+p.name+(p.age?'（'+p.childCls+'）':'（成人全价）')+'</span>';
+  }
+  html+='<span class="pill">规则：火车6~14周岁半价；飞机2~12周岁半价且不再打折</span>';
+  $('familyBar').innerHTML=html;
+}
+
+/* 生成一张卡片的 DOM */
+function cardHtml(card){
+  var h='<div class="cardTitle">'+card.cat+'</div>';
+  if (card.kind==='route'){
+    h+='<div class="cardInfo">'+card.spots+'</div>';
+    h+='<div class="price">'+card.price+' 元/人</div>';
+    h+='<span class="tag">含交通费和景点门票</span>';
+  } else {
+    h+='<div class="cardInfo">'+card.dep+' → '+card.arr+'</div>';
+    if (card.kind==='flight'){
+      h+='<div class="price">成人 '+fmt(card.adult)+' 元（'+card.disc+'）｜儿童 '+fmt(card.child)+' 元</div>';
+      h+='<span class="tag">'+card.tip+' · 儿童半价不再打折</span>';
+    } else {
+      h+='<div class="price">成人 '+fmt(card.adult)+' 元｜儿童 '+fmt(card.child)+' 元</div>';
+      h+='<span class="tag">'+card.tip+' · 6~14周岁半价</span>';
+    }
+  }
+  return h;
+}
+
+function renderDeck(){
+  var html='';
+  for (var z=0; z<state.deckZones.length; z++){
+    var zone=state.deckZones[z];
+    var used={};
+    for (var k in state.placed){ used[state.placed[k].id]=true; }
+    var cardsHtml='';
+    for (var i=0;i<zone.cards.length;i++){
+      var c=zone.cards[i];
+      if (used[c.id]) continue;
+      cardsHtml+='<div class="card" data-cid="'+c.id+'">'+cardHtml(c)+'</div>';
+    }
+    html+='<div class="zoneTitle" style="background:none;color:var(--c1);border:2px solid var(--c1);">'+zone.title+'</div>'
+        + '<div class="deckZone"><div class="cardGrid">'+cardsHtml+'</div></div>';
+  }
+  $('deckZones').innerHTML=html;
+}
+
+function renderSlots(){
+  var rows={};
+  for (var i=0;i<state.slotDefs.length;i++){
+    var s=state.slotDefs[i];
+    if(!rows[s.row]) rows[s.row]=[];
+    rows[s.row].push(s);
+  }
+  var html='';
+  var rowIds=Object.keys(rows).sort();
+  for (var r=0;r<rowIds.length;r++){
+    html+='<div class="slotScroll">';
+    var list=rows[rowIds[r]];
+    for (var j=0;j<list.length;j++){
+      var def=list[j];
+      var card=state.placed[def.id];
+      html+='<div class="slot'+(card?' filled':'')+'" data-slot="'+def.id+'" data-accept="'+def.accept+'">'
+          + '<div class="slotLabel">'+def.label+(def.sub?'<br>'+def.sub:'')+'</div>';
+      if (card){
+        html+='<div class="card" data-cid="'+card.id+'" data-slot="'+def.id+'">'+cardHtml(card)
+            + '<button class="rmBtn" data-slot="'+def.id+'" title="放回卡池">✕</button></div>';
+      } else {
+        html+='<div class="slotHint">把合适的卡片拖到这里</div>';
+      }
+      html+='</div>';
+      /* 交通行中间加个箭头装饰 */
+      if (def.row===0 && def.id==='go'){ html+='<div class="arrowBig">🚩→北京</div>'; }
+    }
+    html+='</div>';
+  }
+  $('slotRows').innerHTML=html;
+  /* 住宿天数提示（高级关卡的教学点：夜车省一晚住宿） */
+  var note=$('hotelNote');
+  if (state.level===3){
+    var n=hotelNights();
+    note.innerHTML = (n===null) ? '小提示：选夜行火车（次日到达），8月5日夜在车上过，住宿只需3晚；白天到达则当晚住酒店，共4晚。'
+      : '当前住宿：'+n+' 晚 × '+FIXED.hotel+' 元/晚'+(n===3?'（夜行火车省了一晚，真会规划！）':'（8月5日当晚就要住酒店啦）');
+  } else { note.innerHTML=''; }
+}
+
+function renderBudget(){
+  var rows='';
+  function row(name, val, formula){
+    rows+='<div class="bRow"><span class="bName">'+name+'</span>'
+        + '<span class="bVal">'+val+(formula?'<div class="bFormula">'+formula+'</div>':'')+'</span></div>';
+  }
+  var n=state.family.length;
+  if (state.level===1){
+    var go=state.placed['go'], back=state.placed['back'];
+    row('去程火车费', go? fmt(transportPrice(go))+' 元' : '—', go? transportFormula(go) : '拖入去程火车卡后自动计算');
+    row('返程机票费', back? fmt(transportPrice(back))+' 元' : '—', back? transportFormula(back) : '拖入返程航班卡后自动计算');
+    var both = go&&back ? fmt(transportPrice(go)+transportPrice(back)) : '—';
+    rows+='<div class="bTotal"><span>往返交通合计</span><span>'+both+' 元</span></div>'
+        + '<div class="hotelNote" style="text-align:right;">目标：不超过 '+fmt(state.budgetX)+' 元</div>';
+  } else if (state.level===2){
+    var picked=[];
+    for (var k in state.placed){ var c=state.placed[k]; if(c.kind==='route') picked.push(c); }
+    var names = picked.length? picked.map(function(c){return c.cat;}).join('、') : '—';
+    row('已选线路', names, picked.length? '单价和 '+fmt(routePersonSum())+' 元/人' : '拖入线路卡片后自动计算');
+    row('出行人数', n+' 人', '游览费 ＝ 单价和 × 人数');
+    rows+='<div class="bTotal"><span>4天游览费合计</span><span>'
+        + (picked.length? fmt(routeTotal())+' 元' : '—')+'</span></div>'
+        + '<div class="hotelNote" style="text-align:right;">目标：不超过 '+fmt(state.budgetX)+' 元</div>';
+  } else {
+    var go2=state.placed['go'], back2=state.placed['back'];
+    var tf = (go2&&back2)? fmt(transportPrice(go2)+transportPrice(back2))+' 元' : '—';
+    var tfF='';
+    if(go2) tfF='去程 '+transportFormula(go2);
+    if(back2) tfF+=(tfF?'；':'')+'返程 '+transportFormula(back2);
+    row('往返交通费', tf, tfF || '交通卡片放入后自动计算');
+    var picked2=[];
+    for (var k2 in state.placed){ var c2=state.placed[k2]; if(c2.kind==='route') picked2.push(c2); }
+    row('景点游览费', picked2.length? fmt(routeTotal())+' 元' : '—',
+      picked2.length? '（'+picked2.map(function(c){return c.price;}).join('＋')+'）×'+n+'人' : '按人头计费');
+    var hn=hotelNights();
+    row('住宿费', hn? fmt(hn*FIXED.hotel)+' 元' : '—', hn? hn+'晚 × '+FIXED.hotel+'元' : '看去程是否夜行火车');
+    row('伙食费', fmt(FIXED.food*FIXED.days)+' 元', FIXED.food+'元/天 × '+FIXED.days+'天');
+    row('市内交通费', fmt(FIXED.city*FIXED.days)+' 元', FIXED.city+'元/天 × '+FIXED.days+'天');
+    row('其他支出', fmt(FIXED.other*FIXED.days)+' 元', FIXED.other+'元/天 × '+FIXED.days+'天');
+    var g=grandTotal();
+    rows+='<div class="bTotal"><span>全程总费用</span><span>'+(g===null?'—':fmt(g)+' 元')+'</span></div>'
+        + '<div class="hotelNote" style="text-align:right;">目标：不超过 '+fmt(state.budgetX)+' 元</div>';
+  }
+  $('budgetRows').innerHTML=rows;
+}
+
+function renderMissions(){
+  var html='';
+  for (var i=0;i<state.missions.length;i++){
+    var m=state.missions[i];
+    var v=m.check();
+    var cls='', stateTxt='待完成', dotTxt='';
+    if (v===true){ cls='ok'; stateTxt='已达成'; dotTxt='✓'; }
+    else if (v===false){ cls='bad'; stateTxt='再想想'; dotTxt='!'; }
+    html+='<div class="mission '+cls+'"><span class="dot">'+dotTxt+'</span><span>'+m.text
+        + '</span><span class="mstate'+(v===null?' pend':'')+'">'+stateTxt+'</span></div>';
+  }
+  $('missionList').innerHTML=html;
+}
+
+function updateHud(){
+  $('steps').textContent=state.steps;
+  var m=Math.floor(state.seconds/60), s=state.seconds%60;
+  $('timer').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+}
+function startTimer(){
+  if(state.timerId) clearInterval(state.timerId);
+  state.timerId=setInterval(function(){ state.seconds++; updateHud(); },1000);
+}
+
+/* ============================================================
+   七、拖拽交互（Pointer Events，鼠标/触屏通用；G1 真操作交互）
+   ============================================================ */
+var drag=null; /* {card, ghost, offX, offY, fromSlot, moved} */
+
+/* 事件委托：按下任意卡片即开始拖拽 */
+document.addEventListener('pointerdown', function(e){
+  if (state.done) return;
+  var rm=e.target.closest ? e.target.closest('.rmBtn') : null;
+  if (rm) return;                              /* ✕ 按钮走点击逻辑 */
+  var cardEl=e.target.closest ? e.target.closest('.card') : null;
+  if(!cardEl || !$('gameArea') || $('gameArea').style.display==='none') return;
+  var card=state.cardById[cardEl.getAttribute('data-cid')];
+  if(!card) return;
+  e.preventDefault();
+  var rect=cardEl.getBoundingClientRect();
+  var ghost=document.createElement('div');
+  ghost.className='ghost';
+  ghost.innerHTML=cardHtml(card);
+  ghost.style.width=rect.width+'px'; ghost.style.left=rect.left+'px'; ghost.style.top=rect.top+'px';
+  document.body.appendChild(ghost);
+  drag={ card:card, ghost:ghost, offX:e.clientX-rect.left, offY:e.clientY-rect.top,
+         fromSlot:cardEl.getAttribute('data-slot'), moved:false };
+  cardEl.classList.add('dragging');
+  cardEl.id='dragSource';
+  highlightTargets(card.kind, true);
+});
+document.addEventListener('pointermove', function(e){
+  if(!drag) return;
+  drag.moved=true;
+  drag.ghost.style.left=(e.clientX-drag.offX)+'px';
+  drag.ghost.style.top=(e.clientY-drag.offY)+'px';
+  markHover(e.clientX, e.clientY);
+});
+document.addEventListener('pointerup', function(e){
+  if(!drag) return;
+  var d=drag; drag=null;
+  highlightTargets('', false);
+  var src=document.getElementById('dragSource');
+  if(src){ src.classList.remove('dragging'); src.id=''; }
+  d.ghost.parentNode.removeChild(d.ghost);
+  handleDrop(d, e.clientX, e.clientY);
+});
+document.addEventListener('pointercancel', function(){
+  if(!drag) return;
+  highlightTargets('', false);
+  var src=document.getElementById('dragSource');
+  if(src){ src.classList.remove('dragging'); src.id=''; }
+  drag.ghost.parentNode.removeChild(drag.ghost);
+  drag=null;
+});
+
+/* 拖拽中：给可放置的空槽加高亮 */
+function highlightTargets(kind, on){
+  var slots=document.querySelectorAll('.slot');
+  for (var i=0;i<slots.length;i++){
+    var el=slots[i];
+    if (on){
+      if (el.getAttribute('data-accept')===kind && !state.placed[el.getAttribute('data-slot')]) el.classList.add('hint');
+    } else { el.classList.remove('hint','hover'); }
+  }
+}
+function markHover(x,y){
+  var els=document.elementsFromPoint(x,y);
+  for (var i=0;i<els.length;i++){
+    var s=els[i].closest ? els[i].closest('.slot') : null;
+    if (s){ 
+      var all=document.querySelectorAll('.slot.hover');
+      for (var j=0;j<all.length;j++) all[j].classList.remove('hover');
+      if (s.classList.contains('hint')) s.classList.add('hover');
+      return;
+    }
+  }
+  var all2=document.querySelectorAll('.slot.hover');
+  for (var k=0;k<all2.length;k++) all2[k].classList.remove('hover');
+}
+
+/* 松手：判定落在哪个槽位或卡池 */
+function handleDrop(d, x, y){
+  var els=document.elementsFromPoint(x,y);
+  var targetSlot=null, targetDeck=null;
+  for (var i=0;i<els.length;i++){
+    if (els[i].closest){
+      var s=els[i].closest('.slot');
+      if (s && !targetSlot) targetSlot=s.getAttribute('data-slot');
+      var dz=els[i].closest('.deckZone');
+      if (dz && !targetDeck) targetDeck=true;
+    }
+  }
+  /* 情况1：放回卡池（原来在槽位里的卡片才能放回） */
+  if (targetDeck && d.fromSlot){
+    delete state.placed[d.fromSlot];
+    state.steps++; refresh(); toast('已放回卡池，重新挑一张吧');
+    return;
+  }
+  /* 情况2：放到槽位 */
+  if (targetSlot){
+    var def=null;
+    for (var j=0;j<state.slotDefs.length;j++){ if(state.slotDefs[j].id===targetSlot) def=state.slotDefs[j]; }
+    if (def){
+      var slotEl=document.querySelector('.slot[data-slot="'+targetSlot+'"]');
+      if (def.accept!==d.card.kind){
+        rejectAnim(slotEl,'这张卡片放不进这一格，看看卡片类型哦');
+        return;
+      }
+      if (state.placed[targetSlot] && state.placed[targetSlot].id!==d.card.id){
+        rejectAnim(slotEl,'这一格已经有安排啦，先取走再放');
+        return;
+      }
+      if (d.fromSlot===targetSlot){ refresh(); return; }  /* 原地放下 */
+      delete state.placed[d.fromSlot || '___none___'];
+      state.placed[targetSlot]=d.card;
+      state.steps++;
+      beep(660,0.07);
+      refresh();
+      return;
+    }
+  }
+  /* 情况3：没落在任何目标上——回弹（原来已放置的保持不动） */
+  refresh();
+}
+function rejectAnim(slotEl,msg){
+  if (slotEl){ slotEl.classList.add('reject'); setTimeout(function(){ slotEl.classList.remove('reject'); },420); }
+  toast(msg); beep(220,0.09);
+}
+
+/* ✕ 按钮：把卡片放回卡池（点击交互，同样计入步数） */
+document.addEventListener('click', function(e){
+  var rm=e.target.closest ? e.target.closest('.rmBtn') : null;
+  if(!rm || state.done) return;
+  var sid=rm.getAttribute('data-slot');
+  if (sid && state.placed[sid]){
+    delete state.placed[sid];
+    state.steps++; refresh(); toast('已取回卡片');
+  }
+});
+
+function refresh(){ renderAll(); checkWin(); }
+
+/* ============================================================
+   八、胜利判定与庆祝（G5 彩纸 + 星星）
+   ============================================================ */
+function checkWin(){
+  if (state.revealed || state.done) return;
+  if (!allSlotsFilled()) return;
+  for (var i=0;i<state.missions.length;i++){ if (state.missions[i].check()!==true) return; }
+  state.done=true;
+  if (state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  confetti(2600);
+  winMelody();
+  var m=Math.floor(state.seconds/60), s=state.seconds%60;
+  showModal(
+    '<h2>挑战成功！</h2>'
+    +'<div class="winStars">⭐ ⭐ ⭐ ⭐ ⭐</div>'
+    +'<div class="mBody center">'
+    +'<div class="winBadge">省钱小达人 · 规划之星</div>'
+    +'<p>太棒了！你帮小芳一家完成了一份'+(state.level===1?'省钱':(state.level===2?'精彩':'完美'))+'的旅游计划！</p>'
+    +'<p>用时 <b>'+(m<10?'0':'')+m+'分'+(s<10?'0':'')+s+'秒</b>｜操作步数 <b>'+state.steps+'</b> 步</p>'
+    +'<div class="hl">回顾一下：火车儿童票看“6~14周岁”，机票儿童票看“2~12周岁且不再打折”，'
+    +'夜行火车还能省一晚住宿——数学就在生活里！</div>'
+    +'</div><div class="mBtns">'
+    +'<button class="btn big" onclick="startLevel('+state.level+')">再来一局</button>'
+    +'<button class="btn big dark" onclick="backToSelect()">返回难度选择</button>'
+    +'</div>', true);
+}
+
+/* ============================================================
+   九、揭示答案（G4）：自动生成当前随机局面下的参考最优方案
+   ============================================================ */
+function referencePlan(){
+  var fam=state.family, n=fam.length;
+  if (state.level===1){
+    var go=TRAINS[1];        /* 空调快车·硬卧（课本推荐：卧铺过夜） */
+    var back=FLIGHTS[2];     /* 晚班六折 */
+    return { placed:{ go:go, back:back },
+      html:'<h2>参考方案（课本推荐）</h2><div class="mBody">'
+      +'<p><b>去程：</b>空调快车·硬卧，8月5日 21:29 出发，次日 09:25 到达，在火车上休息一夜。</p>'
+      +'<div class="hl">费用：265×2 ＋ 265÷2 ＝ '+fmt(transportPrice(go))+'（元）</div>'
+      +'<p><b>返程：</b>航班C（晚班），8月9日 21:50 出发，票价六折。</p>'
+      +'<div class="hl">费用：606×2 ＋ 505 ＝ '+fmt(transportPrice(back))+'（元）（小芳11周岁，机票半价505元，不再打折）</div>'
+      +'<p><b>往返合计：</b>662.5 ＋ 1717 ＝ <b>2379.5（元）</b> ≤ 2400元 ✓</p>'
+      +'<p>更省钱的选择：硬座 150×2＋75＝375元，合计2092元；但坐一夜硬座比较辛苦，课本在“舒适”和“省钱”之间选了硬卧。</p>'
+      +'</div>' };
+  }
+  if (state.level===2){
+    var wish=state.ruleExtra.wish;
+    /* 最省组合：长城 + 心愿线路 + 两条最便宜的任选线路 */
+    var free=ROUTES.filter(function(r){ return r.id!=='rGreat' && r.id!==wish.r.id; })
+                   .sort(function(a,b){ return a.price-b.price; });
+    var picks=[ROUTES[0], wish.r, free[0], free[1]]; /* 长城、心愿、奥运、民俗 */
+    var order;
+    if (state.ruleExtra.redFirst){ order=[ROUTES[5], free[0], free[1], ROUTES[0]]; }         /* 红色之旅放第1天 */
+    else { order=[wish.r, free[0], ROUTES[0], free[1]]; }                                     /* 长城不放第4天 */
+    var placed={ d1:order[0], d2:order[1], d3:order[2], d4:order[3] };
+    var per=order[0].price+order[1].price+order[2].price+order[3].price;
+    return { placed:placed,
+      html:'<h2>参考方案（最省组合）</h2><div class="mBody">'
+      +'<p>安排：<b>8月6日</b>'+order[0].cat+'；<b>8月7日</b>'+order[1].cat
+      +'；<b>8月8日</b>'+order[2].cat+'；<b>8月9日</b>'+order[3].cat+'。</p>'
+      +'<div class="hl">费用：（'+order.map(function(c){return c.price;}).join('＋')+'）×'+n+'人 ＝ '
+      +fmt(per)+'×'+n+' ＝ <b>'+fmt(per*n)+'（元）</b> ≤ '+fmt(state.budgetX)+'元 ✓</div>'
+      +'<p>思路：先满足必选心愿，剩下的天数从便宜的线路里挑，总价就最省啦。</p></div>' };
+  }
+  /* 高级：硬座夜车 + 晚班机票 + 最省四线路，住宿3晚 */
+  var go3=TRAINS[0], back3=FLIGHTS[2];
+  var routes3=[ROUTES[5], ROUTES[4], ROUTES[3], ROUTES[0]]; /* 红色60 奥运100 民俗150 长城110 */
+  var per3=routes3.reduce(function(a,c){ return a+c.price; },0);
+  var total3=Math.round((transportPrice(go3)+transportPrice(back3)+per3*n+3*FIXED.hotel+fixedDailySum()*FIXED.days)*10)/10;
+  return { placed:{ go:go3, back:back3, d1:routes3[0], d2:routes3[1], d3:routes3[2], d4:routes3[3] },
+    html:'<h2>参考方案（最省钱规划）</h2><div class="mBody">'
+    +'<p><b>去程：</b>空调快车·硬座（夜行，次日到，车上过夜省一晚住宿）</p>'
+    +'<div class="hl">去程：'+transportFormula(go3)+'（元）</div>'
+    +'<p><b>返程：</b>航班C（晚班六折）</p>'
+    +'<div class="hl">返程：'+transportFormula(back3)+'（元）</div>'
+    +'<p><b>游览：</b>红色之旅、奥运之旅、民俗之旅、长城之旅</p>'
+    +'<div class="hl">游览：（60＋100＋150＋110）×'+n+'人 ＝ '+fmt(per3*n)+'（元）</div>'
+    +'<div class="hl">住宿：3晚×200＝600（元）｜伙食：120×4＝480（元）｜市内交通：30×4＝120（元）｜其他：100×4＝400（元）</div>'
+    +'<p><b>总计：'+fmt(total3)+'（元）</b> ≤ '+fmt(state.budgetX)+'元 ✓</p>'
+    +'<p>小知识：换成硬卧要多花'+fmt(transportPrice(TRAINS[1])-transportPrice(TRAINS[0]))
+    +'元；换动车不仅车票贵，当晚还要住酒店（多1晚200元）。会算账，才能玩得又好又省！</p></div>' };
+}
+
+function revealAnswer(){
+  if(!state.level) return;
+  var ref=referencePlan();
+  state.placed=ref.placed;
+  state.revealed=true;
+  if (state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  renderAll();
+  var btns='<div class="mBtns"><button class="btn big" onclick="startLevel('+state.level+')">重新开始自己试</button>'
+    +'<button class="btn big dark" onclick="hideModal()">继续观察</button></div>';
+  showModal(ref.html+btns, false);
+  toast('已展示参考方案，试着自己再规划一次吧！');
+}
+
+/* ============================================================
+   十、弹窗 / 提示音 / 彩纸动画
+   ============================================================ */
+var modalLocked=false;
+function showModal(html, lock){
+  modalLocked=!!lock;
+  $('modalBody').innerHTML=html;
+  $('modalOverlay').classList.add('show');
+}
+function hideModal(){ if(modalLocked && !state.done){ /* 胜利弹窗不许误关 */ if(state.done) return; } $('modalOverlay').classList.remove('show'); modalLocked=false; }
+$('modalOverlay').addEventListener('click', function(e){ if(e.target===this) hideModal(); });
+
+var toastTimer=null;
+function toast(msg){
+  var t=$('toast'); t.textContent=msg; t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ t.classList.remove('show'); },1900);
+}
+
+/* 简易提示音（WebAudio，包在 try 里，静默失败不影响游戏） */
+var audioCtx=null;
+function beep(freq,dur){
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    var o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.frequency.value=freq; o.type='triangle';
+    g.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime+dur);
+  }catch(err){}
+}
+function winMelody(){ var notes=[523,659,784,1046]; for (var i=0;i<notes.length;i++){ setTimeout(function(f){ return function(){ beep(f,0.16); }; }(notes[i]), i*140); } }
+
+/* 彩纸庆祝动画（Canvas 粒子：彩纸矩形 + 五角星） */
+function confetti(durationMs){
+  var cv=$('confettiCanvas'), ctx=cv.getContext('2d');
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  var pal=getComputedStyle(document.documentElement);
+  var colors=[pal.getPropertyValue('--c1').trim(),'#ffce3a','#1f9d55','#2f7bff','#e8518f','#ffffff'];
+  var parts=[];
+  for (var i=0;i<170;i++){
+    parts.push({
+      x:Math.random()*cv.width, y:-20-Math.random()*cv.height*0.3,
+      w:6+Math.random()*8, h:8+Math.random()*10,
+      vx:(Math.random()-0.5)*3, vy:2+Math.random()*3.5,
+      rot:Math.random()*Math.PI*2, vr:(Math.random()-0.5)*0.25,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      star:(Math.random()<0.22)
+    });
+  }
+  var start=performance.now();
+  function drawStar(p){
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+    ctx.fillStyle=p.color; ctx.beginPath();
+    for (var k=0;k<5;k++){
+      var a1=k*2*Math.PI/5-Math.PI/2, a2=a1+Math.PI/5;
+      ctx.lineTo(Math.cos(a1)*p.h*0.7, Math.sin(a1)*p.h*0.7);
+      ctx.lineTo(Math.cos(a2)*p.h*0.3, Math.sin(a2)*p.h*0.3);
+    }
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  function frame(now){
+    var t=now-start;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    for (var j=0;j<parts.length;j++){
+      var p=parts[j];
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.02; p.rot+=p.vr;
+      if (p.star){ drawStar(p); }
+      else {
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.fillStyle=p.color; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+      }
+    }
+    if (t<durationMs){ requestAnimationFrame(frame); }
+    else { ctx.clearRect(0,0,cv.width,cv.height); }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   十一、规则说明（G6：进入弹出，可随时再看）
+   ============================================================ */
+function rulesHtml(){
+  var lvTxt=['','初级 · 往返交通篇','中级 · 游览路线篇','高级 · 全程预算篇'][state.level];
+  var n=state.family.length;
+  var html='<h2>游戏规则 · '+lvTxt+'</h2><div class="mBody">'
+    +'<p><b>出行背景：</b>小芳和爸爸妈妈（'+(n>3?'还有表弟，共'+n+'人':'共3人')+'）8月5日从南京乘火车去北京，'
+    +'8月9日从北京乘飞机回南京，8月6日～8月9日在北京游玩4天。</p>'
+    +'<div class="hl"><b>购票规则：</b>火车——已满6周岁且未满14周岁的儿童<b>半价</b>；'
+    +'飞机——已满2周岁且未满12周岁的儿童<b>半价且不再打折</b>（成人机票按折扣价）。小芳11周岁。</div>';
+  if (state.level===1){
+    html+='<p><b>玩法：</b>把一张<b>火车卡</b>拖到“去程”格、一张<b>航班卡</b>拖到“返程”格，'
+      +'预算面板会实时算出一家人（含儿童票）的总费用。达成右侧全部<b>挑战目标</b>即挑战成功！</p>';
+  } else if (state.level===2){
+    html+='<p><b>玩法：</b>把4张“北京一日游”<b>线路卡</b>拖到4天的时间线格子里（线路价含交通费和门票，按人头计费），'
+      +'注意心愿线路和摆放位置要求，游览总费不超目标即挑战成功！</p>';
+  } else {
+    html+='<p><b>玩法：</b>去程火车、4天游览线路、返程航班都要安排好！费用包含：往返交通＋景点游览＋住宿'
+      +'（夜行火车只需住3晚，白天到要住4晚）＋伙食120元/天＋市内交通30元/天＋其他100元/天（按4天）。'
+      +'总费用不超目标即挑战成功！</p>';
+  }
+  html+='<p><b>小提示：</b>卡片放错了可以点卡片右上角的 ✕ 取回，或直接拖到别的格子里；'
+    +'“揭示答案”能看参考方案；“重新开始”会换新的随机局面再来一局。</p>'
+    +'</div><div class="mBtns"><button class="btn big" onclick="hideModal()">开始规划！</button></div>';
+  return html;
+}
+
+/* ============================================================
+   十二、导航按钮与初始化
+   ============================================================ */
+function backToSelect(){
+  if (state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  state.level=0; state.done=false; state.revealed=false;
+  $('gameArea').style.display='none';
+  $('screenSelect').style.display='block';
+  hideModal();
+}
+$('btnRules').addEventListener('click', function(){ if(state.level) showModal(rulesHtml()); });
+$('btnReveal').addEventListener('click', revealAnswer);
+$('btnRestart').addEventListener('click', function(){
+  if (state.level){ startLevel(state.level); toast('新的一局：成员、心愿和卡片顺序都重新随机啦'); }
+});
+$('btnBack').addEventListener('click', backToSelect);
+var diffBtns=document.querySelectorAll('.diffBtn');
+for (var bi=0;bi<diffBtns.length;bi++){
+  diffBtns[bi].addEventListener('click', function(){ startLevel(parseInt(this.getAttribute('data-level'),10)); });
+}
+window.addEventListener('resize', function(){
+  var cv=$('confettiCanvas'); cv.width=window.innerWidth; cv.height=window.innerHeight;
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-m/g015", "name": "\u5236\u8ba2\u65c5\u6e38\u8ba1\u5212 \u00b7 \u5c0f\u5c0f\u65c5\u884c\u89c4\u5212\u5e08", "file": "g015.html", "jiaocan": "\u301050\u3011\u4e03 \u603b\u590d\u4e60\uff1a\u5236\u8ba2\u65c5\u6e38\u8ba1\u5212", "unit": "", "grade": "6\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "M\uff1a\u6559\u6750\u89e3\u8bfb2", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb2\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-m"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

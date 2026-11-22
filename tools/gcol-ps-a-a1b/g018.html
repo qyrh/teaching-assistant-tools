@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>有序连线大冒险 · 第9讲 我会排一排（下）</title>
+<style>
+/* ============================================================
+   全局重置与基础样式
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  font-family: "Microsoft YaHei", "PingFang SC", "Heiti SC", sans-serif;
+  user-select: none; -webkit-user-select: none;
+  background: #0f1c2e; color: #fff;
+  touch-action: none; /* 阻止触摸滚动，保证拖拽流畅 */
+}
+
+/* ============================================================
+   主题色板 —— 每局随机抽取一套，保证多次玩不腻
+   ============================================================ */
+:root {
+  --bg1: #1e3c72; --bg2: #2a5298;   /* 默认主题（会被 JS 覆盖） */
+  --accent: #ffd166;
+  --node1: #ef476f; --node2: #06d6a0; --node3: #ffd166; --node4: #118ab2; --node5: #f78c6b;
+  --line: #ffe066; --line-good: #06d6a0; --line-bad: #ef476f;
+  --panel: rgba(0,0,0,.45);
+}
+
+/* ============================================================
+   屏幕容器：每个 .screen 占满全屏，通过 display 切换
+   ============================================================ */
+.screen { position: absolute; inset: 0; display: none; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ============================================================
+   标题屏 (#titleScreen)
+   ============================================================ */
+#titleScreen {
+  background: linear-gradient(135deg, var(--bg1), var(--bg2));
+  align-items: center; justify-content: center; text-align: center; padding: 4vmin;
+}
+.title-logo {
+  font-size: clamp(36px, 7vmin, 72px); font-weight: 900;
+  text-shadow: 0 4px 0 rgba(0,0,0,.3), 0 0 30px var(--accent);
+  letter-spacing: 2px; margin-bottom: 1vmin;
+}
+.title-sub { font-size: clamp(16px, 3vmin, 26px); opacity: .9; margin-bottom: 5vmin; }
+.title-emoji { font-size: clamp(60px, 14vmin, 140px); margin-bottom: 3vmin; animation: bob 2.5s ease-in-out infinite; }
+@keyframes bob { 0%,100% { transform: translateY(0) rotate(-3deg);} 50% { transform: translateY(-18px) rotate(3deg);} }
+.btn {
+  font-family: inherit; cursor: pointer; border: none; border-radius: 50px;
+  padding: 14px 34px; font-size: clamp(16px, 2.6vmin, 22px); font-weight: 700;
+  color: #1a1a2e; background: var(--accent);
+  box-shadow: 0 6px 0 rgba(0,0,0,.3), 0 8px 20px rgba(0,0,0,.4);
+  transition: transform .1s, box-shadow .1s;
+}
+.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.3); }
+.btn.ghost { background: rgba(255,255,255,.15); color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.25); }
+.btn.big { padding: 18px 50px; font-size: clamp(20px, 3.2vmin, 28px); }
+.title-actions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+/* ============================================================
+   难度选择屏 (#difficultyScreen)
+   ============================================================ */
+#difficultyScreen {
+  background: linear-gradient(135deg, var(--bg1), var(--bg2));
+  align-items: center; justify-content: center; padding: 4vmin;
+}
+.diff-title { font-size: clamp(26px, 5vmin, 44px); font-weight: 900; margin-bottom: 4vmin; text-shadow: 0 3px 0 rgba(0,0,0,.3); }
+.diff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2.5vmin; width: min(900px, 92vw); }
+.diff-card {
+  cursor: pointer; border-radius: 22px; padding: 26px 20px; text-align: center;
+  background: rgba(255,255,255,.12); border: 3px solid rgba(255,255,255,.25);
+  transition: transform .15s, background .15s; backdrop-filter: blur(6px);
+}
+.diff-card:hover { transform: translateY(-6px); background: rgba(255,255,255,.2); }
+.diff-card .ico { font-size: clamp(50px, 9vmin, 80px); }
+.diff-card .name { font-size: clamp(20px, 3.4vmin, 30px); font-weight: 800; margin: 8px 0; }
+.diff-card .desc { font-size: clamp(13px, 2.2vmin, 17px); opacity: .9; line-height: 1.5; }
+.diff-card .tag { display:inline-block; margin-top:10px; padding: 3px 12px; border-radius:20px; background:rgba(0,0,0,.3); font-size:12px; }
+
+/* ============================================================
+   游戏屏 (#gameScreen)
+   ============================================================ */
+#gameScreen { background: linear-gradient(160deg, var(--bg1), var(--bg2)); }
+.hud {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  background: var(--panel); backdrop-filter: blur(8px); flex-wrap: wrap;
+}
+.hud .brand { font-weight: 900; font-size: clamp(15px,2.4vmin,20px); margin-right: auto; }
+.hud-chip {
+  background: rgba(255,255,255,.15); border-radius: 30px; padding: 6px 14px;
+  font-size: clamp(13px, 2vmin, 17px); font-weight: 700; white-space: nowrap;
+}
+.hud-chip .v { color: var(--accent); margin-left: 4px; }
+.hud-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.hud-actions .btn { padding: 8px 16px; font-size: clamp(13px, 2vmin, 16px); }
+
+/* 关卡进度条 */
+.progress-wrap { height: 6px; background: rgba(255,255,255,.15); }
+.progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width .3s; }
+
+/* 题目面板 */
+.question-panel {
+  background: var(--panel); backdrop-filter: blur(8px);
+  padding: 14px 18px; border-top: 1px solid rgba(255,255,255,.1);
+}
+.q-type { font-size: 13px; opacity: .8; margin-bottom: 4px; }
+.q-type span { background: var(--accent); color:#1a1a2e; padding: 2px 10px; border-radius: 12px; font-weight: 800; margin-right: 6px; }
+.q-text { font-size: clamp(15px, 2.5vmin, 20px); font-weight: 700; line-height: 1.5; }
+.q-hint { font-size: 13px; opacity: .85; margin-top: 6px; }
+
+/* 游戏画布区 */
+.play-area { flex: 1; position: relative; overflow: hidden; }
+#gameSvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* 节点样式 */
+.node {
+  position: absolute; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: clamp(56px, 9vmin, 80px); height: clamp(56px, 9vmin, 80px);
+  border-radius: 50%; cursor: pointer;
+  font-weight: 800; font-size: clamp(13px, 2.2vmin, 18px);
+  border: 4px solid rgba(255,255,255,.6); box-shadow: 0 6px 16px rgba(0,0,0,.35);
+  transition: transform .1s, box-shadow .1s;
+  text-align: center; padding: 2px; line-height: 1.05;
+}
+.node:active { transform: translate(-50%,-50%) scale(0.92); }
+.node .emoji { font-size: clamp(22px, 4vmin, 34px); }
+.node .label { font-size: 10px; background: rgba(0,0,0,.4); padding: 1px 6px; border-radius: 8px; margin-top: 2px; max-width: 90px; }
+.node.connecting { box-shadow: 0 0 0 6px rgba(255,255,255,.4), 0 6px 16px rgba(0,0,0,.4); transform: translate(-50%,-50%) scale(1.1); }
+.node.done { box-shadow: 0 0 0 4px var(--line-good), 0 6px 16px rgba(0,0,0,.35); }
+
+/* SVG 连线 */
+.link { stroke: var(--line); stroke-width: 5; fill: none; opacity: .85; stroke-linecap: round; }
+.link-temp { stroke: var(--line); stroke-width: 4; fill: none; opacity: .5; stroke-dasharray: 8 8; }
+.link-count { fill: var(--bg2); stroke: #fff; stroke-width: 2; }
+.link-count-text { fill: #fff; font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+
+/* 分组标签 */
+.group-label {
+  position: absolute; transform: translate(-50%, 0);
+  font-size: clamp(13px, 2.2vmin, 17px); font-weight: 800; color: #fff;
+  background: rgba(0,0,0,.35); padding: 4px 12px; border-radius: 14px; white-space: nowrap;
+}
+
+/* 状态/反馈条 */
+.status-bar {
+  background: var(--panel); backdrop-filter: blur(8px); padding: 10px 16px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center;
+}
+.stat-pill { background: rgba(255,255,255,.12); border-radius: 30px; padding: 8px 16px; font-size: clamp(14px, 2.2vmin, 18px); font-weight: 700; }
+.stat-pill .num { color: var(--accent); font-size: 1.2em; }
+.stat-pill.done .num { color: var(--line-good); }
+.status-msg { font-size: clamp(13px, 2.2vmin, 17px); font-weight: 700; min-height: 1.2em; }
+.status-msg.good { color: var(--line-good); }
+.status-msg.warn { color: var(--line-bad); }
+
+/* ============================================================
+   通用弹窗（规则 / 胜利）
+   ============================================================ */
+.modal-mask {
+  position: absolute; inset: 0; background: rgba(0,0,0,.6);
+  display: none; align-items: center; justify-content: center; z-index: 50; padding: 4vmin;
+  backdrop-filter: blur(4px);
+}
+.modal-mask.active { display: flex; }
+.modal {
+  background: linear-gradient(160deg, #223354, #1a2a44);
+  border-radius: 22px; padding: 26px; width: min(560px, 92vw);
+  max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  border: 2px solid rgba(255,255,255,.15);
+}
+.modal h2 { font-size: clamp(22px, 4vmin, 32px); margin-bottom: 14px; color: var(--accent); text-align: center; }
+.modal p, .modal li { font-size: clamp(14px, 2.3vmin, 18px); line-height: 1.7; margin-bottom: 6px; }
+.modal ul { padding-left: 22px; margin-bottom: 12px; }
+.modal .close-row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.example-svg { width: 100%; height: 140px; background: rgba(0,0,0,.25); border-radius: 12px; margin: 10px 0; }
+
+/* 胜利屏 */
+#winScreen {
+  background: radial-gradient(circle at 50% 40%, #2a5298, #0f1c2e);
+  align-items: center; justify-content: center; text-align: center; padding: 4vmin;
+}
+.win-emoji { font-size: clamp(80px, 18vmin, 180px); animation: pop .6s cubic-bezier(.2,1.6,.4,1); }
+@keyframes pop { 0% { transform: scale(0) rotate(-30deg);} 100% { transform: scale(1) rotate(0);} }
+.win-title { font-size: clamp(30px, 6vmin, 56px); font-weight: 900; margin: 10px 0; text-shadow: 0 4px 0 rgba(0,0,0,.3); color: var(--accent); }
+.win-stats { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; justify-content: center; }
+.win-stat { background: rgba(255,255,255,.12); border-radius: 16px; padding: 14px 24px; min-width: 110px; }
+.win-stat .label { font-size: 13px; opacity: .8; }
+.win-stat .value { font-size: clamp(24px, 4vmin, 36px); font-weight: 900; color: var(--accent); }
+.win-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+
+/* 彩纸层 */
+#confetti { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
+
+/* 提示气泡（轻量 toast） */
+.toast {
+  position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%);
+  background: rgba(0,0,0,.8); color: #fff; padding: 10px 22px; border-radius: 30px;
+  font-size: clamp(14px,2.4vmin,18px); font-weight: 700; z-index: 30;
+  opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(-8px); }
+.toast.good { background: rgba(6,214,160,.92); }
+.toast.bad { background: rgba(239,71,111,.92); }
+
+/* 小屏适配 */
+@media (max-width: 600px) {
+  .hud { padding: 8px 10px; gap: 8px; }
+  .hud .brand { font-size: 14px; }
+  .question-panel { padding: 10px 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============== 标题屏 ============== -->
+<div class="screen active" id="titleScreen">
+  <div class="title-emoji">🪢</div>
+  <div class="title-logo">有序连线大冒险</div>
+  <div class="title-sub">第9讲 · 我会排一排（下）· 搭配与计数</div>
+  <div class="title-actions">
+    <button class="btn big" id="btnStart">▶ 开始冒险</button>
+    <button class="btn ghost" id="btnRulesFromTitle">📖 玩法说明</button>
+  </div>
+</div>
+
+<!-- ============== 难度选择屏 ============== -->
+<div class="screen" id="difficultyScreen">
+  <div class="diff-title">🌟 选择难度</div>
+  <div class="diff-grid">
+    <div class="diff-card" data-diff="easy">
+      <div class="ico">🛤️</div>
+      <div class="name">初级 · 路线搭配</div>
+      <div class="desc">两段路程<br>把所有走法连出来</div>
+      <div class="tag">乘法原理入门</div>
+    </div>
+    <div class="diff-card" data-diff="medium">
+      <div class="ico">👕</div>
+      <div class="name">中级 · 服装搭配</div>
+      <div class="desc">上衣配下装<br>找全所有穿法</div>
+      <div class="tag">分类枚举</div>
+    </div>
+    <div class="diff-card" data-diff="hard">
+      <div class="ico">🤝</div>
+      <div class="name">高级 · 握手通话</div>
+      <div class="desc">每两人一组<br>不能重复计数</div>
+      <div class="tag">打枪法 · 连加</div>
+    </div>
+  </div>
+  <div class="title-actions" style="margin-top: 4vmin;">
+    <button class="btn ghost" id="btnBackToTitle">← 返回</button>
+  </div>
+</div>
+
+<!-- ============== 游戏屏 ============== -->
+<div class="screen" id="gameScreen">
+  <div class="hud">
+    <div class="brand">🪢 有序连线大冒险</div>
+    <div class="hud-chip">⏱ 时间<span class="v" id="hudTime">00:00</span></div>
+    <div class="hud-chip">👣 步数<span class="v" id="hudSteps">0</span></div>
+    <div class="hud-chip">🎯 关卡<span class="v" id="hudLevel">1/5</span></div>
+    <div class="hud-actions">
+      <button class="btn ghost" id="btnRules">📖</button>
+      <button class="btn ghost" id="btnReveal">👁 揭示</button>
+      <button class="btn ghost" id="btnRestart">🔄</button>
+      <button class="btn ghost" id="btnHome">🏠</button>
+    </div>
+  </div>
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+
+  <div class="question-panel">
+    <div class="q-type"><span id="qTypeBadge">题型</span><span id="qTypeName"></span></div>
+    <div class="q-text" id="qText">题目加载中...</div>
+    <div class="q-hint" id="qHint"></div>
+  </div>
+
+  <div class="play-area" id="playArea">
+    <svg id="gameSvg"></svg>
+  </div>
+
+  <div class="status-bar">
+    <div class="stat-pill" id="statCurrent">已连线 <span class="num">0</span> 条</div>
+    <div class="status-msg" id="statusMsg">从左侧任一点出发，拖到右侧某点松手，即可连出一条线</div>
+    <div class="stat-pill" id="statTarget">目标 <span class="num">?</span> 条</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<!-- ============== 规则弹窗 ============== -->
+<div class="modal-mask" id="rulesModal">
+  <div class="modal">
+    <h2>📖 玩法说明</h2>
+    <p><b>核心操作：拖拽连线。</b> 屏幕上会出现两组（或一组）小圆点，代表不同的人、衣服或路线。</p>
+    <ul>
+      <li>👉 <b>按住</b>一个圆点，<b>拖动</b>到另一个圆点上松手，就连出一条线。</li>
+      <li>✅ 每一条合法的线，就代表 <b>一种搭配 / 一次握手 / 一条路线</b>。</li>
+      <li>🎯 你的任务：<b>把所有可能的线全部连出来</b>，不多不少。</li>
+      <li>🚫 <b>不能重复</b>：同两个点之间只算一条；握手/通话问题中 A↔B 与 B↔A 是同一条。</li>
+      <li>💡 小窍门：<b>有序枚举</b>——固定一个点，把它和所有能配对的点连完，再换下一个点。</li>
+    </ul>
+    <p>右下角 <b>👁 揭示</b> 可看完整答案，<b>🔄</b> 重开本关。</p>
+    <svg class="example-svg" id="exampleSvg"></svg>
+    <div class="close-row">
+      <button class="btn" id="btnCloseRules">明白啦！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== 胜利屏 ============== -->
+<div class="screen" id="winScreen">
+  <canvas id="confetti"></canvas>
+  <div class="win-emoji">🏆</div>
+  <div class="win-title">全部通关！</div>
+  <div style="font-size: clamp(15px,2.6vmin,20px); opacity:.9; max-width:600px; text-align:center;">
+    你已经掌握了<b>有序枚举</b>的秘诀：分类、有序、不重复、不遗漏 🎉
+  </div>
+  <div class="win-stats">
+    <div class="win-stat"><div class="label">总用时</div><div class="value" id="winTime">00:00</div></div>
+    <div class="win-stat"><div class="label">总连线</div><div class="value" id="winLines">0</div></div>
+    <div class="win-stat"><div class="label">总步数</div><div class="value" id="winSteps">0</div></div>
+    <div class="win-stat"><div class="label">难度</div><div class="value" id="winDiff">-</div></div>
+  </div>
+  <div class="win-actions">
+    <button class="btn big" id="btnPlayAgain">🔁 再来一局</button>
+    <button class="btn ghost" id="btnChangeDiff">🎯 换难度</button>
+  </div>
+</div>
+
+<script>
+/* ==================================================================
+   有序连线大冒险 —— 主逻辑
+   核心思想：把教参里的"画图连线 / 打枪法 / 分类枚举"具象化为
+   "在节点之间拖拽连线"的操作游戏。学生亲手连出每一种可能。
+   ================================================================== */
+
+/* ---------- 一、主题色板（每局随机） ---------- */
+const THEMES = [
+  { bg1:'#1e3c72', bg2:'#2a5298', accent:'#ffd166', line:'#ffe066' },
+  { bg1:'#134e5e', bg2:'#71b280', accent:'#fff3b0', line:'#fff3b0' },
+  { bg1:'#5f0a87', bg2:'#a4508b', accent:'#ffd166', line:'#f8c8dc' },
+  { bg1:'#0f3460', bg2:'#16537e', accent:'#00d9ff', line:'#7ee8fa' },
+  { bg1:'#aa076b', bg2:'#61045f', accent:'#ffd166', line:'#ffb6d9' },
+  { bg1:'#232526', bg2:'#414345', accent:'#ff8c42', line:'#ff8c42' },
+  { bg1:'#1a2a6c', bg2:'#b21f1f', accent:'#fdbb2d', line:'#fdbb2d' },
+  { bg1:'#0b486b', bg2:'#f56217', accent:'#fff3b0', line:'#ffb38a' },
+];
+const NODE_COLORS = ['#ef476f','#06d6a0','#ffd166','#118ab2','#f78c6b','#c77dff','#80ed99','#ff70a6'];
+
+/* ---------- 二、题库（取自 docx，并补充变式题） ----------
+   每道题：groupA / groupB 为节点列表，type 决定连线规则：
+     - 'pair'   : 组内两两互连（握手/通话，A-B 与 B-A 同一条）
+     - 'cross'  : A 组每个点连 B 组每个点（路线/服装搭配）
+   answer = 应有连线总数
+*/
+const POOL = {
+  easy: [ // 初级：路线搭配（cross，乘法原理）
+    { type:'cross', q:'从家到商店有 3 条路（家→商店①②③），从商店到学校有 2 条路（商店→学校①②）。从家出发经过商店到学校，一共有几条不同的路线？',
+      hint:'固定一条"家→商店"的路，再分别配上 2 条"商店→学校"的路，依次连。', A:['路①','路②','路③'], B:['路①','路②'], aEmoji:'🏠', bEmoji:'🏫', aLabel:'家→商店', bLabel:'商店→学校' },
+    { type:'cross', q:'学校到街心花园有 3 条路，街心花园到家有 2 条路。从学校出发经过花园回家，一共有几条路线？',
+      hint:'每条"学校→花园"都能配 2 条"花园→家"。', A:['路A₁','路A₂','路A₃'], B:['路B₁','路B₂'], aEmoji:'🏫', bEmoji:'🏠', aLabel:'学校→花园', bLabel:'花园→家' },
+    { type:'cross', q:'土地爷爷从 A 洞到 B 洞有 2 条路，从 B 洞到 C 洞有 3 条路。从 A 洞经过 B 洞到 C 洞，共有几条路？',
+      hint:'这是例5原题。A→B 有 2 条，B→C 有 3 条。', A:['路△1','路△2'], B:['路○1','路○2','路○3'], aEmoji:'🕳️', bEmoji:'🕳️', aLabel:'A洞→B洞', bLabel:'B洞→C洞' },
+    { type:'cross', q:'（变式）从公园到博物馆有 4 条路，从博物馆到动物园有 2 条路。一共有多少条不同的参观路线？',
+      hint:'4 × 2 = ?', A:['路1','路2','路3','路4'], B:['路甲','路乙'], aEmoji:'⛲', bEmoji:'🦁', aLabel:'公园→博物馆', bLabel:'博物馆→动物园' },
+    { type:'cross', q:'（变式）小船从甲岸到小岛有 2 条航线，从小岛到乙岸有 4 条航线。一共有几条不同的航线？',
+      hint:'2 × 4 = ?', A:['航线1','航线2'], B:['航线1','航线2','航线3','航线4'], aEmoji:'⛵', bEmoji:'🏝️', aLabel:'甲岸→小岛', bLabel:'小岛→乙岸' },
+  ],
+  medium: [ // 中级：服装/物品搭配（cross，分类枚举）
+    { type:'cross', q:'小美买了 2 件上衣和 2 条裙子。一共有多少种不同的穿法？',
+      hint:'每件上衣都能配 2 条裙子。', A:['红上衣','蓝上衣'], B:['花裙','白裙'], aEmoji:'👕', bEmoji:'👗', aLabel:'上衣', bLabel:'下装' },
+    { type:'cross', q:'妖怪配丹药：从 3 种草里选 1 种，再从 3 种毒虫里选 1 种。一共有多少种不同的搭配？',
+      hint:'3 × 3 = 9 种。', A:['草1','草2','草3'], B:['虫1','虫2','虫3'], aEmoji:'🌿', bEmoji:'🐛', aLabel:'草', bLabel:'毒虫' },
+    { type:'cross', q:'孙悟空有 2 件衣服、2 条裤子、1 条裙子（共 3 件下装）。他有几种不同的穿法？',
+      hint:'把"裤子+裙子"都看作下装，共 3 件下装。例6原题：2×3=6。', A:['衣服△1','衣服△2'], B:['裤子○1','裤子○2','裙子○3'], aEmoji:'🐒', bEmoji:'👖', aLabel:'上装', bLabel:'下装' },
+    { type:'cross', q:'（变式）早餐搭配：3 种饮品配 4 种食物，一共有多少种不同的搭配？',
+      hint:'3 × 4 = 12 种。', A:['牛奶','果汁','豆浆'], B:['面包','蛋糕','三明治','汉堡'], aEmoji:'🥛', bEmoji:'🍞', aLabel:'饮品', bLabel:'食物' },
+    { type:'cross', q:'（变式）午餐套餐：2 种主食配 3 种菜，一共有多少种不同的套餐？',
+      hint:'2 × 3 = 6 种。', A:['米饭','面条'], B:['红烧肉','青菜','炒蛋'], aEmoji:'🍚', bEmoji:'🍖', aLabel:'主食', bLabel:'菜' },
+  ],
+  hard: [ // 高级：握手/通话/比赛（pair，组内两两连，不重复）
+    { type:'pair', q:'唐僧、孙悟空、猪八戒、沙僧 4 人互相碰杯，每两人碰一次（不重复计数）。一共要碰几次杯？',
+      hint:'第1人跟后3人碰；第2人跟后2人碰；第3人跟后1人碰。3+2+1=6。', P:['唐僧','悟空','八戒','沙僧'], pEmoji:'🙏' },
+    { type:'pair', q:'孙悟空、猪八戒、沙僧、白龙马、土地爷爷 5 人通电话，每两人通一次（不重复）。一共通多少次电话？',
+      hint:'例4原题：4+3+2+1=10 次。', P:['悟空','八戒','沙僧','白龙马','土地'], pEmoji:'📞' },
+    { type:'pair', q:'小明、小白、小红、小黑、小兰、小美 6 个小朋友握手，每两人握一次。一共要握几次手？',
+      hint:'练习10：5+4+3+2+1=15 次。', P:['小明','小白','小红','小黑','小兰','小美'], pEmoji:'🤝' },
+    { type:'pair', q:'6 支足球队比赛，每两支比一场。一共要比多少场？',
+      hint:'练习11：5+4+3+2+1=15 场。', P:['队1','队2','队3','队4','队5','队6'], pEmoji:'⚽' },
+    { type:'pair', q:'7 个小朋友互相拥抱，每两人抱一次。一共要抱多少次？',
+      hint:'练习8：6+5+4+3+2+1=21 次。', P:['朋1','朋2','朋3','朋4','朋5','朋6','朋7'], pEmoji:'🫂' },
+    { type:'pair', q:'（变式）5 个好朋友互赠一张贺卡，每两人之间互相赠送。一共要送多少张贺卡？',
+      hint:'注意：赠送是"互相"，所以是 5×4=20 张（有方向）。但本题按"每两人之间互送"=两条线，请把双向都连出来！', P:['友1','友2','友3','友4','友5'], pEmoji:'💌', directed:true },
+  ],
+};
+
+/* ---------- 三、全局状态 ---------- */
+const state = {
+  diff: 'easy',
+  levels: [],        // 本局抽出的 5 道题
+  curIdx: 0,
+  startTime: 0,
+  timerId: null,
+  steps: 0,
+  totalLines: 0,     // 累计正确连线
+  nodes: [],         // 当前关卡节点 {id,x,y,color,emoji,label,group}
+  edges: [],         // 当前关卡已连边 {a,b}
+  dragging: null,    // {fromId, x, y}
+  revealed: false,
+};
+
+/* ---------- 四、DOM 引用 ---------- */
+const $ = id => document.getElementById(id);
+const titleScreen = $('titleScreen');
+const diffScreen = $('difficultyScreen');
+const gameScreen = $('gameScreen');
+const winScreen = $('winScreen');
+const playArea = $('playArea');
+const svg = $('gameSvg');
+
+/* ---------- 五、屏幕切换 ---------- */
+function showScreen(scr) {
+  [titleScreen, diffScreen, gameScreen, winScreen].forEach(s => s.classList.remove('active'));
+  scr.classList.add('active');
+}
+
+/* ---------- 六、应用随机主题 ---------- */
+function applyRandomTheme() {
+  const t = THEMES[Math.floor(Math.random() * THEMES.length)];
+  const r = document.documentElement.style;
+  r.setProperty('--bg1', t.bg1);
+  r.setProperty('--bg2', t.bg2);
+  r.setProperty('--accent', t.accent);
+  r.setProperty('--line', t.line);
+}
+
+/* ---------- 七、工具函数 ---------- */
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function fmtTime(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+function toast(msg, kind = '') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + kind;
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 1400);
+}
+
+/* ---------- 八、从题库随机抽 N 道并打乱 ---------- */
+function pickLevels(diff, n = 5) {
+  const pool = POOL[diff].slice();
+  let picked = shuffle(pool);
+  // 若不足 n 道，循环补足（保证多样性）
+  while (picked.length < n) picked = picked.concat(shuffle(pool));
+  return picked.slice(0, n);
+}
+
+/* ---------- 九、计算正确答案数 ---------- */
+function answerFor(level) {
+  if (level.type === 'cross') return level.A.length * level.B.length;
+  // pair：组内两两连
+  const n = level.P.length;
+  if (level.directed) return n * (n - 1); // 有向：互赠
+  return n * (n - 1) / 2;
+}
+
+/* ---------- 十、构建当前关卡的节点 ---------- */
+function buildNodes(level) {
+  const nodes = [];
+  let id = 0;
+  const W = playArea.clientWidth;
+  const H = playArea.clientHeight;
+
+  if (level.type === 'cross') {
+    // 两组节点：左右分布
+    const A = level.A, B = level.B;
+    const colA = W * 0.28, colB = W * 0.72;
+    const gapA = H / (A.length + 1);
+    const gapB = H / (B.length + 1);
+    A.forEach((label, i) => {
+      nodes.push({ id: id++, x: colA, y: gapA * (i + 1), group: 'A', label, color: NODE_COLORS[i % NODE_COLORS.length], emoji: level.aEmoji });
+    });
+    B.forEach((label, i) => {
+      nodes.push({ id: id++, x: colB, y: gapB * (i + 1), group: 'B', label, color: NODE_COLORS[(i + 3) % NODE_COLORS.length], emoji: level.bEmoji });
+    });
+    // 分组标签
+    const lblA = document.createElement('div');
+    lblA.className = 'group-label';
+    lblA.style.left = colA + 'px'; lblA.style.top = '8px';
+    lblA.textContent = '👈 ' + (level.aLabel || 'A组');
+    playArea.appendChild(lblA);
+    const lblB = document.createElement('div');
+    lblB.className = 'group-label';
+    lblB.style.left = colB + 'px'; lblB.style.top = '8px';
+    lblB.textContent = (level.bLabel || 'B组') + ' 👉';
+    playArea.appendChild(lblB);
+  } else {
+    // pair：环形布局
+    const P = level.P;
+    const cx = W / 2, cy = H / 2;
+    const R = Math.min(W, H) * 0.36;
+    P.forEach((label, i) => {
+      const ang = (Math.PI * 2 * i / P.length) - Math.PI / 2;
+      nodes.push({
+        id: id++, x: cx + Math.cos(ang) * R, y: cy + Math.sin(ang) * R,
+        group: 'P', label, color: NODE_COLORS[i % NODE_COLORS.length], emoji: level.pEmoji
+      });
+    });
+  }
+  return nodes;
+}
+
+/* ---------- 十一、渲染节点 DOM ---------- */
+function renderNodes() {
+  // 清掉旧节点（保留 svg）
+  [...playArea.querySelectorAll('.node, .group-label')].forEach(n => n.remove());
+  state.nodes.forEach(nd => {
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.style.left = nd.x + 'px';
+    el.style.top = nd.y + 'px';
+    el.style.background = `radial-gradient(circle at 30% 30%, ${nd.color}, ${shade(nd.color, -30)})`;
+    el.dataset.id = nd.id;
+    el.innerHTML = `<div class="emoji">${nd.emoji}</div><div class="label">${nd.label}</div>`;
+    playArea.appendChild(el);
+    nd.el = el;
+  });
+}
+/* 颜色加深/变亮辅助 */
+function shade(hex, amt) {
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  let r = parseInt(c.substr(0,2),16), g = parseInt(c.substr(2,2),16), b = parseInt(c.substr(4,2),16);
+  r = Math.max(0, Math.min(255, r + amt));
+  g = Math.max(0, Math.min(255, g + amt));
+  b = Math.max(0, Math.min(255, b + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ---------- 十二、SVG 视口与坐标 ---------- */
+function syncSvgViewport() {
+  const w = playArea.clientWidth, h = playArea.clientHeight;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', h);
+}
+function ptFromEvent(e) {
+  const rect = playArea.getBoundingClientRect();
+  const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+  return { x: cx, y: cy };
+}
+function nodeCenter(nd) { return { x: nd.x, y: nd.y }; }
+
+/* ---------- 十三、绘制已连边 ---------- */
+function redrawEdges() {
+  // 清掉除临时线外的所有 .link
+  [...svg.querySelectorAll('.link, .link-count, .link-count-text')].forEach(n => n.remove());
+  state.edges.forEach((ed, i) => {
+    const a = state.nodes.find(n => n.id === ed.a);
+    const b = state.nodes.find(n => n.id === ed.b);
+    if (!a || !b) return;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+    line.setAttribute('class', 'link');
+    svg.appendChild(line);
+    // 中点标号
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', mx); c.setAttribute('cy', my); c.setAttribute('r', 13);
+    c.setAttribute('class', 'link-count');
+    svg.appendChild(c);
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', mx); t.setAttribute('y', my);
+    t.setAttribute('class', 'link-count-text');
+    t.textContent = i + 1;
+    svg.appendChild(t);
+  });
+  updateStatus();
+}
+
+/* ---------- 十四、状态更新与通关检测 ---------- */
+function updateStatus() {
+  const cur = state.levels[state.curIdx];
+  const target = answerFor(cur);
+  const now = state.edges.length;
+  $('statCurrent').innerHTML = `已连线 <span class="num">${now}</span> 条`;
+  $('statTarget').innerHTML = `目标 <span class="num">${target}</span> 条`;
+  const pill = $('statCurrent');
+  pill.classList.toggle('done', now === target);
+  // 通关检测
+  if (now === target && !state.revealed) {
+    onLevelClear();
+  }
+}
+
+/* ---------- 十五、尝试连一条边 ---------- */
+function tryAddEdge(fromId, toId) {
+  const cur = state.levels[state.curIdx];
+  if (fromId === toId) return;
+  const a = state.nodes.find(n => n.id === fromId);
+  const b = state.nodes.find(n => n.id === toId);
+  if (!a || !b) return;
+  // 规则校验
+  let valid = false, reason = '';
+  if (cur.type === 'cross') {
+    valid = (a.group !== b.group);
+    if (!valid) reason = '要在两组之间连线哦（左连右）';
+  } else { // pair
+    if (fromId === toId) { reason='不能连自己'; }
+    else valid = true;
+  }
+  if (!valid) { toast(reason || '不能这样连', 'bad'); flashNode(b.el, 'bad'); return; }
+
+  // 去重（无向边 a-b == b-a；有向边则区分）
+  let dup;
+  if (cur.directed) {
+    dup = state.edges.some(e => e.a === fromId && e.b === toId);
+  } else {
+    dup = state.edges.some(e => (e.a === fromId && e.b === toId) || (e.a === toId && e.b === fromId));
+  }
+  if (dup) { toast('这条已经连过啦，别重复！', 'bad'); flashNode(b.el, 'bad'); return; }
+
+  // 超出目标：禁止（防止乱连）
+  const target = answerFor(cur);
+  if (state.edges.length >= target) { toast('已经够了！检查一下对不对吧', 'warn'); return; }
+
+  // 加入
+  state.edges.push({ a: fromId, b: toId });
+  state.steps++;
+  state.totalLines++;
+  $('hudSteps').textContent = state.steps;
+  redrawEdges();
+  flashNode(b.el, 'good');
+  toast(`第 ${state.edges.length} 条！`, 'good');
+}
+
+function flashNode(el, kind) {
+  if (!el) return;
+  el.style.transition = 'transform .15s';
+  el.style.transform = 'translate(-50%,-50%) scale(1.25)';
+  el.style.boxShadow = kind === 'good'
+    ? '0 0 0 6px var(--line-good), 0 6px 16px rgba(0,0,0,.4)'
+    : '0 0 0 6px var(--line-bad), 0 6px 16px rgba(0,0,0,.4)';
+  setTimeout(() => {
+    el.style.transform = '';
+    el.style.boxShadow = '';
+  }, 220);
+}
+
+/* ---------- 十六、拖拽交互（Pointer Events，兼容触摸+鼠标） ---------- */
+function bindDragging() {
+  playArea.addEventListener('pointerdown', onDown);
+  playArea.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  playArea.addEventListener('pointercancel', onUp);
+}
+function nodeAtPoint(pt) {
+  // 找到包含该坐标的节点
+  for (const nd of state.nodes) {
+    const dx = pt.x - nd.x, dy = pt.y - nd.y;
+    if (dx * dx + dy * dy < 45 * 45) return nd;
+  }
+  return null;
+}
+function onDown(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  const pt = ptFromEvent(e);
+  const nd = nodeAtPoint(pt);
+  if (!nd) return;
+  e.preventDefault();
+  state.dragging = { fromId: nd.id, x: pt.x, y: pt.y };
+  nd.el.classList.add('connecting');
+  // 临时线
+  let temp = svg.querySelector('.link-temp');
+  if (!temp) {
+    temp = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    temp.setAttribute('class', 'link-temp');
+    svg.appendChild(temp);
+  }
+  temp.setAttribute('x1', nd.x); temp.setAttribute('y1', nd.y);
+  temp.setAttribute('x2', pt.x); temp.setAttribute('y2', pt.y);
+}
+function onMove(e) {
+  if (!state.dragging) return;
+  const pt = ptFromEvent(e);
+  state.dragging.x = pt.x; state.dragging.y = pt.y;
+  const temp = svg.querySelector('.link-temp');
+  if (temp) { temp.setAttribute('x2', pt.x); temp.setAttribute('y2', pt.y); }
+  // 高亮目标节点
+  state.nodes.forEach(n => n.el && n.el.classList.remove('connecting'));
+  const target = nodeAtPoint(pt);
+  if (target && target.id !== state.dragging.fromId) target.el.classList.add('connecting');
+  else {
+    const from = state.nodes.find(n => n.id === state.dragging.fromId);
+    if (from && from.el) from.el.classList.add('connecting');
+  }
+}
+function onUp(e) {
+  if (!state.dragging) return;
+  const pt = ptFromEvent(e);
+  const target = nodeAtPoint(pt);
+  const fromId = state.dragging.fromId;
+  // 清理临时线和高亮
+  const temp = svg.querySelector('.link-temp');
+  if (temp) temp.remove();
+  state.nodes.forEach(n => n.el && n.el.classList.remove('connecting'));
+  state.dragging = null;
+  if (target && target.id !== fromId) {
+    tryAddEdge(fromId, target.id);
+  }
+}
+
+/* ---------- 十七、加载一道题 ---------- */
+function loadLevel(idx) {
+  state.curIdx = idx;
+  state.edges = [];
+  state.revealed = false;
+  const lv = state.levels[idx];
+  // 顶部信息
+  const typeMap = { easy:'路线搭配', medium:'服装搭配', hard:'握手通话' };
+  $('qTypeBadge').textContent = ['初级','中级','高级'][['easy','medium','hard'].indexOf(state.diff)];
+  $('qTypeName').textContent = typeMap[state.diff];
+  $('qText').textContent = lv.q;
+  $('qHint').textContent = '💡 ' + (lv.hint || '');
+  $('hudLevel').textContent = `${idx + 1}/${state.levels.length}`;
+  $('progressBar').style.width = `${(idx / state.levels.length) * 100}%`;
+  $('statusMsg').textContent = state.diff === 'hard'
+    ? '按住一个人，拖到另一个人身上松手，就完成一次握手/通话'
+    : '从左侧任一点出发，拖到右侧某点松手，即可连出一条线';
+  // 等下一帧拿到尺寸再布局
+  requestAnimationFrame(() => {
+    syncSvgViewport();
+    state.nodes = buildNodes(lv);
+    renderNodes();
+    redrawEdges();
+  });
+}
+
+/* ---------- 十八、单关通关 ---------- */
+function onLevelClear() {
+  $('statusMsg').textContent = '✅ 完美！准备下一关...';
+  $('statusMsg').className = 'status-msg good';
+  $('progressBar').style.width = `${((state.curIdx + 1) / state.levels.length) * 100}%`;
+  // 小庆祝
+  burstConfetti(40);
+  toast('🎉 本关通过！', 'good');
+  setTimeout(() => {
+    if (state.curIdx + 1 < state.levels.length) {
+      loadLevel(state.curIdx + 1);
+    } else {
+      finishGame();
+    }
+  }, 900);
+}
+
+/* ---------- 十九、揭示答案 ---------- */
+function revealAnswer() {
+  const lv = state.levels[state.curIdx];
+  state.revealed = true;
+  // 清空已连，重新铺满正确答案
+  state.edges = [];
+  if (lv.type === 'cross') {
+    const A = state.nodes.filter(n => n.group === 'A');
+    const B = state.nodes.filter(n => n.group === 'B');
+    A.forEach(a => B.forEach(b => state.edges.push({ a: a.id, b: b.id })));
+  } else if (lv.directed) {
+    const P = state.nodes;
+    for (let i = 0; i < P.length; i++)
+      for (let j = 0; j < P.length; j++)
+        if (i !== j) state.edges.push({ a: P[i].id, b: P[j].id });
+  } else {
+    const P = state.nodes;
+    for (let i = 0; i < P.length; i++)
+      for (let j = i + 1; j < P.length; j++)
+        state.edges.push({ a: P[i].id, b: P[j].id });
+  }
+  redrawEdges();
+  $('statusMsg').textContent = '👁 已揭示全部答案，点 🔄 重新挑战本关';
+  toast('答案已揭示', 'warn');
+}
+
+/* ---------- 二十、重开本关 ---------- */
+function restartLevel() {
+  loadLevel(state.curIdx);
+}
+
+/* ---------- 二十一、计时器 ---------- */
+function startTimer() {
+  state.startTime = Date.now();
+  clearInterval(state.timerId);
+  state.timerId = setInterval(() => {
+    const sec = Math.floor((Date.now() - state.startTime) / 1000);
+    $('hudTime').textContent = fmtTime(sec);
+  }, 500);
+}
+function stopTimer() { clearInterval(state.timerId); state.timerId = null; }
+
+/* ---------- 二十二、开始一局 ---------- */
+function startGame(diff) {
+  state.diff = diff;
+  state.levels = pickLevels(diff, 5);
+  state.steps = 0;
+  state.totalLines = 0;
+  $('hudSteps').textContent = '0';
+  showScreen(gameScreen);
+  applyRandomTheme(); // 每局换主题
+  startTimer();
+  loadLevel(0);
+}
+
+/* ---------- 二十三、全部通关 ---------- */
+function finishGame() {
+  stopTimer();
+  const sec = Math.floor((Date.now() - state.startTime) / 1000);
+  $('winTime').textContent = fmtTime(sec);
+  $('winLines').textContent = state.totalLines;
+  $('winSteps').textContent = state.steps;
+  $('winDiff').textContent = ['初级','中级','高级'][['easy','medium','hard'].indexOf(state.diff)];
+  showScreen(winScreen);
+  bigConfetti();
+}
+
+/* ============================================================
+   二十四、彩纸 / 烟花（Canvas 实现）
+   ================================================== */
+const confettiCanvas = $('confetti');
+const cctx = confettiCanvas.getContext('2d');
+let confettiPieces = [];
+let confettiRaf = null;
+function resizeConfetti() {
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeConfetti);
+resizeConfetti();
+
+function burstConfetti(n = 30) {
+  // 小庆祝：以游戏区中心爆发
+  const rect = playArea.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  spawnConfetti(n, cx, cy);
+}
+function bigConfetti() {
+  // 大庆祝：从顶部两侧
+  spawnConfetti(120, window.innerWidth * 0.2, -10);
+  spawnConfetti(120, window.innerWidth * 0.8, -10);
+}
+function spawnConfetti(n, ox, oy) {
+  const colors = ['#ef476f','#06d6a0','#ffd166','#118ab2','#f78c6b','#c77dff','#fff3b0'];
+  for (let i = 0; i < n; i++) {
+    confettiPieces.push({
+      x: ox + (Math.random() - 0.5) * 60,
+      y: oy,
+      vx: (Math.random() - 0.5) * 8,
+      vy: Math.random() * 4 + 2,
+      g: 0.18 + Math.random() * 0.12,
+      size: 6 + Math.random() * 8,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      life: 0,
+      maxLife: 120 + Math.random() * 60,
+    });
+  }
+  if (!confettiRaf) confettiLoop();
+}
+function confettiLoop() {
+  cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  confettiPieces.forEach(p => {
+    p.vy += p.g;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.rot += p.vr;
+    p.life++;
+    cctx.save();
+    cctx.translate(p.x, p.y);
+    cctx.rotate(p.rot);
+    cctx.fillStyle = p.color;
+    cctx.globalAlpha = Math.max(0, 1 - p.life / p.maxLife);
+    cctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+    cctx.restore();
+  });
+  confettiPieces = confettiPieces.filter(p => p.life < p.maxLife && p.y < confettiCanvas.height + 30);
+  if (confettiPieces.length > 0) {
+    confettiRaf = requestAnimationFrame(confettiLoop);
+  } else {
+    confettiRaf = null;
+    cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  }
+}
+
+/* ============================================================
+   二十五、规则弹窗里的示例图
+   ================================================== */
+function drawExample() {
+  const ex = $('exampleSvg');
+  ex.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  // 三个左点连两个右点，共 6 条
+  const L = [[60,40],[60,80],[60,120]], R = [[200,60],[200,100]];
+  L.forEach((p,i)=>{
+    const c=document.createElementNS(ns,'circle'); c.setAttribute('cx',p[0]);c.setAttribute('cy',p[1]);c.setAttribute('r',16);c.setAttribute('fill',['#ef476f','#06d6a0','#ffd166'][i]);ex.appendChild(c);
+  });
+  R.forEach((p,i)=>{
+    const c=document.createElementNS(ns,'circle'); c.setAttribute('cx',p[0]);c.setAttribute('cy',p[1]);c.setAttribute('r',16);c.setAttribute('fill',['#118ab2','#f78c6b'][i]);ex.appendChild(c);
+  });
+  L.forEach(p=>R.forEach(q=>{
+    const l=document.createElementNS(ns,'line');l.setAttribute('x1',p[0]);l.setAttribute('y1',p[1]);l.setAttribute('x2',q[0]);l.setAttribute('y2',q[1]);l.setAttribute('stroke','#ffe066');l.setAttribute('stroke-width',3);l.setAttribute('opacity',.8);ex.appendChild(l);
+  }));
+}
+
+/* ============================================================
+   二十六、事件绑定
+   ================================================== */
+$('btnStart').onclick = () => showScreen(diffScreen);
+$('btnRulesFromTitle').onclick = () => openRules();
+$('btnBackToTitle').onclick = () => showScreen(titleScreen);
+document.querySelectorAll('.diff-card').forEach(c => {
+  c.onclick = () => startGame(c.dataset.diff);
+});
+$('btnRules').onclick = () => openRules();
+$('btnCloseRules').onclick = () => closeRules();
+$('btnReveal').onclick = revealAnswer;
+$('btnRestart').onclick = restartLevel;
+$('btnHome').onclick = () => { stopTimer(); showScreen(diffScreen); };
+$('btnPlayAgain').onclick = () => startGame(state.diff);
+$('btnChangeDiff').onclick = () => showScreen(diffScreen);
+
+function openRules() { $('rulesModal').classList.add('active'); drawExample(); }
+function closeRules() { $('rulesModal').classList.remove('active'); }
+
+// 窗口尺寸变化时重排节点
+window.addEventListener('resize', () => {
+  if (!gameScreen.classList.contains('active')) return;
+  syncSvgViewport();
+  // 重新计算节点坐标
+  state.nodes = buildNodes(state.levels[state.curIdx]);
+  renderNodes();
+  // 重新映射 edges（id 不变，坐标自动用新的）
+  redrawEdges();
+});
+
+// 初始化拖拽
+bindDragging();
+applyRandomTheme();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1b/g018", "name": "\u6709\u5e8f\u8fde\u7ebf\u5927\u5192\u9669 \u00b7 \u7b2c9\u8bb2 \u6211\u4f1a\u6392\u4e00\u6392\uff08\u4e0b\uff09", "file": "g018.html", "jiaocan": "\u301018\u3011\u7b2c9\u8bb2 \u6211\u4f1a\u6392\u4e00\u6392\uff08\u4e0b\uff09", "unit": "\u7b2c9\u8bb2", "grade": "1\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

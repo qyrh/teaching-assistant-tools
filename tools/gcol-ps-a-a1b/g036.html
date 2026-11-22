@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>间隔探险家 · 间隔之谜（下）</title>
+<style>
+/* ============ 全局变量与主题（运行时随机覆盖） ============ */
+:root{
+  --primary:#ff6b6b;       /* 主色 */
+  --primary-dark:#c92a2a;
+  --accent:#ffd43b;        /* 强调色 */
+  --bg1:#fff5f5;           /* 背景渐变上 */
+  --bg2:#ffe8e8;           /* 背景渐变下 */
+  --interval:#fab005;      /* 间隔段颜色 */
+  --ink:#222;              /* 主文字 */
+  --muted:#666;
+  --card:#fff;
+  --shadow:0 6px 20px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC","Segoe UI",sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  color:var(--ink);
+  min-height:100vh;
+  overflow-x:hidden;
+  touch-action:manipulation;
+}
+button{font-family:inherit;cursor:pointer;border:none;}
+.hidden{display:none !important;}
+
+/* ============ 顶部栏 ============ */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:8px;
+  padding:10px 16px;background:var(--primary);color:#fff;
+  box-shadow:var(--shadow);position:relative;z-index:5;
+}
+.topbar .title{font-size:22px;font-weight:800;letter-spacing:1px;}
+.topbar .meta{display:flex;gap:10px;flex-wrap:wrap;font-size:16px;font-weight:700;}
+.topbar .pill{background:rgba(255,255,255,.25);padding:4px 12px;border-radius:20px;white-space:nowrap;}
+
+/* ============ 主区域 ============ */
+.wrap{max-width:1100px;margin:0 auto;padding:14px;}
+.card{
+  background:var(--card);border-radius:18px;box-shadow:var(--shadow);
+  padding:16px 18px;margin-bottom:14px;
+}
+.qpanel .qtag{
+  display:inline-block;background:var(--primary);color:#fff;
+  font-weight:700;padding:4px 14px;border-radius:14px;font-size:15px;margin-bottom:8px;
+}
+.qpanel .qtext{font-size:21px;font-weight:700;line-height:1.6;}
+.qpanel .qhint{
+  margin-top:8px;font-size:16px;color:var(--primary-dark);
+  background:#fff8e1;border-left:5px solid var(--accent);
+  padding:8px 12px;border-radius:8px;line-height:1.5;transition:all .2s;
+}
+
+/* ============ 计数器 ============ */
+.counters{
+  display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:6px 0 10px;
+}
+.counter{
+  background:var(--bg2);border:2px solid var(--primary);
+  border-radius:14px;padding:8px 16px;min-width:120px;text-align:center;
+}
+.counter .num{font-size:30px;font-weight:900;color:var(--primary-dark);line-height:1;}
+.counter .lbl{font-size:14px;color:var(--muted);margin-top:2px;}
+.counter.ok{background:#d3f9d8;border-color:#2f9e44;}
+.counter.ok .num{color:#2b8a3e;}
+.counter.total{background:var(--accent);border-color:var(--primary-dark);}
+.counter.total .num{color:var(--primary-dark);}
+
+/* ============ 轨道（核心交互区） ============ */
+.stage{
+  position:relative;background:linear-gradient(180deg,#f1f3f5,#e9ecef);
+  border-radius:16px;padding:30px 14px 26px;min-height:200px;
+  border:3px dashed transparent;transition:all .15s;
+}
+.stage.over{border-color:var(--primary);background:linear-gradient(180deg,#fff3d6,#ffe9b8);}
+.track{
+  display:flex;align-items:center;justify-content:center;
+  flex-wrap:wrap;gap:0;min-height:90px;
+}
+.slot-main,.slot-int{display:flex;align-items:center;justify-content:center;}
+.slot-main{
+  width:66px;height:66px;border-radius:50%;
+  background:#fff;border:3px solid var(--primary);
+  font-size:36px;position:relative;flex:0 0 auto;
+  box-shadow:0 3px 8px rgba(0,0,0,.12);user-select:none;cursor:pointer;
+}
+.slot-main.filled:hover{transform:scale(1.06);}
+.slot-main .del{
+  position:absolute;top:-6px;right:-6px;width:22px;height:22px;
+  background:#e03131;color:#fff;border-radius:50%;font-size:14px;
+  display:flex;align-items:center;justify-content:center;line-height:1;font-weight:800;
+}
+.slot-int{
+  flex:1 1 56px;min-width:48px;max-width:120px;height:50px;
+  position:relative;align-items:center;justify-content:center;
+}
+/* 间隔段连线（彩色） */
+.slot-int::before{
+  content:"";position:absolute;left:0;right:0;top:50%;height:8px;
+  background:var(--interval);transform:translateY(-50%);border-radius:4px;
+  opacity:.55;
+}
+.slot-int.empty-target::before{opacity:.9;animation:blink 1s infinite;}
+@keyframes blink{50%{opacity:.3;}}
+.slot-int .ifill{
+  position:relative;z-index:2;background:#fff;border:2px dashed var(--interval);
+  color:var(--primary-dark);font-weight:800;font-size:14px;
+  padding:4px 8px;border-radius:10px;min-width:42px;text-align:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.1);user-select:none;cursor:pointer;
+}
+.slot-int .ifill .emo{font-size:22px;display:block;line-height:1;}
+.slot-int .ifill:hover{transform:scale(1.05);}
+/* 主物体空落点（可放置提示） */
+.dropzone-main{
+  width:66px;height:66px;border-radius:50%;
+  border:3px dashed #adb5bd;color:#adb5bd;
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;flex:0 0 auto;
+}
+
+/* ============ 物品托盘 ============ */
+.tray{
+  display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:center;
+  padding:14px;background:#f1f3f5;border-radius:14px;
+}
+.tray .lab{width:100%;text-align:center;font-size:15px;color:var(--muted);font-weight:700;}
+.titem{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:88px;height:88px;border-radius:16px;background:#fff;
+  border:3px solid var(--primary);box-shadow:var(--shadow);
+  font-size:34px;cursor:grab;user-select:none;transition:transform .1s;
+}
+.titem:active{cursor:grabbing;transform:scale(.95);}
+.titem .cap{font-size:13px;color:var(--muted);font-weight:700;margin-top:2px;}
+.titem .val{font-size:18px;font-weight:800;color:var(--primary-dark);}
+
+/* 拖拽幽灵 */
+.drag-ghost{
+  position:fixed;z-index:9999;pointer-events:none;opacity:.9;
+  width:74px;height:74px;border-radius:16px;background:#fff;
+  border:3px solid var(--primary);box-shadow:0 8px 22px rgba(0,0,0,.25);
+  display:flex;align-items:center;justify-content:center;font-size:36px;
+  transform:translate(-50%,-50%) scale(1.05);
+}
+
+/* ============ 按钮组 ============ */
+.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px;}
+.btn{
+  padding:12px 22px;border-radius:14px;font-size:17px;font-weight:800;
+  box-shadow:0 3px 8px rgba(0,0,0,.15);transition:transform .08s;
+}
+.btn:active{transform:translateY(2px);}
+.btn-primary{background:var(--primary);color:#fff;}
+.btn-accent{background:var(--accent);color:var(--primary-dark);}
+.btn-ghost{background:#fff;color:var(--primary-dark);border:2px solid var(--primary);}
+.btn-gray{background:#868e96;color:#fff;}
+
+/* ============ 模态层（规则/难度/通关） ============ */
+.mask{
+  position:fixed;inset:0;background:rgba(0,0,0,.55);
+  display:flex;align-items:center;justify-content:center;z-index:1000;
+  padding:18px;
+}
+.modal{
+  background:#fff;border-radius:22px;padding:26px 24px;max-width:560px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow:auto;
+  animation:pop .25s ease;
+}
+@keyframes pop{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
+.modal h2{margin:0 0 10px;color:var(--primary-dark);font-size:26px;text-align:center;}
+.modal p{font-size:17px;line-height:1.7;margin:8px 0;}
+.modal .rules-list{font-size:16px;line-height:1.9;padding-left:6px;list-style:none;}
+.modal .rules-list li{margin:6px 0;}
+.diff-grid{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:16px;}
+.diff-card{
+  flex:1 1 150px;min-width:150px;max-width:200px;cursor:pointer;
+  border-radius:18px;padding:20px 12px;text-align:center;color:#fff;
+  box-shadow:var(--shadow);transition:transform .1s;font-weight:800;
+}
+.diff-card:active{transform:scale(.96);}
+.diff-card .dname{font-size:24px;}
+.diff-card .ddesc{font-size:14px;margin-top:6px;font-weight:600;opacity:.95;}
+.diff-card.d1{background:linear-gradient(135deg,#51cf66,#2f9e44);}
+.diff-card.d2{background:linear-gradient(135deg,#4dabf7,#1971c2);}
+.diff-card.d3{background:linear-gradient(135deg,#ff922b,#e8590c);}
+
+/* ============ 通关庆祝 ============ */
+.celebrate{position:fixed;inset:0;z-index:2000;pointer-events:none;overflow:hidden;}
+.confetti{
+  position:absolute;top:-20px;width:12px;height:18px;opacity:.9;
+  animation:fall linear forwards;
+}
+@keyframes fall{
+  to{transform:translateY(110vh) rotate(720deg);opacity:1;}
+}
+.celebrate .center{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;pointer-events:auto;
+}
+.celebrate .center .box{
+  background:#fff;border-radius:24px;padding:30px 36px;text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,.35);animation:pop .3s ease;max-width:440px;margin:14px;
+}
+.celebrate .center .stars{font-size:40px;letter-spacing:6px;}
+.celebrate .center h3{font-size:28px;color:var(--primary-dark);margin:8px 0;}
+.celebrate .center p{font-size:17px;color:var(--muted);}
+
+/* ============ 揭示答案面板 ============ */
+.reveal-box{
+  margin-top:12px;background:#e7f5ff;border:2px solid #4dabf7;border-radius:12px;
+  padding:14px 16px;font-size:17px;line-height:1.7;
+}
+.reveal-box b{color:#1971c2;}
+
+/* ============ 小贴士 ============ */
+.tipbar{
+  display:flex;gap:8px;align-items:center;justify-content:center;
+  font-size:14px;color:var(--muted);margin-top:10px;flex-wrap:wrap;text-align:center;
+}
+.kbd{background:#fff;border:1px solid #ced4da;border-radius:6px;padding:2px 8px;font-weight:700;}
+
+/* ============ 响应式 ============ */
+@media (max-width:600px){
+  .topbar .title{font-size:18px;}
+  .qpanel .qtext{font-size:18px;}
+  .slot-main,.dropzone-main{width:54px;height:54px;font-size:28px;}
+  .slot-int{min-width:38px;height:42px;}
+  .slot-int .ifill{font-size:12px;padding:3px 5px;min-width:34px;}
+  .slot-int .ifill .emo{font-size:18px;}
+  .titem{width:74px;height:74px;font-size:28px;}
+  .counter{min-width:96px;padding:6px 10px;}
+  .counter .num{font-size:24px;}
+  .btn{font-size:15px;padding:10px 16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶部栏 ============ -->
+<div class="topbar">
+  <div class="title">🌈 间隔探险家</div>
+  <div class="meta">
+    <span class="pill" id="pillDiff">—</span>
+    <span class="pill" id="pillQ">—</span>
+    <span class="pill" id="pillTime">⏱ 00:00</span>
+    <span class="pill" id="pillStep">👣 0 步</span>
+  </div>
+</div>
+
+<!-- ============ 主区域 ============ -->
+<div class="wrap" id="main">
+  <!-- 题目面板 -->
+  <div class="card qpanel">
+    <span class="qtag" id="qtag">题目</span>
+    <div class="qtext" id="qtext">加载中…</div>
+    <div class="qhint hidden" id="qhint"></div>
+  </div>
+
+  <!-- 计数器 + 舞台 -->
+  <div class="card">
+    <div class="counters" id="counters"></div>
+
+    <!-- 核心交互舞台 -->
+    <div class="stage" id="stage">
+      <div class="track" id="track"></div>
+    </div>
+
+    <div class="tipbar">
+      <span>提示：从下方托盘 <span class="kbd">拖动</span> 物品到轨道；点已放置的物品可 <span class="kbd">移除</span></span>
+    </div>
+  </div>
+
+  <!-- 物品托盘 -->
+  <div class="card">
+    <div class="tray" id="tray"></div>
+  </div>
+
+  <!-- 按钮组 -->
+  <div class="card">
+    <div class="btns">
+      <button class="btn btn-primary" id="btnCheck">✅ 我摆好了</button>
+      <button class="btn btn-accent" id="btnReveal">💡 揭示答案</button>
+      <button class="btn btn-ghost" id="btnRestart">🔄 重新开始</button>
+      <button class="btn btn-gray" id="btnBack">↩ 返回难度选择</button>
+      <button class="btn btn-ghost" id="btnRules">📖 规则说明</button>
+    </div>
+    <div class="reveal-box hidden" id="revealBox"></div>
+  </div>
+</div>
+
+<!-- ============ 规则说明模态 ============ -->
+<div class="mask" id="rulesMask">
+  <div class="modal">
+    <h2>📖 间隔探险家 · 规则说明</h2>
+    <p>欢迎来到 <b>间隔之谜（下）</b> 的奇妙世界！这里所有秘密都藏在「<b>间隔</b>」里。</p>
+    <ul class="rules-list">
+      <li>🌳 <b>核心规律</b>：把物体排成一排，<b>间隔数 = 物体数 − 1</b>（两端都有物体时）。</li>
+      <li>🌸 <b>种树摆花</b>：在每相邻两棵树之间的「间隔」里放花，花数 = 间隔数。</li>
+      <li>🔔 <b>敲钟计时</b>：时间用在间隔上，敲 N 下有 N−1 个间隔，总时间 = 间隔数 × 每个间隔用时。</li>
+      <li>📏 <b>测量距离</b>：总长 = 间隔数 × 每个间隔的长度。</li>
+      <li>✋ <b>玩法</b>：把物品从下方托盘 <b>拖到轨道</b> 上，间隔会自动出现；再把花/标签拖进每个间隔里。放好后点「我摆好了」。</li>
+      <li>🎯 <b>目标</b>：摆出题目要求的正确数量，让答案从你的摆法里「浮现」出来！</li>
+    </ul>
+    <p style="color:var(--muted);font-size:15px;">提示：先选一个难度开始探险吧～</p>
+    <div class="btns" style="margin-top:14px;">
+      <button class="btn btn-primary" id="btnStart">开始探险 🚀</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 难度选择模态 ============ -->
+<div class="mask hidden" id="diffMask">
+  <div class="modal">
+    <h2>🎯 选择探险难度</h2>
+    <p style="text-align:center;color:var(--muted);">每个难度会随机抽取 3 道挑战，颜色也每次不同哦！</p>
+    <div class="diff-grid">
+      <div class="diff-card d1" data-diff="beginner">
+        <div class="dname">初级</div>
+        <div class="ddesc">种树摆花<br>数清间隔</div>
+      </div>
+      <div class="diff-card d2" data-diff="intermediate">
+        <div class="dname">中级</div>
+        <div class="ddesc">敲钟计时<br>时间在间隔上</div>
+      </div>
+      <div class="diff-card d3" data-diff="advanced">
+        <div class="dname">高级</div>
+        <div class="ddesc">测量距离<br>间隔×长度</div>
+      </div>
+    </div>
+    <div class="btns" style="margin-top:16px;">
+      <button class="btn btn-ghost" id="btnRules2">📖 再看规则</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 通关庆祝层 ============ -->
+<div class="celebrate hidden" id="celebrate"></div>
+
+<script>
+/* ============================================================
+ * 间隔探险家 · 间隔之谜（下）互动游戏
+ * 核心机制：拖动构造 —— 学生通过"摆物体"亲手发现 间隔数 = 物体数 − 1
+ * 题源：第18讲 间隔之谜（下）.docx（敲钟 / 植树摆花 / 距离测量）
+ * 全部内联，无外部依赖；pointer 事件兼容鼠标与触摸。
+ * ============================================================ */
+
+/* ============ 1. 题库（按难度分池，每局随机抽取 3 道） ============ */
+// 题型说明：
+//   kind:'count'  —— 间隔里放实物（花/石狮/彩旗），答案是间隔里物品总数
+//   kind:'value'  —— 每个间隔带一个数值（秒/米），答案 = 间隔数 × 单位值
+const POOLS = {
+  // —— 初级：种树摆花，数清间隔 ——
+  beginner:[
+    {kind:'count', mainE:'🌳', mainN:'树', intE:'🌸', intN:'花', per:1, n:8,
+     q:'马路一边种了 8 棵树，每相邻两棵树之间摆 1 盆花。一共要摆几盆花？',
+     ans:'7 盆花',
+     exp:'8 棵树排成一排，两端都是树，所以间隔数 = 8 − 1 = 7 个。每个间隔摆 1 盆花，一共摆 7 盆花。'},
+    {kind:'count', mainE:'🪑', mainN:'椅子', intE:'🦁', intN:'石狮', per:1, n:6,
+     q:'公园小道一边摆了 6 把椅子，每相邻两把椅子之间放 1 头石狮。一共要放几头石狮？',
+     ans:'5 头石狮',
+     exp:'6 把椅子之间有 6 − 1 = 5 个间隔，每个间隔放 1 头石狮，一共放 5 头石狮。'},
+    {kind:'count', mainE:'🌳', mainN:'树', intE:'🌸', intN:'花', per:1, n:9,
+     q:'小路一边要种 9 棵树，每相邻两棵之间摆 1 盆花。需要准备几盆花？',
+     ans:'8 盆花',
+     exp:'9 棵树之间有 9 − 1 = 8 个间隔，每个间隔 1 盆花，一共 8 盆花。'},
+    {kind:'count', mainE:'🪧', mainN:'广告牌', intE:'🚩', intN:'彩旗', per:2, n:10,
+     q:'大桥一边从桥头到桥尾竖立着 10 块广告牌，每两块广告牌之间都有 2 面彩旗。这座桥上共有多少面彩旗？',
+     ans:'18 面彩旗',
+     exp:'10 块广告牌之间有 10 − 1 = 9 个间隔，每个间隔放 2 面彩旗，一共 9 × 2 = 18 面彩旗。'}
+  ],
+  // —— 中级：敲钟 / 木鱼，时间用在间隔上 ——
+  intermediate:[
+    {kind:'value', mainE:'🔔', mainN:'钟', val:2, unit:'秒',
+     derive:'敲 3 下 → 2 个间隔 → 4 秒，所以每个间隔 = 2 秒', n:8,
+     q:'时钟敲 3 下要 4 秒。那么敲 8 下要几秒？',
+     ans:'14 秒',
+     exp:'敲 3 下有 2 个间隔，用 4 秒，所以 1 个间隔 = 2 秒。敲 8 下有 8 − 1 = 7 个间隔，一共 7 × 2 = 14 秒。'},
+    {kind:'value', mainE:'🔔', mainN:'钟', val:2, unit:'秒',
+     derive:'敲 6 下 → 5 个间隔 → 10 秒，所以每个间隔 = 2 秒', n:10,
+     q:'时钟 6 点敲 6 下，10 秒敲完。那么 10 点敲 10 下，几秒可以敲完？',
+     ans:'18 秒',
+     exp:'敲 6 下有 5 个间隔用 10 秒，1 个间隔 = 2 秒。敲 10 下有 10 − 1 = 9 个间隔，一共 9 × 2 = 18 秒。'},
+    {kind:'value', mainE:'🪘', mainN:'木鱼', val:2, unit:'秒',
+     derive:'敲 4 下 → 3 个间隔 → 6 秒，所以每个间隔 = 2 秒', n:7,
+     q:'敲木鱼 4 下需要 6 秒，那么敲 7 下需要几秒？',
+     ans:'12 秒',
+     exp:'敲 4 下有 3 个间隔用 6 秒，1 个间隔 = 2 秒。敲 7 下有 7 − 1 = 6 个间隔，一共 6 × 2 = 12 秒。'},
+    {kind:'value', mainE:'🔔', mainN:'钟', val:2, unit:'秒',
+     derive:'敲 2 下 → 1 个间隔 → 2 秒，所以每个间隔 = 2 秒', n:7,
+     q:'时钟敲 2 下要 2 秒。那么敲 7 下要几秒？',
+     ans:'12 秒',
+     exp:'敲 2 下有 1 个间隔用 2 秒，1 个间隔 = 2 秒。敲 7 下有 7 − 1 = 6 个间隔，一共 6 × 2 = 12 秒。'}
+  ],
+  // —— 高级：测量距离，总长 = 间隔数 × 间隔长 ——
+  advanced:[
+    {kind:'value', mainE:'🌳', mainN:'树', val:10, unit:'米',
+     derive:'每个间隔长 10 米', n:9,
+     q:'马路一边从一端到另一端共种了 9 棵树，每相邻两棵相距 10 米。这条马路长多少米？',
+     ans:'80 米',
+     exp:'9 棵树之间有 9 − 1 = 8 个间隔，每个间隔 10 米，马路长 8 × 10 = 80 米。'},
+    {kind:'value', mainE:'🚩', mainN:'红旗', val:2, unit:'米',
+     derive:'每个间隔长 2 米', n:5,
+     q:'一条小道一旁插了 5 面红旗，每相邻两面红旗之间相距 2 米。这条小道长多少米？',
+     ans:'8 米',
+     exp:'5 面红旗之间有 5 − 1 = 4 个间隔，每个间隔 2 米，小道长 4 × 2 = 8 米。'},
+    {kind:'value', mainE:'🥢', mainN:'小棒', val:20, unit:'厘米',
+     derive:'每个间隔长 20 厘米', n:5,
+     q:'把小棒摆成一排，每隔 20 厘米放一根，现在放了 5 根。第一根和最后一根之间距离是多少厘米？',
+     ans:'80 厘米',
+     exp:'5 根小棒之间有 5 − 1 = 4 个间隔，每个间隔 20 厘米，距离 = 4 × 20 = 80 厘米。'},
+    {kind:'value', mainE:'🌳', mainN:'树', val:3, unit:'米',
+     derive:'每个间隔长 3 米', n:7,
+     q:'一条路的一边共种 7 棵树，每相邻两棵相距 3 米。这条路长多少米？',
+     ans:'18 米',
+     exp:'7 棵树之间有 7 − 1 = 6 个间隔，每个间隔 3 米，路长 6 × 3 = 18 米。'}
+  ]
+};
+
+/* ============ 2. 随机色板（每局随机主色） ============ */
+const PALETTES = [
+  {name:'草莓红', primary:'#ff6b6b', dark:'#c92a2a', bg1:'#fff5f5', bg2:'#ffe3e3', interval:'#ff922b'},
+  {name:'海洋蓝', primary:'#4dabf7', dark:'#1971c2', bg1:'#eef7ff', bg2:'#d0ebff', interval:'#fab005'},
+  {name:'森林绿', primary:'#51cf66', dark:'#2f9e44', bg1:'#edfff2', bg2:'#d3f9d8', interval:'#ff922b'},
+  {name:'阳光橙', primary:'#ff922b', dark:'#e8590c', bg1:'#fff4e6', bg2:'#ffe8cc', interval:'#1971c2'},
+  {name:'紫罗兰', primary:'#9775fa', dark:'#5f3dc4', bg1:'#f3f0ff', bg2:'#e5dbff', interval:'#fab005'},
+  {name:'樱桃粉', primary:'#f783ac', dark:'#c2255c', bg1:'#fff0f6', bg2:'#ffdeeb', interval:'#4dabf7'},
+  {name:'青柠绿', primary:'#94d82d', dark:'#5c940d', bg1:'#f4fce3', bg2:'#e9fac8', interval:'#fa5252'},
+  {name:'天空青', primary:'#3bc9db', dark:'#0c8599', bg1:'#e3fafc', bg2:'#c5f6fa', interval:'#f783ac'}
+];
+
+/* ============ 3. 全局状态 ============ */
+const game = {
+  palette:null,
+  difficulty:null,
+  questions:[],   // 本局抽到的题目
+  qi:0,           // 当前题号
+  q:null,         // 当前题对象
+  mains:0,        // 已放置的主物体数
+  fills:[],       // 间隔填充状态（true=已填），长度 = mains-1
+  steps:0,
+  startTime:0,
+  timerHandle:null,
+  revealed:false,
+  solved:false
+};
+let drag=null;    // 当前拖拽状态
+
+/* ============ 4. 工具函数 ============ */
+function $(id){return document.getElementById(id);}
+function shuffle(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    const t=a[i];a[i]=a[j];a[j]=t;
+  }
+  return a;
+}
+function pickN(arr,n){return shuffle(arr).slice(0,n);}
+
+/* 简易音效（Web Audio 合成，无外部依赖） */
+let audioCtx=null;
+function beep(freq,ms,type){
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type||'sine';o.frequency.value=freq;
+    g.gain.value=0.0001;o.connect(g);g.connect(audioCtx.destination);
+    const t=audioCtx.currentTime;
+    g.gain.exponentialRampToValueAtTime(0.18,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+(ms||120)/1000);
+    o.start(t);o.stop(t+(ms||120)/1000+0.02);
+  }catch(e){}
+}
+function sfxPlace(){beep(660,90,'triangle');}
+function sfxWrong(){beep(180,200,'square');}
+function sfxWin(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,160,'triangle'),i*120));}
+
+/* ============ 5. 应用主题色 ============ */
+function applyPalette(p){
+  game.palette=p;
+  const r=document.documentElement.style;
+  r.setProperty('--primary',p.primary);
+  r.setProperty('--primary-dark',p.dark);
+  r.setProperty('--bg1',p.bg1);
+  r.setProperty('--bg2',p.bg2);
+  r.setProperty('--interval',p.interval);
+}
+
+/* ============ 6. 开始一局 ============ */
+function startSession(diff){
+  game.difficulty=diff;
+  applyPalette(PALETTES[Math.floor(Math.random()*PALETTES.length)]);
+  game.questions=pickN(POOLS[diff],3);
+  game.qi=0;
+  game.steps=0;
+  game.startTime=Date.now();
+  startTimer();
+  $('diffMask').classList.add('hidden');
+  $('main').classList.remove('hidden');
+  loadQuestion();
+}
+function startTimer(){
+  stopTimer();
+  game.timerHandle=setInterval(()=>{
+    const s=Math.floor((Date.now()-game.startTime)/1000);
+    const m=String(Math.floor(s/60)).padStart(2,'0');
+    const ss=String(s%60).padStart(2,'0');
+    $('pillTime').textContent='⏱ '+m+':'+ss;
+  },500);
+}
+function stopTimer(){if(game.timerHandle){clearInterval(game.timerHandle);game.timerHandle=null;}}
+
+/* ============ 7. 加载一道题 ============ */
+function loadQuestion(){
+  const q=game.questions[game.qi];
+  game.q=q;
+  game.mains=0;
+  game.fills=[];
+  game.revealed=false;
+  game.solved=false;
+  $('revealBox').classList.add('hidden');
+  const diffName={beginner:'🌱 初级',intermediate:'🔔 中级',advanced:'📏 高级'}[game.difficulty];
+  $('pillDiff').textContent=diffName;
+  $('pillQ').textContent='第 '+(game.qi+1)+' / '+game.questions.length+' 题';
+  $('pillStep').textContent='👣 '+game.steps+' 步';
+  $('qtag').textContent=diffName.replace(' ','')+'挑战';
+  $('qtext').textContent=q.q;
+  const hint=$('qhint');
+  if(q.kind==='value'){
+    hint.textContent='小提示：'+q.derive+'。请把 '+q.mainN+' 拖到轨道上，再给每个间隔贴上「'+q.val+q.unit+'」标签。';
+  }else{
+    hint.textContent='小提示：先把 '+q.mainN+' 摆满 '+q.n+' 个，间隔会自动出现；再把 '+q.intN+' 拖进每个间隔里。';
+  }
+  hint.classList.remove('hidden');
+  hint.style.background='';hint.style.borderColor='';
+  renderAll();
+}
+
+/* ============ 8. 渲染：计数器 / 轨道 / 托盘 ============ */
+function renderAll(){renderCounters();renderTrack();renderTray();}
+
+function renderCounters(){
+  const q=game.q;
+  const c=$('counters');c.innerHTML='';
+  const intervalCount=Math.max(0,game.mains-1);
+  c.appendChild(mkCounter(q.mainN+'数',game.mains,game.mains===q.n));
+  c.appendChild(mkCounter('间隔数',intervalCount,intervalCount>0));
+  if(q.kind==='count'){
+    const filled=game.fills.filter(Boolean).length*q.per;
+    c.appendChild(mkCounter(q.intN+'数',filled,filled===intervalCount*q.per && intervalCount>0));
+  }else{
+    const tagged=game.fills.filter(Boolean).length;
+    const total=tagged*q.val;
+    c.appendChild(mkCounter('合计 '+q.unit,total,false,true));
+  }
+}
+function mkCounter(lbl,num,isOk,isTotal){
+  const d=document.createElement('div');
+  d.className='counter'+(isOk?' ok':'')+(isTotal?' total':'');
+  const n=document.createElement('div');n.className='num';n.textContent=num;
+  const l=document.createElement('div');l.className='lbl';l.textContent=lbl;
+  d.appendChild(n);d.appendChild(l);
+  return d;
+}
+
+function renderTrack(){
+  const track=$('track');track.innerHTML='';
+  const q=game.q;
+  const CAP=q.n+3; // 轨道容量略多于题目需要，允许试错
+  for(let i=0;i<CAP;i++){
+    if(i<game.mains){
+      track.appendChild(mkMainSlot(i));
+      if(i<game.mains-1){track.appendChild(mkIntSlot(i));}
+    }else{
+      const ph=document.createElement('div');
+      ph.className='dropzone-main';
+      ph.textContent='＋';
+      ph.setAttribute('data-drop','main');
+      track.appendChild(ph);
+    }
+  }
+}
+function mkMainSlot(i){
+  const q=game.q;
+  const slot=document.createElement('div');
+  slot.className='slot-main filled';
+  slot.setAttribute('data-drop','main');
+  const emo=document.createTextNode(q.mainE);
+  const del=document.createElement('span');del.className='del';del.textContent='×';
+  slot.appendChild(emo);slot.appendChild(del);
+  // 点击：移除最后一个主物体（便于纠错）
+  slot.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    removeLastMain();
+  });
+  return slot;
+}
+function mkIntSlot(i){
+  const q=game.q;
+  const wrap=document.createElement('div');
+  wrap.className='slot-int';
+  wrap.setAttribute('data-drop','interval');
+  wrap.setAttribute('data-index',String(i));
+  if(game.fills[i]){
+    const f=document.createElement('div');
+    f.className='ifill';
+    if(q.kind==='count'){
+      let s='';
+      for(let k=0;k<q.per;k++) s+=q.intE;
+      const emo=document.createElement('span');emo.className='emo';emo.textContent=s;
+      f.appendChild(emo);
+    }else{
+      const emo=document.createElement('span');emo.className='emo';emo.textContent=q.val+q.unit;
+      f.appendChild(emo);
+    }
+    f.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      game.fills[i]=false;
+      game.steps++;
+      $('pillStep').textContent='👣 '+game.steps+' 步';
+      renderAll();
+      sfxPlace();
+    });
+    wrap.appendChild(f);
+  }else{
+    wrap.classList.add('empty-target');
+  }
+  return wrap;
+}
+
+function renderTray(){
+  const q=game.q;
+  const tray=$('tray');tray.innerHTML='';
+  const lab=document.createElement('div');lab.className='lab';
+  lab.textContent='把下面的物品拖到上方轨道 👇';
+  tray.appendChild(lab);
+  tray.appendChild(mkTrayItem(q.mainE,q.mainN,'','main'));
+  if(q.kind==='count'){
+    tray.appendChild(mkTrayItem(q.intE,q.intN,'','interval'));
+  }else{
+    tray.appendChild(mkTrayItem('🏷️',q.val+q.unit,q.val+q.unit,'interval'));
+  }
+}
+function mkTrayItem(emoji,name,val,payload){
+  const it=document.createElement('div');
+  it.className='titem';
+  const e=document.createElement('div');e.style.fontSize='34px';e.textContent=emoji;
+  it.appendChild(e);
+  if(val){
+    const v=document.createElement('span');v.className='val';v.textContent=val;it.appendChild(v);
+  }else{
+    const c=document.createElement('span');c.className='cap';c.textContent=name;it.appendChild(c);
+  }
+  it.setAttribute('data-payload',payload);
+  it.addEventListener('pointerdown',(ev)=>startDrag(ev,it,payload));
+  return it;
+}
+
+/* ============ 9. 拖拽系统（pointer 事件，兼容鼠标+触摸） ============ */
+function startDrag(e,src,payload){
+  e.preventDefault();
+  const ghost=document.createElement('div');
+  ghost.className='drag-ghost';
+  const q=game.q;
+  if(payload==='main'){
+    ghost.textContent=q.mainE;
+  }else if(q.kind==='count'){
+    ghost.textContent=q.intE;
+  }else{
+    ghost.innerHTML='<span style="font-size:18px;font-weight:800;color:var(--primary-dark)">'+q.val+q.unit+'</span>';
+  }
+  ghost.style.left=e.clientX+'px';
+  ghost.style.top=e.clientY+'px';
+  document.body.appendChild(ghost);
+  drag={ghost:ghost,payload:payload};
+  document.addEventListener('pointermove',onDragMove);
+  document.addEventListener('pointerup',onDragEnd);
+  document.addEventListener('pointercancel',onDragEnd);
+}
+function onDragMove(e){
+  if(!drag)return;
+  drag.ghost.style.left=e.clientX+'px';
+  drag.ghost.style.top=e.clientY+'px';
+  const zone=zoneAt(e.clientX,e.clientY);
+  document.querySelectorAll('.stage.over,.slot-main.over,.slot-int.over').forEach((el)=>el.classList.remove('over'));
+  if(zone) zone.classList.add('over');
+}
+function zoneAt(x,y){
+  const el=document.elementFromPoint(x,y);
+  if(!el)return null;
+  return el.closest('[data-drop]');
+}
+function onDragEnd(e){
+  if(!drag)return;
+  const zone=zoneAt(e.clientX,e.clientY);
+  if(zone){handleDrop(zone,drag.payload);}
+  drag.ghost.remove();
+  drag=null;
+  document.removeEventListener('pointermove',onDragMove);
+  document.removeEventListener('pointerup',onDragEnd);
+  document.removeEventListener('pointercancel',onDragEnd);
+  document.querySelectorAll('.over').forEach((el)=>el.classList.remove('over'));
+}
+
+/* ============ 10. 放置 / 移除 物体 ============ */
+function handleDrop(zone,payload){
+  const type=zone.getAttribute('data-drop');
+  if(payload==='main' && type==='main'){addMain();}
+  else if(payload==='interval' && type==='interval'){
+    const idx=parseInt(zone.getAttribute('data-index'),10);
+    fillInterval(idx);
+  }
+}
+function addMain(){
+  const q=game.q;
+  if(game.mains>=q.n+3){sfxWrong();return;}
+  game.mains++;
+  while(game.fills.length<Math.max(0,game.mains-1)) game.fills.push(false);
+  game.steps++;
+  $('pillStep').textContent='👣 '+game.steps+' 步';
+  sfxPlace();
+  renderAll();
+}
+function removeLastMain(){
+  if(game.mains<=0)return;
+  game.mains--;
+  game.fills.length=Math.max(0,game.mains-1);
+  game.steps++;
+  $('pillStep').textContent='👣 '+game.steps+' 步';
+  sfxPlace();
+  renderAll();
+}
+function fillInterval(i){
+  if(i>=game.fills.length){sfxWrong();return;}
+  if(game.fills[i])return;
+  game.fills[i]=true;
+  game.steps++;
+  $('pillStep').textContent='👣 '+game.steps+' 步';
+  sfxPlace();
+  renderAll();
+}
+
+/* ============ 11. 胜负判定 ============ */
+function checkSolved(){
+  const q=game.q;
+  if(game.mains!==q.n)return false;
+  const need=Math.max(0,q.n-1);
+  if(game.fills.length<need)return false;
+  for(let i=0;i<need;i++){if(!game.fills[i])return false;}
+  return true;
+}
+function onCheck(){
+  if(game.solved)return;
+  if(checkSolved()){
+    game.solved=true;
+    sfxWin();
+    showCelebration();
+  }else{
+    sfxWrong();
+    flashHint();
+  }
+}
+function flashHint(){
+  const q=game.q;
+  let msg='';
+  if(game.mains<q.n) msg='还要再放 '+q.mainN+' 哦，目标是 '+q.n+' 个。';
+  else if(game.mains>q.n) msg=q.mainN+' 放多了 '+(game.mains-q.n)+' 个，点一下多余的可以移除。';
+  else{
+    const need=Math.max(0,q.n-1);
+    const done=game.fills.filter(Boolean).length;
+    msg='间隔还没填完，已填 '+done+' / '+need+' 个。';
+  }
+  const hint=$('qhint');
+  hint.textContent='👆 '+msg;
+  hint.style.background='#ffe3e3';hint.style.borderColor='#ff6b6b';
+  setTimeout(()=>{
+    hint.style.background='';hint.style.borderColor='';
+    if(game.q.kind==='value'){
+      hint.textContent='小提示：'+game.q.derive+'。请把 '+game.q.mainN+' 拖到轨道上，再给每个间隔贴上「'+game.q.val+game.q.unit+'」标签。';
+    }else{
+      hint.textContent='小提示：先把 '+game.q.mainN+' 摆满 '+game.q.n+' 个，间隔会自动出现；再把 '+game.q.intN+' 拖进每个间隔里。';
+    }
+  },1800);
+}
+
+/* ============ 12. 通关庆祝 ============ */
+function showCelebration(){
+  const q=game.q;
+  const cel=$('celebrate');
+  cel.classList.remove('hidden');
+  cel.innerHTML='';
+  const colors=[game.palette.primary,game.palette.interval,'#51cf66','#4dabf7','#f783ac'];
+  for(let i=0;i<90;i++){
+    const c=document.createElement('div');
+    c.className='confetti';
+    c.style.left=(Math.random()*100)+'%';
+    c.style.background=colors[Math.floor(Math.random()*colors.length)];
+    c.style.animationDuration=(2+Math.random()*2)+'s';
+    c.style.animationDelay=(Math.random()*0.8)+'s';
+    c.style.width=(8+Math.random()*8)+'px';
+    c.style.height=(12+Math.random()*10)+'px';
+    c.style.transform='rotate('+(Math.random()*360)+'deg)';
+    cel.appendChild(c);
+  }
+  const isLast=game.qi>=game.questions.length-1;
+  const center=document.createElement('div');
+  center.className='center';
+  const stars='⭐'.repeat(isLast?5:3);
+  const box=document.createElement('div');box.className='box';
+  const s=document.createElement('div');s.className='stars';s.textContent=stars;box.appendChild(s);
+  const h=document.createElement('h3');h.textContent=isLast?'🎉 全部通关！太棒了！':'✨ 摆对了！答案浮现啦';box.appendChild(h);
+  const p1=document.createElement('p');
+  p1.innerHTML='这一题的答案是：<b style="color:var(--primary-dark);font-size:24px;">'+q.ans+'</b>';
+  box.appendChild(p1);
+  const p2=document.createElement('p');p2.style.fontSize='15px';
+  const expBox=document.createElement('span');expBox.style.maxWidth='380px';expBox.style.display='inline-block';
+  expBox.textContent=q.exp;p2.appendChild(expBox);box.appendChild(p2);
+  const btns=document.createElement('div');btns.className='btns';btns.style.marginTop='12px';
+  if(isLast){
+    const b1=document.createElement('button');b1.className='btn btn-primary';b1.textContent='🔁 再玩一局';
+    b1.addEventListener('click',()=>{clearCelebrate();startSession(game.difficulty);});
+    const b2=document.createElement('button');b2.className='btn btn-ghost';b2.textContent='🏠 返回难度选择';
+    b2.addEventListener('click',()=>{clearCelebrate();goDiff();});
+    btns.appendChild(b1);btns.appendChild(b2);
+  }else{
+    const b1=document.createElement('button');b1.className='btn btn-primary';b1.textContent='➡ 下一题';
+    b1.addEventListener('click',()=>{clearCelebrate();game.qi++;loadQuestion();});
+    btns.appendChild(b1);
+  }
+  box.appendChild(btns);
+  center.appendChild(box);
+  cel.appendChild(center);
+}
+function clearCelebrate(){
+  const cel=$('celebrate');
+  cel.classList.add('hidden');cel.innerHTML='';
+}
+
+/* ============ 13. 按钮动作 ============ */
+function revealAnswer(){
+  const q=game.q;
+  game.revealed=true;
+  const box=$('revealBox');
+  box.classList.remove('hidden');
+  const ans=document.createElement('b');ans.textContent='答案：'+q.ans;
+  box.innerHTML='';
+  box.appendChild(ans);
+  box.appendChild(document.createElement('br'));
+  const exp=document.createElement('b');exp.textContent='解析：';
+  box.appendChild(exp);
+  box.appendChild(document.createTextNode(q.exp));
+}
+function restart(){
+  game.steps=0;game.startTime=Date.now();startTimer();
+  loadQuestion();
+}
+function goDiff(){
+  stopTimer();
+  clearCelebrate();
+  $('main').classList.add('hidden');
+  $('diffMask').classList.remove('hidden');
+}
+function showRules(){$('rulesMask').classList.remove('hidden');}
+
+/* ============ 14. 初始化与事件绑定 ============ */
+function init(){
+  $('btnStart').addEventListener('click',()=>$('rulesMask').classList.add('hidden'));
+  document.querySelectorAll('.diff-card').forEach((c)=>{
+    c.addEventListener('click',()=>startSession(c.getAttribute('data-diff')));
+  });
+  $('btnRules2').addEventListener('click',showRules);
+  $('btnCheck').addEventListener('click',onCheck);
+  $('btnReveal').addEventListener('click',revealAnswer);
+  $('btnRestart').addEventListener('click',restart);
+  $('btnBack').addEventListener('click',goDiff);
+  $('btnRules').addEventListener('click',showRules);
+  $('rulesMask').classList.remove('hidden');
+  $('main').classList.add('hidden');
+  // 拖拽时阻止页面滚动（移动端）
+  document.addEventListener('touchmove',(e)=>{if(drag)e.preventDefault();},{passive:false});
+}
+init();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1b/g036", "name": "\u95f4\u9694\u63a2\u9669\u5bb6 \u00b7 \u95f4\u9694\u4e4b\u8c1c\uff08\u4e0b\uff09", "file": "g036.html", "jiaocan": "\u301036\u3011\u7b2c18\u8bb2 \u95f4\u9694\u4e4b\u8c1c\uff08\u4e0b\uff09", "unit": "\u7b2c18\u8bb2", "grade": "1\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>巧手分图工坊 · 图形分割大冒险</title>
+<style>
+/* ============================================================
+   巧手分图工坊 —— 图形分割互动游戏
+   核心玩法：用"涂色法"把网格图形分成形状、大小相同的若干块
+   对应教参方法：①定大小（数格子做除法） ②定形状（涂色分块）
+   全部样式内联，零外部依赖，适合课堂投影与触屏操作
+   ============================================================ */
+
+/* ---------- 全局变量与基础重置 ---------- */
+:root{
+  --c1:#ff6b6b; --c2:#4ecdc4; --c3:#ffe66d; --c4:#95e1d3; --c5:#c9a3f5; /* 由JS随机覆盖 */
+  --ink:#2b2d42;            /* 主文字色 */
+  --paper:#fffdf7;          /* 纸张背景 */
+  --line:#3a3a3a;           /* 网格线 */
+  --panel:#ffffff;          /* 面板 */
+  --shadow:0 6px 22px rgba(43,45,66,.16);
+  --radius:18px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0; height:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC","Noto Sans CJK SC",sans-serif;
+  background:linear-gradient(160deg,#e0f7fa,#fce4ec 55%,#fff8e1);
+  color:var(--ink);
+  min-height:100%;
+  overflow-x:hidden;
+  user-select:none;
+}
+
+/* ---------- 顶栏：标题 / 计时 / 步数 ---------- */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:10px; flex-wrap:wrap;
+  padding:12px 18px;
+  background:linear-gradient(90deg,#6a5acd,#8e6fd6);
+  color:#fff;
+  box-shadow:0 3px 12px rgba(106,90,205,.35);
+  position:sticky; top:0; z-index:20;
+}
+.topbar .brand{display:flex; align-items:center; gap:10px; font-weight:800; font-size:1.25rem;}
+.topbar .brand .logo{
+  width:38px; height:38px; border-radius:11px;
+  background:conic-gradient(from 45deg,var(--c1),var(--c3),var(--c2),var(--c4),var(--c1));
+  display:grid; place-items:center; font-size:1.2rem; color:#fff;
+  box-shadow:inset 0 0 0 3px rgba(255,255,255,.6);
+}
+.topbar .meters{display:flex; gap:10px; flex-wrap:wrap;}
+.meter{
+  background:rgba(255,255,255,.18);
+  border:2px solid rgba(255,255,255,.45);
+  border-radius:12px; padding:6px 14px; font-weight:700;
+  display:flex; align-items:center; gap:6px; font-size:1rem;
+}
+.meter small{font-weight:500; opacity:.85;}
+
+/* ---------- 通用按钮 ---------- */
+.btn{
+  font:inherit; font-weight:800; cursor:pointer;
+  border:none; border-radius:14px; padding:12px 20px;
+  background:var(--c3); color:var(--ink);
+  box-shadow:0 4px 0 #c9aa3f, 0 6px 14px rgba(0,0,0,.12);
+  transition:transform .08s, box-shadow .08s;
+}
+.btn:active{transform:translateY(3px); box-shadow:0 1px 0 #c9aa3f;}
+.btn.ghost{background:#fff; color:var(--ink); box-shadow:0 4px 0 #d9d2c2;}
+.btn.warm{background:var(--c1); color:#fff; box-shadow:0 4px 0 #b54848;}
+.btn.cool{background:var(--c2); color:#064a4a; box-shadow:0 4px 0 #2c9a93;}
+.btn.big{font-size:1.4rem; padding:18px 34px; border-radius:18px;}
+
+/* ---------- 难度选择界面 ---------- */
+.screen{display:none; padding:18px;}
+.screen.active{display:block;}
+.menu-wrap{max-width:760px; margin:0 auto; padding:10px;}
+.menu-title{text-align:center; margin:14px 0 6px;}
+.menu-title h1{font-size:2rem; margin:0; letter-spacing:2px;}
+.menu-title p{font-size:1.05rem; color:#5a5a6a; margin:6px 0 0;}
+.diff-grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:18px; margin:26px 0 10px;
+}
+.diff-card{
+  border-radius:22px; padding:26px 18px; text-align:center; cursor:pointer;
+  color:#fff; box-shadow:var(--shadow); border:4px solid rgba(255,255,255,.6);
+  transition:transform .12s;
+}
+.diff-card:hover{transform:translateY(-5px) scale(1.02);}
+.diff-card .badge{font-size:2.4rem; line-height:1;}
+.diff-card h2{margin:8px 0 4px; font-size:1.5rem;}
+.diff-card p{margin:0; opacity:.92; font-size:.95rem;}
+.diff-card.d1{background:linear-gradient(150deg,#43cea2,#185a9d);}
+.diff-card.d2{background:linear-gradient(150deg,#f7971e,#ffd200); color:#5a3a00;}
+.diff-card.d3{background:linear-gradient(150deg,#e96443,#904e95);}
+.howto{
+  margin:18px auto; max-width:680px; background:var(--panel);
+  border-radius:var(--radius); padding:18px 22px; box-shadow:var(--shadow);
+  border-left:10px solid var(--c2);
+}
+.howto h3{margin:0 0 8px;}
+.howto ol{margin:0; padding-left:22px; line-height:1.9;}
+.howto li b{color:#6a5acd;}
+
+/* ---------- 游戏界面布局 ---------- */
+.game-layout{
+  display:grid; grid-template-columns:minmax(0,1fr) 320px;
+  gap:18px; max-width:1180px; margin:0 auto; align-items:start;
+}
+@media (max-width:860px){
+  .game-layout{grid-template-columns:1fr;}
+}
+.stage{
+  background:var(--panel); border-radius:var(--radius);
+  padding:16px; box-shadow:var(--shadow);
+}
+.stage-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.stage-head .ptitle{font-size:1.3rem; font-weight:800;}
+.stage-head .ptitle .lv{background:var(--c5); color:#fff; border-radius:8px; padding:2px 10px; font-size:.9rem; margin-right:8px;}
+.stage-head .goal{font-size:.95rem; color:#555; max-width:60%;}
+
+/* 网格画布 */
+.board-wrap{
+  display:flex; justify-content:center; align-items:center;
+  padding:14px 4px;
+}
+.board{
+  display:grid; gap:0;
+  background:var(--line);
+  padding:4px; border-radius:12px;
+  touch-action:none; /* 禁止触摸滚动，保证涂色流畅 */
+  box-shadow:inset 0 0 0 3px #2b2d42;
+}
+.cell{
+  width:var(--cs,64px); height:var(--cs,64px);
+  background:#fbfbfb;
+  display:grid; place-items:center;
+  position:relative;
+  border:2px solid #d8d4cc;
+  cursor:pointer;
+  transition:background .05s;
+}
+.cell.hole{visibility:hidden; background:transparent !important; border:none; pointer-events:none;}
+.cell .el{
+  font-size:calc(var(--cs,64px) * .5);
+  font-weight:900;
+  text-shadow:0 0 3px #fff,0 0 3px #fff,1px 1px 0 #fff;
+  z-index:2; pointer-events:none; line-height:1;
+}
+.el.star{color:#f1c40f;}
+.el.orb{color:#16a085;}
+.el.gem{color:#8e44ad;}
+.el.mini{color:#27ae60; font-size:calc(var(--cs,64px) * .42);}
+/* 涂色后单元格 */
+.cell.g1{background:var(--c1);} .cell.g2{background:var(--c2);}
+.cell.g3{background:var(--c3);} .cell.g4{background:var(--c4);} .cell.g5{background:var(--c5);}
+.cell.g1 .el,.cell.g2 .el,.cell.g3 .el,.cell.g4 .el,.cell.g5 .el{
+  text-shadow:0 0 3px rgba(0,0,0,.25),1px 1px 0 #fff;
+}
+
+/* ---------- 右侧工具面板 ---------- */
+.side{
+  background:var(--panel); border-radius:var(--radius);
+  padding:16px; box-shadow:var(--shadow);
+  display:flex; flex-direction:column; gap:14px;
+}
+.side h3{margin:0; font-size:1.05rem; border-bottom:3px solid var(--c3); padding-bottom:6px;}
+.palette{display:flex; gap:10px; flex-wrap:wrap;}
+.swatch{
+  width:54px; height:54px; border-radius:14px; cursor:pointer;
+  border:4px solid #fff; box-shadow:0 0 0 2px #ccc, 0 4px 10px rgba(0,0,0,.12);
+  display:grid; place-items:center; font-weight:900; color:#fff; font-size:1.1rem;
+  text-shadow:0 1px 2px rgba(0,0,0,.3);
+  transition:transform .1s;
+}
+.swatch.active{transform:translateY(-4px) scale(1.08); box-shadow:0 0 0 4px var(--ink),0 6px 14px rgba(0,0,0,.2);}
+.swatch.eraser{background:repeating-linear-gradient(45deg,#fff,#fff 6px,#ddd 6px,#ddd 12px); color:#666;}
+.toolrow{display:flex; gap:8px; flex-wrap:wrap;}
+.toolrow .btn{flex:1; min-width:90px; padding:10px 8px; font-size:.95rem;}
+.stats{font-size:.95rem; line-height:1.8;}
+.stats .row{display:flex; justify-content:space-between; border-bottom:1px dashed #e0d8c8; padding:2px 0;}
+.stats .row b{color:#6a5acd;}
+.msg{
+  min-height:46px; border-radius:12px; padding:10px 12px; font-weight:700;
+  background:#f3f0ff; color:#5a4a9a; border:2px dashed #c9bbf5;
+}
+.msg.good{background:#e3fdee; color:#1a7a45; border-color:#7be3a8;}
+.msg.bad{background:#ffeaea; color:#b23b3b; border-color:#f3a0a0;}
+
+/* 周长附加挑战（滑块，真交互） */
+.bonus{display:none; background:#fff7e0; border-radius:14px; padding:14px; border:2px solid #ffd166;}
+.bonus.show{display:block;}
+.bonus .q{font-weight:800; margin-bottom:8px;}
+.bonus input[type=range]{width:100%; accent-color:#6a5acd;}
+.bonus .val{font-size:1.6rem; font-weight:900; color:#6a5acd; text-align:center;}
+.bonus .res{font-weight:700; text-align:center; min-height:22px;}
+
+/* ---------- 规则弹层 ---------- */
+.modal{
+  position:fixed; inset:0; background:rgba(30,20,60,.55);
+  display:none; place-items:center; z-index:50; padding:16px;
+}
+.modal.show{display:grid;}
+.modal .card{
+  background:var(--panel); border-radius:20px; padding:24px 26px;
+  max-width:560px; width:100%; box-shadow:var(--shadow);
+  max-height:86vh; overflow:auto;
+}
+.modal h2{margin:0 0 10px; color:#6a5acd;}
+.modal p,.modal li{line-height:1.85; font-size:1rem;}
+.modal ul{padding-left:22px;}
+.modal .ex{
+  display:inline-block; width:26px; height:26px; border-radius:7px;
+  vertical-align:middle; margin:0 3px; border:2px solid #fff; box-shadow:0 0 0 1px #ccc;
+}
+.modal .foot{margin-top:14px; text-align:right;}
+
+/* ---------- 通关庆祝 ---------- */
+.celebrate{position:fixed; inset:0; display:none; place-items:center; z-index:60; background:rgba(10,5,30,.5);}
+.celebrate.show{display:grid;}
+.celebrate .panel{
+  background:linear-gradient(160deg,#fff,#fff0f6);
+  border-radius:24px; padding:30px 36px; text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,.3);
+  border:6px solid #ffd166; animation:pop .4s ease;
+}
+@keyframes pop{0%{transform:scale(.6); opacity:0;} 100%{transform:scale(1); opacity:1;}}
+.celebrate h2{font-size:2rem; margin:0 0 6px; color:#6a5acd;}
+.celebrate .stars{font-size:2.4rem; letter-spacing:6px;}
+.celebrate p{margin:8px 0 16px; color:#555;}
+.confetti{position:fixed; top:-20px; width:12px; height:18px; z-index:59; pointer-events:none; opacity:0;}
+@keyframes fall{
+  0%{transform:translateY(-30px) rotate(0); opacity:1;}
+  100%{transform:translateY(105vh) rotate(720deg); opacity:.9;}
+}
+
+/* 通关后分块高亮发光 */
+.cell.win{animation:glow 1s ease infinite alternate;}
+@keyframes glow{from{filter:brightness(1);} to{filter:brightness(1.18) drop-shadow(0 0 6px rgba(255,255,255,.8));}}
+
+footer{display:block;}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">▦</div>
+    <span>巧手分图工坊</span>
+  </div>
+  <div class="meters">
+    <div class="meter">⏱ <span id="timer">00:00</span></div>
+    <div class="meter">👆 <small>步数</small> <span id="steps">0</span></div>
+    <button class="btn ghost" id="btnRulesTop" style="padding:8px 14px;font-size:.95rem;">📖 规则</button>
+  </div>
+</header>
+
+<!-- ============ 难度选择界面 ============ -->
+<section class="screen active" id="screenMenu">
+  <div class="menu-wrap">
+    <div class="menu-title">
+      <h1>▦ 图形分割大冒险 ▦</h1>
+      <p>用"涂色法"把图形分成形状、大小相同的几块，动手想一想、画一画！</p>
+    </div>
+
+    <div class="diff-grid">
+      <div class="diff-card d1" data-diff="beginner">
+        <div class="badge">🌟</div>
+        <h2>初级 · 智慧之门</h2>
+        <p>简单的方格图形，分成 4 块，先来热热身</p>
+      </div>
+      <div class="diff-card d2" data-diff="intermediate">
+        <div class="badge">💎</div>
+        <h2>中级 · 宝藏花园</h2>
+        <p>图形里藏着星星和宝石，每块都要守护好它们</p>
+      </div>
+      <div class="diff-card d3" data-diff="advanced">
+        <div class="badge">🏆</div>
+        <h2>高级 · 勇者试炼</h2>
+        <p>不规则图形、更多份数，还有周长附加挑战</p>
+      </div>
+    </div>
+
+    <div class="howto">
+      <h3>🎮 怎么玩（图形分割小秘诀）</h3>
+      <ol>
+        <li><b>第一步 定大小</b>：先数一数图形一共有多少格，再除以要分的块数，就知道每块该有<b>几格</b>啦！</li>
+        <li><b>第二步 定形状</b>：选一种颜色，在格子里<b>点一下或拖一拖</b>涂上颜色，凑出形状相同的小图形。</li>
+        <li><b>第三步 检查</b>：每块格子数一样多、形状能重合、特殊宝贝分配均匀，就能点亮通关！</li>
+        <li>左侧选颜色，右侧"橡皮擦"可以擦掉重涂，点"检查答案"看看分得对不对。</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 游戏界面 ============ -->
+<section class="screen" id="screenGame">
+  <div class="game-layout">
+    <!-- 左：网格舞台 -->
+    <div class="stage">
+      <div class="stage-head">
+        <div class="ptitle"><span class="lv" id="lvBadge">初级</span><span id="puzzleName">智慧之门</span></div>
+        <div class="goal" id="puzzleGoal">把图形分成形状、大小相同的 4 块</div>
+      </div>
+      <div class="board-wrap">
+        <div class="board" id="board"></div>
+      </div>
+    </div>
+
+    <!-- 右：工具面板 -->
+    <aside class="side">
+      <div>
+        <h3>🎨 颜料盘</h3>
+        <div class="palette" id="palette"></div>
+      </div>
+      <div class="toolrow">
+        <button class="btn cool" id="btnCheck">✅ 检查答案</button>
+        <button class="btn ghost" id="btnReveal">💡 揭示答案</button>
+      </div>
+      <div class="toolrow">
+        <button class="btn ghost" id="btnReset">🔄 重新开始</button>
+        <button class="btn warm" id="btnBack">↩ 返回选择</button>
+      </div>
+      <button class="btn cool" id="btnNextSide" style="display:none;font-size:1.1rem;">➡ 进入下一关</button>
+
+      <div class="stats" id="stats"></div>
+      <div class="msg" id="msg">选一种颜色，在格子里涂一涂，开始分割吧！</div>
+
+      <!-- 周长附加挑战 -->
+      <div class="bonus" id="bonus">
+        <div class="q" id="bonusQ">附加挑战：每个小图形的周长是多少厘米？</div>
+        <input type="range" id="bonusRange" min="2" max="24" value="2">
+        <div class="val"><span id="bonusVal">2</span> 厘米</div>
+        <div class="res" id="bonusRes"></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ 规则弹层 ============ -->
+<div class="modal" id="modalRules">
+  <div class="card">
+    <h2>📖 游戏规则与图形分割小课堂</h2>
+    <p><b>目标：</b>把网格图形分成<b>形状、大小完全相同</b>的几块。</p>
+    <ul>
+      <li><b>涂色操作</b>：在右侧颜料盘选一种颜色，到格子上<b>点一下</b>或<b>按住拖动</b>，就能把格子涂成这种颜色，代表它属于同一块。</li>
+      <li><b>橡皮擦</b>：选"橡皮擦"再点格子，可以擦掉颜色重新涂。</li>
+      <li><b>检查答案</b>：涂完后点"检查答案"，游戏会帮你判断每块格子数、形状、连通和宝贝分配是否都正确。</li>
+      <li><b>三步秘诀</b>：① 数格子做除法，算出每块几格 → ② 涂色凑出相同形状 → ③ 检查特殊标记是否分均匀。</li>
+      <li>颜色只是用来分组，颜色顺序不影响对错；能旋转或翻转后重合的形状都算"形状相同"。</li>
+    </ul>
+    <div class="foot"><button class="btn cool" onclick="closeRules()">明白啦，开始！</button></div>
+  </div>
+</div>
+
+<!-- ============ 通关庆祝 ============ -->
+<div class="celebrate" id="celebrate">
+  <div class="panel">
+    <div class="stars">⭐⭐⭐</div>
+    <h2 id="celeTitle">太棒了，通关啦！</h2>
+    <p id="celeText">你成功分出了形状、大小相同的图形！</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn cool" id="btnNext">➡ 下一关</button>
+      <button class="btn warm" id="btnDoneHome">🏠 返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   数据层：9 道谜题（初级/中级/高级各 3 道）
+   每道谜题均经过手工验证存在合法分割。
+   solution 字段为"其中一种"合法答案，用于"揭示答案"。
+   游戏的实时校验接受任意合法分割（形状在旋转/翻折后重合即可）。
+   ============================================================ */
+
+// 元素类型字典：符号 + 颜色类 + 中文名
+const ELEMENTS = {
+  star:{cls:'star', sym:'★', name:'星星'},
+  orb :{cls:'orb',  sym:'●', name:'珠子'},
+  gem :{cls:'gem',  sym:'◆', name:'宝石'},
+  mini:{cls:'mini', sym:'◇', name:'小宝石'}
+};
+
+// 谜题数据。holes:缺失格；elements:{'r,c':类型}；parts:块数；req:每块需要各类元素的数量；solution:分组号二维数组(0=洞)
+const PUZZLES = {
+  beginner:[
+    { name:'智慧之门', rows:4, cols:4, holes:[], elements:{}, parts:4, req:{},
+      goal:'把 4×4 共 16 格分成形状、大小相同的 4 块（每块 4 格）',
+      solution:[[1,1,2,2],[1,1,2,2],[3,3,4,4],[3,3,4,4]] },
+    { name:'彩虹长桥', rows:2, cols:6, holes:[], elements:{}, parts:4, req:{},
+      goal:'把 2×6 共 12 格分成形状、大小相同的 4 块（每块 3 格）',
+      solution:[[1,1,1,2,2,2],[3,3,3,4,4,4]] },
+    { name:'星空拼图', rows:3, cols:4, holes:[], elements:{}, parts:4, req:{},
+      goal:'把 3×4 共 12 格分成形状、大小相同的 4 块（每块 3 格，可尝试 L 形）',
+      solution:[[1,1,2,2],[1,3,4,2],[3,3,4,4]] }
+  ],
+  intermediate:[
+    { name:'星光宝藏', rows:4, cols:4, holes:[],
+      elements:{'0,0':'star','1,3':'star','2,0':'star','3,3':'star',
+                '0,2':'orb','1,1':'orb','2,2':'orb','3,1':'orb'},
+      parts:4, req:{star:1,orb:1},
+      goal:'分成 4 块，每块 4 格，且每块都要有 1 颗★星星和 1 颗●珠子',
+      solution:[[1,1,2,2],[1,1,2,2],[3,3,4,4],[3,3,4,4]] },
+    { name:'四方宝石', rows:4, cols:4, holes:[],
+      elements:{'0,0':'gem','0,3':'gem','3,0':'gem','3,3':'gem'},
+      parts:4, req:{gem:1},
+      goal:'分成 4 块，每块 4 格，且每块都要有 1 颗◆宝石',
+      solution:[[1,1,2,2],[1,1,2,2],[3,3,4,4],[3,3,4,4]] },
+    { name:'花园守护', rows:4, cols:4, holes:[],
+      elements:{'0,0':'gem','1,3':'gem','2,0':'gem','3,3':'gem',
+                '0,2':'mini','1,1':'mini','2,2':'mini','3,1':'mini'},
+      parts:4, req:{gem:1,mini:1},
+      goal:'分成 4 块，每块 4 格，且每块都要有 1 颗◆大宝石和 1 颗◇小宝石',
+      solution:[[1,1,2,2],[1,1,2,2],[3,3,4,4],[3,3,4,4]] }
+  ],
+  advanced:[
+    { name:'勇者试炼', rows:4, cols:4, holes:[[3,3]], elements:{}, parts:5, req:{},
+      goal:'缺一角的图形共 15 格，分成形状、大小相同的 5 块（每块 3 格）',
+      bonus:{q:'附加挑战：分割后每个小图形的周长是多少厘米？（小格边长 1 厘米）', answer:8},
+      solution:[[1,2,2,2],[1,3,3,3],[1,4,4,4],[5,5,5,0]] },
+    { name:'秘境拼图', rows:4, cols:6, holes:[], elements:{}, parts:4, req:{},
+      goal:'把 4×6 共 24 格分成形状、大小相同的 4 块（每块 6 格）',
+      solution:[[1,1,1,2,2,2],[1,1,1,2,2,2],[3,3,3,4,4,4],[3,3,3,4,4,4]] },
+    { name:'彩虹秘境', rows:4, cols:5, holes:[],
+      elements:{'0,0':'star','1,2':'star','2,4':'star','3,1':'star'},
+      parts:4, req:{star:1},
+      goal:'把 4×5 共 20 格分成形状、大小相同的 4 块（每块 5 格），且每块都要有 1 颗★星星',
+      solution:[[1,1,1,1,1],[2,2,2,2,2],[3,3,3,3,3],[4,4,4,4,4]] }
+  ]
+};
+
+// 色板池：每局随机选一组，保证多次游玩不腻
+const PALETTES = [
+  ['#ff6b6b','#4ecdc4','#ffe66d','#95e1d3','#c9a3f5'], // 彩虹
+  ['#f72585','#7209b7','#4cc9f0','#4361ee','#ffd166'], // 霓虹
+  ['#06d6a0','#118ab2','#ffd166','#ef476f','#8338ec'], // 海洋
+  ['#386641','#bc4749','#f2e8cf','#a7c957','#6a994e'], // 森林
+  ['#ff85a1','#a06cd5','#ffc6a7','#5d9cec','#26c281']  // 糖果
+];
+
+/* ============================================================
+   状态层
+   ============================================================ */
+const state = {
+  diff:null,           // 当前难度
+  queue:[],            // 本局打乱后的谜题顺序（下标）
+  qi:0,                // 当前谜题在 queue 中的序号
+  puzzle:null,         // 当前谜题对象
+  grid:null,           // 二维格子状态 {hole,el,color}
+  curColor:1,          // 当前选中的颜色(1..N) 或 -1 表示橡皮擦
+  parts:4,
+  steps:0,
+  seconds:0,
+  timerId:null,
+  solved:false
+};
+
+/* DOM 引用 */
+const $ = id => document.getElementById(id);
+const boardEl=$('board'), paletteEl=$('palette'), statsEl=$('stats'), msgEl=$('msg');
+
+/* ============================================================
+   工具函数：连通性 / 形状规范化 / 朝向
+   ============================================================ */
+
+// 取出某种颜色(分组)的全部格子坐标 [[r,c],...]
+function groupCells(grid, color){
+  const out=[];
+  for(let r=0;r<grid.length;r++)
+    for(let c=0;c<grid[0].length;c++)
+      if(grid[r][c].color===color) out.push([r,c]);
+  return out;
+}
+
+// 连通性检查：四邻域 BFS
+function isConnected(cells){
+  if(cells.length===0) return false;
+  const set=new Set(cells.map(p=>p[0]+','+p[1]));
+  const seen=new Set([cells[0].join(',')]);
+  const q=[cells[0]];
+  while(q.length){
+    const [r,c]=q.shift();
+    for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){
+      const k=(r+dr)+','+(c+dc);
+      if(set.has(k)&&!seen.has(k)){ seen.add(k); q.push([r+dr,c+dc]); }
+    }
+  }
+  return seen.size===cells.length;
+}
+
+// 平移到原点后排序，得到规范化字符串
+function normalize(cells){
+  const minR=Math.min(...cells.map(p=>p[0]));
+  const minC=Math.min(...cells.map(p=>p[1]));
+  return cells.map(([r,c])=>[r-minR,c-minC])
+    .sort((a,b)=>a[0]-b[0]||a[1]-b[1])
+    .map(p=>p[0]+','+p[1]).join(';');
+}
+
+// 生成一个形状的全部 8 种朝向（4 次旋转 × 2 翻折）的规范化字符串集合
+function orientations(cells){
+  const res=new Set();
+  let cur=cells.map(p=>p.slice());
+  for(let i=0;i<4;i++){
+    res.add(normalize(cur));
+    res.add(normalize(cur.map(([r,c])=>[r,-c]))); // 左右翻折
+    cur=cur.map(([r,c])=>[c,-r]);                 // 顺时针旋转 90°
+  }
+  return res;
+}
+
+// 判断两组格子是否形状相同（允许旋转、翻折、平移）
+function sameShape(a,b){
+  const oa=orientations(a), ob=orientations(b);
+  for(const s of oa) if(ob.has(s)) return true;
+  return false;
+}
+
+/* ============================================================
+   渲染层
+   ============================================================ */
+
+// 应用随机色板
+function applyPalette(){
+  const p=PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  const root=document.documentElement;
+  for(let i=0;i<5;i++){ root.style.setProperty('--c'+(i+1), p[i]); }
+}
+
+// 构建网格
+function buildBoard(){
+  const pz=state.puzzle;
+  state.grid=[];
+  boardEl.innerHTML='';
+  // 自适应格子大小：根据列数与视口宽度
+  const maxW=Math.min(window.innerWidth-80, 640);
+  const maxH=window.innerHeight-260;
+  const cs=Math.max(38, Math.min(78, Math.floor(Math.min(maxW/pz.cols, maxH/pz.rows))));
+  boardEl.style.gridTemplateColumns='repeat('+pz.cols+','+cs+'px)';
+  boardEl.style.setProperty('--cs', cs+'px');
+
+  const holeSet=new Set(pz.holes.map(h=>h[0]+','+h[1]));
+  for(let r=0;r<pz.rows;r++){
+    const row=[];
+    for(let c=0;c<pz.cols;c++){
+      const div=document.createElement('div');
+      div.className='cell';
+      div.dataset.r=r; div.dataset.c=c;
+      const cell={hole:false, el:null, color:0, dom:div};
+      if(holeSet.has(r+','+c)){
+        cell.hole=true; div.classList.add('hole');
+      }else{
+        const ek=r+','+c;
+        if(pz.elements[ek]){
+          cell.el=pz.elements[ek];
+          const sp=document.createElement('span');
+          sp.className='el '+ELEMENTS[cell.el].cls;
+          sp.textContent=ELEMENTS[cell.el].sym;
+          div.appendChild(sp);
+        }
+      }
+      row.push(cell);
+      boardEl.appendChild(div);
+    }
+    state.grid.push(row);
+  }
+}
+
+// 构建颜料盘
+function buildPalette(){
+  paletteEl.innerHTML='';
+  const N=state.parts;
+  for(let i=1;i<=N;i++){
+    const sw=document.createElement('div');
+    sw.className='swatch'+(i===state.curColor?' active':'');
+    sw.style.background='var(--c'+i+')';
+    sw.textContent=i;
+    sw.addEventListener('click',()=>{ state.curColor=i; refreshPalette(); setMsg('已选择颜色 '+i+'，去格子上涂一涂吧！'); });
+    paletteEl.appendChild(sw);
+  }
+  // 橡皮擦
+  const er=document.createElement('div');
+  er.className='swatch eraser'+(state.curColor===-1?' active':'');
+  er.textContent='擦';
+  er.addEventListener('click',()=>{ state.curColor=-1; refreshPalette(); setMsg('橡皮擦已开启，点格子可以擦掉颜色。'); });
+  paletteEl.appendChild(er);
+}
+function refreshPalette(){
+  [...paletteEl.children].forEach((sw,i)=>{
+    sw.classList.toggle('active', (i<state.parts ? (i+1===state.curColor) : (state.curColor===-1)));
+  });
+}
+
+// 统计面板
+function renderStats(){
+  const pz=state.puzzle, N=state.parts;
+  const total=pz.rows*pz.cols - pz.holes.length;
+  const per=total/N;
+  let html='<div class="row"><span>每块应分</span><b>'+per+' 格</b></div>';
+  html+='<div class="row"><span>共需分成</span><b>'+N+' 块</b></div>';
+  for(let i=1;i<=N;i++){
+    const n=groupCells(state.grid,i).length;
+    const ok = n===per;
+    html+='<div class="row"><span>颜色 '+i+'</span><b style="'+(ok?'color:#1a7a45':'color:#b23b3b')+'">'+n+' / '+per+' 格</b></div>';
+  }
+  // 元素需求提示
+  const reqKeys=Object.keys(pz.req||{});
+  if(reqKeys.length){
+    html+='<div class="row" style="border:none;margin-top:6px;"><span>每块需含</span><b>'+
+      reqKeys.map(k=>pz.req[k]+ELEMENTS[k].sym).join(' ')+'</b></div>';
+  }
+  statsEl.innerHTML=html;
+}
+
+/* ============================================================
+   交互层：涂色（指针事件，兼容鼠标与触摸拖动）
+   ============================================================ */
+let painting=false;
+
+function cellFromPoint(x,y){
+  const el=document.elementFromPoint(x,y);
+  if(!el) return null;
+  const cellEl=el.closest('.cell');
+  if(!cellEl||cellEl.classList.contains('hole')) return null;
+  const r=+cellEl.dataset.r, c=+cellEl.dataset.c;
+  return state.grid[r][c];
+}
+
+function paintCell(cell){
+  if(!cell||cell.hole) return;
+  const target = state.curColor===-1 ? 0 : state.curColor;
+  if(cell.color===target) return;
+  cell.color=target;
+  // 更新 DOM 类
+  const dom=cell.dom;
+  for(let i=1;i<=5;i++) dom.classList.remove('g'+i);
+  if(target>0) dom.classList.add('g'+target);
+  state.steps++;
+  $('steps').textContent=state.steps;
+  renderStats();
+}
+
+function bindBoard(){
+  boardEl.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    const cell=cellFromPoint(e.clientX,e.clientY);
+    if(!cell) return;
+    painting=true;
+    try{ boardEl.setPointerCapture(e.pointerId); }catch(_){}
+    paintCell(cell);
+  });
+  boardEl.addEventListener('pointermove',e=>{
+    if(!painting) return;
+    const cell=cellFromPoint(e.clientX,e.clientY);
+    if(cell) paintCell(cell);
+  });
+  window.addEventListener('pointerup',()=>{ painting=false; });
+  window.addEventListener('pointercancel',()=>{ painting=false; });
+}
+
+/* ============================================================
+   校验逻辑
+   ============================================================ */
+function validatePuzzle(){
+  const pz=state.puzzle, N=state.parts;
+  const total=pz.rows*pz.cols - pz.holes.length;
+  const per=total/N;
+
+  // 1) 是否还有未涂色格子
+  for(let r=0;r<state.grid.length;r++)
+    for(let c=0;c<state.grid[0].length;c++){
+      const cell=state.grid[r][c];
+      if(!cell.hole && cell.color===0)
+        return {ok:false,msg:'还有格子没有涂颜色哦，先把所有格子都分到某一块里吧！'};
+    }
+  // 2) 每块格子数
+  const groups=[];
+  for(let i=1;i<=N;i++){
+    const cells=groupCells(state.grid,i);
+    if(cells.length!==per)
+      return {ok:false,msg:'颜色'+i+'有 '+cells.length+' 格，应该是 '+per+' 格，再调一调。'};
+    groups.push(cells);
+  }
+  // 3) 每块连通
+  for(let i=0;i<N;i++)
+    if(!isConnected(groups[i]))
+      return {ok:false,msg:'颜色'+(i+1)+'的格子没有连在一起，要把它们连成一块哦。'};
+  // 4) 形状相同（允许旋转/翻折）
+  for(let i=1;i<N;i++)
+    if(!sameShape(groups[0],groups[i]))
+      return {ok:false,msg:'颜色1 和颜色'+(i+1)+'的形状不一样，想想怎么让它们能重合。'};
+  // 5) 元素需求
+  const reqKeys=Object.keys(pz.req||{});
+  for(let i=0;i<N;i++){
+    const cs=new Set(groups[i].map(p=>p[0]+','+p[1]));
+    for(const k of reqKeys){
+      let cnt=0;
+      for(const [r,c] of groups[i]) if(state.grid[r][c].el===k) cnt++;
+      if(cnt!==pz.req[k])
+        return {ok:false,msg:'颜色'+(i+1)+'里有 '+cnt+' 颗'+ELEMENTS[k].sym+ELEMENTS[k].name+'，应该是 '+pz.req[k]+' 颗。'};
+    }
+  }
+  return {ok:true};
+}
+
+function onCheck(){
+  if(state.solved){
+    if(state.puzzle.bonus) setMsg('通过啦！别忘了下面的周长附加挑战～','good');
+    else setMsg('这一关已经通过啦，点"下一关"继续吧！','good');
+    return;
+  }
+  const res=validatePuzzle();
+  if(res.ok){
+    state.solved=true;
+    flashWin();
+    ding(true);
+    const more = state.qi < state.queue.length-1;
+    $('btnNext').textContent = more ? '➡ 下一关' : '🏠 返回难度选择';
+    $('btnNextSide').textContent = more ? '➡ 进入下一关' : '🏠 完成，返回选择';
+    if(state.puzzle.bonus){
+      // 有附加挑战：先不遮罩，让学生玩周长滑块，显示内联"下一关"
+      showBonusIfNeeded();
+      $('btnNextSide').style.display='block';
+      setMsg('🎉 分割完全正确！再试试下面的周长附加挑战，或点"进入下一关"继续～','good');
+    }else{
+      // 无附加挑战：弹庆祝动画
+      $('btnNextSide').style.display='block';
+      setMsg('🎉 全部正确！形状、大小都相同，太厉害啦！','good');
+      celebrate();
+    }
+  }else{
+    setMsg(res.msg,'bad');
+    ding(false);
+  }
+}
+
+// 通关后给所有格子加发光
+function flashWin(){
+  for(let r=0;r<state.grid.length;r++)
+    for(let c=0;c<state.grid[0].length;c++){
+      const cell=state.grid[r][c];
+      if(!cell.hole && cell.color>0) cell.dom.classList.add('win');
+    }
+}
+
+/* ============================================================
+   附加挑战：周长（滑块真交互）
+   ============================================================ */
+function showBonusIfNeeded(){
+  const b=state.puzzle.bonus;
+  if(!b){ $('bonus').classList.remove('show'); return; }
+  $('bonusQ').textContent=b.q;
+  $('bonusRange').value=2; $('bonusVal').textContent=2; $('bonusRes').textContent='';
+  $('bonus').classList.add('show');
+}
+function bindBonus(){
+  const rng=$('bonusRange');
+  rng.addEventListener('input',()=>{ $('bonusVal').textContent=rng.value; });
+  rng.addEventListener('change',()=>{
+    const b=state.puzzle.bonus; if(!b) return;
+    const v=+rng.value;
+    if(v===b.answer){ $('bonusRes').textContent='✅ 答对啦！每个小图形周长是 '+b.answer+' 厘米。'; $('bonusRes').style.color='#1a7a45'; ding(true); }
+    else{ $('bonusRes').textContent='再想想～提示：数一数一块小图形外边一圈有几条小边。'; $('bonusRes').style.color='#b23b3b'; }
+  });
+}
+
+/* ============================================================
+   提示 / 重置 / 庆祝 / 计时
+   ============================================================ */
+function onReveal(){
+  const pz=state.puzzle, sol=pz.solution;
+  for(let r=0;r<pz.rows;r++)
+    for(let c=0;c<pz.cols;c++){
+      const g=sol[r][c];
+      const cell=state.grid[r][c];
+      if(cell.hole) continue;
+      cell.color=g;
+      const dom=cell.dom;
+      for(let i=1;i<=5;i++) dom.classList.remove('g'+i);
+      if(g>0) dom.classList.add('g'+g);
+    }
+  renderStats();
+  setMsg('💡 这是其中一种分法（答案不唯一）。看懂后可以点"重新开始"自己再分一次！','good');
+}
+function onReset(){
+  for(let r=0;r<state.grid.length;r++)
+    for(let c=0;c<state.grid[0].length;c++){
+      const cell=state.grid[r][c];
+      if(cell.hole) continue;
+      cell.color=0;
+      for(let i=1;i<=5;i++) cell.dom.classList.remove('g'+i);
+      cell.dom.classList.remove('win');
+    }
+  state.solved=false;
+  $('bonus').classList.remove('show');
+  $('btnNextSide').style.display='none';
+  renderStats();
+  setMsg('已清空，重新涂一涂吧！加油～');
+}
+
+function celebrate(){
+  // 彩纸 + 庆祝面板
+  spawnConfetti();
+  $('celebrate').classList.add('show');
+}
+function spawnConfetti(){
+  const colors=['#ff6b6b','#4ecdc4','#ffe66d','#95e1d3','#c9a3f5','#f72585','#4cc9f0'];
+  for(let i=0;i<60;i++){
+    const d=document.createElement('div');
+    d.className='confetti';
+    d.style.left=Math.random()*100+'vw';
+    d.style.background=colors[i%colors.length];
+    d.style.borderRadius=(Math.random()>.5?'50%':'2px');
+    d.style.width=(8+Math.random()*8)+'px';
+    d.style.height=(10+Math.random()*12)+'px';
+    d.style.animation='fall '+(1.8+Math.random()*2)+'s '+(Math.random()*0.8)+'s linear forwards';
+    document.body.appendChild(d);
+    setTimeout(()=>d.remove(),5200);
+  }
+}
+
+// 简单音效（WebAudio，无外部文件）
+let actx=null;
+function ding(ok){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.connect(g); g.connect(actx.destination);
+    o.type='triangle';
+    o.frequency.value = ok?880:300;
+    g.gain.setValueAtTime(0.18, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime+0.25);
+    o.start(); o.stop(actx.currentTime+0.26);
+    if(ok){
+      const o2=actx.createOscillator(), g2=actx.createGain();
+      o2.connect(g2); g2.connect(actx.destination);
+      o2.type='triangle'; o2.frequency.value=1175;
+      g2.gain.setValueAtTime(0.16, actx.currentTime+0.12);
+      g2.gain.exponentialRampToValueAtTime(0.001, actx.currentTime+0.4);
+      o2.start(); o2.stop(actx.currentTime+0.42);
+    }
+  }catch(_){}
+}
+
+function setMsg(t,kind){
+  msgEl.textContent=t;
+  msgEl.className='msg'+(kind?(' '+kind):'');
+}
+
+// 计时器
+function startTimer(){
+  state.seconds=0; state.steps=0; $('steps').textContent=0; updateTimer();
+  if(state.timerId) clearInterval(state.timerId);
+  state.timerId=setInterval(()=>{ state.seconds++; updateTimer(); },1000);
+}
+function stopTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
+function updateTimer(){
+  const m=String(Math.floor(state.seconds/60)).padStart(2,'0');
+  const s=String(state.seconds%60).padStart(2,'0');
+  $('timer').textContent=m+':'+s;
+}
+
+/* ============================================================
+   流程控制：难度选择 / 加载谜题 / 下一关 / 返回
+   ============================================================ */
+const DIFF_LABEL={beginner:'初级',intermediate:'中级',advanced:'高级'};
+
+function chooseDifficulty(diff){
+  state.diff=diff;
+  // 打乱该难度下的谜题顺序（反重复：每局顺序不同）
+  const idxs=PUZZLES[diff].map((_,i)=>i);
+  shuffle(idxs);
+  state.queue=idxs;
+  state.qi=0;
+  applyPalette();
+  loadPuzzle();
+  showScreen('screenGame');
+  startTimer();
+  setMsg('选一种颜色，在格子里涂一涂，开始分割吧！');
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+
+function loadPuzzle(){
+  const pz=PUZZLES[state.diff][state.queue[state.qi]];
+  state.puzzle=pz;
+  state.parts=pz.parts;
+  state.curColor=1;
+  state.solved=false;
+  $('lvBadge').textContent=DIFF_LABEL[state.diff];
+  $('puzzleName').textContent=pz.name;
+  $('puzzleGoal').textContent=pz.goal;
+  $('bonus').classList.remove('show');
+  $('btnNextSide').style.display='none';
+  buildBoard();
+  buildPalette();
+  renderStats();
+  setMsg('新一关：'+pz.name+'。先数数一共几格，再除以 '+pz.parts+'，就知道每块几格啦！');
+}
+
+function nextPuzzle(){
+  $('celebrate').classList.remove('show');
+  $('btnNextSide').style.display='none';
+  if(state.qi < state.queue.length-1){
+    state.qi++;
+    loadPuzzle();
+  }else{
+    // 全部完成，返回菜单
+    goHome(true);
+  }
+}
+function goHome(allDone){
+  stopTimer();
+  $('celebrate').classList.remove('show');
+  showScreen('screenMenu');
+  if(allDone){
+    setTimeout(()=>{ spawnConfetti(); },50);
+  }
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+/* 规则弹层 */
+function openRules(){ $('modalRules').classList.add('show'); }
+function closeRules(){ $('modalRules').classList.remove('show'); }
+
+/* ============================================================
+   事件绑定与启动
+   ============================================================ */
+function bindAll(){
+  document.querySelectorAll('.diff-card').forEach(card=>{
+    card.addEventListener('click',()=>chooseDifficulty(card.dataset.diff));
+  });
+  $('btnCheck').addEventListener('click',onCheck);
+  $('btnReveal').addEventListener('click',onReveal);
+  $('btnReset').addEventListener('click',onReset);
+  $('btnBack').addEventListener('click',()=>goHome(false));
+  $('btnNext').addEventListener('click',nextPuzzle);
+  $('btnNextSide').addEventListener('click',nextPuzzle);
+  $('btnDoneHome').addEventListener('click',()=>goHome(true));
+  $('btnRulesTop').addEventListener('click',openRules);
+  $('modalRules').addEventListener('click',e=>{ if(e.target.id==='modalRules') closeRules(); });
+  bindBoard();
+  bindBonus();
+  // 窗口尺寸变化时仅调整格子大小，保留学生的涂色进度
+  window.addEventListener('resize',()=>{ if(state.puzzle){ resizeBoardOnly(); } });
+}
+
+// 仅更新格子尺寸，不重建 DOM（保留涂色）
+function resizeBoardOnly(){
+  const pz=state.puzzle;
+  const maxW=Math.min(window.innerWidth-80, 640);
+  const maxH=window.innerHeight-260;
+  const cs=Math.max(38, Math.min(78, Math.floor(Math.min(maxW/pz.cols, maxH/pz.rows))));
+  boardEl.style.gridTemplateColumns='repeat('+pz.cols+','+cs+'px)';
+  boardEl.style.setProperty('--cs', cs+'px');
+}
+
+// 启动
+applyPalette();
+bindAll();
+// 首次进入弹出规则说明
+window.addEventListener('load',()=>{ setTimeout(openRules,300); });
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a2b/g008", "name": "\u5de7\u624b\u5206\u56fe\u5de5\u574a \u00b7 \u56fe\u5f62\u5206\u5272\u5927\u5192\u9669", "file": "g008.html", "jiaocan": "\u30108\u3011\u7b2c4\u8bb2 \u56fe\u5f62\u5206\u5272\uff08\u4e0b\uff09", "unit": "\u7b2c4\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b72\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a2b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

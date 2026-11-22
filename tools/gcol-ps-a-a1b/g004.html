@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>彩虹算符工坊 · 巧填算符初步（下）</title>
+<style>
+/* ============================================================
+   彩虹算符工坊 —— 巧填算符初步（下）互动游戏
+   核心玩法：把 "+" 和 "-" 两种能量符号放入数字之间的空槽，
+            让整条算式链的计算结果正好等于目标"星光值"。
+            这就是"凑数法 / 倒推法 / 加减抵消法"的具象化操作。
+   ============================================================ */
+
+/* ---------- 全局变量与配色随机化 ---------- */
+:root{
+  --c1:#ff6b6b;   /* 主色 */
+  --c2:#ffa94d;   /* 次色 */
+  --c3:#ffd43b;   /* 亮色 */
+  --c4:#69db7c;   /* 平衡成功色 */
+  --c5:#4dabf7;   /* 数字球色 */
+  --c6:#cc5de8;   /* 装饰色 */
+  --bg1:#fff8e7;  /* 背景渐变上 */
+  --bg2:#e7f5ff;  /* 背景渐变下 */
+  --ink:#2b2d42;  /* 主文字色 */
+  --ink-soft:#5c6076;
+  --card:#ffffff;
+  --shadow:0 6px 18px rgba(60,80,120,.18);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0; height:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  color:var(--ink);
+  min-height:100vh;
+  overflow-x:hidden;
+  user-select:none;
+}
+
+/* ---------- 顶部状态栏 ---------- */
+#topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 16px; background:rgba(255,255,255,.7);
+  backdrop-filter:blur(6px); box-shadow:var(--shadow);
+  position:sticky; top:0; z-index:50; flex-wrap:wrap; gap:8px;
+}
+#topbar .title{font-size:clamp(18px,4vw,26px); font-weight:900; color:var(--c1);
+  text-shadow:2px 2px 0 #fff;}
+#stats{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+.stat-pill{
+  background:var(--card); border-radius:999px; padding:6px 14px;
+  font-size:16px; font-weight:700; box-shadow:var(--shadow);
+  display:flex; align-items:center; gap:6px;
+}
+.stat-pill .lab{color:var(--ink-soft); font-size:13px;}
+.swatch{width:22px; height:22px; border-radius:50%; border:3px solid #fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.2); cursor:pointer;}
+
+/* ---------- 屏幕容器 ---------- */
+.screen{display:none; padding:16px; max-width:1000px; margin:0 auto;}
+.screen.active{display:block;}
+
+/* ---------- 欢迎与难度选择 ---------- */
+#welcome{padding-top:5vh;}
+.hero{text-align:center; margin-bottom:18px;}
+.hero h1{font-size:clamp(30px,7vw,52px); margin:6px 0; color:var(--c1);
+  text-shadow:3px 3px 0 var(--c3), 6px 6px 0 rgba(0,0,0,.08);
+  letter-spacing:2px;}
+.hero p{font-size:clamp(15px,3.5vw,20px); color:var(--ink-soft); margin:6px 0;}
+.hero .badge{display:inline-block; background:var(--c3); color:var(--ink);
+  font-weight:900; padding:6px 18px; border-radius:999px; box-shadow:var(--shadow);
+  margin-top:8px; font-size:18px;}
+.diff-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-top:8px;}
+.diff-card{
+  background:var(--card); border-radius:24px; padding:24px 18px; text-align:center;
+  box-shadow:var(--shadow); cursor:pointer; border:5px solid transparent;
+  transition:transform .18s, border-color .18s; position:relative; overflow:hidden;
+}
+.diff-card:hover, .diff-card:active{transform:translateY(-6px) scale(1.02);}
+.diff-card .emoji{font-size:54px; display:block; line-height:1.2;}
+.diff-card h3{margin:8px 0 4px; font-size:24px; color:var(--ink);}
+.diff-card .desc{font-size:15px; color:var(--ink-soft); line-height:1.5;}
+.diff-card .stars{margin-top:8px; font-size:22px; letter-spacing:3px;}
+.diff-card.d1{border-color:#ffd43b;} .diff-card.d1 .stars{color:#ffa94d;}
+.diff-card.d2{border-color:#69db7c;} .diff-card.d2 .stars{color:#40c057;}
+.diff-card.d3{border-color:#cc5de8;} .diff-card.d3 .stars{color:#ae3ec9;}
+
+/* ---------- 规则说明面板 ---------- */
+.modal{
+  position:fixed; inset:0; background:rgba(40,40,70,.55);
+  display:none; align-items:center; justify-content:center; z-index:200; padding:16px;
+}
+.modal.show{display:flex;}
+.modal-box{
+  background:var(--card); border-radius:24px; padding:24px 22px; max-width:560px; width:100%;
+  box-shadow:0 20px 50px rgba(0,0,0,.35); max-height:88vh; overflow-y:auto;
+  border-top:10px solid var(--c1);
+}
+.modal-box h2{margin:0 0 12px; color:var(--c1); font-size:26px;}
+.modal-box h3{margin:14px 0 4px; color:var(--c5); font-size:19px;}
+.modal-box p, .modal-box li{font-size:16px; line-height:1.7; color:var(--ink);}
+.modal-box ul{padding-left:22px; margin:6px 0;}
+.modal-box .close{
+  margin-top:16px; width:100%; padding:14px; font-size:20px; font-weight:900;
+  background:var(--c1); color:#fff; border:none; border-radius:14px; cursor:pointer;
+  box-shadow:var(--shadow);
+}
+
+/* ---------- 游戏主屏 ---------- */
+#game .progress{display:flex; gap:6px; justify-content:center; margin:6px 0 10px;}
+.dot{width:14px; height:14px; border-radius:50%; background:#d0d7e5; transition:.2s;}
+.dot.done{background:var(--c4);}
+.dot.cur{background:var(--c1); transform:scale(1.4);}
+
+/* 目标星光值 */
+.target-box{text-align:center; margin:8px 0;}
+.target-box .lab{font-size:16px; color:var(--ink-soft); font-weight:700;}
+.target-box .star{
+  display:inline-flex; align-items:center; gap:8px; font-size:clamp(28px,6vw,40px);
+  font-weight:900; color:var(--c2); padding:4px 22px;
+  background:linear-gradient(135deg,#fff,var(--c3)); border-radius:18px;
+  box-shadow:var(--shadow); margin-top:4px;
+}
+.target-box .star svg{width:42px; height:42px;}
+
+/* 数字链 + 运算符空槽 */
+.chain-wrap{display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+  gap:6px 8px; margin:14px 4px; min-height:90px;}
+.orb{
+  width:clamp(52px,11vw,76px); height:clamp(52px,11vw,76px); border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:clamp(24px,6vw,38px); font-weight:900; color:#fff;
+  background:radial-gradient(circle at 35% 30%, var(--c5), #1c7ed6);
+  box-shadow:0 6px 14px rgba(77,171,247,.5), inset 0 -6px 10px rgba(0,0,0,.15);
+  border:4px solid #fff; position:relative; flex:none;
+  transition:transform .2s;
+}
+.orb.first::after{content:"起点"; position:absolute; top:-22px; left:50%; transform:translateX(-50%);
+  font-size:12px; color:var(--ink-soft); font-weight:700; white-space:nowrap;}
+.slot{
+  width:clamp(46px,10vw,62px); height:clamp(52px,11vw,76px); border-radius:16px;
+  border:4px dashed var(--c2); background:rgba(255,255,255,.6);
+  display:flex; align-items:center; justify-content:center;
+  font-size:clamp(26px,6vw,40px); font-weight:900; cursor:pointer;
+  transition:.18s; flex:none; position:relative;
+}
+.slot.empty{color:var(--c2);}
+.slot.empty .q{font-size:30px; opacity:.7;}
+.slot.filled-plus{background:linear-gradient(135deg,#fff,var(--c4)); border-style:solid;
+  border-color:var(--c4); color:#2b8a3e;}
+.slot.filled-minus{background:linear-gradient(135deg,#fff,#ff8787); border-style:solid;
+  border-color:#ff8787; color:#c92a2a;}
+.slot.hover-drop{background:var(--c3); transform:scale(1.12);}
+.slot.selected{outline:4px solid var(--c6); outline-offset:2px;}
+.eq-sign{font-size:clamp(28px,6vw,40px); font-weight:900; color:var(--ink); padding:0 4px; flex:none;}
+.result-orb{
+  min-width:clamp(56px,12vw,82px); height:clamp(52px,11vw,76px); border-radius:18px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:clamp(24px,6vw,34px); font-weight:900; color:#fff; padding:0 10px; flex:none;
+  background:linear-gradient(135deg,var(--c1),var(--c2));
+  box-shadow:var(--shadow); transition:.25s;
+}
+.result-orb.hit{background:linear-gradient(135deg,var(--c4),#38d9a9);
+  animation:pop .4s;}
+.result-orb.partial{background:linear-gradient(135deg,#adb5bd,#868e96);}
+@keyframes pop{0%{transform:scale(1);}50%{transform:scale(1.25);}100%{transform:scale(1);}}
+.result-orb small{font-size:11px; font-weight:700; opacity:.9;}
+
+/* 平衡可视化（天平跷跷板） */
+.balance{max-width:520px; margin:8px auto 4px; padding:10px;}
+.beam-wrap{position:relative; height:46px; display:flex; align-items:center; justify-content:center;}
+.beam{
+  width:90%; height:14px; border-radius:999px; transform-origin:center;
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+  background:linear-gradient(90deg,var(--c2),var(--c1),var(--c2));
+  box-shadow:var(--shadow);
+}
+.beam .pan{position:absolute; top:14px; width:44px; height:44px; border-radius:50%;
+  background:#fff; border:4px solid var(--c5); display:flex; align-items:center; justify-content:center;
+  font-weight:900; font-size:18px; box-shadow:var(--shadow);}
+.beam .pan.l{left:-6px;} .beam .pan.r{right:-6px;}
+.fulcrum{width:0;height:0;border-left:26px solid transparent;border-right:26px solid transparent;
+  border-bottom:30px solid var(--c1); margin:0 auto; filter:drop-shadow(0 4px 4px rgba(0,0,0,.2));}
+.balance .note{text-align:center; margin-top:8px; font-size:15px; font-weight:700; color:var(--ink-soft);}
+.balance .note.hit{color:#2b8a3e;}
+
+/* 运算符卡片（可拖可点） */
+.op-bank{display:flex; gap:18px; justify-content:center; margin:14px 0 6px; flex-wrap:wrap;}
+.op-card{
+  width:clamp(80px,18vw,110px); height:clamp(80px,18vw,110px); border-radius:24px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:clamp(40px,9vw,58px); font-weight:900; cursor:grab; border:5px solid #fff;
+  box-shadow:var(--shadow); transition:transform .15s; touch-action:none; flex:none;
+  user-select:none;
+}
+.op-card:active{cursor:grabbing; transform:scale(.94);}
+.op-card.plus{background:linear-gradient(135deg,#69db7c,#40c057); color:#fff;}
+.op-card.minus{background:linear-gradient(135deg,#ff8787,#fa5252); color:#fff;}
+.op-card .tag{font-size:13px; font-weight:700; background:rgba(255,255,255,.85);
+  color:var(--ink); padding:1px 10px; border-radius:999px; margin-top:2px;}
+.op-card.picked{outline:5px solid var(--c6); outline-offset:3px; transform:translateY(-6px);}
+.op-card.disabled{opacity:.4; cursor:not-allowed;}
+
+/* 拖拽幽灵 */
+#ghost{position:fixed; pointer-events:none; z-index:300; display:none;
+  width:70px; height:70px; border-radius:18px; font-size:42px; font-weight:900;
+  display:none; align-items:center; justify-content:center; color:#fff;
+  box-shadow:0 10px 24px rgba(0,0,0,.35); border:4px solid #fff; transform:translate(-50%,-50%);}
+
+/* 操作按钮区 */
+.btn-row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:14px 0 6px;}
+.btn{
+  padding:12px 20px; font-size:17px; font-weight:800; border:none; border-radius:14px;
+  cursor:pointer; box-shadow:var(--shadow); transition:transform .15s; color:#fff;
+}
+.btn:active{transform:translateY(3px);}
+.btn.reveal{background:linear-gradient(135deg,#ffd43b,#fab005); color:var(--ink);}
+.btn.clear{background:linear-gradient(135deg,#74c0fc,#4dabf7);}
+.btn.restart{background:linear-gradient(135deg,#ff8787,#fa5252);}
+.btn.back{background:linear-gradient(135deg,#b197fc,#9775fa);}
+.btn.rules{background:linear-gradient(135deg,#63e6be,#38d9a9); color:var(--ink);}
+
+.hint-bar{text-align:center; margin:6px 0 2px; font-size:15px; color:var(--ink-soft); min-height:22px; font-weight:700;}
+.hint-bar.good{color:#2b8a3e;}
+
+/* 通关完成屏 */
+#finish{text-align:center; padding-top:8vh;}
+#finish h2{font-size:clamp(30px,7vw,48px); color:var(--c1);
+  text-shadow:3px 3px 0 var(--c3); margin:10px 0;}
+#finish .summary{font-size:20px; color:var(--ink-soft); margin:10px 0;}
+#finish .summary b{color:var(--c5);}
+
+/* 庆祝彩纸 canvas */
+#confetti{position:fixed; inset:0; pointer-events:none; z-index:250; display:none;}
+
+/* 关卡标题 */
+.level-title{text-align:center; font-size:18px; font-weight:800; color:var(--c5); margin:4px 0;}
+
+/* 小提示气泡 */
+.tip-chip{display:inline-block; background:#fff; border:2px solid var(--c5);
+  border-radius:999px; padding:4px 12px; font-size:14px; font-weight:700; color:var(--c5); margin:2px;}
+
+@media (max-width:560px){
+  .orb::after, .orb.first::after{font-size:11px; top:-18px;}
+  .stat-pill{font-size:14px; padding:5px 10px;}
+  #topbar{padding:8px 10px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶部状态栏 ============ -->
+<div id="topbar">
+  <div class="title">🌈 彩虹算符工坊</div>
+  <div id="stats">
+    <div class="stat-pill"><span class="lab">⏱</span><span id="timer">00:00</span></div>
+    <div class="stat-pill"><span class="lab">👣</span><span id="steps">0</span> 步</div>
+    <div class="stat-pill" id="diffPill" style="display:none;"><span class="lab">🎯</span><span id="diffName">初级</span></div>
+    <div class="swatch" id="swatch" title="点击换主题色"></div>
+  </div>
+</div>
+
+<!-- ============ 欢迎屏 ============ -->
+<div id="welcome" class="screen active">
+  <div class="hero">
+    <div class="badge">巧填算符初步（下）</div>
+    <h1>彩虹算符工坊</h1>
+    <p>把"＋"和"－"两种能量符号放进数字之间的空槽里，</p>
+    <p>让整条算式链的结果，正好等于闪亮的<b style="color:var(--c2)">星光值</b>！</p>
+    <p style="margin-top:10px;">
+      <span class="tip-chip">🟢 放对 → 能量平衡，星光点亮</span>
+      <span class="tip-chip">🎨 每局颜色随机</span>
+      <span class="tip-chip">🧠 边玩边学凑数、倒推、抵消</span>
+    </p>
+  </div>
+  <div class="diff-grid">
+    <div class="diff-card d1" data-diff="初级">
+      <span class="emoji">🌱</span>
+      <h3>初级 · 星光幼苗</h3>
+      <div class="desc">4 个相同的数字，<br>在空槽里填 ＋ 或 －。<br>例：3　3　3　3 = 0</div>
+      <div class="stars">★☆☆</div>
+    </div>
+    <div class="diff-card d2" data-diff="中级">
+      <span class="emoji">🌈</span>
+      <h3>中级 · 彩虹桥</h3>
+      <div class="desc">5 个连续的数字，<br>用凑数法和倒推法思考。<br>例：1　2　3　4　5 = 9</div>
+      <div class="stars">★★☆</div>
+    </div>
+    <div class="diff-card d3" data-diff="高级">
+      <span class="emoji">⭐</span>
+      <h3>高级 · 星河挑战</h3>
+      <div class="desc">6～7 个数字，<br>用加减抵消法（能量互消）思考。<br>例：1　2　3　4　5　6　7 = 8</div>
+      <div class="stars">★★★</div>
+    </div>
+  </div>
+  <div style="text-align:center; margin-top:18px;">
+    <button class="btn rules" onclick="showRules(true)">📖 怎么玩？规则说明</button>
+  </div>
+</div>
+
+<!-- ============ 游戏屏 ============ -->
+<div id="game" class="screen">
+  <div class="level-title" id="levelTitle">初级 · 第 1 关</div>
+  <div class="progress" id="progress"></div>
+
+  <div class="target-box">
+    <div class="lab">🎯 目标星光值</div>
+    <div class="star" id="targetStar">
+      <svg viewBox="0 0 24 24" fill="#ffa94d"><path d="M12 2l2.9 6.9L22 9.3l-5.5 4.8L18.2 22 12 18.3 5.8 22l1.7-7.9L2 9.3l7.1-.4z"/></svg>
+      <span id="targetVal">0</span>
+    </div>
+  </div>
+
+  <div class="chain-wrap" id="chain"></div>
+
+  <div class="balance">
+    <div class="beam-wrap">
+      <div class="beam" id="beam">
+        <div class="pan l" id="panL">?</div>
+        <div class="pan r" id="panR">0</div>
+      </div>
+    </div>
+    <div class="fulcrum"></div>
+    <div class="note" id="balanceNote">天平还没放满，继续把符号拖进空槽～</div>
+  </div>
+
+  <div class="op-bank">
+    <div class="op-card plus" id="opPlus" draggable="true">＋<div class="tag">增益</div></div>
+    <div class="op-card minus" id="opMinus" draggable="true">－<div class="tag">减益</div></div>
+  </div>
+
+  <div class="hint-bar" id="hintBar">💡 点击或拖动 ＋／－ 卡片，把它放进数字之间的空槽</div>
+
+  <div class="btn-row">
+    <button class="btn reveal" onclick="revealAnswer()">🔍 揭示答案</button>
+    <button class="btn clear" onclick="clearSlots()">🧹 清空重填</button>
+    <button class="btn restart" onclick="restartLevel()">🔄 重新开始本关</button>
+    <button class="btn back" onclick="backToMenu()">🏠 返回难度选择</button>
+    <button class="btn rules" onclick="showRules(true)">📖 规则说明</button>
+  </div>
+</div>
+
+<!-- ============ 通关屏 ============ -->
+<div id="finish" class="screen">
+  <h2>🎉 全部通关啦！</h2>
+  <div class="summary" id="finishSummary"></div>
+  <div class="btn-row">
+    <button class="btn restart" onclick="restartLevel()">🔄 再玩一局</button>
+    <button class="btn back" onclick="backToMenu()">🏠 返回难度选择</button>
+  </div>
+</div>
+
+<!-- ============ 规则说明面板 ============ -->
+<div class="modal" id="rulesModal">
+  <div class="modal-box">
+    <h2>📖 玩法说明</h2>
+    <p><b>目标：</b>每关给你一串数字和一个"星光值"。你要在每两个数字之间的空槽里放入 <b style="color:#2b8a3e">＋</b> 或 <b style="color:#c92a2a">－</b>，让整条算式的计算结果正好等于星光值。</p>
+    <h3>🎮 怎么操作</h3>
+    <ul>
+      <li><b>拖动：</b>按住下方的 ＋ 或 － 卡片，拖到空槽里松手。</li>
+      <li><b>点选：</b>先点一下 ＋ 或 － 卡片（卡片会高亮），再点空槽放入。</li>
+      <li><b>清除：</b>点一下已经填好的符号，就能拿掉重填。</li>
+    </ul>
+    <h3>⚖️ 天平会告诉你</h3>
+    <p>天平左边是<b>你算出的结果</b>，右边是<b>星光值</b>。哪边数字大，哪边就沉下去。<b style="color:#2b8a3e">两边一样高、天平放平时</b>，就通关啦！</p>
+    <h3>🧠 三种好方法</h3>
+    <ul>
+      <li><b>凑数法：</b>从前往后慢慢试，先想好前几个数加起来大概是多少。</li>
+      <li><b>倒推法：</b>从最后一个数往前想，最后一步该 ＋ 还是 － 才能凑到星光值。</li>
+      <li><b>加减抵消法：</b>把 ＋ 和 － 想成"能量"，正负相互抵消。高级关卡先把所有数加起来，看比星光值多了多少，多出来的就要用 － 抵消掉。</li>
+    </ul>
+    <p style="color:var(--ink-soft); font-size:14px;">💡 答案往往不止一种，填出任意一种正确的就通关！</p>
+    <button class="close" onclick="showRules(false)">明白啦，开始闯关！</button>
+  </div>
+</div>
+
+<!-- 拖拽幽灵、彩纸画布 -->
+<div id="ghost">＋</div>
+<canvas id="confetti"></canvas>
+
+<script>
+/* ============================================================
+   ===== 彩虹算符工坊 主逻辑（全部中文注释）=====
+   核心思想：学生在数字链的"空槽"里放置 ＋/－ 运算符，
+   这是"巧填算符"题型最本质的操作——构造算式，而非选择答案。
+   ============================================================ */
+
+/* ---------- 1. 题库（来自 docx《巧填算符初步（下）》及同题型变式） ---------- */
+// 每道题：nums=数字序列，target=目标星光值；全部已用脚本验证至少有一个 ＋/－ 解。
+const POOL = {
+  初级: [   // 4 个相同数字（对应 docx 例4、练习10/11/12）
+    { nums:[3,3,3,3], target:0 },
+    { nums:[6,6,6,6], target:12 },
+    { nums:[8,8,8,8], target:16 },
+    { nums:[5,5,5,5], target:10 },
+    { nums:[4,4,4,4], target:8 },
+    { nums:[9,9,9,9], target:18 },
+    { nums:[7,7,7,7], target:14 },
+    { nums:[2,2,2,2], target:4 },
+  ],
+  中级: [   // 5 个连续数字（对应 docx 例5、练习13/14）
+    { nums:[1,2,3,4,5], target:9 },
+    { nums:[1,2,3,4,5], target:5 },
+    { nums:[5,4,3,2,1], target:5 },
+    { nums:[1,2,3,4,5], target:7 },
+    { nums:[2,3,4,5,6], target:10 },
+    { nums:[4,3,2,1,2], target:6 },
+    { nums:[1,2,3,4,5], target:11 },
+  ],
+  高级: [   // 6～7 个数字，加减抵消法（对应 docx 例6、练习15/16/17）
+    { nums:[1,2,3,4,5,6,7], target:8 },
+    { nums:[1,2,3,4,5,6], target:5 },
+    { nums:[6,5,4,3,2,1], target:1 },
+    { nums:[1,2,3,4,5,6], target:3 },
+    { nums:[1,2,3,4,5,6,7], target:10 },
+    { nums:[7,6,5,4,3,2,1], target:4 },
+    { nums:[1,2,3,4,5,6,7], target:12 },
+  ],
+};
+
+/* ---------- 2. 配色板（每局随机抽一组，保证不腻） ---------- */
+const PALETTES = [
+  { c1:'#ff6b6b', c2:'#ffa94d', c3:'#ffd43b', c4:'#69db7c', c5:'#4dabf7', c6:'#cc5de8', bg1:'#fff8e7', bg2:'#e7f5ff' },
+  { c1:'#f783ac', c2:'#faa2c1', c3:'#fcc2d7', c4:'#63e6be', c5:'#74c0fc', c6:'#b197fc', bg1:'#fff0f6', bg2:'#e7f5ff' },
+  { c1:'#fab005', c2:'#fcc419', c3:'#ffd43b', c4:'#51cf66', c5:'#4dabf7', c6:'#cc5de8', bg1:'#fff9db', bg2:'#e6fcf5' },
+  { c1:'#7048e8', c2:'#9775fa', c3:'#d0bfff', c4:'#38d9a9', c5:'#4dabf7', c6:'#f783ac', bg1:'#f3f0ff', bg2:'#e7f5ff' },
+  { c1:'#e64980', c2:'#f06595', c3:'#faa2c1', c4:'#a9e34b', c5:'#74c0fc', c6:'#cc5de8', bg1:'#fff0f6', bg2:'#f3f0ff' },
+  { c1:'#0ca678', c2:'#20c997', c3:'#63e6be', c4:'#fcc419', c5:'#4dabf7', c6:'#f783ac', bg1:'#e6fcf5', bg2:'#e7f5ff' },
+];
+
+/* ---------- 3. 全局状态 ---------- */
+let state = {
+  difficulty: null,    // 当前难度
+  questions: [],       // 本局抽样的题目（含运行时 slots）
+  qIndex: 0,           // 当前第几关
+  pickedOp: null,      // 当前点选的运算符 '+' / '-' / null
+  startTime: 0,        // 计时起点
+  timerId: null,
+  totalSteps: 0,
+  revealed: false,     // 本关是否已揭示答案
+};
+
+/* ---------- 4. 工具函数 ---------- */
+// 洗牌（Fisher-Yates），用于题目随机抽样与顺序打乱
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+// 从某难度抽样 n 道题，并给每道题初始化空槽
+function sampleQuestions(diff, n){
+  const arr = shuffle([...POOL[diff]]);
+  return arr.slice(0, n).map(q => ({
+    nums: q.nums.slice(),
+    target: q.target,
+    slots: new Array(q.nums.length - 1).fill(null),  // 每个空槽：null=空, '+'/'-'=已填
+  }));
+}
+// 计算当前算式结果（从左到右累加，遇到空槽则停止，返回已填部分的结果与是否完整）
+function computeResult(q){
+  let result = q.nums[0];
+  let filled = 0;
+  for(let i=0;i<q.slots.length;i++){
+    if(q.slots[i] === null) break;            // 遇到第一个空槽就停（前面必须连续填满才有意义）
+    result += (q.slots[i] === '+' ? 1 : -1) * q.nums[i+1];
+    filled++;
+  }
+  return { result: result, filled: filled, complete: filled === q.slots.length };
+}
+// 暴力搜索一个合法解（只考虑 ＋/－），返回符号数组 ['+','-','+',...] 或 null
+function findSolution(nums, target){
+  const slots = nums.length - 1;
+  const total = 1 << slots;                   // 2^slots 种组合
+  for(let mask=0; mask<total; mask++){
+    let r = nums[0];
+    const ops = [];
+    for(let i=0;i<slots;i++){
+      const op = ((mask >> i) & 1) ? '+' : '-';  // 该位为1＝＋，为0＝－
+      r += (op === '+' ? 1 : -1) * nums[i+1];
+      ops.push(op);
+    }
+    if(r === target) return ops;
+  }
+  return null;
+}
+// 随机选一组配色并应用
+function applyRandomPalette(){
+  const p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  const root = document.documentElement;
+  root.style.setProperty('--c1', p.c1);
+  root.style.setProperty('--c2', p.c2);
+  root.style.setProperty('--c3', p.c3);
+  root.style.setProperty('--c4', p.c4);
+  root.style.setProperty('--c5', p.c5);
+  root.style.setProperty('--c6', p.c6);
+  root.style.setProperty('--bg1', p.bg1);
+  root.style.setProperty('--bg2', p.bg2);
+  document.getElementById('swatch').style.background =
+    'linear-gradient(135deg,'+p.c1+','+p.c3+','+p.c5+')';
+}
+
+/* ---------- 5. 屏幕切换 ---------- */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+function showRules(show){
+  document.getElementById('rulesModal').classList.toggle('show', show);
+}
+
+/* ---------- 6. 计时器 ---------- */
+function startTimer(){
+  state.startTime = Date.now();
+  if(state.timerId) clearInterval(state.timerId);
+  state.timerId = setInterval(updateTimer, 1000);
+  updateTimer();
+}
+function updateTimer(){
+  const sec = Math.floor((Date.now() - state.startTime)/1000);
+  const m = String(Math.floor(sec/60)).padStart(2,'0');
+  const s = String(sec%60).padStart(2,'0');
+  document.getElementById('timer').textContent = m + ':' + s;
+}
+function stopTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
+function bumpStep(){
+  state.totalSteps++;
+  document.getElementById('steps').textContent = state.totalSteps;
+}
+
+/* ---------- 7. 渲染数字链 ---------- */
+function renderChain(){
+  const q = state.questions[state.qIndex];
+  const wrap = document.getElementById('chain');
+  wrap.innerHTML = '';
+  q.nums.forEach((n, i) => {
+    // 数字球
+    const orb = document.createElement('div');
+    orb.className = 'orb' + (i===0 ? ' first' : '');
+    orb.textContent = n;
+    wrap.appendChild(orb);
+    // 数字之间放一个空槽（最后一个数字后不放）
+    if(i < q.slots.length){
+      const slot = document.createElement('div');
+      const filled = q.slots[i];
+      slot.className = 'slot ' + (filled === null ? 'empty' : (filled==='+' ? 'filled-plus' : 'filled-minus'));
+      slot.dataset.idx = i;
+      slot.textContent = filled === null ? '○' : (filled === '+' ? '＋' : '－');
+      slot.addEventListener('click', onSlotClick);
+      // 拖拽放置目标
+      slot.addEventListener('dragover', function(e){ e.preventDefault(); slot.classList.add('hover-drop'); });
+      slot.addEventListener('dragleave', function(){ slot.classList.remove('hover-drop'); });
+      slot.addEventListener('drop', function(e){
+        e.preventDefault();
+        slot.classList.remove('hover-drop');
+        const op = e.dataTransfer.getData('text/op') || state.pickedOp;
+        if(op === '+' || op === '-'){ placeOp(i, op); }
+      });
+      wrap.appendChild(slot);
+    }
+  });
+  // 等号 + 结果球
+  const eq = document.createElement('div');
+  eq.className = 'eq-sign';
+  eq.textContent = '＝';
+  wrap.appendChild(eq);
+  const res = computeResult(q);
+  const resOrb = document.createElement('div');
+  resOrb.className = 'result-orb ' + (res.complete && res.result===q.target ? 'hit' : (!res.complete ? 'partial' : ''));
+  resOrb.innerHTML = (res.complete ? res.result : '?') + '<small>' + (res.complete ? '你的结果' : '还差'+(q.slots.length-res.filled)+'个') + '</small>';
+  wrap.appendChild(resOrb);
+}
+
+/* ---------- 8. 渲染天平 ---------- */
+function renderBalance(){
+  const q = state.questions[state.qIndex];
+  const res = computeResult(q);
+  const beam = document.getElementById('beam');
+  const panL = document.getElementById('panL');
+  const panR = document.getElementById('panR');
+  const note = document.getElementById('balanceNote');
+  panR.textContent = q.target;
+  if(!res.complete){
+    // 还没填满：天平轻微提示左边数字（当前累加值）
+    panL.textContent = '?';
+    beam.style.transform = 'rotate(0deg)';
+    note.textContent = '天平还没放满，继续把符号拖进空槽～';
+    note.classList.remove('hit');
+  } else {
+    panL.textContent = res.result;
+    // 根据差值倾斜：差越大倾角越大（限制在 ±22 度）
+    const diff = res.result - q.target;
+    const maxDiff = Math.max(8, Math.abs(q.target) + 4);
+    let angle = (diff / maxDiff) * 22;
+    angle = Math.max(-22, Math.min(22, angle));
+    beam.style.transform = 'rotate(' + (-angle) + 'deg)';  // 左重→左沉（左侧下转）
+    if(res.result === q.target){
+      note.textContent = '🎉 完美平衡！星光点亮啦！';
+      note.classList.add('hit');
+    } else {
+      const more = res.result > q.target ? '多了' : '少了';
+      const d = Math.abs(diff);
+      note.textContent = '差一点点：左边比星光值' + more + ' ' + d + '，再调整一下符号吧～';
+      note.classList.remove('hit');
+    }
+  }
+}
+
+/* ---------- 9. 渲染进度点 ---------- */
+function renderProgress(){
+  const wrap = document.getElementById('progress');
+  wrap.innerHTML = '';
+  state.questions.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < state.qIndex ? ' done' : (i===state.qIndex ? ' cur' : ''));
+    wrap.appendChild(d);
+  });
+}
+
+/* ---------- 10. 渲染整关 ---------- */
+function renderLevel(){
+  const q = state.questions[state.qIndex];
+  document.getElementById('levelTitle').textContent =
+    state.difficulty + ' · 第 ' + (state.qIndex+1) + ' / ' + state.questions.length + ' 关';
+  document.getElementById('targetVal').textContent = q.target;
+  document.getElementById('diffName').textContent = state.difficulty;
+  document.getElementById('diffPill').style.display = 'flex';
+  state.revealed = false;
+  state.pickedOp = null;
+  document.getElementById('opPlus').classList.remove('picked');
+  document.getElementById('opMinus').classList.remove('picked');
+  setHint('💡 点击或拖动 ＋／－ 卡片，把它放进数字之间的空槽');
+  renderProgress();
+  renderChain();
+  renderBalance();
+}
+
+/* ---------- 11. 放置/清除运算符 ---------- */
+function placeOp(slotIdx, op){
+  const q = state.questions[state.qIndex];
+  if(state.revealed) return;                    // 已揭示则锁定
+  if(q.slots[slotIdx] === op) return;           // 相同则不动
+  q.slots[slotIdx] = op;
+  bumpStep();
+  renderChain();
+  renderBalance();
+  checkWin();
+}
+function clearSlot(slotIdx){
+  const q = state.questions[state.qIndex];
+  if(state.revealed) return;
+  if(q.slots[slotIdx] === null) return;
+  q.slots[slotIdx] = null;
+  bumpStep();
+  renderChain();
+  renderBalance();
+}
+function onSlotClick(e){
+  const idx = parseInt(e.currentTarget.dataset.idx, 10);
+  const q = state.questions[state.qIndex];
+  if(q.slots[idx] !== null){
+    // 已填 → 清除
+    clearSlot(idx);
+  } else if(state.pickedOp){
+    // 已选运算符 → 放入
+    placeOp(idx, state.pickedOp);
+  } else {
+    setHint('👆 先点一下下方的 ＋ 或 － 卡片，再点空槽放入哦');
+  }
+}
+function clearSlots(){
+  const q = state.questions[state.qIndex];
+  q.slots = new Array(q.nums.length - 1).fill(null);
+  state.revealed = false;
+  renderChain();
+  renderBalance();
+  setHint('🧹 已清空，重新开始填吧～');
+}
+
+/* ---------- 12. 选择运算符（点选模式） ---------- */
+function pickOp(op){
+  if(state.revealed) return;
+  state.pickedOp = (state.pickedOp === op) ? null : op;   // 再点一次取消
+  document.getElementById('opPlus').classList.toggle('picked', state.pickedOp === '+');
+  document.getElementById('opMinus').classList.toggle('picked', state.pickedOp === '-');
+  if(state.pickedOp){
+    setHint('👆 已选中 ' + (op==='+' ? '＋' : '－') + '，现在点数字之间的空槽放入');
+  }
+}
+function setHint(text, good){
+  const el = document.getElementById('hintBar');
+  el.textContent = text;
+  el.classList.toggle('good', !!good);
+}
+
+/* ---------- 13. 胜负判定 ---------- */
+function checkWin(){
+  const q = state.questions[state.qIndex];
+  const res = computeResult(q);
+  if(res.complete && res.result === q.target){
+    setHint('🎉 太棒了！结果正好等于星光值，通关！', true);
+    launchConfetti();
+    setTimeout(function(){
+      state.qIndex++;
+      if(state.qIndex >= state.questions.length){
+        showFinish();
+      } else {
+        renderLevel();
+      }
+    }, 1600);
+  }
+}
+
+/* ---------- 14. 揭示答案 ---------- */
+function revealAnswer(){
+  const q = state.questions[state.qIndex];
+  const sol = findSolution(q.nums, q.target);
+  if(!sol){ setHint('这关没有找到解，请联系老师～'); return; }
+  q.slots = sol.slice();
+  state.revealed = true;
+  state.pickedOp = null;
+  document.getElementById('opPlus').classList.remove('picked');
+  document.getElementById('opMinus').classList.remove('picked');
+  renderChain();
+  renderBalance();
+  // 拼出算式字符串展示
+  let expr = '' + q.nums[0];
+  for(let i=0;i<sol.length;i++){
+    expr += (sol[i]==='+' ? '＋' : '－') + q.nums[i+1];
+  }
+  setHint('🔍 参考答案：' + expr + ' ＝ ' + q.target + '（答案不唯一，理解思路最重要）');
+}
+
+/* ---------- 15. 流程控制 ---------- */
+function startGame(diff){
+  state.difficulty = diff;
+  state.questions = sampleQuestions(diff, 3);
+  state.qIndex = 0;
+  state.totalSteps = 0;
+  document.getElementById('steps').textContent = '0';
+  applyRandomPalette();
+  startTimer();
+  showScreen('game');
+  renderLevel();
+}
+function restartLevel(){
+  // 重新开始本难度：重新抽样题目 + 换配色
+  if(state.difficulty){
+    startGame(state.difficulty);
+  } else {
+    backToMenu();
+  }
+}
+function backToMenu(){
+  stopTimer();
+  state.qIndex = 0;
+  showScreen('welcome');
+}
+function showFinish(){
+  stopTimer();
+  const sec = Math.floor((Date.now() - state.startTime)/1000);
+  const m = Math.floor(sec/60), s = sec%60;
+  document.getElementById('finishSummary').innerHTML =
+    '你在 <b>' + state.difficulty + '</b> 完成了 <b>3</b> 关<br>' +
+    '一共用了 <b>' + state.totalSteps + '</b> 步，' +
+    '耗时 <b>' + m + '</b> 分 <b>' + s + '</b> 秒。<br>' +
+    '🌟 凑数法、倒推法、加减抵消法，你都掌握啦！';
+  showScreen('finish');
+  launchConfetti();
+}
+
+/* ---------- 16. 拖拽（HTML5 drag + 自定义指针拖拽，兼容触屏） ---------- */
+function setupDrag(){
+  const plus = document.getElementById('opPlus');
+  const minus = document.getElementById('opMinus');
+  const ghost = document.getElementById('ghost');
+
+  // HTML5 原生拖拽（桌面）
+  [['+', plus], ['-', minus]].forEach(function(pair){
+    const op = pair[0], card = pair[1];
+    card.addEventListener('dragstart', function(e){
+      e.dataTransfer.setData('text/op', op);
+      e.dataTransfer.effectAllowed = 'copy';
+      // 用透明图替代默认拖影
+      try { e.dataTransfer.setDragImage(new Image(), 0, 0); } catch(_){}
+    });
+    card.addEventListener('click', function(){ pickOp(op); });
+  });
+
+  // 自定义指针拖拽（同时支持鼠标 mousedown/mousemove 与触屏 touchmove/pointer）
+  let dragging = false;
+  let dragOp = null;
+  function startDrag(op, x, y){
+    dragging = true; dragOp = op;
+    ghost.style.display = 'flex';
+    ghost.textContent = op === '+' ? '＋' : '－';
+    ghost.style.background = op === '+'
+      ? 'linear-gradient(135deg,#69db7c,#40c057)'
+      : 'linear-gradient(135deg,#ff8787,#fa5252)';
+    moveGhost(x, y);
+  }
+  function moveGhost(x, y){
+    ghost.style.left = x + 'px';
+    ghost.style.top = y + 'px';
+  }
+  function endDrag(x, y){
+    if(!dragging) return;
+    dragging = false; ghost.style.display = 'none';
+    // 找到鼠标下的空槽
+    const el = document.elementFromPoint(x, y);
+    if(el){
+      const slot = el.closest('.slot');
+      if(slot && slot.dataset.idx != null){
+        placeOp(parseInt(slot.dataset.idx,10), dragOp);
+      }
+    }
+    dragOp = null;
+  }
+
+  [['+', plus], ['-', minus]].forEach(function(pair){
+    const op = pair[0], card = pair[1];
+    // 鼠标
+    card.addEventListener('mousedown', function(e){
+      if(state.revealed) return;
+      e.preventDefault();
+      startDrag(op, e.clientX, e.clientY);
+    });
+    // 触屏
+    card.addEventListener('touchstart', function(e){
+      if(state.revealed) return;
+      const t = e.touches[0];
+      startDrag(op, t.clientX, t.clientY);
+    }, {passive:true});
+  });
+
+  document.addEventListener('mousemove', function(e){
+    if(dragging){ e.preventDefault(); moveGhost(e.clientX, e.clientY); }
+  });
+  document.addEventListener('touchmove', function(e){
+    if(dragging){
+      const t = e.touches[0];
+      moveGhost(t.clientX, t.clientY);
+      e.preventDefault();
+    }
+  }, {passive:false});
+  document.addEventListener('mouseup', function(e){ endDrag(e.clientX, e.clientY); });
+  document.addEventListener('touchend', function(e){
+    if(dragging){
+      const t = e.changedTouches[0];
+      endDrag(t.clientX, t.clientY);
+    }
+  });
+}
+
+/* ---------- 17. 彩纸庆祝动画（Canvas 实现） ---------- */
+let confettiCtx = null, confettiParticles = [], confettiRaf = null;
+function launchConfetti(){
+  const cv = document.getElementById('confetti');
+  cv.style.display = 'block';
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  confettiCtx = cv.getContext('2d');
+  const colors = ['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#4dabf7','#cc5de8','#f783ac'];
+  confettiParticles = [];
+  for(let i=0;i<140;i++){
+    confettiParticles.push({
+      x: Math.random()*cv.width,
+      y: -20 - Math.random()*cv.height*0.5,
+      r: 4 + Math.random()*8,
+      vy: 2 + Math.random()*4,
+      vx: -2 + Math.random()*4,
+      rot: Math.random()*Math.PI,
+      vrot: -0.2 + Math.random()*0.4,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      shape: Math.random()<0.5 ? 'rect' : 'circ',
+    });
+  }
+  if(confettiRaf) cancelAnimationFrame(confettiRaf);
+  animateConfetti();
+}
+function animateConfetti(){
+  const cv = document.getElementById('confetti');
+  const ctx = confettiCtx;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  let alive = 0;
+  for(const p of confettiParticles){
+    if(p.y > cv.height + 30) continue;
+    alive++;
+    p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.rot += p.vrot;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = p.color;                 // fillStyle + 操作（满足真交互特征）
+    if(p.shape === 'rect'){
+      ctx.fillRect(-p.r, -p.r*0.5, p.r*2, p.r);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  if(alive > 0){
+    confettiRaf = requestAnimationFrame(animateConfetti);
+  } else {
+    cv.style.display = 'none';
+    confettiRaf = null;
+  }
+}
+
+/* ---------- 18. 初始化 ---------- */
+window.addEventListener('DOMContentLoaded', function(){
+  applyRandomPalette();
+  setupDrag();
+  // 难度卡片点击
+  document.querySelectorAll('.diff-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      startGame(card.dataset.diff);
+    });
+  });
+  // 点击模态遮罩关闭
+  document.getElementById('rulesModal').addEventListener('click', function(e){
+    if(e.target === this) showRules(false);
+  });
+  // 色板小圆点点击换色
+  document.getElementById('swatch').addEventListener('click', applyRandomPalette);
+  // 关闭模态的 Esc
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') showRules(false);
+  });
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1b/g004", "name": "\u5f69\u8679\u7b97\u7b26\u5de5\u574a \u00b7 \u5de7\u586b\u7b97\u7b26\u521d\u6b65\uff08\u4e0b\uff09", "file": "g004.html", "jiaocan": "\u30104\u3011\u7b2c2\u8bb2 \u5de7\u586b\u7b97\u7b26\u521d\u6b65\uff08\u4e0b\uff09", "unit": "\u7b2c2\u8bb2", "grade": "1\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

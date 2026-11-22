@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>样本小镇·平衡节大闯关（用样本估计总体）</title>
+<style>
+/* ============ 全局样式：配色由 JS 每局随机注入 CSS 变量 ============ */
+:root{
+  --c-bg:#fff7ed; --c-panel:#ffffff; --c-main:#ea580c; --c-accent:#0284c7; --c-ink:#1e293b;
+  --c-ok:#16a34a; --c-warn:#d97706; --c-soft:#94a3b8;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:var(--c-bg); color:var(--c-ink); font-size:18px; line-height:1.55;
+}
+#app{max-width:1080px;margin:0 auto;padding:10px 12px 120px;}
+header{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+  gap:8px;padding:8px 6px 10px;
+}
+header h1{font-size:clamp(22px,3.4vw,34px);margin:0;color:var(--c-main);letter-spacing:1px;}
+header .sub{font-size:16px;color:var(--c-ink);opacity:.85;margin-top:2px;}
+.hud{
+  background:var(--c-panel);border:3px solid var(--c-main);border-radius:14px;
+  padding:6px 14px;font-size:19px;font-weight:700;white-space:nowrap;
+  box-shadow:0 3px 0 rgba(0,0,0,.08);
+}
+.hud b{color:var(--c-accent);}
+/* ---- 关卡进度导航 ---- */
+#stageNav{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px;}
+.navPill{
+  flex:1 1 200px;background:var(--c-panel);border:3px solid var(--c-soft);border-radius:12px;
+  padding:6px 10px;font-size:17px;font-weight:700;text-align:center;color:var(--c-soft);
+}
+.navPill.cur{border-color:var(--c-main);color:var(--c-main);background:#fff;}
+.navPill.done{border-color:var(--c-ok);color:var(--c-ok);}
+.navPill .st{font-size:15px;font-weight:400;display:block;}
+/* ---- 主舞台 ---- */
+#stageArea{min-height:340px;}
+.panel{
+  background:var(--c-panel);border-radius:18px;padding:14px 16px;margin-bottom:12px;
+  box-shadow:0 4px 14px rgba(30,41,59,.10);
+}
+.story{font-size:19px;margin:2px 0 10px;}
+.story .tag{
+  display:inline-block;background:var(--c-accent);color:#fff;border-radius:8px;
+  padding:1px 10px;font-size:16px;margin-right:8px;vertical-align:2px;
+}
+.hintrow{font-size:16px;color:var(--c-warn);font-weight:700;margin-top:6px;}
+/* ---- 底部按钮 ---- */
+#footer{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--c-panel);
+  border-top:4px solid var(--c-main);padding:8px 10px;display:flex;flex-wrap:wrap;
+  gap:8px;justify-content:center;box-shadow:0 -4px 12px rgba(0,0,0,.10);
+}
+button{
+  font-family:inherit;font-size:18px;font-weight:700;color:#fff;background:var(--c-accent);
+  border:none;border-radius:12px;padding:10px 18px;cursor:pointer;min-height:46px;
+  box-shadow:0 3px 0 rgba(0,0,0,.18);touch-action:manipulation;
+}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18);}
+button.ghostBtn{background:var(--c-main);}
+button.plainBtn{background:#64748b;}
+button:disabled{background:#cbd5e1;cursor:not-allowed;}
+/* ---- 首页难度选择 ---- */
+.homeTitle{text-align:center;margin:26px 0 8px;}
+.homeTitle h2{font-size:clamp(26px,4.5vw,44px);color:var(--c-main);margin:6px 0;}
+.homeTitle p{font-size:19px;margin:4px 0;}
+.lvRow{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:20px 0 10px;}
+.lvCard{
+  flex:1 1 240px;max-width:320px;background:var(--c-panel);border:4px solid var(--c-main);
+  border-radius:20px;padding:18px 16px;text-align:center;cursor:pointer;
+  box-shadow:0 6px 0 rgba(0,0,0,.12);transition:transform .12s;
+}
+.lvCard:active{transform:translateY(3px);}
+.lvCard h3{margin:4px 0 8px;font-size:24px;color:var(--c-main);}
+.lvCard .desc{font-size:16px;color:#475569;}
+.lvCard .big{font-size:44px;line-height:1;margin-bottom:6px;}
+/* ---- 天平（SVG）---- */
+#svgWrap{overflow-x:auto;}
+svg.seesaw{width:100%;min-width:700px;max-width:960px;height:auto;display:block;margin:0 auto;touch-action:none;}
+.meterWrap{margin-top:4px;text-align:center;}
+.meterBar{
+  position:relative;height:26px;background:#e2e8f0;border-radius:13px;margin:6px auto 2px;
+  max-width:640px;border:2px solid #cbd5e1;
+}
+.meterNeedle{
+  position:absolute;top:-8px;width:10px;height:40px;background:var(--c-main);
+  border-radius:5px;left:50%;transition:left .05s linear;
+}
+.meterTxt{font-size:18px;font-weight:700;}
+/* ---- 排序摘星 ---- */
+.tray{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 4px;min-height:56px;}
+.chip{
+  background:#fff;border:3px solid var(--c-accent);color:var(--c-accent);border-radius:12px;
+  padding:8px 14px;font-size:18px;font-weight:700;cursor:grab;touch-action:none;user-select:none;
+}
+.chip.ok{border-color:var(--c-ok);color:var(--c-ok);}
+.chip.used{opacity:.55;}
+#slotScroll{overflow-x:auto;padding:6px 2px 10px;touch-action:pan-x;}
+#slotRow{display:flex;align-items:stretch;width:max-content;min-width:100%;}
+.slot{
+  width:80px;min-height:120px;border:3px dashed #cbd5e1;border-radius:12px;margin:4px 0;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  padding:4px 2px;position:relative;background:#f8fafc;
+}
+.slot.hot{border-color:var(--c-main);background:#fff7ed;}
+.slot.sorted{border-style:solid;border-color:var(--c-ok);}
+.slot .idx{font-size:14px;color:#64748b;margin-top:2px;}
+.card{
+  width:66px;height:84px;border-radius:10px;background:var(--c-main);color:#fff;
+  font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;
+  cursor:grab;touch-action:none;user-select:none;box-shadow:0 3px 0 rgba(0,0,0,.2);
+  margin-bottom:4px;word-break:break-all;text-align:center;line-height:1.2;
+}
+.card.fixedCard{background:var(--c-accent);}
+.seam{
+  width:26px;margin:4px 4px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;border-left:2px dashed #e2e8f0;border-right:2px dashed #e2e8f0;
+  border-radius:6px;min-height:120px;touch-action:none;
+}
+.seam.hot{background:#ecfeff;border-color:var(--c-accent);}
+.seam .lab{writing-mode:vertical-lr;font-size:13px;color:#94a3b8;letter-spacing:2px;}
+.dockChip{
+  font-size:14px;font-weight:800;color:#fff;background:var(--c-ok);border-radius:8px;
+  padding:2px 6px;margin-top:3px;cursor:grab;touch-action:none;max-width:74px;text-align:center;
+}
+.ghost{
+  position:fixed;z-index:99;pointer-events:none;opacity:.9;transform:translate(-50%,-50%);
+  font-weight:800;
+}
+/* ---- 彩虹调度场 ---- */
+.rulerBox{overflow-x:auto;padding:8px 2px;}
+#ruler{
+  position:relative;height:150px;min-width:640px;background:linear-gradient(#ffffff,#f1f5f9);
+  border:3px solid #cbd5e1;border-radius:14px;touch-action:none;
+}
+.rTick{position:absolute;bottom:0;width:2px;background:#cbd5e1;height:14px;}
+.rTick.big{height:24px;background:#64748b;}
+.rLab{position:absolute;bottom:28px;transform:translateX(-50%);font-size:16px;color:#475569;font-weight:700;}
+.dot{
+  position:absolute;width:52px;height:52px;border-radius:50%;background:var(--c-main);
+  border:4px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.25);cursor:grab;touch-action:none;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;font-weight:800;
+  transform:translateX(-50%);user-select:none;
+}
+.dot.fixed{background:var(--c-accent);cursor:default;}
+.dot .v{position:absolute;top:-30px;left:50%;transform:translateX(-50%);
+  background:#334155;color:#fff;font-size:16px;border-radius:6px;padding:0 6px;white-space:nowrap;}
+.gaugeRow{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;}
+.gauge{
+  flex:1 1 220px;border:3px solid var(--c-soft);border-radius:14px;padding:8px 12px;text-align:center;
+}
+.gauge.hit{border-color:var(--c-ok);background:#f0fdf4;}
+.gauge .t{font-size:17px;font-weight:700;color:#475569;}
+.gauge .v{font-size:30px;font-weight:800;}
+.gauge.hit .v{color:var(--c-ok);}
+/* ---- 直方图 ---- */
+#histWrap{overflow-x:auto;}
+#histCv{width:100%;min-width:700px;max-width:940px;height:auto;display:block;margin:0 auto;touch-action:none;}
+#histInfo{
+  margin-top:8px;border:3px solid var(--c-accent);border-radius:12px;background:#f0f9ff;
+  padding:8px 12px;font-size:18px;font-weight:700;min-height:52px;
+}
+/* ---- 弹窗 ---- */
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.58);display:none;
+  align-items:center;justify-content:center;z-index:60;padding:14px;}
+.modal.show{display:flex;}
+.modal .box{
+  background:#fff;border-radius:18px;max-width:700px;width:100%;padding:20px 22px;
+  max-height:86vh;overflow:auto;border-top:10px solid var(--c-main);
+}
+.modal h3{margin:2px 0 10px;font-size:26px;color:var(--c-main);}
+.modal .body{font-size:18px;white-space:pre-line;}
+.modal .btnRow{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;justify-content:center;}
+/* ---- 提示浮层 ---- */
+#toast{
+  position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:80;
+  background:#334155;color:#fff;font-size:19px;font-weight:700;border-radius:12px;
+  padding:10px 20px;opacity:0;pointer-events:none;transition:opacity .25s;max-width:86vw;text-align:center;
+}
+#toast.show{opacity:1;}
+/* ---- 通关庆祝 ---- */
+#winBox{text-align:center;}
+#confettiCv{width:100%;height:240px;display:block;}
+.shake{animation:shakeX .35s;}
+@keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+.glow{animation:pulseGlow 1s infinite alternate;}
+@keyframes pulseGlow{from{filter:drop-shadow(0 0 2px gold)}to{filter:drop-shadow(0 0 12px gold)}}
+@media (max-width:620px){
+  body{font-size:17px;}
+  .slot{width:64px;}
+  .card{width:52px;height:70px;font-size:18px;}
+  .seam{width:20px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <h1>样本小镇 · 平衡节大闯关</h1>
+      <div class="sub">用样本估计总体：平均数 · 中位数 · 百分位数 · 方差 · 频率分布直方图（高中统计）</div>
+    </div>
+    <div class="hud">时间 <b id="hudTime">00:00</b>　步数 <b id="hudStep">0</b></div>
+  </header>
+
+  <nav id="stageNav" style="display:none;"></nav>
+
+  <main id="stageArea"></main>
+
+  <div id="footer" style="display:none;">
+    <button class="ghostBtn" id="btnRules">规则说明</button>
+    <button id="btnReveal">揭示答案</button>
+    <button class="ghostBtn" id="btnRestart">重新开始</button>
+    <button class="plainBtn" id="btnHome">返回难度选择</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- 规则说明弹窗 -->
+<div class="modal" id="modalRules">
+  <div class="box">
+    <h3>规则说明</h3>
+    <div class="body" id="rulesBody"></div>
+    <div class="btnRow"><button class="ghostBtn" id="btnRulesGo">开始挑战</button></div>
+  </div>
+</div>
+
+<!-- 揭示答案弹窗 -->
+<div class="modal" id="modalReveal">
+  <div class="box">
+    <h3>答案解析</h3>
+    <div class="body" id="revealBody"></div>
+    <div class="btnRow">
+      <button id="btnRevealClose">我再试试</button>
+      <button class="ghostBtn" id="btnRevealApply">自动摆好并过关</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通关庆祝弹窗 -->
+<div class="modal" id="modalWin">
+  <div class="box" id="winBox">
+    <h3>全部关卡点亮！</h3>
+    <canvas id="confettiCv" width="640" height="240"></canvas>
+    <div class="body" id="winBody"></div>
+    <div class="btnRow">
+      <button class="ghostBtn" id="btnAgain">再玩一次（重新抽题）</button>
+      <button class="plainBtn" id="btnChangeLv">换个难度</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   样本小镇·平衡节大闯关
+   —— 把《用样本估计总体》的四类核心方法做成四个动手关卡：
+   1) 平均数天平：拖支点找数据的"重心"（平均数）
+   2) 排序摘星：拖卡片排序 + 放中位数/百分位数徽章
+   3) 彩虹调度场：拖数据点，让平均数/方差达成目标
+   4) 直方图藏宝图：在频率分布直方图上安放众数/中位数/平均数/百分位数徽章
+   所有答案均由代码从数据实时计算，保证题面与答案一致。
+===================================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+function clamp(v,a,b){ return Math.min(b,Math.max(a,v)); }
+function shuffle(arr){ // 返回打乱后的新数组
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){ var j = Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; } // 随机抽一个
+function fmt(x){ // 数值显示：整数去小数，否则保留两位
+  if(!isFinite(x)) return "-";
+  if(Math.abs(x-Math.round(x))<1e-9) return String(Math.round(x));
+  return String(Math.round(x*100)/100);
+}
+function meanOf(a){ var s=0; for(var i=0;i<a.length;i++) s+=a[i]; return s/a.length; }
+function varOf(a){ var m=meanOf(a),s=0; for(var i=0;i<a.length;i++){ var d=a[i]-m; s+=d*d; } return s/a.length; }
+function toast(msg,ms){ // 轻提示
+  var t=$("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(t._tm); t._tm=setTimeout(function(){ t.classList.remove("show"); }, ms||1900);
+}
+/* 通用指针拖拽：window 级监听，兼容鼠标与触屏 */
+function beginPointerDrag(onMove,onUp){
+  var mm=function(e){ onMove(e); };
+  var mu=function(e){
+    window.removeEventListener("pointermove",mm);
+    window.removeEventListener("pointerup",mu);
+    window.removeEventListener("pointercancel",mu);
+    onUp(e);
+  };
+  window.addEventListener("pointermove",mm);
+  window.addEventListener("pointerup",mu);
+  window.addEventListener("pointercancel",mu);
+}
+function hitRect(pt,r){ return pt.x>=r.left&&pt.x<=r.right&&pt.y>=r.top&&pt.y<=r.bottom; }
+function rectsOf(nl){ var a=[]; for(var i=0;i<nl.length;i++) a.push(nl[i].getBoundingClientRect()); return a; }
+
+/* ---------------- 随机调色板（G8） ---------------- */
+var PALETTES=[
+  {bg:"#fff7ed",main:"#ea580c",accent:"#0369a1"},
+  {bg:"#ecfdf5",main:"#059669",accent:"#7c3aed"},
+  {bg:"#eff6ff",main:"#2563eb",accent:"#d97706"},
+  {bg:"#fdf2f8",main:"#db2777",accent:"#0e7490"},
+  {bg:"#f5f3ff",main:"#7c3aed",accent:"#15803d"},
+  {bg:"#fef2f2",main:"#dc2626",accent:"#0f766e"}
+];
+function applyPalette(){
+  var p=pick(PALETTES);
+  var r=document.documentElement.style;
+  r.setProperty("--c-bg",p.bg); r.setProperty("--c-main",p.main); r.setProperty("--c-accent",p.accent);
+}
+
+/* =====================================================================
+   数据池：全部取自教参《14.4 用样本估计总体》的例题/练习/变式（部分数值做了游戏化改造）
+   每局从每关的 3 套数据中随机抽 1 套，满足"反重复"要求
+===================================================================== */
+var POOLS={
+/* -------- 第1关：平均数天平 -------- */
+stage1:{
+  1:[ // 初级：一组数据，每个数据 1 个砝码（相同数值自动合并）
+    {story:"从一堆苹果中任取 5 个，称得质量（单位：g）如下。拖动灰色支点让天平平衡，平衡位置的刻度就是平均数！",
+     vals:[121,123,124,125,127], src:"苹果质量", range:[119,129], tick:1, label:1},
+    {story:"工人甲在技能培训期间参加 8 次测试，成绩（单位：分）如下。相同数值的砝码会自动合并变重哦！",
+     vals:[95,82,88,81,93,79,84,78], src:"甲工人8次测试", range:[76,97], tick:1, label:1},
+    {story:"甲单位 8 名职工参加知识竞赛，成绩（单位：分）如下。让天平平衡，读出平均数！",
+     vals:[88,87,91,93,91,92,88,90], src:"甲单位竞赛", range:[85,95], tick:1, label:1}
+  ],
+  2:[ // 中级：频数加权（砝码质量=频数）
+    {story:"随机抽取 500 包纱布测量质量指标值 Z（单位：g），同一组数据用区间中点值代表。砝码的宽度代表该组频数！",
+     vals:[170,180,190,200,210,220,230], freqs:[10,45,110,165,120,40,10], src:"纱布质量指标", range:[166,234], tick:5, label:10},
+    {story:"乙班随机抽取 10 名学生的体能成绩（单位：分）如下。相同分数合并成重砝码！",
+     vals:[73,81,83,87,88,95,96,97,99], freqs:[1,2,1,1,1,1,1,1,1], src:"乙班体能", range:[71,101], tick:1, label:2},
+    {story:"甲班随机抽取 10 名学生的体能成绩（单位：分）如下。注意：平均数可能带 0.5 哦！",
+     vals:[75,79,82,84,86,87,90,91,93,98], freqs:[1,1,1,1,1,1,1,1,1,1], src:"甲班体能", range:[73,100], tick:1, label:2}
+  ],
+  3:[ // 高级：分层抽样（每层一块大砝码，质量=该层样本量）
+    {story:"甲班 50 人平均成绩 76 分，乙班 40 人平均成绩 85 分。把两班合起来 90 名学生看成一组砝码，整体平均成绩是多少？",
+     layers:[{n:50,m:76,tag:"甲班"},{n:40,m:85,tag:"乙班"}], src:"两班合成", range:[74,87], tick:1, label:1},
+    {story:"分层抽样中总体分为 2 层：第 1 层样本量 20、样本平均数 3；第 2 层样本量 30、样本平均数 8。整个样本的平均数是多少？",
+     layers:[{n:20,m:3,tag:"第1层"},{n:30,m:8,tag:"第2层"}], src:"两层样本", range:[2,9], tick:0.5, label:1},
+    {story:"A 组 30 人平均分 72 分，B 组 20 人平均分 90 分。把两组看成一个总体，平均分是多少？",
+     layers:[{n:30,m:72,tag:"A组"},{n:20,m:90,tag:"B组"}], src:"组合平均", range:[70,92], tick:1, label:2}
+  ]
+},
+/* -------- 第2关：排序摘星 -------- */
+stage2:{
+  1:[ // 初级：7 张卡片，中位数徽章放在最中间那张卡上
+    {story:"小潮参加 7 次套圈游戏，每次得环数如下。先拖卡片按从小到大排好，再把「中位数」徽章放到最中间的卡片上！",
+     vals:[9,5,8,6,8,6,7], badges:[{kind:"median"}], src:"套圈环数"},
+    {story:"果篮里 7 个苹果的质量（单位：g）如下。排好序后，把「中位数」徽章放到最中间的卡片上！",
+     vals:[121,127,123,125,124,130,131], badges:[{kind:"median"}], src:"苹果质量"},
+    {story:"7 只小白鼠饲养一段时间后体重的增加量（单位：g）如下。注意是小数，细心排序哦！",
+     vals:[22.5,15.2,25.8,18.8,23.2,20.2,21.3], badges:[{kind:"median"}], src:"小白鼠增重"}
+  ],
+  2:[ // 中级：8 张卡片（中位数在两张卡片之间的"中缝"）或 11 张卡片百分位数
+    {story:"工人甲 8 次测试成绩如下。偶数个数据的中位数要放在正中间两张卡片之间的「中缝」里！",
+     vals:[95,82,88,81,93,79,84,78], badges:[{kind:"median"}], src:"甲工人8次测试"},
+    {story:"工人乙 8 次测试成绩如下。排好序，把「中位数」徽章放进正确的「中缝」！",
+     vals:[83,92,80,95,90,80,85,75], badges:[{kind:"median"}], src:"乙工人8次测试"},
+    {story:"一组数据共 11 个数，恰好是 1 到 11。把「第60百分位数」徽章放到正确的卡片上（先算 n×60% 哦）。",
+     vals:[1,2,3,4,5,6,7,8,9,10,11], badges:[{kind:"pct",p:60}], src:"11个数"}
+  ],
+  3:[ // 高级：10 张卡片 + 多枚百分位数徽章（含中缝型）
+    {story:"一组数据共 10 个数，恰好是 1 到 10。三枚徽章都要放对：下四分位数（第25百分位数）、上四分位数（第75百分位数）、第90百分位数。",
+     vals:[1,2,3,4,5,6,7,8,9,10], badges:[{kind:"pct",p:25},{kind:"pct",p:75},{kind:"pct",p:90}], src:"10个数三徽章"},
+    {story:"乙班 10 名学生的体能成绩（单位：分）如下。放出三枚徽章：中位数、第20百分位数、第70百分位数。",
+     vals:[73,81,81,83,87,88,95,96,97,99], badges:[{kind:"median"},{kind:"pct",p:20},{kind:"pct",p:70}], src:"乙班体能百分位"},
+    {story:"甲班 10 名学生的体能成绩（单位：分）如下。放出三枚徽章：中位数、第40百分位数、第80百分位数。",
+     vals:[75,79,82,84,86,87,90,91,93,98], badges:[{kind:"median"},{kind:"pct",p:40},{kind:"pct",p:80}], src:"甲班体能百分位"}
+  ]
+},
+/* -------- 第3关：彩虹调度场 -------- */
+stage3:{
+  1:[ // 初级：4 个定点 + 1 个可拖的"?"点，达成平均数目标
+    {story:"一组样本数据 2, 3, 7, 8, a 的平均数是 5。拖动蓝色「?」点，让平均数仪表恰好等于目标！",
+     fixed:[2,3,7,8], init:[0], range:[0,10], tick:1, label:1, src:"神秘数据a"},
+    {story:"从一堆苹果中任取 5 个，其中 4 个质量（单位：g）已定：125, 124, 121, 123。想让 5 个苹果的平均质量恰为 124 g，第 5 个应是多少？",
+     fixed:[125,124,121,123], init:[118], range:[114,134], tick:1, label:2, src:"第5个苹果"},
+    {story:"数据 10, 10, 8, x 的平均数为 9。拖动「?」点补上 x 吧！",
+     fixed:[10,10,8], init:[15], range:[4,17], tick:1, label:2, src:"神秘数据x"}
+  ],
+  2:[ // 中级：5 个点全可拖，同时达成平均数与方差目标
+    {story:"5 个苹果的质量（单位：g）初始摆放乱了。拖动每个圆点，让平均数 = 124 且 方差 = 4（这正是那组经典苹果数据！）",
+     init:[130,116,124,128,122], target:{mean:124,var:4}, solution:[121,123,124,125,127],
+     range:[110,136], tick:1, label:2, src:"苹果目标"},
+    {story:"把 5 个圆点调度到合适位置，使平均数 = 85 且 方差 = 2。",
+     init:[92,80,78,88,86], target:{mean:85,var:2}, solution:[83,84,85,86,87],
+     range:[76,96], tick:1, label:2, src:"紧凑队形"},
+    {story:"把 5 个圆点调度到合适位置，使平均数 = 88 且 方差 = 8。",
+     init:[94,80,90,86,84], target:{mean:88,var:8}, solution:[84,86,88,90,92],
+     range:[78,98], tick:1, label:2, src:"舒展队形"}
+  ],
+  3:[ // 高级：6 个点全可拖，达成更挑剔的目标
+    {story:"6 个圆点全部可以拖动！让平均数 = 80 且 方差 = 15。",
+     init:[68,90,72,88,84,82], target:{mean:80,var:15}, solution:[75,76,78,82,84,85],
+     range:[65,95], tick:1, label:5, src:"六点平衡"},
+    {story:"6 个圆点，让平均数 = 80 且 方差 = 4。提示：想想怎样的偏差平方平均下来恰好是 4。",
+     init:[72,74,76,86,88,86], target:{mean:80,var:4}, solution:[78,78,78,82,82,82],
+     range:[70,90], tick:1, label:5, src:"两组靠拢"},
+    {story:"6 个圆点，让平均数 = 70 且 方差 = 12。",
+     init:[60,64,68,74,80,76], target:{mean:70,var:12}, solution:[66,66,68,72,74,74],
+     range:[56,84], tick:1, label:4, src:"精密调度"}
+  ]
+},
+/* -------- 第4关：直方图藏宝图 -------- */
+stage4:{
+  1:[ // 初级：众数 + 中位数
+    {story:"对一批底部周长（单位：cm）在 [80,130] 内的树木进行研究，随机抽取 200 棵得到频率分布直方图（组距 10，矩形面积=频率）。把「众数」「中位数」徽章拖到横轴正确位置！",
+     edges:[80,90,100,110,120,130], dens:[0.005,0.010,0.030,0.040,0.015],
+     snap:0.25, tol:0.5, badges:["mode","median"], src:"树木周长"},
+    {story:"120 名同学的百米测试成绩（单位：秒）全部介于 13 与 18 之间，分成 5 组（组距 1），从左到右 5 个小矩形的面积之比为 1:3:7:6:3。把「众数」「中位数」徽章拖到横轴正确位置！",
+     edges:[13,14,15,16,17,18], dens:[0.05,0.15,0.35,0.30,0.15],
+     snap:0.01, tol:0.15, badges:["mode","median"], src:"百米成绩"},
+    {story:"在面积相等的 100 块稻田上种植新型水稻，亩产量（单位：kg）的频率分布直方图如下（组距 50）。把「众数」「中位数」徽章拖到横轴正确位置！",
+     edges:[900,950,1000,1050,1100,1150,1200], dens:[0.0012,0.0024,0.0036,0.0060,0.0048,0.0020],
+     snap:0.25, tol:2.5, badges:["mode","median"], src:"稻田亩产"}
+  ],
+  2:[ // 中级：众数 + 中位数 + 平均数
+    {story:"为了解某地农村居民月收入（单位：元），抽样调查得到频率分布直方图如下（组距 500）。放出「众数」「中位数」「平均数」三枚徽章！",
+     edges:[2500,3000,3500,4000,4500,5000,5500], dens:[0.0002,0.0004,0.0005,0.0004,0.0003,0.0002],
+     snap:5, tol:20, badges:["mode","median","mean"], src:"居民月收入"},
+    {story:"树木底部周长的频率分布直方图（组距 10）如上局所示。这一次平均数徽章也要一起放：想想「重心」在哪里！",
+     edges:[80,90,100,110,120,130], dens:[0.005,0.010,0.030,0.040,0.015],
+     snap:0.25, tol:0.5, badges:["mode","median","mean"], src:"树木周长三徽章"},
+    {story:"100 块稻田亩产量（单位：kg）的频率分布直方图（组距 50）。放出「众数」「中位数」「平均数」三枚徽章！",
+     edges:[900,950,1000,1050,1100,1150,1200], dens:[0.0012,0.0024,0.0036,0.0060,0.0048,0.0020],
+     snap:0.25, tol:2.5, badges:["mode","median","mean"], src:"稻田亩产三徽章"}
+  ],
+  3:[ // 高级：众数 + 中位数 + 平均数 + 百分位数
+    {story:"高三某班 60 名学生的数学模拟考试成绩（单位：分）频率分布直方图如下（组距 10）。放出四枚徽章：众数、中位数、平均数、第80百分位数！",
+     edges:[80,90,100,110,120,130,140], dens:[0.010,0.015,0.015,0.030,0.0225,0.0075],
+     snap:0.05, tol:0.5, badges:["mode","median","mean",{kind:"pct",p:80}], src:"模拟考试成绩"},
+    {story:"居民月收入（单位：元）频率分布直方图（组距 500）。这次还多了「第60百分位数」徽章！",
+     edges:[2500,3000,3500,4000,4500,5000,5500], dens:[0.0002,0.0004,0.0005,0.0004,0.0003,0.0002],
+     snap:5, tol:20, badges:["mode","median","mean",{kind:"pct",p:60}], src:"月收入百分位"},
+    {story:"100 块稻田亩产量（单位：kg）频率分布直方图（组距 50）。放出四枚徽章：众数、中位数、平均数、第70百分位数！",
+     edges:[900,950,1000,1050,1100,1150,1200], dens:[0.0012,0.0024,0.0036,0.0060,0.0048,0.0020],
+     snap:0.25, tol:2.5, badges:["mode","median","mean",{kind:"pct",p:70}], src:"稻田百分位"}
+  ]
+}};
+
+/* ---------------- 关卡名称与玩法说明 ---------------- */
+var STAGE_INFO=[
+ {name:"平均数天平", icon:"·衡·",
+  how:"天平横梁就是一条刻度尺，每个数据都是放在梁上的砝码（砝码越宽代表频数/人数越多）。拖动下方的灰色支点，观察横梁倾斜与合力矩读数——当天平完全平衡时，支点所在刻度就是这组数据的平均数！",
+  tip:"平均数是全部数据的「重心」：当 Σ 频数×(数值−支点)=0 时天平平衡。分层抽样时 x̄=(n₁x̄₁+n₂x̄₂)÷(n₁+n₂)。"},
+ {name:"排序摘星", icon:"·序·",
+  how:"先拖动卡片两两交换，把数据按从小到大排好；再把徽章拖到正确位置：中位数放最中间；百分位数先算 n×k%，若结果是整数 i 就放进「第 i 与 i+1 张之间的中缝」，不是整数则放到第 ⌈n×k%⌉ 张卡片上。",
+  tip:"奇数个数据的中位数是正中间那张；偶数个是中间两张的平均数。k 百分位数使得至少 k% 的数据不超过它。"},
+ {name:"彩虹调度场", icon:"·调·",
+  how:"左右拖动彩色圆点（每个点上方实时显示数值），下方仪表盘实时计算平均数与方差。把圆点调度到让仪表恰好等于目标值，就点亮本关！",
+  tip:"方差 s²=Σ(xᵢ−x̄)²÷n。数据向平均数靠拢，方差变小；向两端散开，方差变大。"},
+ {name:"直方图藏宝图", icon:"·图·",
+  how:"把徽章拖到直方图横轴上方并松手：拖动时有实时导航（众数看最高矩形、中位数看左侧累计面积 50%、平均数看力矩平衡、百分位数看累计面积 k%）。徽章落点达标会变绿，全部变绿即过关！",
+  tip:"频率分布直方图中每个矩形的面积=该组频率。众数≈最高矩形底边中点；中位数在左右面积各 50% 处；平均数=Σ(组中值×频率)；k 百分位数在累计面积 k% 处。"}
+];
+
+/* ---------------- 全局状态 ---------------- */
+var state={
+  level:0,            // 1/2/3 难度
+  stage:0,            // 0..3 当前关
+  steps:0,
+  t0:0, timerId:null, elapsed:0,
+  done:[false,false,false,false],
+  revealed:[false,false,false,false],
+  data:null,          // 本局每关抽到的数据
+  api:null            // 当前关控制器（提供 explain / applyAnswer）
+};
+
+/* ---------------- 计时器与步数 ---------------- */
+function startTimer(){
+  state.t0=Date.now(); state.elapsed=0;
+  clearInterval(state.timerId);
+  state.timerId=setInterval(function(){
+    state.elapsed=Math.floor((Date.now()-state.t0)/1000);
+    var m=String(Math.floor(state.elapsed/60)), s=String(state.elapsed%60);
+    $("hudTime").textContent=(m.length<2?"0":"")+m+":"+(s.length<2?"0":"")+s;
+  },500);
+}
+function stopTimer(){ clearInterval(state.timerId); }
+function bump(){ state.steps++; $("hudStep").textContent=String(state.steps); }
+
+/* ---------------- 首页（难度选择） ---------------- */
+function renderHome(){
+  stopTimer();
+  state.level=0; state.stage=0;
+  $("stageNav").style.display="none";
+  $("footer").style.display="none";
+  applyPalette();
+  var lv=["","初级","中级","高级"];
+  var de=["","例题级热身：小数据平均数 · 中位数 · 单点调度 · 双徽章藏宝","练习级进阶：频数加权 · 中缝中位数 · 双目标调度 · 三徽章藏宝","变式级挑战：分层合成 · 百分位数徽章 · 六点精密调度 · 四徽章藏宝"];
+  var area=$("stageArea");
+  area.innerHTML=
+   '<div class="homeTitle">'+
+   '<h2>样本小镇 · 平衡节</h2>'+
+   '<p>选出你的难度，依次点亮 4 座灯塔：平均数天平 → 排序摘星 → 彩虹调度场 → 直方图藏宝图</p>'+
+   '<p style="font-size:16px;opacity:.8">每局随机抽取教参《14.4 用样本估计总体》的例题与变式，配色也会随机更换哦</p></div>'+
+   '<div class="lvRow">'+
+   [1,2,3].map(function(i){
+     return '<div class="lvCard" data-lv="'+i+'"><div class="big" style="color:var(--c-accent)">'+["","★","★★","★★★"][i]+'</div>'+
+       '<h3>'+lv[i]+'</h3><div class="desc">'+de[i]+'</div></div>';
+   }).join("")+
+   '</div>'+
+   '<div style="text-align:center;margin-top:8px;"><button class="plainBtn" id="btnHomeRules">先看规则说明</button></div>';
+  Array.prototype.forEach.call(area.querySelectorAll(".lvCard"),function(c){
+    c.addEventListener("click",function(){ startGame(parseInt(c.getAttribute("data-lv"),10)); });
+  });
+  $("btnHomeRules").addEventListener("click",function(){
+    $("rulesBody").textContent=generalRules();
+    $("modalRules").classList.add("show");
+    $("btnRulesGo").textContent="返回选择";
+  });
+}
+function generalRules(){
+  return "【总玩法】选难度后依次闯 4 关，每关都要动手操作才能点亮：\n"+
+   "1. 平均数天平 —— 拖动支点让天平平衡，支点刻度=平均数；\n"+
+   "2. 排序摘星 —— 拖卡片从小到大排序，再把中位数/百分位数徽章放到正确卡片或中缝；\n"+
+   "3. 彩虹调度场 —— 拖动数据点，让平均数（和方差）仪表恰好达到目标；\n"+
+   "4. 直方图藏宝图 —— 把众数/中位数/平均数/百分位数徽章拖到直方图横轴的正确位置。\n\n"+
+   "【小提示】右上角有计时和步数；卡住了可以点「揭示答案」看解析并自动摆好；「重新开始」会换一批新题目；每局配色随机！";
+}
+
+/* ---------------- 开局 ---------------- */
+function startGame(level){
+  state.level=level; state.stage=0;
+  state.done=[false,false,false,false];
+  state.revealed=[false,false,false,false];
+  state.steps=0; $("hudStep").textContent="0"; $("hudTime").textContent="00:00";
+  applyPalette();
+  // 每关随机抽一套数据（反重复机制）
+  state.data=[
+    pick(POOLS.stage1[level]), pick(POOLS.stage2[level]),
+    pick(POOLS.stage3[level]), pick(POOLS.stage4[level])
+  ];
+  $("stageNav").style.display="flex";
+  $("footer").style.display="flex";
+  renderNav();
+  startTimer();
+  // 先弹规则（G6：进入时弹出）
+  $("rulesBody").textContent=generalRules()+"\n\n【本关玩法】"+STAGE_INFO[0].name+"：\n"+STAGE_INFO[0].how+"\n【数学锦囊】"+STAGE_INFO[0].tip;
+  $("btnRulesGo").textContent="开始挑战";
+  $("modalRules").classList.add("show");
+  startStage(0);
+}
+function renderNav(){
+  var nav=$("stageNav"); nav.innerHTML="";
+  for(var i=0;i<4;i++){
+    var d=document.createElement("div");
+    d.className="navPill"+(i===state.stage?" cur":(state.done[i]?" done":""));
+    d.innerHTML=(i+1)+". "+STAGE_INFO[i].icon+STAGE_INFO[i].name+
+      '<span class="st">'+(state.done[i]?(state.revealed[i]?"已点亮（看过解析）":"已点亮"):(i===state.stage?"进行中":"待解锁"))+'</span>';
+    nav.appendChild(d);
+  }
+}
+function startStage(i){
+  state.stage=i; state.api=null; renderNav();
+  var area=$("stageArea");
+  area.innerHTML='<div class="panel" id="stageHost"></div>';
+  var host=$("stageHost");
+  if(i===0) buildStage1(host,state.data[0]);
+  else if(i===1) buildStage2(host,state.data[1]);
+  else if(i===2) buildStage3(host,state.data[2]);
+  else buildStage4(host,state.data[3]);
+}
+function completeStage(byReveal){
+  state.done[state.stage]=true;
+  state.revealed[state.stage]=!!byReveal;
+  renderNav();
+  if(state.stage===3){ setTimeout(winGame,700); }
+  else{
+    toast(byReveal?"已按解析摆好，进入下一关！":"本关点亮！即将进入下一关…",1600);
+    setTimeout(function(){ startStage(state.stage+1); },1400);
+  }
+}
+
+/* =====================================================================
+   第 1 关：平均数天平（SVG）
+===================================================================== */
+function buildStage1(host,ds){
+  // 统一整理成 items: [{v:数值, m:质量(频数), tag:标签}]
+  var items=[], explainHead="", stratified=false;
+  if(ds.layers){
+    stratified=true;
+    ds.layers.forEach(function(L){ items.push({v:L.m, m:L.n, tag:L.tag+" "+L.n+"人·均值"+fmt(L.m)}); });
+  }else if(ds.freqs){
+    ds.vals.forEach(function(v,i){ items.push({v:v, m:ds.freqs[i], tag:"频数 "+ds.freqs[i]}); });
+  }else{
+    var map={};
+    ds.vals.forEach(function(v){ map[v]=(map[v]||0)+1; });
+    Object.keys(map).forEach(function(k){ items.push({v:parseFloat(k), m:map[k], tag:map[k]>1?"×"+map[k]:""}); });
+  }
+  var totalM=0; items.forEach(function(it){ totalM+=it.m; });
+  var sumMV=0; items.forEach(function(it){ sumMV+=it.m*it.v; });
+  var ans=sumMV/totalM; // 答案由数据实时算出
+  var snap=stratified?0.1:0.5;
+  var lo=ds.range[0], hi=ds.range[1];
+  var W=960,H=345,PL=70,PR=890,BEAM_Y=175;
+  function xOf(v){ return PL+(v-lo)/(hi-lo)*(PR-PL); }
+  function vOf(x){ return lo+(x-PL)/(PR-PL)*(hi-lo); }
+
+  // 生成砝码（两行交错，避免遮挡）
+  var maxM=1; items.forEach(function(it){ maxM=Math.max(maxM,it.m); });
+  var blocks="", MIN_W=26;
+  items.forEach(function(it,i){
+    var x=xOf(it.v);
+    var w=MIN_W+58*Math.sqrt(it.m/maxM);
+    var row=i%2, h=30;
+    var bx=x-w/2, by=BEAM_Y-6-(row===0?h:h*2+6);
+    blocks+='<line x1="'+x+'" y1="'+(BEAM_Y-6)+'" x2="'+x+'" y2="'+(by+h)+'" stroke="#94a3b8" stroke-width="2"/>'+
+     '<rect x="'+bx+'" y="'+by+'" width="'+w+'" height="'+h+'" rx="6" fill="var(--c-accent)" stroke="#fff" stroke-width="2"/>'+
+     '<text x="'+x+'" y="'+(by-8)+'" text-anchor="middle" font-size="17" font-weight="800" fill="#1e293b">'+fmt(it.v)+
+       (it.m>1?'<tspan fill="#b91c1c">（'+(stratified?it.tag:"×"+it.m)+'）</tspan>':'')+'</text>';
+  });
+  // 刻度
+  var ticks="";
+  for(var v=lo; v<=hi+1e-9; v+=ds.tick){
+    var x=xOf(v);
+    var isBig=Math.abs(v/ds.label-Math.round(v/ds.label))<1e-9;
+    ticks+='<line x1="'+x+'" y1="'+(BEAM_Y-8)+'" x2="'+x+'" y2="'+(BEAM_Y+8)+'" stroke="#475569" stroke-width="2"/>';
+    if(isBig) ticks+='<text x="'+x+'" y="'+(BEAM_Y+30)+'" text-anchor="middle" font-size="16" fill="#334155">'+fmt(Math.round(v*100)/100)+'</text>';
+  }
+  var svg=
+  '<div id="svgWrap"><svg class="seesaw" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">'+
+   '<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#ffffff" rx="14"/>'+
+   '<g id="beamG">'+
+     '<rect x="'+(PL-14)+'" y="'+(BEAM_Y-6)+'" width="'+(PR-PL+28)+'" height="16" rx="8" fill="var(--c-main)" id="beamRect"/>'+
+     ticks+blocks+
+   '</g>'+
+   '<line id="track" x1="'+PL+'" y1="252" x2="'+PR+'" y2="252" stroke="#cbd5e1" stroke-width="6" stroke-linecap="round"/>'+
+   '<g id="fulcrum" style="cursor:grab">'+
+     '<polygon id="fPoly" points="0,0 -26,58 26,58" fill="#475569" stroke="#1e293b" stroke-width="3" stroke-linejoin="round"/>'+
+     '<circle id="fKnob" cx="0" cy="44" r="20" fill="#94a3b8" stroke="#fff" stroke-width="3"/>'+
+   '</g>'+
+   '<text id="fVal" x="480" y="300" text-anchor="middle" font-size="24" font-weight="800" fill="var(--c-main)">支点 = 0</text>'+
+   '<text x="'+PL+'" y="40" font-size="17" fill="#475569">砝码越宽 = 频数（人数）越多；横梁倾斜方向 = 较重的一侧</text>'+
+  '</svg></div>'+
+  '<div class="meterWrap"><div class="meterBar"><div class="meterNeedle" id="needle"></div></div>'+
+  '<div class="meterTxt" id="meterTxt">合力矩 Σ 频数×(数值−支点) = …</div></div>';
+
+  host.innerHTML=
+   '<div class="story"><span class="tag">第1关</span>'+ds.story+'</div>'+svg+
+   '<div class="hintrow">拖动支点 → 天平完全平衡即过关（支点会自动吸附到刻度网格；小屏幕可左右滑动查看整条横梁）</div>';
+
+  var svgEl=host.querySelector("svg");
+  var beamG=host.querySelector("#beamG"), fulcrum=host.querySelector("#fulcrum");
+  var fVal=host.querySelector("#fVal"), needle=host.querySelector("#needle"), meterTxt=host.querySelector("#meterTxt");
+  var p=lo+(ans<lo+ (hi-lo)*0.5 ? (hi-lo)*0.72 : (hi-lo)*0.22); // 初始支点避开答案
+  var passed=false, span=hi-lo;
+
+  function torque(){ var T=0; items.forEach(function(it){ T+=it.m*(it.v-p); }); return T; }
+  function render(){
+    var T=torque();
+    var th=clamp(T/(0.22*totalM*span)*7,-7,7);
+    if(Math.abs(T)<1e-6) th=0;
+    beamG.setAttribute("transform","rotate("+th.toFixed(3)+" "+xOf(p).toFixed(2)+" "+BEAM_Y+")");
+    fulcrum.setAttribute("transform","translate("+xOf(p).toFixed(2)+","+(BEAM_Y+10)+")");
+    fVal.setAttribute("x",clamp(xOf(p),110,850));
+    fVal.textContent="支点 = "+fmt(p);
+    var pct=clamp(T/(0.25*totalM*span),-1,1);
+    needle.style.left=(50+pct*46)+"%";
+    if(Math.abs(T)<1e-6){
+      meterTxt.textContent="合力矩 = 0 —— 天平平衡！这组数据的平均数 x̄ = "+fmt(ans);
+      meterTxt.style.color="var(--c-ok)";
+      host.querySelector("#beamRect").setAttribute("stroke","#facc15");
+      host.querySelector("#beamRect").setAttribute("stroke-width","5");
+    }else{
+      meterTxt.textContent="合力矩 Σ 频数×(数值−支点) = "+fmt(T)+"（"+(T>0?"右边更重，支点向右移":"左边更重，支点向左移")+"）";
+      meterTxt.style.color="var(--c-warn)";
+    }
+  }
+  render();
+  // 支点拖拽（把页面坐标换算成 SVG 坐标）
+  function svgX(clientX){
+    var r=svgEl.getBoundingClientRect();
+    return (clientX-r.left)*(W/r.width);
+  }
+  fulcrum.addEventListener("pointerdown",function(e){
+    if(passed) return;
+    e.preventDefault();
+    beginPointerDrag(function(ev){
+      var raw=clamp(vOf(svgX(ev.clientX)),lo,hi);
+      p=Math.round(raw/snap)*snap;
+      render();
+    },function(){
+      bump();
+      if(Math.abs(torque())<1e-6 && !passed){
+        passed=true;
+        render();
+        toast("平衡！平均数 x̄ = "+fmt(ans),1500);
+        completeStage(false);
+      }
+    });
+  });
+
+  // 解析文本 + 自动摆好
+  var head = stratified
+    ? "分层合成：x̄ = (n₁x̄₁+n₂x̄₂)÷(n₁+n₂) = ("+ds.layers.map(function(L){return L.n+"×"+fmt(L.m);}).join(" + ")+")÷"+fmt(totalM)+" = "+fmt(sumMV)+"÷"+fmt(totalM)+" = "+fmt(ans)
+    : "加权平均：x̄ = (Σ 频数×数值)÷总频数 = "+fmt(sumMV)+"÷"+fmt(totalM)+" = "+fmt(ans);
+  state.api={
+    explain:"【第1关·平均数天平】\n"+head+"\n天平平衡的位置正是全部数据的「重心」——平均数。",
+    applyAnswer:function(){ p=Math.round(ans/snap)*snap; passed=true; render(); }
+  };
+}
+
+/* =====================================================================
+   第 2 关：排序摘星（拖卡片排序 + 徽章落位）
+===================================================================== */
+function buildStage2(host,ds){
+  var n=ds.vals.length;
+  var sorted=ds.vals.slice().sort(function(a,b){return a-b;});
+  // 计算每枚徽章的目标（全部由规则实时推导）
+  var badges=ds.badges.map(function(bd){
+    var b={kind:bd.kind,p:bd.p||50,label:"",type:"",idx:0,val:0};
+    var i=n*b.p/100;
+    if(b.kind==="median") b.label="中位数";
+    else b.label="第"+b.p+"百分位数";
+    if(Math.abs(i-Math.round(i))<1e-9 && Math.round(i)>=1){
+      var k=Math.round(i);
+      b.type="seam"; b.idx=k;         // 中缝：第 k 与第 k+1 张之间（k 为 1..n-1）
+      b.val=(sorted[k-1]+sorted[k])/2;
+    }else{
+      var kk=Math.ceil(i);
+      b.type="card"; b.idx=kk;        // 第 kk 张卡片
+      b.val=sorted[kk-1];
+    }
+    return b;
+  });
+  // 打乱初始卡片（保证不是有序的）
+  var model=shuffle(ds.vals);
+  if(model.every(function(v,i){return i===0||model[i-1]<=v;})){
+    model=[model[1],model[0]].concat(model.slice(2));
+  }
+  var placed=badges.map(function(){return null;}); // null / {slot:i} / {seam:i}
+
+  host.innerHTML=
+   '<div class="story"><span class="tag">第2关</span>'+ds.story+'</div>'+
+   '<div class="panel"><b>徽章托盘</b>（拖到正确的卡片或中缝上）<div class="tray" id="bdTray"></div>'+
+   '<div id="sortHint" style="font-size:17px;color:var(--c-warn);font-weight:700;"></div></div>'+
+   '<div class="panel"><b>数据卡片</b>（拖动卡片两两交换，按从小到大排列）'+
+   '<div id="slotScroll"><div id="slotRow"></div></div></div>';
+
+  var tray=$("bdTray"), row=$("slotRow"), sortHint=$("sortHint");
+
+  function isSorted(){ return model.every(function(v,i){return i===0||model[i-1]<=v;}); }
+  function badgeText(b,val){ return b.label+(val==null?"":" = "+fmt(val)); }
+
+  function renderAll(){
+    // 卡片与中缝
+    row.innerHTML="";
+    for(var i=0;i<n;i++){
+      (function(i){
+        var s=document.createElement("div");
+        s.className="slot"+(isSorted()?" sorted":"");
+        s.dataset.i=i;
+        var c=document.createElement("div");
+        c.className="card"; c.textContent=fmt(model[i]);
+        s.appendChild(c);
+        // 已放置在该卡片上的徽章
+        placed.forEach(function(pl,bi){
+          if(pl&&pl.slot===i){
+            var d=document.createElement("div");
+            d.className="dockChip"; d.textContent=badges[bi].label;
+            d.dataset.bi=bi;
+            s.appendChild(d);
+          }
+        });
+        var lab=document.createElement("div");
+        lab.className="idx"; lab.textContent="第"+(i+1)+"张";
+        s.appendChild(lab);
+        row.appendChild(s);
+        if(i<n-1){
+          var sm=document.createElement("div");
+          sm.className="seam"; sm.dataset.seam=i;
+          sm.innerHTML='<div class="lab">中缝'+(i+1)+'</div>';
+          placed.forEach(function(pl,bi){
+            if(pl&&pl.seam===i){
+              var d2=document.createElement("div");
+              d2.className="dockChip"; d2.textContent=badges[bi].label;
+              d2.style.fontSize="12px"; d2.dataset.bi=bi;
+              sm.appendChild(d2);
+            }
+          });
+          row.appendChild(sm);
+        }
+      })(i);
+    }
+    // 托盘
+    tray.innerHTML="";
+    badges.forEach(function(b,bi){
+      if(!placed[bi]){
+        var t=document.createElement("div");
+        t.className="chip"; t.textContent=badgeText(b); t.dataset.bi=bi;
+        tray.appendChild(t);
+      }
+    });
+    sortHint.textContent = isSorted()
+      ? "排序完成！现在把徽章放到正确位置（中位数=最中间；百分位数先算 n×k%）"
+      : "提示：先把卡片按从小到大排好，徽章才能归位";
+    wireDrags();
+  }
+
+  function checkPass(){
+    if(placed.every(function(x){return !!x;})){
+      var msg=badges.map(function(b){return b.label+" = "+fmt(b.val);}).join("，");
+      toast("全部徽章归位！"+msg,2000);
+      completeStage(false);
+    }
+  }
+
+  /* 卡片拖拽：两两交换 */
+  function dragCard(cardEl,slotIdx){
+    cardEl.addEventListener("pointerdown",function(e){
+      e.preventDefault();
+      var ghost=document.createElement("div");
+      ghost.className="ghost card"; ghost.textContent=fmt(model[slotIdx]);
+      ghost.style.left=e.clientX+"px"; ghost.style.top=e.clientY+"px";
+      document.body.appendChild(ghost);
+      var slots=[],seams=[],hotEl=null;
+      function refresh(){ slots=rectsOf(row.querySelectorAll(".slot")); seams=rectsOf(row.querySelectorAll(".seam")); }
+      refresh();
+      beginPointerDrag(function(ev){
+        ghost.style.left=ev.clientX+"px"; ghost.style.top=ev.clientY+"px";
+        if(hotEl) hotEl.classList.remove("hot");
+        hotEl=null;
+        for(var i=0;i<slots.length;i++){
+          if(hitRect(ev,slots[i])){
+            var els=row.querySelectorAll(".slot");
+            hotEl=els[i]; hotEl.classList.add("hot"); break;
+          }
+        }
+      },function(ev){
+        if(ghost.parentNode) document.body.removeChild(ghost);
+        if(hotEl){
+          hotEl.classList.remove("hot");
+          var ti=parseInt(hotEl.dataset.i,10);
+          if(ti!==slotIdx){
+            var tmp=model[slotIdx]; model[slotIdx]=model[ti]; model[ti]=tmp;
+            bump();
+            if(isSorted()) toast("排序完成！",1200);
+          }
+        }
+        renderAll();
+      });
+    });
+  }
+  /* 徽章拖拽：落到卡片或中缝 */
+  function dragBadge(el,bi){
+    el.addEventListener("pointerdown",function(e){
+      e.preventDefault();
+      var b=badges[bi];
+      var ghost=document.createElement("div");
+      ghost.className="ghost chip"; ghost.textContent=badgeText(b);
+      ghost.style.left=e.clientX+"px"; ghost.style.top=e.clientY+"px";
+      document.body.appendChild(ghost);
+      var hotEl=null;
+      beginPointerDrag(function(ev){
+        ghost.style.left=ev.clientX+"px"; ghost.style.top=ev.clientY+"px";
+        if(hotEl) hotEl.classList.remove("hot");
+        hotEl=null;
+        var sel=b.type==="card"?row.querySelectorAll(".slot"):row.querySelectorAll(".seam");
+        var rs=rectsOf(sel);
+        for(var i=0;i<rs.length;i++){
+          if(hitRect(ev,rs[i])){ hotEl=sel[i]; hotEl.classList.add("hot"); break; }
+        }
+      },function(ev){
+        if(ghost.parentNode) document.body.removeChild(ghost);
+        if(!hotEl){ renderAll(); return; }
+        hotEl.classList.remove("hot");
+        if(!isSorted()){
+          toast("先把卡片按从小到大排好，徽章才能归位哦～");
+          renderAll(); return;
+        }
+        if(b.type==="card"){
+          var si=parseInt(hotEl.dataset.i,10)+1;
+          if(si===b.idx){
+            placed[bi]={slot:si-1};
+            toast(badgeText(b,b.val)+"，放对了！",1500);
+          }else{
+            toast("再想想：n×"+b.p+"% = "+fmt(n*b.p/100)+"，位置在哪里？");
+            hotEl.classList.add("shake"); setTimeout(function(){hotEl.classList.remove("shake");},400);
+          }
+        }else{
+          var sj=parseInt(hotEl.dataset.seam,10)+1;
+          if(sj===b.idx){
+            placed[bi]={seam:sj-1};
+            toast(badgeText(b,b.val)+"，放对了！",1500);
+          }else{
+            toast("n×"+b.p+"% = "+fmt(n*b.p/100)+" 是整数，应放进对应的两张卡片之间的中缝");
+            hotEl.classList.add("shake"); setTimeout(function(){hotEl.classList.remove("shake");},400);
+          }
+        }
+        bump();
+        renderAll();
+        checkPass();
+      });
+    });
+  }
+
+  function wireDrags(){
+    Array.prototype.forEach.call(row.querySelectorAll(".card"),function(c){
+      dragCard(c,parseInt(c.parentNode.dataset.i,10));
+    });
+    Array.prototype.forEach.call(tray.querySelectorAll(".chip"),function(t){
+      dragBadge(t,parseInt(t.dataset.bi,10));
+    });
+    Array.prototype.forEach.call(row.querySelectorAll(".dockChip"),function(d){
+      dragBadge(d,parseInt(d.dataset.bi,10));
+      d.addEventListener("pointerdown",function(){ placed[parseInt(d.dataset.bi,10)]=null; });
+    });
+  }
+  renderAll();
+
+  // 解析
+  var listStr="从小到大："+sorted.map(fmt).join("、");
+  var detail=badges.map(function(b){
+    var i=n*b.p/100;
+    var calc="n×"+b.p+"% = "+fmt(i);
+    if(b.type==="card") return calc+"（不是整数，向上取整）→ 取第 "+b.idx+" 个数 = "+fmt(b.val);
+    return calc+"（是整数 "+b.idx+"）→ 取第 "+b.idx+" 与第 "+(b.idx+1)+" 个数的平均 = ("+fmt(sorted[b.idx-1])+"+"+fmt(sorted[b.idx])+")÷2 = "+fmt(b.val);
+  }).join("\n");
+  state.api={
+    explain:"【第2关·排序摘星】\n"+listStr+"\n"+detail+"\n口诀：n×k% 是整数取平均，不是整数向上取整。",
+    applyAnswer:function(){
+      model=sorted.slice();
+      placed=badges.map(function(b){ return b.type==="card"?{slot:b.idx-1}:{seam:b.idx-1}; });
+      renderAll();
+    }
+  };
+}
+
+/* =====================================================================
+   第 3 关：彩虹调度场（拖数据点，达标平均数/方差）
+===================================================================== */
+function buildStage3(host,ds){
+  var isL1=!!ds.fixed;
+  var dots; // 当前各点数值
+  if(isL1) dots=ds.fixed.concat(ds.init);
+  else dots=ds.init.slice();
+  var target=ds.target||null;
+  var lo=ds.range[0], hi=ds.range[1];
+  var n=dots.length;
+
+  host.innerHTML=
+   '<div class="story"><span class="tag">第3关</span>'+ds.story+'</div>'+
+   '<div class="rulerBox"><div id="ruler"></div></div>'+
+   '<div class="gaugeRow">'+
+    '<div class="gauge" id="gMean"><div class="t">当前平均数 x̄</div><div class="v">—</div><div class="t" id="gMeanT"></div></div>'+
+    (target?'<div class="gauge" id="gVar"><div class="t">当前方差 s²</div><div class="v">—</div><div class="t" id="gVarT"></div></div>':'')+
+   '</div>'+
+   (target?'':'<div class="hintrow">本关只需让平均数达标（方差仅作参考展示）</div>');
+
+  var ruler=$("ruler");
+  // 画刻度
+  (function(){
+    var html="";
+    for(var v=lo;v<=hi+1e-9;v+=ds.tick){
+      var pct=(v-lo)/(hi-lo)*100;
+      var isBig=Math.abs(v/ds.label-Math.round(v/ds.label))<1e-9;
+      html+='<div class="rTick'+(isBig?" big":"")+'" style="left:'+pct+'%"></div>';
+      if(isBig) html+='<div class="rLab" style="left:'+pct+'%">'+fmt(Math.round(v*100)/100)+'</div>';
+    }
+    ruler.insertAdjacentHTML("beforeend",html);
+  })();
+
+  function canDragIdx(i){ return isL1? i>=ds.fixed.length : true; }
+  function renderDots(){
+    Array.prototype.forEach.call(ruler.querySelectorAll(".dot"),function(d){ if(d.parentNode) d.parentNode.removeChild(d); });
+    dots.forEach(function(v,i){
+      var d=document.createElement("div");
+      var draggable=canDragIdx(i);
+      d.className="dot"+(draggable?"":" fixed");
+      d.style.left=((v-lo)/(hi-lo)*100)+"%";
+      d.style.bottom="30px";
+      // 圆点内部：可拖的问号点显示"?"，固定点留空；上方数值标签始终显示
+      if(draggable&&isL1) d.textContent="?";
+      d.insertAdjacentHTML("beforeend",'<span class="v">'+fmt(v)+'</span>');
+      ruler.appendChild(d);
+      if(draggable) wireDot(d,i);
+    });
+  }
+  var passed=false;
+  function updateGauge(){
+    var m=meanOf(dots), vv=varOf(dots);
+    var gm=$("gMean");
+    gm.querySelector(".v").textContent=fmt(m);
+    $("gMeanT").textContent="目标："+fmt(target?target.mean:(isL1?targetMeanL1():0));
+    var meanTarget=target?target.mean:targetMeanL1();
+    var meanOk=Math.abs(m-meanTarget)<1e-9;
+    gm.classList.toggle("hit",meanOk);
+    var varOk=true;
+    if(target){
+      var gv=$("gVar");
+      gv.querySelector(".v").textContent=fmt(vv);
+      $("gVarT").textContent="目标："+fmt(target.var);
+      varOk=Math.abs(vv-target.var)<1e-9;
+      gv.classList.toggle("hit",varOk);
+    }
+    return meanOk&&varOk;
+  }
+  function targetMeanL1(){ // 初级目标平均数写在故事里，这里给出数值
+    var map={ "神秘数据a":5,"第5个苹果":124,"神秘数据x":9 };
+    return map[ds.src]||0;
+  }
+  function wireDot(d,i){
+    d.addEventListener("pointerdown",function(e){
+      e.preventDefault();
+      var r=ruler.getBoundingClientRect();
+      beginPointerDrag(function(ev){
+        var pct=clamp((ev.clientX-r.left)/r.width,0,1);
+        var raw=lo+pct*(hi-lo);
+        dots[i]=Math.round(raw); // 吸附到整数网格
+        d.style.left=(pct*100)+"%";
+        d.querySelector(".v").textContent=fmt(dots[i]);
+        updateGauge();
+      },function(){
+        bump();
+        renderDots();
+        if(!passed&&updateGauge()){
+          passed=true;
+          toast(target?("达成！x̄ = "+fmt(target.mean)+"，s² = "+fmt(target.var)):"达成！x̄ = "+fmt(targetMeanL1()),1700);
+          completeStage(false);
+        }
+      });
+    });
+  }
+  renderDots(); updateGauge();
+
+  var sol=ds.solution||ds.fixed.concat([targetMeanL1()]);
+  state.api={
+    explain:"【第3关·彩虹调度场】\n一组可行方案：{"+sol.map(fmt).join(", ")+"}\n此时 x̄ = "+fmt(meanOf(sol))+
+      (target?"，s² = Σ(xᵢ−x̄)²÷n = "+fmt(varOf(sol)):"")+
+      "\n把数据向平均数靠拢方差变小，向两端散开方差变大。",
+    applyAnswer:function(){ dots=sol.slice(); renderDots(); updateGauge(); }
+  };
+}
+
+/* =====================================================================
+   第 4 关：直方图藏宝图（Canvas + 徽章拖放）
+===================================================================== */
+function buildStage4(host,ds){
+  var edges=ds.edges, dens=ds.dens;
+  var wBin=edges[1]-edges[0];
+  var mids=edges.slice(0,-1).map(function(e,i){ return (edges[i]+edges[i+1])/2; });
+  // 全部答案由直方图数据实时计算
+  var totalArea=0; dens.forEach(function(d){ totalArea+=d*wBin; });
+  var modeIdx=0; dens.forEach(function(d,i){ if(d>dens[modeIdx]) modeIdx=i; });
+  var ansMode=mids[modeIdx];
+  var ansMean=0; mids.forEach(function(m,i){ ansMean+=m*dens[i]*wBin; });
+  function quantile(q){
+    var cum=0;
+    for(var i=0;i<dens.length;i++){
+      var f=dens[i]*wBin;
+      if(cum+f>=q-1e-12){ return edges[i]+(q-cum)/dens[i]; }
+      cum+=f;
+    }
+    return edges[edges.length-1];
+  }
+  var ansMedian=quantile(0.5);
+  var lo=edges[0], hi=edges[edges.length-1];
+
+  var KIND={ mode:{ch:"众",name:"众数",y:78,color:"#dc2626"},
+             median:{ch:"中",name:"中位数",y:122,color:"#2563eb"},
+             mean:{ch:"均",name:"平均数",y:166,color:"#059669"},
+             pct:{ch:"位",name:"百分位",y:210,color:"#9333ea"} };
+  var badges=ds.badges.map(function(bd){
+    if(typeof bd==="string") return {kind:bd,label:KIND[bd].name,ans:(bd==="mode"?ansMode:bd==="median"?ansMedian:ansMean)};
+    return {kind:"pct",label:"第"+bd.p+"百分位数",ans:quantile(bd.p/100),p:bd.p};
+  });
+
+  host.innerHTML=
+   '<div class="story"><span class="tag">第4关</span>'+ds.story+'</div>'+
+   '<div class="panel"><b>徽章托盘</b><div class="tray" id="hTray"></div></div>'+
+   '<div id="histWrap"><canvas id="histCv" width="940" height="640"></canvas></div>'+
+   '<div id="histInfo">把徽章拖到直方图横轴上方——拖动时这里会显示实时导航信息（小屏幕可左右滑动查看完整直方图）。</div>';
+
+  var cv=$("histCv"), ctx=cv.getContext("2d");
+  var PL=90,PR=910,SKY_T=40,PLOT_B=560,AXIS_LBL=596;
+  function xOf(v){ return PL+(v-lo)/(hi-lo)*(PR-PL); }
+  function vOf(x){ return lo+(x-PL)/(PR-PL)*(hi-lo); }
+  var maxD=Math.max.apply(null,dens);
+  var plotT=SKY_T+200;
+  function yBar(d){ return PLOT_B-(PLOT_B-plotT)*(d/maxD); }
+
+  var placed=badges.map(function(){return null;}); // 数值或 null
+  var dragging={bi:-1,val:null,px:0,inCv:false};
+
+  function draw(){
+    ctx.clearRect(0,0,940,640);
+    ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,940,640);
+    // 天空层分隔线
+    ctx.strokeStyle="#e2e8f0"; ctx.setLineDash([6,6]);
+    ctx.beginPath(); ctx.moveTo(PL-40,plotT-14); ctx.lineTo(PR+20,plotT-14); ctx.stroke();
+    ctx.setLineDash([]);
+    // 矩形
+    dens.forEach(function(d,i){
+      var x0=xOf(edges[i]),x1=xOf(edges[i+1]),y=yBar(d);
+      ctx.fillStyle="rgba(2,132,199,0.55)"; // 用中性蓝，避免与 CSS 变量不同步
+      ctx.fillRect(x0,y,x1-x0,PLOT_B-y);
+      ctx.strokeStyle="#0c4a6e"; ctx.lineWidth=3;
+      ctx.strokeRect(x0,y,x1-x0,PLOT_B-y);
+      // 密度标签（图内文字 >=16px）
+      ctx.fillStyle="#0c4a6e"; ctx.font="bold 17px 'Microsoft YaHei',sans-serif";
+      ctx.textAlign="center";
+      ctx.fillText(String(d), (x0+x1)/2, y-8);
+    });
+    // 坐标轴
+    ctx.strokeStyle="#334155"; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(PL-30,PLOT_B); ctx.lineTo(PR+20,PLOT_B); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PL-30,PLOT_B); ctx.lineTo(PL-30,plotT-30); ctx.stroke();
+    ctx.fillStyle="#334155"; ctx.font="bold 16px 'Microsoft YaHei',sans-serif"; ctx.textAlign="center";
+    edges.forEach(function(e){
+      var x=xOf(e);
+      ctx.beginPath(); ctx.moveTo(x,PLOT_B); ctx.lineTo(x,PLOT_B+10); ctx.stroke();
+      ctx.fillText(fmt(e),x,AXIS_LBL);
+    });
+    ctx.save();
+    ctx.translate(30,(plotT+PLOT_B)/2); ctx.rotate(-Math.PI/2);
+    ctx.font="bold 17px 'Microsoft YaHei',sans-serif";
+    ctx.fillText("频率/组距",0,0);
+    ctx.restore();
+    ctx.textAlign="left"; ctx.fillStyle="#475569"; ctx.font="16px 'Microsoft YaHei',sans-serif";
+    ctx.fillText("组距 = "+wBin+"，每个矩形面积 = 该组频率（总面积 = "+fmt(Math.round(totalArea*1000)/1000)+"）",PL-30,AXIS_LBL+26);
+
+    // 中位数/百分位拖动时的左侧累计面积填充
+    if(dragging.bi>=0){
+      var b=badges[dragging.bi];
+      if((b.kind==="median")||(b.kind==="pct")){
+        var xv=clamp(dragging.val,lo,hi), cum=0;
+        for(var i=0;i<dens.length;i++){
+          var x0=xOf(edges[i]),x1=xOf(edges[i+1]);
+          if(edges[i+1]<=xv+1e-12){ cum+=dens[i]*wBin; }
+          else if(edges[i]<xv){
+            cum+=dens[i]*(xv-edges[i]);
+          }
+        }
+        ctx.fillStyle="rgba(250,204,21,0.45)";
+        ctx.fillRect(xOf(lo),plotT,xOf(xv)-xOf(lo),PLOT_B-plotT);
+      }
+      // 竖直导航线
+      var px=xOf(clamp(dragging.val,lo,hi));
+      ctx.strokeStyle="#dc2626"; ctx.lineWidth=3; ctx.setLineDash([8,6]);
+      ctx.beginPath(); ctx.moveTo(px,SKY_T); ctx.lineTo(px,PLOT_B+8); ctx.stroke();
+      ctx.setLineDash([]);
+      // 平均数徽章的力矩箭头
+      if(b.kind==="mean"){
+        var Tm=0; mids.forEach(function(m,i){ Tm+=(m-dragging.val)*dens[i]*wBin; });
+        var dir=Tm>0?1:-1;
+        ctx.fillStyle="#059669"; ctx.font="bold 18px 'Microsoft YaHei',sans-serif"; ctx.textAlign="center";
+        ctx.fillText(Math.abs(Tm)<1e-9?"力矩差 = 0，平衡！":(dir>0?"右侧更重 ▶":"◀ 左侧更重")+"  力矩差="+fmt(Tm),clamp(px,180,760),26);
+      }
+      if(b.kind==="mode"){
+        var idx=0; for(var k=0;k<dens.length;k++){ if(dens[k]>dens[idx]) idx=k; }
+        ctx.fillStyle="#dc2626"; ctx.font="bold 18px 'Microsoft YaHei',sans-serif"; ctx.textAlign="center";
+        var inside=dragging.val>=edges[idx]&&dragging.val<=edges[idx+1];
+        ctx.fillText((inside?"在最高矩形内！":"不在最高矩形内")+"（最高矩形密度 = "+dens[idx]+"）",470,26);
+      }
+    }
+    // 已放置的徽章针
+    badges.forEach(function(b,bi){
+      if(placed[bi]===null) return;
+      var info=KIND[b.kind];
+      var ok=isOk(b,placed[bi]);
+      var px=xOf(placed[bi]);
+      ctx.strokeStyle=info.color; ctx.setLineDash([4,4]); ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(px,info.y+18); ctx.lineTo(px,PLOT_B); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(px,info.y,18,0,Math.PI*2);
+      ctx.fillStyle=ok?"#16a34a":info.color; ctx.fill();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.stroke();
+      ctx.fillStyle="#fff"; ctx.font="bold 16px 'Microsoft YaHei',sans-serif"; ctx.textAlign="center";
+      ctx.fillText(info.ch,px,info.y+6);
+      ctx.fillStyle=ok?"#16a34a":"#334155";
+      ctx.font="bold 17px 'Microsoft YaHei',sans-serif";
+      ctx.fillText(b.label+" ≈ "+fmt(placed[bi])+(ok?" ✓达标":" ✗未达标"),clamp(px,200,730),info.y-26);
+    });
+  }
+  function isOk(b,val){
+    if(b.kind==="mode") return val>=edges[modeIdx]&&val<=edges[modeIdx+1];
+    return Math.abs(val-b.ans)<=ds.tol+1e-12;
+  }
+  draw();
+
+  // 托盘渲染
+  var tray=$("hTray");
+  function renderTray(){
+    tray.innerHTML="";
+    badges.forEach(function(b,bi){
+      var t=document.createElement("div");
+      t.className="chip"+(placed[bi]!==null?" used":"");
+      t.textContent=b.label+(placed[bi]!==null?("（已放在 "+fmt(placed[bi])+"）"):"");
+      t.dataset.bi=bi;
+      tray.appendChild(t);
+      t.addEventListener("pointerdown",function(e){
+        e.preventDefault();
+        startBadgeDrag(e,bi);
+      });
+    });
+  }
+  renderTray();
+
+  function cvPt(e){
+    var r=cv.getBoundingClientRect();
+    return {x:(e.clientX-r.left)*(940/r.width), y:(e.clientY-r.top)*(640/r.height)};
+  }
+  function startBadgeDrag(e,bi){
+    dragging={bi:bi,val:placed[bi]!==null?placed[bi]:badges[bi].ans,px:0,inCv:false};
+    if(placed[bi]!==null){ placed[bi]=null; renderTray(); }
+    var ghost=document.createElement("div");
+    ghost.className="ghost chip"; ghost.textContent=badges[bi].label;
+    ghost.style.left=e.clientX+"px"; ghost.style.top=e.clientY+"px";
+    document.body.appendChild(ghost);
+    function infoUpdate(){
+      var b=badges[bi], v=clamp(dragging.val,lo,hi), info=$("histInfo");
+      if(b.kind==="mode"){
+        info.textContent="【众数导航】光标 = "+fmt(v)+"；众数≈最高矩形底边的中点（底边中点 = "+fmt(ansMode)+"）。";
+      }else if(b.kind==="mean"){
+        var T=0; mids.forEach(function(m,i){ T+=(m-v)*dens[i]*wBin; });
+        info.textContent="【平均数导航】光标 = "+fmt(v)+"；力矩差 Σ(组中值−光标)×频率 = "+fmt(T)+"（为 0 时就是直方图的重心 = 平均数）";
+      }else{
+        var q=b.kind==="median"?0.5:b.p/100, cum=0;
+        for(var i=0;i<dens.length;i++){
+          if(edges[i+1]<=v+1e-12){ cum+=dens[i]*wBin; }
+          else if(edges[i]<v){ cum+=dens[i]*(v-edges[i]); }
+        }
+        info.textContent="【"+b.label+"导航】光标 = "+fmt(v)+"；左侧累计面积 = "+(cum*100).toFixed(1)+"%（目标 "+(q*100)+"%）";
+      }
+    }
+    beginPointerDrag(function(ev){
+      ghost.style.left=ev.clientX+"px"; ghost.style.top=ev.clientY+"px";
+      var pt=cvPt(ev);
+      dragging.inCv = pt.x>=PL-30&&pt.x<=PR+20&&pt.y>=SKY_T&&pt.y<=640;
+      if(dragging.inCv){ dragging.val=vOf(clamp(pt.x,PL,PR)); }
+      infoUpdate(); draw();
+    },function(ev){
+      if(ghost.parentNode) document.body.removeChild(ghost);
+      var pt=cvPt(ev);
+      dragging.bi=-1;
+      if(pt.x>=PL-30&&pt.x<=PR+20&&pt.y>=SKY_T&&pt.y<=640){
+        var raw=clamp(vOf(clamp(pt.x,PL,PR)),lo,hi);
+        var snapped=Math.round(raw/ds.snap)*ds.snap;
+        placed[bi]=snapped; bump();
+        var ok=isOk(badges[bi],snapped);
+        toast(badges[bi].label+" 放在 "+fmt(snapped)+(ok?"，达标！":"，再微调一下"),1400);
+      }
+      renderTray(); draw();
+      if(badges.every(function(b,i){ return placed[i]!==null&&isOk(b,placed[i]); })){
+        setTimeout(function(){
+          toast("四座灯塔全部对齐！直方图藏宝完成",1800);
+          completeStage(false);
+        },200);
+      }
+    });
+  }
+  // 从画布上直接拾起已放置的徽章
+  cv.addEventListener("pointerdown",function(e){
+    var pt=cvPt(e);
+    for(var bi=0;bi<badges.length;bi++){
+      if(placed[bi]===null) continue;
+      var info=KIND[badges[bi].kind];
+      var px=xOf(placed[bi]);
+      if(Math.abs(pt.x-px)<26&&Math.abs(pt.y-info.y)<26){
+        e.preventDefault();
+        startBadgeDrag(e,bi);
+        return;
+      }
+    }
+  });
+
+  var pctLines=badges.filter(function(b){return b.kind==="pct";})
+    .map(function(b){ return b.label+"：累计面积"+b.p+"% 处 → "+fmt(b.ans); });
+  state.api={
+    explain:"【第4关·直方图藏宝图】\n众数：最高矩形底边中点 = "+fmt(ansMode)+
+     "\n中位数：左侧累计面积 50% 处 → "+fmt(ansMedian)+
+     "\n平均数：Σ(组中值×频率) = "+fmt(ansMean)+
+     (pctLines.length?("\n"+pctLines.join("\n")):"")+
+     "\n方法：先算每组频率=矩形面积，再从左往右累加面积定位。",
+    applyAnswer:function(){
+      badges.forEach(function(b,bi){ placed[bi]=Math.round(b.ans/ds.snap)*ds.snap; });
+      renderTray(); draw();
+    }
+  };
+}
+
+/* ---------------- 通关庆祝（G5：彩纸+星星） ---------------- */
+function winGame(){
+  stopTimer();
+  var m=String(Math.floor(state.elapsed/60)), s=String(state.elapsed%60);
+  var revealCnt=state.revealed.filter(function(x){return x;}).length;
+  $("winBody").textContent=
+   "你就是样本小镇的统计大师！\n难度："+["","初级","中级","高级"][state.level]+
+   "　用时："+(m.length<2?"0":"")+m+"分"+(s.length<2?"0":"")+s+"秒　总步数："+state.steps+
+   "　使用解析："+revealCnt+" 次\n平均数、中位数、百分位数、方差、直方图——全都难不倒你！";
+  $("modalWin").classList.add("show");
+  launchConfetti();
+}
+function launchConfetti(){
+  var cv=$("confettiCv"), ctx=cv.getContext("2d");
+  var cs=getComputedStyle(document.documentElement);
+  var cols=[cs.getPropertyValue("--c-main"),cs.getPropertyValue("--c-accent"),"#facc15","#16a34a","#db2777"];
+  var ps=[];
+  for(var i=0;i<150;i++){
+    ps.push({x:Math.random()*640,y:-Math.random()*240,vx:(Math.random()-0.5)*2.4,vy:1.6+Math.random()*3,
+      r:Math.random()*Math.PI,vr:(Math.random()-0.5)*0.25,w:6+Math.random()*9,h:4+Math.random()*7,
+      c:cols[i%cols.length],star:Math.random()<0.22});
+  }
+  var t0=Date.now();
+  (function frame(){
+    ctx.clearRect(0,0,640,240);
+    var el=Date.now()-t0;
+    ps.forEach(function(p){
+      p.x+=p.vx; p.y+=p.vy; p.r+=p.vr;
+      if(p.y>250){ p.y=-20; p.x=Math.random()*640; }
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r);
+      ctx.fillStyle=p.c;
+      if(p.star){ ctx.font="18px sans-serif"; ctx.fillText("★",-9,6); }
+      else ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    });
+    if(el<8000&&$("modalWin").classList.contains("show")) requestAnimationFrame(frame);
+    else ctx.clearRect(0,0,640,240);
+  })();
+}
+
+/* ---------------- 底部按钮与弹窗逻辑 ---------------- */
+$("btnRules").addEventListener("click",function(){
+  var extra=state.api?"\n\n【本关玩法】"+STAGE_INFO[state.stage].name+"：\n"+STAGE_INFO[state.stage].how+"\n【数学锦囊】"+STAGE_INFO[state.stage].tip:"";
+  $("rulesBody").textContent=generalRules()+extra;
+  $("btnRulesGo").textContent="继续挑战";
+  $("modalRules").classList.add("show");
+});
+$("btnRulesGo").addEventListener("click",function(){ $("modalRules").classList.remove("show"); });
+$("btnReveal").addEventListener("click",function(){
+  if(!state.api){ toast("请先选择难度开始游戏"); return; }
+  $("revealBody").textContent=state.api.explain;
+  $("modalReveal").classList.add("show");
+});
+$("btnRevealClose").addEventListener("click",function(){ $("modalReveal").classList.remove("show"); });
+$("btnRevealApply").addEventListener("click",function(){
+  if(state.api){ state.api.applyAnswer(); }
+  $("modalReveal").classList.remove("show");
+  if(state.done[state.stage]){ toast("本关已经点亮啦",1400); return; }
+  toast("已按解析摆好，本关记为「看过解析」",1600);
+  setTimeout(function(){ completeStage(true); },300);
+});
+$("btnRestart").addEventListener("click",function(){
+  if(!state.level){ toast("请先选择难度"); return; }
+  startGame(state.level);
+  toast("已换一批新题目，重新开始！",1500);
+});
+$("btnHome").addEventListener("click",renderHome);
+$("btnAgain").addEventListener("click",function(){
+  $("modalWin").classList.remove("show");
+  startGame(state.level);
+});
+$("btnChangeLv").addEventListener("click",function(){
+  $("modalWin").classList.remove("show");
+  renderHome();
+});
+
+/* ---------------- 启动 ---------------- */
+renderHome();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-g/g014", "name": "\u6837\u672c\u5c0f\u9547\u00b7\u5e73\u8861\u8282\u5927\u95ef\u5173\uff08\u7528\u6837\u672c\u4f30\u8ba1\u603b\u4f53\uff09", "file": "g014.html", "jiaocan": "\u301064\u3011\u7b2c14\u7ae0 \u7edf\u8ba1\uff1a14.4 \u7528\u6837\u672c\u4f30\u8ba1\u603b\u4f53\uff1a\u5fc5\u5907\u77e5\u8bc6\u89e3\u8bfb+\u5173\u952e\u80fd\u529b\u6784\u5efa+\u6838\u5fc3\u7d20\u517b\u805a\u7126", "unit": "", "grade": "", "stage": "\u9ad8\u4e2d", "series": "G\uff1a\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-g"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

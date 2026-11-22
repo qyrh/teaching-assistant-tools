@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>排队大作战 · 第17讲 简单的排队问题（上）</title>
+<style>
+/* ========== 全局样式 ========== */
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{
+  width:100%; min-height:100vh; font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  background:linear-gradient(135deg,#0a1d3f 0%,#102a5c 50%,#0a1d3f 100%);
+  color:#fff; overflow-x:hidden; user-select:none;
+}
+:root{
+  /* 主色（每局JS会随机覆盖） */
+  --main:#4FC3F7; --main-dark:#0288D1; --accent:#FFD54F; --accent2:#FF8A65;
+  --bg-card:rgba(255,255,255,0.08); --border:rgba(255,255,255,0.25);
+  --ok:#66BB6A; --err:#EF5350;
+}
+/* ========== 顶部HUD ========== */
+#hud{
+  position:fixed; top:0; left:0; right:0; height:64px; z-index:50;
+  background:rgba(0,0,0,0.35); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 18px; border-bottom:2px solid var(--border);
+}
+#hud .title{ font-size:20px; font-weight:bold; letter-spacing:1px; }
+#hud .stats{ display:flex; gap:14px; font-size:16px; }
+#hud .stat{ background:rgba(255,255,255,0.12); padding:6px 14px; border-radius:20px; font-weight:bold; }
+#hud .btn-help{
+  background:var(--accent); color:#333; border:none; padding:8px 16px;
+  border-radius:20px; font-size:15px; font-weight:bold; cursor:pointer;
+}
+#hud .btn-help:active{ transform:scale(0.95); }
+
+/* ========== 页面容器 ========== */
+.page{
+  display:none; padding:84px 16px 40px; min-height:100vh;
+  flex-direction:column; align-items:center; justify-content:flex-start;
+}
+.page.active{ display:flex; animation:fadeIn .4s ease; }
+@keyframes fadeIn{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;} }
+
+/* ========== 难度选择页 ========== */
+#page-level h1{
+  font-size:42px; margin:10px 0 6px; text-align:center;
+  background:linear-gradient(90deg,var(--accent),#FFF,var(--accent));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  text-shadow:0 0 30px rgba(255,213,79,0.4);
+}
+#page-level .subtitle{ font-size:18px; color:#cfe3ff; margin-bottom:34px; text-align:center;}
+.level-grid{ display:flex; flex-direction:column; gap:22px; width:100%; max-width:520px; }
+.level-card{
+  background:var(--bg-card); border:3px solid var(--border); border-radius:22px;
+  padding:26px 24px; cursor:pointer; transition:all .25s; position:relative; overflow:hidden;
+}
+.level-card:active{ transform:scale(0.97); }
+.level-card .stars{ font-size:26px; color:var(--accent); letter-spacing:4px; }
+.level-card .lname{ font-size:28px; font-weight:bold; margin:6px 0 4px; }
+.level-card .ldesc{ font-size:15px; color:#d6e4ff; line-height:1.6; }
+.level-card .ltag{
+  position:absolute; top:14px; right:16px; background:var(--main-dark);
+  padding:4px 12px; border-radius:12px; font-size:13px;
+}
+
+/* ========== 游戏页 ========== */
+#page-game{ padding-top:80px; }
+.q-card{
+  background:linear-gradient(160deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04));
+  border:2px solid var(--border); border-radius:20px; padding:18px 20px;
+  width:100%; max-width:760px; margin-bottom:14px;
+}
+.q-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;}
+.q-no{ background:var(--accent); color:#333; font-weight:bold; padding:4px 12px; border-radius:12px; font-size:15px;}
+.q-type{ background:var(--main-dark); padding:4px 12px; border-radius:12px; font-size:14px;}
+.q-text{ font-size:21px; line-height:1.7; font-weight:500; }
+
+/* 任务提示框 */
+.task-box{
+  background:rgba(255,213,79,0.14); border:2px dashed var(--accent);
+  border-radius:16px; padding:14px 18px; margin:0 auto 14px; width:100%; max-width:760px;
+}
+.task-box .task-title{ font-size:16px; color:var(--accent); font-weight:bold; margin-bottom:6px;}
+.task-box .task-body{ font-size:17px; line-height:1.6;}
+
+/* 圈圈图操作区 */
+.board{
+  background:rgba(0,0,0,0.25); border-radius:18px; padding:18px 14px;
+  width:100%; max-width:760px; margin-bottom:14px; overflow-x:auto;
+}
+.board-hint{ font-size:14px; color:#bcd; margin-bottom:10px; text-align:center;}
+/* 槽位行 */
+.slots-row{
+  display:flex; gap:8px; justify-content:center; align-items:flex-start;
+  min-height:120px; padding:8px 0; flex-wrap:nowrap;
+}
+.slot{
+  width:54px; height:78px; flex:0 0 auto; border:3px dashed rgba(255,255,255,0.3);
+  border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  position:relative; background:rgba(255,255,255,0.03); transition:all .2s;
+}
+.slot.hint-target{ border-color:var(--accent); background:rgba(255,213,79,0.1); }
+.slot .pos-tag{ position:absolute; top:-22px; font-size:13px; color:#bcd; white-space:nowrap;}
+.slot .pos-tag.left{ color:#FF8A65; font-weight:bold;}
+.slot .pos-tag.right{ color:#4FC3F7; font-weight:bold;}
+/* 圈圈图：主角△/其他人○ */
+.token{
+  width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:22px; cursor:grab; transition:transform .15s; border:3px solid #fff;
+  box-shadow:0 4px 10px rgba(0,0,0,0.3);
+}
+.token:active{ cursor:grabbing; transform:scale(1.1);}
+.token.dragging{ opacity:0.4; }
+.token.main{
+  background:var(--accent); color:#333; border-color:#fff;
+  clip-path:polygon(50% 5%, 95% 95%, 5% 95%); border-radius:6px;
+  font-weight:bold; box-shadow:0 0 16px var(--accent);
+}
+.token.normal{ background:var(--main); color:#fff; }
+.token.in-slot{ width:42px; height:42px; font-size:20px;}
+
+/* 工具栏（待放置的token池） */
+.pool-box{
+  background:rgba(255,255,255,0.06); border-radius:14px; padding:12px;
+  width:100%; max-width:760px; margin-bottom:14px;
+}
+.pool-title{ font-size:15px; color:#bcd; margin-bottom:8px;}
+.pool{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; min-height:60px;}
+
+/* 操作按钮行 */
+.action-row{
+  display:flex; gap:10px; flex-wrap:wrap; justify-content:center; width:100%; max-width:760px;
+}
+.btn{
+  border:none; padding:12px 22px; border-radius:24px; font-size:17px; font-weight:bold;
+  cursor:pointer; transition:all .15s; color:#fff;
+}
+.btn:active{ transform:scale(0.95);}
+.btn-check{ background:var(--ok); }
+.btn-reveal{ background:var(--accent2); }
+.btn-reset{ background:#78909C; }
+.btn-back{ background:rgba(255,255,255,0.18); border:2px solid var(--border);}
+.btn-next{ background:var(--main-dark);}
+
+/* 反馈弹层 */
+#feedback{
+  position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:80;
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+#feedback.show{ display:flex; }
+.fb-card{
+  background:linear-gradient(160deg,#1a3a6a,#0f2547); border:3px solid var(--border);
+  border-radius:24px; padding:30px 26px; max-width:480px; width:100%; text-align:center;
+}
+.fb-icon{ font-size:64px; margin-bottom:8px;}
+.fb-title{ font-size:28px; font-weight:bold; margin-bottom:10px;}
+.fb-answer{ font-size:18px; color:#bcd; margin:10px 0; line-height:1.7;}
+.fb-formula{ font-size:22px; color:var(--accent); font-weight:bold; margin:8px 0; }
+.fb-explain{ font-size:15px; color:#d6e4ff; line-height:1.7; margin-top:10px; text-align:left;}
+.fb-btns{ margin-top:18px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+
+/* 规则面板 */
+#rule-panel{
+  position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:90;
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+#rule-panel.show{ display:flex;}
+.rule-card{
+  background:linear-gradient(160deg,#1a3a6a,#0f2547); border:3px solid var(--accent);
+  border-radius:24px; padding:26px; max-width:560px; width:100%; max-height:85vh; overflow-y:auto;
+}
+.rule-card h2{ color:var(--accent); font-size:24px; margin-bottom:14px; text-align:center;}
+.rule-card h3{ color:var(--main); font-size:18px; margin:14px 0 6px;}
+.rule-card p, .rule-card li{ font-size:16px; line-height:1.8; color:#e6f0ff;}
+.rule-card ul{ margin-left:22px;}
+.rule-close{ margin-top:18px; width:100%;}
+
+/* 庆祝彩纸 */
+#confetti{ position:fixed; inset:0; pointer-events:none; z-index:85; display:none;}
+#confetti canvas{ width:100%; height:100%;}
+
+/* 通关结算页 */
+#page-done{ text-align:center;}
+#page-done h1{ font-size:48px; color:var(--accent); margin-bottom:16px; text-shadow:0 0 30px rgba(255,213,79,0.5);}
+#page-done .summary{ font-size:22px; color:#e6f0ff; margin-bottom:30px;}
+#page-done .btn{ font-size:20px; padding:14px 30px;}
+
+/* 响应式 */
+@media(max-width:520px){
+  #page-level h1{ font-size:32px;}
+  .q-text{ font-size:18px;}
+  .slot{ width:46px; height:66px;}
+  .token{ width:38px; height:38px; font-size:18px;}
+  .token.in-slot{ width:34px; height:34px; font-size:16px;}
+  #hud .title{ font-size:16px;}
+  #hud .stats{ gap:8px; font-size:14px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ========== 顶部HUD ========== -->
+<div id="hud">
+  <div class="title">🚩 排队大作战</div>
+  <div class="stats">
+    <div class="stat" id="stat-time">⏱ 00:00</div>
+    <div class="stat" id="stat-step">🎯 步数 0</div>
+  </div>
+  <button class="btn-help" id="btn-help">规则</button>
+</div>
+
+<!-- ========== 难度选择页 ========== -->
+<div id="page-level" class="page active">
+  <h1>排 队 大 作 战</h1>
+  <div class="subtitle">第17讲 · 简单的排队问题（上）· 画圈圈图，搞定排队！</div>
+  <div class="level-grid">
+    <div class="level-card" data-level="easy">
+      <div class="ltag">★ 初级</div>
+      <div class="stars">⭐</div>
+      <div class="lname">求总数（主角没被算）</div>
+      <div class="ldesc">前面有X人 + 后面有Y人，记得主角自己！通过拖动圈圈把队伍排出来。</div>
+    </div>
+    <div class="level-card" data-level="mid">
+      <div class="ltag">★★ 中级</div>
+      <div class="stars">⭐⭐</div>
+      <div class="lname">求总数（主角被算2次）</div>
+      <div class="ldesc">从左数第X，从右数第Y，主角被算了两次，要减掉1。拖圈圈图找真相！</div>
+    </div>
+    <div class="level-card" data-level="hard">
+      <div class="ltag">★★★ 高级</div>
+      <div class="stars">⭐⭐⭐</div>
+      <div class="lname">求部分 & 综合变式</div>
+      <div class="ldesc">总数已知求"第几个"，或两人之间有几人。综合题型，挑战思维！</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 游戏页 ========== -->
+<div id="page-game" class="page">
+  <div class="q-card">
+    <div class="q-head">
+      <span class="q-no" id="q-no">第1题</span>
+      <span class="q-type" id="q-type">题型</span>
+      <button class="btn btn-back" id="btn-back-level" style="padding:6px 14px;font-size:14px;margin-left:auto;">⬅ 选难度</button>
+    </div>
+    <div class="q-text" id="q-text">题目加载中…</div>
+  </div>
+
+  <div class="task-box">
+    <div class="task-title">🎯 本关任务</div>
+    <div class="task-body" id="task-body">任务说明…</div>
+  </div>
+
+  <div class="board">
+    <div class="board-hint">👇 把下方的圈圈拖到对应位置（△=主角，○=其他同学）。灰色虚框是目标位置，数字标签会告诉你"第几个"。</div>
+    <div class="slots-row" id="slots-row"></div>
+  </div>
+
+  <div class="pool-box">
+    <div class="pool-title">🎒 拖拽区（点一下也可以放入下一个空位）：</div>
+    <div class="pool" id="pool"></div>
+  </div>
+
+  <div class="action-row">
+    <button class="btn btn-check" id="btn-check">✅ 检查答案</button>
+    <button class="btn btn-reveal" id="btn-reveal">💡 揭示答案</button>
+    <button class="btn btn-reset" id="btn-reset">🔄 重新开始本关</button>
+  </div>
+</div>
+
+<!-- ========== 通关结算页 ========== -->
+<div id="page-done" class="page">
+  <h1>🎉 全部通关！</h1>
+  <div class="summary" id="done-summary"></div>
+  <button class="btn btn-back" id="btn-restart">🏆 再来一局</button>
+</div>
+
+<!-- ========== 反馈弹层 ========== -->
+<div id="feedback">
+  <div class="fb-card">
+    <div class="fb-icon" id="fb-icon"></div>
+    <div class="fb-title" id="fb-title"></div>
+    <div class="fb-answer" id="fb-answer"></div>
+    <div class="fb-formula" id="fb-formula"></div>
+    <div class="fb-explain" id="fb-explain"></div>
+    <div class="fb-btns" id="fb-btns"></div>
+  </div>
+</div>
+
+<!-- ========== 规则面板 ========== -->
+<div id="rule-panel">
+  <div class="rule-card">
+    <h2>📚 怎么玩 + 排队问题秘籍</h2>
+    <h3>🎮 游戏玩法</h3>
+    <ul>
+      <li>读题目，理解"主角是谁"。</li>
+      <li>把下方的<b style="color:#FFD54F">△主角</b>和<b style="color:#4FC3F7">○同学</b>拖到队伍里对应位置。</li>
+      <li>排好后点<b style="color:#66BB6A">✅检查答案</b>，对了进下一关，错了会有提示！</li>
+      <li>实在不会，点<b style="color:#FF8A65">💡揭示答案</b>看解析。</li>
+    </ul>
+    <h3>📌 两大题型公式</h3>
+    <p>1️⃣ <b>求总数（主角没被算）</b>：前 + 后 + 1（自己）= 总数</p>
+    <p>2️⃣ <b>求总数（主角被算2次）</b>：左第X + 右第Y − 1 = 总数</p>
+    <h3>⚠️ 易错要点</h3>
+    <ul>
+      <li>"<b>第几个</b>"包括主角自己；"<b>有几个</b>"不包括主角。</li>
+      <li>"从A到B"包括A和B；"A和B之间"不包括A和B。</li>
+      <li>画圈圈图：主角标△，其他人标○，数字标清楚。</li>
+    </ul>
+    <button class="btn btn-back rule-close" id="rule-close">明白啦，开始玩！</button>
+  </div>
+</div>
+
+<!-- 庆祝彩纸画布 -->
+<div id="confetti"><canvas id="confetti-canvas"></canvas></div>
+
+<script>
+/* ================================================================
+   排队大作战 · 简单的排队问题（上）
+   设计核心：用"画圈圈图"这一题型核心方法做交互。
+   学生必须亲手把主角△和其他同学○排到队伍里对应位置，
+   通过操作体会"第几个包括自己""主角被算两次"等要点。
+================================================================ */
+
+/* ---------- 题库（基于docx重组，含自创变式） ---------- */
+// 每题结构：
+//   type: 题型标识  text: 题干  total: 总人数  mainPos: 主角位置(从1开始)
+//   mainName: 主角名  slots: 正确队伍数组(每格 'M'=主角 'N'=其他 '_':不需要)
+//   task: 任务描述  formula: 算式  explain: 解析
+// 注意：slots中主角位置即mainPos，其余填N
+const QUESTION_BANK = {
+  easy: [
+    {
+      text:"同学们排队去动物园看小猴子，其中有7个同学在牛牛的前面，有8个同学在牛牛的后面，一共有几个同学在排队？",
+      mainName:"牛牛", mainPos:8, total:16,
+      task:"把【牛牛】放到正确的位置，前后摆好其他同学，组成完整队伍。",
+      formula:"7 + 8 + 1 = 16（个）",
+      explain:"牛牛前面7人，后面8人，但牛牛自己没算进去，所以要 +1。"
+    },
+    {
+      text:"同学们排成一排做游戏，田田的左边有5名同学，右边有12名同学，请问一共有多少名同学在玩游戏？",
+      mainName:"田田", mainPos:6, total:18,
+      task:"田田左边5人，右边12人，把队伍排出来（共18人）。",
+      formula:"5 + 12 + 1 = 18（名）",
+      explain:"主角田田不算在左右两边里，记得再加1。"
+    },
+    {
+      text:"在公园售票处，乐乐老师前面有4人，后面有7人，这队共有多少人？",
+      mainName:"乐乐老师", mainPos:5, total:12,
+      task:"乐乐老师前面4人、后面7人，排好队伍。",
+      formula:"4 + 7 + 1 = 12（人）",
+      explain:"前后人数都不包括主角，主角自己要加上。"
+    },
+    {
+      text:"（变式）小猴子摘桃排队，小皮前面有6只，后面有9只，一共有几只小猴？",
+      mainName:"小皮", mainPos:7, total:16,
+      task:"小皮前面6只、后面9只，排好这支猴子队伍。",
+      formula:"6 + 9 + 1 = 16（只）",
+      explain:"求总数型，主角没被前后算到，+1是关键。"
+    },
+    {
+      text:"（变式）车站排队上车，明明前面有9人，后面有6人，一共多少人？",
+      mainName:"明明", mainPos:10, total:16,
+      task:"明明前面9人、后面6人，排好队伍。",
+      formula:"9 + 6 + 1 = 16（人）",
+      explain:"同样的题型，主角明明自己要+1。"
+    }
+  ],
+  mid: [
+    {
+      text:"一群小羊排成一排，从左边数喜羊羊是第7只，从右边数喜羊羊是第10只，一共有多少只小羊？",
+      mainName:"喜羊羊", mainPos:7, total:16,
+      task:"从左数喜羊羊第7，从右数第10。把它摆到正确位置（共16只）。",
+      formula:"7 + 10 − 1 = 16（只）",
+      explain:"从左数和从右数都包括了喜羊羊，主角被算了2次，要−1。"
+    },
+    {
+      text:"舞蹈表演中同学们排成一排，田田在正中间，从左数她是第7个，那么从右数她是第几个？一共有多少个同学？",
+      mainName:"田田", mainPos:7, total:13,
+      task:"田田正中间，从左数第7（也从右数第7）。排好队伍（共13人）。",
+      formula:"7 + 7 − 1 = 13（人）",
+      explain:"正中间说明左右对称，从右也是第7；田田被算两次，−1。"
+    },
+    {
+      text:"动物们排成一排做体操，从左数熊猫晶晶是第8只，从右数是第9只，一共有多少只动物？",
+      mainName:"熊猫晶晶", mainPos:8, total:16,
+      task:"晶晶从左第8、从右第9，排好体操队伍（共16只）。",
+      formula:"8 + 9 − 1 = 16（只）",
+      explain:"晶晶被左右各算一次，−1去掉重复。"
+    },
+    {
+      text:"（变式）书架上一排书，从左数童话书第5本，从右数童话书第12本，一共有几本书？",
+      mainName:"童话书", mainPos:5, total:16,
+      task:"童话书从左第5、从右第12，摆好书架（共16本）。",
+      formula:"5 + 12 − 1 = 16（本）",
+      explain:"童话书主角被算2次，总数=左+右−1。"
+    }
+  ],
+  hard: [
+    {
+      text:"20个小朋友排队买冰激凌，从前往后数丁丁排在第8个，那么从后往前数他在第几个呢？",
+      mainName:"丁丁", mainPos:8, total:20, askFromBack:13,
+      task:"先排出20人的完整队伍（丁丁在第8），再回答从后数第几。",
+      formula:"20 − 8 + 1 = 13",
+      explain:"丁丁后面有20−8=12人，从后数他是第12+1=13个。"
+    },
+    {
+      text:"15幅儿童画展出，丁丁的画从左数第8幅，从右数是第几幅？",
+      mainName:"丁丁的画", mainPos:8, total:15, askFromBack:8,
+      task:"排好15幅画（丁丁第8），回答从右数第几。",
+      formula:"15 − 8 + 1 = 8",
+      explain:"丁丁画右边有15−8=7幅，从右数第7+1=8幅。"
+    },
+    {
+      text:"18个小动物排成一排，从左数小松鼠第5个，从右数它站在第几个？",
+      mainName:"小松鼠", mainPos:5, total:18, askFromBack:14,
+      task:"18个小动物，小松鼠从左第5，排好队伍回答从右第几。",
+      formula:"18 − 5 + 1 = 14",
+      explain:"小松鼠右边有18−5=13个，从右数第13+1=14个。"
+    },
+    {
+      text:"（变式·两人之间）16只动物排队，美羊羊从前往后第4只，懒羊羊从后往前第8只，它俩之间有几只？",
+      mainName:"美羊羊&懒羊羊", mainPos:4, mainPos2:9, total:16, between:4,
+      task:"美羊羊第4，懒羊羊从后第8（即从左第16−8+1=9），排好队伍，圈出它们之间的动物。",
+      formula:"16 − 4 − 8 = 4（只）",
+      explain:"从左到美羊羊4只、从右到懒羊羊8只，中间剩16−4−8=4只。"
+    },
+    {
+      text:"（变式·超过问题）长跑中田田暂列第6名，牛牛暂列第12名，牛牛要超过几位同学才能和田田并列第6？",
+      mainName:"田田&牛牛", mainPos:6, mainPos2:12, total:12, between:5,
+      task:"田田第6、牛牛第12，排出名次，圈出牛牛要超过的人（两人之间）。",
+      formula:"12 − 6 − 1 = 5（名）",
+      explain:"两人之间的人数=12−6−1=5，这就是牛牛要超过的。"
+    }
+  ]
+};
+
+/* ---------- 色板（每局随机主色） ---------- */
+const COLOR_THEMES = [
+  {main:'#4FC3F7', mainDark:'#0288D1', accent:'#FFD54F', accent2:'#FF8A65'},
+  {main:'#BA68C8', mainDark:'#7B1FA2', accent:'#FFD54F', accent2:'#4DD0E1'},
+  {main:'#66BB6A', mainDark:'#2E7D32', accent:'#FFCA28', accent2:'#FF7043'},
+  {main:'#FF8A65', mainDark:'#D84315', accent:'#AED581', accent2:'#4FC3F7'},
+  {main:'#7986CB', mainDark:'#3949AB', accent:'#FFB74D', accent2:'#F06292'},
+  {main:'#26C6DA', mainDark:'#00838F', accent:'#FFEE58', accent2:'#BA68C8'}
+];
+
+/* ---------- 全局状态 ---------- */
+let state = {
+  level:null,       // easy/mid/hard
+  queue:[],         // 本局抽到的题目列表
+  qIndex:0,         // 当前题目索引
+  startTime:0,
+  timerId:null,
+  steps:0,
+  totalCorrect:0
+};
+
+/* ---------- DOM 引用 ---------- */
+const $ = id => document.getElementById(id);
+const pages = { level:$('page-level'), game:$('page-game'), done:$('page-done') };
+
+/* ---------- 工具函数 ---------- */
+function shuffle(arr){ // Fisher-Yates 洗牌
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function randInt(n){ return Math.floor(Math.random()*n); }
+function applyTheme(){
+  const t = COLOR_THEMES[randInt(COLOR_THEMES.length)];
+  const r = document.documentElement.style;
+  r.setProperty('--main', t.main);
+  r.setProperty('--main-dark', t.mainDark);
+  r.setProperty('--accent', t.accent);
+  r.setProperty('--accent2', t.accent2);
+}
+function showPage(name){
+  Object.values(pages).forEach(p=>p.classList.remove('active'));
+  pages[name].classList.add('active');
+}
+
+/* ---------- 计时器 ---------- */
+function startTimer(){
+  state.startTime = Date.now();
+  if(state.timerId) clearInterval(state.timerId);
+  state.timerId = setInterval(()=>{
+    const s = Math.floor((Date.now()-state.startTime)/1000);
+    const m = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    $('stat-time').textContent = `⏱ ${m}:${ss}`;
+  },500);
+}
+function stopTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
+function addStep(){ state.steps++; $('stat-step').textContent = `🎯 步数 ${state.steps}`; }
+
+/* ---------- 选中难度，开始游戏 ---------- */
+function startGame(level){
+  applyTheme();                       // 随机换色
+  state.level = level;
+  state.steps = 0; state.totalCorrect = 0;
+  $('stat-step').textContent = '🎯 步数 0';
+  // 抽3题（题库随机打乱取前3）
+  state.queue = shuffle(QUESTION_BANK[level]).slice(0,3);
+  state.qIndex = 0;
+  showPage('game');
+  startTimer();
+  renderQuestion();
+}
+
+/* ---------- 渲染当前题目 ---------- */
+function renderQuestion(){
+  const q = state.queue[state.qIndex];
+  $('q-no').textContent = `第 ${state.qIndex+1} / ${state.queue.length} 题`;
+  const typeMap = {easy:'求总数型', mid:'求总数型(主角被算2次)', hard:'求部分/综合型'};
+  $('q-type').textContent = typeMap[state.level];
+  $('q-text').textContent = q.text;
+  $('task-body').textContent = q.task;
+
+  // 计算需要的槽位数（队伍总长 = total）
+  const total = q.total;
+  const slotsRow = $('slots-row');
+  slotsRow.innerHTML = '';
+
+  // 判断是否两人主角（hard的"之间"题）
+  const hasTwo = q.mainPos2 !== undefined;
+
+  for(let i=1;i<=total;i++){
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.dataset.pos = i;
+    // 位置标签
+    const tag = document.createElement('div');
+    tag.className = 'pos-tag';
+    if(i===1){ tag.classList.add('left'); tag.textContent='←第1'; }
+    else if(i===total){ tag.classList.add('right'); tag.textContent='第'+total+'→'; }
+    else if(i===q.mainPos){ tag.classList.add('left'); tag.textContent='主角位'; }
+    if(hasTwo && i===q.mainPos2){ tag.classList.add('right'); tag.textContent='主角2位'; }
+    slot.appendChild(tag);
+    // 拖放目标事件
+    slot.addEventListener('dragover', e=>{ e.preventDefault(); slot.style.background='rgba(255,213,79,0.25)'; });
+    slot.addEventListener('dragleave', e=>{ slot.style.background=''; });
+    slot.addEventListener('drop', e=>{ e.preventDefault(); slot.style.background=''; dropToken(slot); });
+    // 触摸/点击支持：点击slot把池中第一个token放入
+    slot.addEventListener('click', ()=> dropFromPoolAuto(slot));
+    slotsRow.appendChild(slot);
+  }
+
+  // 渲染token池
+  renderPool(q, hasTwo);
+}
+
+/* ---------- 渲染token池 ---------- */
+function renderPool(q, hasTwo){
+  const pool = $('pool');
+  pool.innerHTML = '';
+  // 一个主角 + total-1个其他（如果两人主角则再+1主角，总数仍为total）
+  const mainCount = hasTwo ? 2 : 1;
+  const normalCount = q.total - mainCount;
+
+  // 创建主角token（顺序打乱后渲染）
+  const tokens = [];
+  for(let i=0;i<mainCount;i++){
+    tokens.push({kind:'main', name: hasTwo ? (i===0?'主角1△':'主角2△') : q.mainName});
+  }
+  for(let i=0;i<normalCount;i++){
+    tokens.push({kind:'normal', name:'○'});
+  }
+  shuffle(tokens).forEach((tk,idx)=>{
+    const el = document.createElement('div');
+    el.className = 'token ' + (tk.kind==='main'?'main':'normal');
+    el.draggable = true;
+    el.dataset.kind = tk.kind;
+    el.textContent = tk.kind==='main' ? '△' : '○';
+    el.title = tk.kind==='main' ? tk.name : '其他同学';
+    // HTML5 拖拽
+    el.addEventListener('dragstart', e=>{
+      el.classList.add('dragging');
+      e.dataTransfer.setData('kind', tk.kind);
+      e.dataTransfer.setData('name', tk.name);
+    });
+    el.addEventListener('dragend', e=> el.classList.remove('dragging'));
+    // 点击放入下一个空slot
+    el.addEventListener('click', ()=>{ autoPlaceToken(tk.kind, tk.name, el); });
+    pool.appendChild(el);
+  });
+}
+
+/* ---------- 拖放：把拖来的token放入slot ---------- */
+function dropToken(slot){
+  // 取正在拖动的元素（pool中标记dragging的）
+  const dragging = document.querySelector('.token.dragging');
+  if(!dragging) return;
+  placeTokenIntoSlot(dragging, slot);
+}
+
+/* ---------- 点击池中token，自动放入下一个空slot ---------- */
+function autoPlaceToken(kind, name, srcEl){
+  const slots = [...document.querySelectorAll('#slots-row .slot')];
+  const empty = slots.find(s => !s.querySelector('.token'));
+  if(empty) placeTokenIntoSlot(srcEl, empty);
+}
+
+/* ---------- 点击空slot，把池中第一个token放入 ---------- */
+function dropFromPoolAuto(slot){
+  if(slot.querySelector('.token')) return; // 已有token
+  const poolToken = document.querySelector('#pool .token');
+  if(poolToken) placeTokenIntoSlot(poolToken, slot);
+}
+
+/* ---------- 把某个token元素放入slot ---------- */
+function placeTokenIntoSlot(srcEl, slot){
+  if(slot.querySelector('.token')) return; // 已有
+  const clone = srcEl.cloneNode(true);
+  clone.classList.add('in-slot');
+  clone.draggable = false;
+  // 已在slot中的token，点击可移回池
+  clone.addEventListener('click', e=>{
+    e.stopPropagation();
+    slot.removeChild(clone);
+    // 重新生成一个池token（让池里始终能再拖）
+    // 简化：直接把原srcEl显示回来
+    if(srcEl.parentElement && srcEl.parentElement.id==='pool'){
+      srcEl.style.display='';
+    } else {
+      // 原srcEl已被移除，重新加回池
+      $('pool').appendChild(srcEl);
+      srcEl.style.display='';
+    }
+    addStep();
+  });
+  slot.appendChild(clone);
+  // 从池中移除原元素（保留引用以便恢复）
+  if(srcEl.parentElement && srcEl.parentElement.id==='pool'){
+    srcEl.style.display='none'; // 隐藏而非删除，方便回退
+  }
+  addStep();
+}
+
+/* ---------- 检查答案 ---------- */
+function checkAnswer(){
+  const q = state.queue[state.qIndex];
+  const slots = [...document.querySelectorAll('#slots-row .slot')];
+  // 收集每个slot的内容
+  const arrangement = slots.map(s=>{
+    const tk = s.querySelector('.token');
+    if(!tk) return null;
+    return tk.dataset.kind; // 'main' or 'normal'
+  });
+
+  // 判定逻辑：分题型
+  let ok = false;
+  if(state.level==='easy' || state.level==='mid'){
+    // 单主角：主角必须在mainPos，其余位置都填normal，总数=total
+    ok = arrangement.every(x=>x!==null)
+        && arrangement[q.mainPos-1] === 'main'
+        && arrangement.filter(x=>x==='main').length === 1;
+  } else {
+    // hard: 区分单主角求第几 和 双主角之间
+    if(q.mainPos2 !== undefined){
+      // 双主角：两个主角分别在 mainPos 和 mainPos2，其余为normal
+      ok = arrangement.every(x=>x!==null)
+          && arrangement[q.mainPos-1] === 'main'
+          && arrangement[q.mainPos2-1] === 'main'
+          && arrangement.filter(x=>x==='main').length === 2;
+    } else {
+      // 单主角求第几
+      ok = arrangement.every(x=>x!==null)
+          && arrangement[q.mainPos-1] === 'main'
+          && arrangement.filter(x=>x==='main').length === 1;
+    }
+  }
+
+  if(ok){
+    state.totalCorrect++;
+    showFeedback(true, q);
+    launchConfetti();
+  } else {
+    showFeedback(false, q);
+  }
+}
+
+/* ---------- 反馈弹层 ---------- */
+function showFeedback(ok, q){
+  const fb = $('feedback');
+  $('fb-icon').textContent = ok ? '🎉' : '🤔';
+  $('fb-title').textContent = ok ? '太棒了，排对啦！' : '再想想，差一点点～';
+  $('fb-title').style.color = ok ? 'var(--ok)' : 'var(--accent2)';
+  let answer = '';
+  if(state.level==='hard'){
+    if(q.mainPos2 !== undefined){
+      answer = `它们之间共有 ${q.between} 位/只`;
+    } else {
+      answer = `从后/右数是第 ${q.askFromBack} 个`;
+    }
+  } else {
+    answer = `总共有 ${q.total} 位/只`;
+  }
+  $('fb-answer').textContent = ok ? '✅ ' + answer : '提示：看看主角△的位置对不对？还有空位吗？';
+  $('fb-formula').textContent = ok ? ('算式：' + q.formula) : '';
+  $('fb-explain').textContent = ok ? ('💡 解析：' + q.explain) : '';
+  // 按钮
+  const btns = $('fb-btns');
+  btns.innerHTML = '';
+  if(ok){
+    const isLast = state.qIndex >= state.queue.length-1;
+    const btnNext = document.createElement('button');
+    btnNext.className = 'btn btn-next';
+    btnNext.textContent = isLast ? '🏆 查看战绩' : '➡ 下一关';
+    btnNext.onclick = ()=>{ fb.classList.remove('show'); if(isLast){ finishGame(); } else { state.qIndex++; renderQuestion(); } };
+    btns.appendChild(btnNext);
+  } else {
+    const btnRetry = document.createElement('button');
+    btnRetry.className='btn btn-reset';
+    btnRetry.textContent='🔄 我再试试';
+    btnRetry.onclick=()=> fb.classList.remove('show');
+    const btnReveal = document.createElement('button');
+    btnReveal.className='btn btn-reveal';
+    btnReveal.textContent='💡 直接看答案';
+    btnReveal.onclick=()=>{ fb.classList.remove('show'); revealAnswer(); };
+    btns.appendChild(btnRetry);
+    btns.appendChild(btnReveal);
+  }
+  fb.classList.add('show');
+}
+
+/* ---------- 揭示答案 ---------- */
+function revealAnswer(){
+  const q = state.queue[state.qIndex];
+  const slots = [...document.querySelectorAll('#slots-row .slot')];
+  // 清空
+  slots.forEach(s=> s.innerHTML='');
+  // 重新生成位置标签
+  const hasTwo = q.mainPos2 !== undefined;
+  slots.forEach((s,idx)=>{
+    const i = idx+1;
+    const tag = document.createElement('div');
+    tag.className='pos-tag';
+    if(i===1){ tag.classList.add('left'); tag.textContent='←第1'; }
+    else if(i===q.total){ tag.classList.add('right'); tag.textContent='第'+q.total+'→'; }
+    if(i===q.mainPos){ tag.classList.add('left'); tag.textContent='主角位'; s.classList.add('hint-target'); }
+    if(hasTwo && i===q.mainPos2){ tag.classList.add('right'); tag.textContent='主角2位'; s.classList.add('hint-target'); }
+    s.appendChild(tag);
+    // 放入正确token
+    const el = document.createElement('div');
+    if(i===q.mainPos || (hasTwo && i===q.mainPos2)){
+      el.className='token main in-slot'; el.textContent='△';
+    } else {
+      el.className='token normal in-slot'; el.textContent='○';
+    }
+    s.appendChild(el);
+  });
+  // 清空池
+  $('pool').innerHTML = '';
+  // 弹出解析
+  const fb = $('feedback');
+  $('fb-icon').textContent='💡';
+  $('fb-title').textContent='参考答案';
+  $('fb-title').style.color='var(--accent2)';
+  let answer = '';
+  if(state.level==='hard'){
+    answer = q.mainPos2!==undefined ? `它们之间共有 ${q.between} 位/只` : `从后/右数是第 ${q.askFromBack} 个`;
+  } else {
+    answer = `总共有 ${q.total} 位/只`;
+  }
+  $('fb-answer').textContent = '✅ ' + answer;
+  $('fb-formula').textContent = '算式：' + q.formula;
+  $('fb-explain').textContent = '💡 解析：' + q.explain;
+  const btns = $('fb-btns'); btns.innerHTML='';
+  const isLast = state.qIndex >= state.queue.length-1;
+  const btnNext = document.createElement('button');
+  btnNext.className='btn btn-next';
+  btnNext.textContent = isLast ? '🏆 查看战绩' : '➡ 下一关';
+  btnNext.onclick = ()=>{ fb.classList.remove('show'); if(isLast){ finishGame(); } else { state.qIndex++; renderQuestion(); } };
+  btns.appendChild(btnNext);
+  const btnReset = document.createElement('button');
+  btnReset.className='btn btn-reset';
+  btnReset.textContent='🔄 重排这一题';
+  btnReset.onclick=()=>{ fb.classList.remove('show'); renderQuestion(); };
+  btns.appendChild(btnReset);
+  fb.classList.add('show');
+}
+
+/* ---------- 重置当前关 ---------- */
+function resetCurrent(){ renderQuestion(); }
+
+/* ---------- 完成全部 ---------- */
+function finishGame(){
+  stopTimer();
+  showPage('done');
+  const elapsed = Math.floor((Date.now()-state.startTime)/1000);
+  const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+  const ss = String(elapsed%60).padStart(2,'0');
+  $('done-summary').innerHTML =
+    `难度：<b>${ {easy:'初级',mid:'中级',hard:'高级'}[state.level] }</b><br>`+
+    `答对：<b style="color:var(--accent)">${state.totalCorrect} / ${state.queue.length}</b> 题<br>`+
+    `用时：<b>${m}:${ss}</b> · 总步数：<b>${state.steps}</b>`;
+  launchConfetti();
+}
+
+/* ---------- 庆祝彩纸（Canvas） ---------- */
+let confettiCtx, confettiPieces=[], confettiRaf;
+function launchConfetti(){
+  const wrap = $('confetti');
+  const canvas = $('confetti-canvas');
+  wrap.style.display='block';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  confettiCtx = canvas.getContext('2d');
+  confettiPieces = [];
+  const colors = ['#FFD54F','#4FC3F7','#FF8A65','#66BB6A','#BA68C8','#FFEE58'];
+  for(let i=0;i<150;i++){
+    confettiPieces.push({
+      x: Math.random()*canvas.width,
+      y: -20 - Math.random()*canvas.height*0.3,
+      r: 6 + Math.random()*8,
+      c: colors[randInt(colors.length)],
+      vx: -2 + Math.random()*4,
+      vy: 2 + Math.random()*4,
+      rot: Math.random()*Math.PI,
+      vr: -0.2 + Math.random()*0.4
+    });
+  }
+  cancelAnimationFrame(confettiRaf);
+  animateConfetti();
+  setTimeout(stopConfetti, 4000);
+}
+function animateConfetti(){
+  const canvas = $('confetti-canvas');
+  confettiCtx.clearRect(0,0,canvas.width,canvas.height);
+  confettiPieces.forEach(p=>{
+    p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+    if(p.y > canvas.height) p.y = -20;
+    confettiCtx.save();
+    confettiCtx.translate(p.x,p.y);
+    confettiCtx.rotate(p.rot);
+    confettiCtx.fillStyle = p.c;
+    confettiCtx.fillRect(-p.r/2, -p.r/2, p.r, p.r*0.5);
+    confettiCtx.restore();
+  });
+  confettiRaf = requestAnimationFrame(animateConfetti);
+}
+function stopConfetti(){
+  cancelAnimationFrame(confettiRaf);
+  $('confetti').style.display='none';
+}
+
+/* ---------- 事件绑定 ---------- */
+document.querySelectorAll('.level-card').forEach(card=>{
+  card.addEventListener('click', ()=> startGame(card.dataset.level));
+});
+$('btn-check').addEventListener('click', checkAnswer);
+$('btn-reveal').addEventListener('click', revealAnswer);
+$('btn-reset').addEventListener('click', resetCurrent);
+$('btn-back-level').addEventListener('click', ()=>{ stopTimer(); showPage('level'); });
+$('btn-restart').addEventListener('click', ()=>{ showPage('level'); });
+$('btn-help').addEventListener('click', ()=> $('rule-panel').classList.add('show'));
+$('rule-close').addEventListener('click', ()=> $('rule-panel').classList.remove('show'));
+
+/* ---------- 移动端触摸拖拽兼容（基于pointer events） ---------- */
+// 因为HTML5 drag在部分移动端不支持，补充touch实现
+let touchDragging = null;
+document.addEventListener('touchstart', e=>{
+  const tk = e.target.closest('.token');
+  if(tk && tk.parentElement && tk.parentElement.id==='pool'){
+    touchDragging = tk;
+    tk.classList.add('dragging');
+  }
+}, {passive:true});
+document.addEventListener('touchmove', e=>{
+  if(!touchDragging) return;
+  // 找到手指下的slot
+  const touch = e.touches[0];
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  const slot = el && el.closest('.slot');
+  if(slot){
+    // 高亮
+    document.querySelectorAll('#slots-row .slot').forEach(s=> s.style.background='');
+    slot.style.background='rgba(255,213,79,0.25)';
+  }
+}, {passive:true});
+document.addEventListener('touchend', e=>{
+  if(!touchDragging) return;
+  const touch = e.changedTouches[0];
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  const slot = el && el.closest('.slot');
+  document.querySelectorAll('#slots-row .slot').forEach(s=> s.style.background='');
+  if(slot && !slot.querySelector('.token')){
+    placeTokenIntoSlot(touchDragging, slot);
+  }
+  touchDragging.classList.remove('dragging');
+  touchDragging = null;
+}, {passive:true});
+
+/* ---------- 启动 ---------- */
+applyTheme();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g033", "name": "\u6392\u961f\u5927\u4f5c\u6218 \u00b7 \u7b2c17\u8bb2 \u7b80\u5355\u7684\u6392\u961f\u95ee\u9898\uff08\u4e0a\uff09", "file": "g033.html", "jiaocan": "\u301033\u3011\u7b2c17\u8bb2 \u7b80\u5355\u7684\u6392\u961f\u95ee\u9898\uff08\u4e0a\uff09", "unit": "\u7b2c17\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

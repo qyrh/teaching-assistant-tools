@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>线角智慧乐园 · 第2讲 线角初步（下）</title>
+<style>
+/* ===================== 全局样式（配色由 JS 每局随机注入 CSS 变量） ===================== */
+*{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  background:var(--bg); color:var(--ink);
+  user-select:none; -webkit-user-select:none; touch-action:manipulation;
+}
+button{ font-family:inherit; cursor:pointer; border:none; }
+.hidden{ display:none !important; }
+#app{ max-width:1240px; margin:0 auto; padding:10px 14px 30px; }
+
+/* ---------- 顶栏：标题 + 右上角计时/步数 + 功能按钮 ---------- */
+header{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+  gap:10px; padding:10px 16px; border-radius:16px;
+  background:var(--main); color:#fff; box-shadow:0 4px 14px rgba(0,0,0,.18);
+}
+.brand h1{ font-size:26px; letter-spacing:2px; }
+.brand .sub{ font-size:15px; opacity:.92; }
+.hud{
+  font-size:19px; font-weight:bold; background:rgba(255,255,255,.22);
+  padding:8px 16px; border-radius:12px;
+}
+.tools{ display:flex; gap:8px; flex-wrap:wrap; }
+.tools button{
+  font-size:15px; font-weight:bold; padding:9px 14px; border-radius:10px;
+  background:rgba(255,255,255,.92); color:var(--ink);
+}
+.tools button:active{ transform:scale(.95); }
+
+/* ---------- 开始界面：难度选择 ---------- */
+.hero{ text-align:center; padding:34px 10px 10px; }
+.hero h2{ font-size:32px; margin-bottom:6px; }
+.hero .lead{ font-size:18px; color:var(--ink); opacity:.85; margin-bottom:24px; }
+.diffs{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; }
+.diff{
+  width:270px; padding:22px 18px; border-radius:18px; color:#fff;
+  background:var(--main); box-shadow:0 6px 16px rgba(0,0,0,.16);
+  display:flex; flex-direction:column; gap:8px; align-items:center;
+}
+.diff:nth-child(2){ background:var(--c2); }
+.diff:nth-child(3){ background:var(--c3); }
+.diff b{ font-size:26px; letter-spacing:3px; }
+.diff .zone{ font-size:18px; font-weight:bold; }
+.diff p{ font-size:15px; line-height:1.6; opacity:.95; }
+.diff:active{ transform:scale(.96); }
+.hero .tip{ margin-top:26px; font-size:15px; opacity:.75; }
+
+/* ---------- 游戏界面：左侧画布舞台，右侧操作面板 ---------- */
+#screen-game{ display:flex; gap:16px; margin-top:14px; align-items:flex-start; flex-wrap:wrap; }
+.stage{ flex:1 1 620px; min-width:320px; }
+.stage-head{
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;
+  padding:10px 6px 8px; font-size:19px; font-weight:bold;
+}
+.cvwrap{
+  border:4px solid var(--main); border-radius:16px; overflow:hidden;
+  background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,.10);
+}
+#cv{ display:block; width:100%; height:auto; touch-action:none; cursor:pointer; }
+#msgbar{
+  margin-top:10px; min-height:52px; border-radius:12px; padding:12px 16px;
+  background:var(--soft); font-size:18px; font-weight:bold; line-height:1.5;
+  border:2px dashed var(--main);
+}
+
+/* ---------- 右侧面板：进度 / 卡片托盘 / 分乐园（回收港） ---------- */
+#panel{ flex:0 1 380px; min-width:300px; display:flex; flex-direction:column; gap:12px; }
+.pblock{
+  background:#fff; border:3px solid var(--soft); border-radius:14px; padding:12px;
+}
+.pblock h4{ font-size:17px; margin-bottom:8px; color:var(--ink); }
+.prog{ font-size:18px; font-weight:bold; color:var(--main); }
+.guide{ font-size:16px; line-height:1.65; }
+.tray{
+  display:flex; flex-wrap:wrap; gap:12px; min-height:86px; align-items:flex-start;
+}
+.card{
+  width:104px; border-radius:12px; background:#fff; border:3px solid var(--main);
+  padding:6px 4px 4px; display:flex; flex-direction:column; align-items:center; gap:2px;
+  touch-action:none; cursor:grab; position:relative; z-index:1;
+}
+.card span{ font-size:16px; font-weight:bold; }
+.card.dragging{ opacity:.92; box-shadow:0 10px 22px rgba(0,0,0,.28); cursor:grabbing; pointer-events:none; }
+.card.shake{ animation:shake .45s; }
+@keyframes shake{
+  0%,100%{ transform:translateX(0); }
+  25%{ transform:translateX(-7px); } 50%{ transform:translateX(7px); } 75%{ transform:translateX(-5px); }
+}
+.bins{ display:flex; gap:12px; flex-wrap:wrap; }
+.bin{
+  flex:1 1 104px; min-width:104px; border-radius:14px; padding:10px 8px; text-align:center;
+  border:3px solid var(--c2); background:var(--soft); min-height:150px;
+}
+.bin.hl{ box-shadow:0 0 0 5px rgba(0,0,0,.15); }
+.bin .bt{ font-size:18px; font-weight:bold; margin-bottom:4px; }
+.bin .cnt{ font-size:15px; font-weight:bold; color:var(--main); }
+.bin .refi{ display:block; margin:4px auto; }
+
+/* ---------- 纯 CSS 图标（角扇形 / 平行 / 垂直），不占用画布与图片资源 ---------- */
+.icowrap{ position:relative; width:88px; height:66px; margin:0 auto; }
+.sector{ position:absolute; left:16px; bottom:5px; width:52px; height:52px; }
+.rayl{ position:absolute; left:16px; bottom:9px; width:52px; height:3px; transform-origin:0 50%; border-radius:2px; }
+.dotv{ position:absolute; left:13px; bottom:7px; width:7px; height:7px; border-radius:50%; }
+.minline{ position:absolute; height:5px; border-radius:3px; }
+.minsq{ position:absolute; width:12px; height:12px; border:2.5px solid; box-sizing:border-box; }
+.bin .docked{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:6px; }
+.bin .docked .card{ width:84px; border-width:2px; cursor:default; }
+.btnbig{
+  font-size:20px; font-weight:bold; color:#fff; background:var(--main);
+  padding:14px 20px; border-radius:12px; width:100%;
+}
+.btnbig:active{ transform:scale(.97); }
+
+/* ---------- 弹层通用 ---------- */
+.ovl{
+  position:fixed; inset:0; background:rgba(30,20,5,.55); z-index:50;
+  display:flex; align-items:center; justify-content:center; padding:16px;
+}
+.modal{
+  background:#fff; border-radius:18px; max-width:640px; width:100%; max-height:86vh;
+  overflow:auto; padding:26px 26px 22px; box-shadow:0 10px 30px rgba(0,0,0,.3);
+}
+.modal h3{ font-size:25px; margin-bottom:12px; color:var(--main); }
+.modal .mbody{ font-size:18px; line-height:1.8; }
+.modal .mbody ul{ padding-left:24px; }
+.modal .mbtns{ display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; }
+.modal .mbtns button{
+  flex:1 1 140px; font-size:19px; font-weight:bold; padding:13px 10px; border-radius:12px;
+  background:var(--main); color:#fff;
+}
+.modal .mbtns button.ghost{ background:#fff; color:var(--ink); border:3px solid var(--main); }
+.stars3{ font-size:34px; letter-spacing:6px; color:#f59e0b; text-align:center; margin:6px 0; }
+
+/* ---------- 通关庆祝（纯CSS彩纸与烟花，不再使用第二块画布） ---------- */
+#ovlCele{ z-index:70; background:rgba(10,8,30,.62); flex-direction:column; }
+#fxbox{ position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.confetti{ position:absolute; top:-24px; border-radius:2px; animation:cfall linear infinite; }
+@keyframes cfall{
+  from{ transform:translateY(0) rotate(0deg); }
+  to{ transform:translateY(110vh) rotate(720deg); }
+}
+.fw{ position:absolute; width:14px; height:14px; border-radius:50%; border:4px solid currentColor;
+  opacity:0; animation:fwb 1s ease-out forwards; }
+@keyframes fwb{
+  0%{ transform:scale(.2); opacity:1; }
+  100%{ transform:scale(7); opacity:0; }
+}
+.cele-box{
+  position:relative; background:#fff; border-radius:20px; padding:30px 34px; text-align:center;
+  max-width:520px; box-shadow:0 12px 36px rgba(0,0,0,.4);
+}
+.cele-box h2{ font-size:34px; color:var(--main); margin-bottom:8px; }
+.cele-box .stats{ font-size:20px; font-weight:bold; margin:10px 0 18px; line-height:1.8; }
+.cele-box .mbtns{ display:flex; gap:12px; }
+.cele-box .mbtns button{
+  flex:1; font-size:19px; font-weight:bold; padding:13px 8px; border-radius:12px;
+  background:var(--main); color:#fff;
+}
+.cele-box .mbtns button.ghost{ background:#fff; color:var(--ink); border:3px solid var(--main); }
+
+/* ---------- 移动端适配 ---------- */
+@media (max-width:920px){
+  .brand h1{ font-size:21px; }
+  .hud{ font-size:16px; }
+  #screen-game{ flex-direction:column; }
+  #panel{ flex:1 1 auto; width:100%; }
+  .modal .mbody{ font-size:16px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶栏：标题 / 右上角计时与步数 / 四个功能按钮（规则、揭示答案、重新开始、返回难度选择） -->
+  <header>
+    <div class="brand">
+      <h1>线角智慧乐园</h1>
+      <span class="sub">第2讲 线角初步（下） · 数角 · 平行与垂直 · 交点</span>
+    </div>
+    <div class="hud">时间 <b id="hud-time">00:00</b> ｜ 步数 <b id="hud-steps">0</b></div>
+    <nav class="tools">
+      <button id="btnRules">规则说明</button>
+      <button id="btnReveal">揭示答案</button>
+      <button id="btnRestart">重新开始</button>
+      <button id="btnBack">返回难度选择</button>
+    </nav>
+  </header>
+
+  <!-- 开始界面：难度选择（初级 / 中级 / 高级） -->
+  <section id="screen-start">
+    <div class="hero">
+      <h2>选择探险难度</h2>
+      <p class="lead">用"找搭档法"数角、找平行与垂直、寻找交点，玩着玩着就学会啦！</p>
+      <div class="diffs">
+        <button class="diff" data-diff="easy">
+          <b>初 级</b><span class="zone">晨光小路</span>
+          <p>3 条射线的小风扇、3 条线的简单图形，<br>热身配对，认识锐角、直角、钝角</p>
+        </button>
+        <button class="diff" data-diff="mid">
+          <b>中 级</b><span class="zone">彩虹大桥</span>
+          <p>4～6 条线的图形，角更多、关系更丰富，<br>还要动脑想想线段能不能延长</p>
+        </button>
+        <button class="diff" data-diff="hard">
+          <b>高 级</b><span class="zone">星空之巅</span>
+          <p>5 条射线数 10 个角、三角形里找平行、<br>多条线延长后找交点，综合挑战</p>
+        </button>
+      </div>
+      <p class="tip">每一关的图形都是随机出现的，颜色每局也不同，玩多少次都不重样！</p>
+    </div>
+  </section>
+
+  <!-- 游戏界面 -->
+  <section id="screen-game" class="hidden">
+    <div class="stage">
+      <div class="stage-head"><span id="lv-name"></span><span class="prog" id="lv-prog"></span></div>
+      <div class="cvwrap"><canvas id="cv" width="800" height="560"></canvas></div>
+      <div id="msgbar">按提示开始操作吧！</div>
+    </div>
+    <aside id="panel"></aside>
+  </section>
+</div>
+
+<!-- 规则说明弹层（进入时自动弹出，可随时再打开） -->
+<div id="ovlRules" class="ovl hidden">
+  <div class="modal">
+    <h3>玩法规则说明</h3>
+    <div class="mbody">
+      <p><b>探险一共 3 关：</b>彩虹角乐园 → 线线找朋友 → 交点寻宝。</p>
+      <ul>
+        <li><b>第1关 彩虹角乐园：</b>顶点 O 射出几条射线。先<b>点选两条射线配对</b>，找出一个角；再把出现的角卡片<b>拖进正确的乐园</b>（比直角小→锐角乐园；正好是直角→直角乐园；比直角大→钝角乐园）。</li>
+        <li><b>第2关 线线找朋友：</b><b>点选两条线配对</b>：互相平行的送进<b>平行港</b>，相交成直角的送进<b>垂直港</b>。斜斜相交的线既不平行也不垂直，配不上哦。</li>
+        <li><b>第3关 交点寻宝：</b>想一想哪些线<b>延长后</b>会相遇，<b>点击画布</b>放星星标记交点，找齐后按"确认找齐"。</li>
+      </ul>
+      <p><b>找搭档法（数数不遗漏的小妙招）：</b>固定一条线，按顺序和其他线一条一条配对；换下一条固定，继续配，保证一个不漏！</p>
+      <p><b>小知识：</b>直线两端能无限延长，射线一端能无限延长，线段不能延长；平行线永远不相交；垂直是相交成直角，直角有"小板凳"（小方块）标志。</p>
+      <p>右上角有<b>时间</b>和<b>步数</b>记录；遇到困难可以按"揭示答案"看完整思路。</p>
+    </div>
+    <div class="mbtns"><button id="btnRulesClose">我明白了，开始挑战</button></div>
+  </div>
+</div>
+
+<!-- 通用信息弹层（关卡介绍 / 揭示答案 / 过关表扬） -->
+<div id="ovlModal" class="ovl hidden">
+  <div class="modal">
+    <h3 id="md-title"></h3>
+    <div class="mbody" id="md-body"></div>
+    <div class="mbtns" id="md-btns"></div>
+  </div>
+</div>
+
+<!-- 通关庆祝弹层（纯CSS彩纸 + 烟花） -->
+<div id="ovlCele" class="ovl hidden">
+  <div id="fxbox"></div>
+  <div class="cele-box">
+    <h2>恭喜通关！</h2>
+    <div class="stars3" id="cele-stars">★ ★ ★</div>
+    <div class="stats" id="cele-stats"></div>
+    <div class="mbtns">
+      <button id="btnAgain">再玩一次</button>
+      <button id="btnChange" class="ghost">换个难度</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ==================================================================================
+   线角智慧乐园 —— 第2讲 线角初步（下）互动游戏
+   核心玩法与教材方法深度绑定：
+   1) 数角 = "找搭档法"（教材又称打枪法，这里用课堂友好的说法）：点选两条射线配对
+      （固定一条，依次找搭档），配出的角拖进分类乐园（锐角/直角/钝角）
+   2) 平行 / 垂直 = 线线配对：点选两条线，把平行对、垂直对拖进对应的港口
+   3) 交点 = 延长思想：在画布上点击定位交点（直线/射线可无限延长，线段不能）
+   所有关卡图形的答案均由引擎根据几何数据实时计算，保证题目自洽。
+   ================================================================================== */
+
+/* ---------------- 常量与工具 ---------------- */
+var W = 800, H = 560;                      // 画布逻辑尺寸
+var LETTERS = ["A","B","C","D","E","F"];   // 射线标签
+function $(id){ return document.getElementById(id); }
+function rad(d){ return d * Math.PI / 180; }
+function dist2seg(px, py, ax, ay, bx, by){ // 点到线段的最短距离
+  var dx = bx - ax, dy = by - ay;
+  var L2 = dx*dx + dy*dy;
+  var t = L2 === 0 ? 0 : ((px-ax)*dx + (py-ay)*dy) / L2;
+  t = Math.max(0, Math.min(1, t));
+  var x = ax + t*dx, y = ay + t*dy;
+  return Math.hypot(px - x, py - y);
+}
+function interLines(p1, d1, p2, d2){       // 两条支撑线的交点（返回 null 表示平行）
+  var r1 = rad(d1), r2 = rad(d2);
+  var a = Math.cos(r1), b = -Math.cos(r2), c = Math.sin(r1), e = -Math.sin(r2);
+  var rx = p2[0]-p1[0], ry = p2[1]-p1[1];
+  var det = a*e - b*c;
+  if (Math.abs(det) < 1e-9) return null;
+  var t = (rx*e - b*ry) / det, s = (a*ry - rx*c) / det;
+  return { x: p1[0] + t*Math.cos(r1), y: p1[1] + t*Math.sin(r1), t: t, s: s };
+}
+function dirOf(d){ var r = rad(d); return [Math.cos(r), Math.sin(r)]; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* ---------------- 随机色板（每局随机换装，久玩不腻） ---------------- */
+var PALETTES = [
+  { name:"蜜柚橙", bg:"#fff8ef", ink:"#4a2c0a", main:"#ea580c", soft:"#ffedd5", c2:"#0d9488", c3:"#7c3aed", cols:["#ea580c","#0d9488","#7c3aed","#0284c7","#ca8a04","#db2777"] },
+  { name:"青柠绿", bg:"#f2fbf4", ink:"#123524", main:"#16a34a", soft:"#dcfce7", c2:"#dc2626", c3:"#2563eb", cols:["#16a34a","#dc2626","#2563eb","#9333ea","#d97706","#0891b2"] },
+  { name:"海洋蓝", bg:"#eff8ff", ink:"#0c2d4d", main:"#0284c7", soft:"#e0f2fe", c2:"#d97706", c3:"#db2777", cols:["#0284c7","#f97316","#15803d","#a21caf","#dc2626","#65a30d"] },
+  { name:"莓果紫", bg:"#faf5ff", ink:"#3b1076", main:"#9333ea", soft:"#f3e8ff", c2:"#0d9488", c3:"#e11d48", cols:["#9333ea","#0d9488","#e11d48","#2563eb","#ca8a04","#059669"] },
+  { name:"樱花粉", bg:"#fef4f7", ink:"#6b0d2b", main:"#db2777", soft:"#fce7f3", c2:"#0284c7", c3:"#65a30d", cols:["#db2777","#0284c7","#65a30d","#9333ea","#d97706","#1d4ed8"] },
+  { name:"向日葵黄", bg:"#fefce8", ink:"#57360a", main:"#d97706", soft:"#fef3c7", c2:"#2563eb", c3:"#dc2626", cols:["#d97706","#2563eb","#dc2626","#0f766e","#7c3aed","#16a34a"] }
+];
+var PAL = PALETTES[0];
+
+/* ---------------- 题库数据（几何全部经过数值核验，答案由引擎计算） ----------------
+   角度图形：rays 为数学角度（0=向右，逆时针），公共顶点 O=(330,430)，半径 235 */
+var ANGLE_FIGS = {
+  easy: [ { rays:[10,50,130] }, { rays:[0,45,135] } ],
+  mid:  [ { rays:[0,35,70,150] }, { rays:[20,60,110,160] } ],
+  hard: [ { rays:[0,30,60,90,160] }, { rays:[10,50,90,130,170] } ]
+};
+/* 线线关系图形：每条线给出两端 a/b 与方向角 d（画布角度，用于平行/垂直判定） */
+var LINE_FIGS = {
+  easy: [
+    { lines:[ {a:[271,95],b:[609,185],d:15}, {a:[231,245],b:[569,335],d:15}, {a:[191,395],b:[529,485],d:15} ] },
+    { lines:[ {a:[65,215],b:[475,215],d:0}, {a:[65,370],b:[475,370],d:0}, {a:[270,98],b:[270,488],d:90} ] }
+  ],
+  mid: [
+    { lines:[ {a:[291,41],b:[619,129],d:15}, {a:[261,161],b:[589,249],d:15}, {a:[231,281],b:[559,369],d:15}, {a:[201,401],b:[529,489],d:15} ] },
+    { lines:[ {a:[60,109],b:[370,191],d:15}, {a:[489,52],b:[661,298],d:55}, {a:[736,315],b:[544,545],d:130},
+              {a:[444,136],b:[356,464],d:105}, {a:[116,255],b:[194,545],d:75}, {a:[145,349],b:[455,431],d:15} ] }
+  ],
+  hard: [
+    { lines:[ {a:[345,170],b:[466,170],d:0}, {a:[285,255],b:[536,255],d:0}, {a:[225,340],b:[605,340],d:0}, {a:[165,425],b:[675,425],d:0} ],
+      deco:{ tri:[[400,70],[90,510],[710,450]] },
+      note:"灰色虚线的三角形只是图案边框，不参加配对；只数带数字标签的 4 条横线。" },
+    { lines:[ {a:[110,140],b:[490,140],d:0}, {a:[110,290],b:[490,290],d:0}, {a:[110,440],b:[490,440],d:0},
+              {a:[560,60],b:[560,520],d:90}, {a:[98,368],b:[282,552],d:45}, {a:[534,44],b:[746,256],d:45} ] }
+  ]
+};
+/* 交点图形：t = line 直线(两端箭头) / ray 射线(一端箭头) / seg 线段(不能延长) */
+var POINT_FIGS = {
+  easy: [
+    { elems:[ {t:"line",a:[117,543],b:[443,217],d:-45}, {t:"line",a:[337,77],b:[663,403],d:45} ] },
+    { elems:[ {t:"line",a:[271,95],b:[609,185],d:15}, {t:"line",a:[231,245],b:[569,335],d:15}, {t:"line",a:[191,395],b:[529,485],d:15} ],
+      note:"想一想：互相平行的直线，延长后会相遇吗？" },
+    { elems:[ {t:"ray",a:[170,170],b:[414,259],d:20}, {t:"ray",a:[170,430],b:[414,341],d:-20} ],
+      note:"射线带着箭头的那一端可以无限延长哦。" }
+  ],
+  mid: [
+    { elems:[ {t:"line",a:[83,115],b:[477,185],d:10}, {t:"line",a:[242,22],b:[378,398],d:70}, {t:"line",a:[306,549],b:[554,301],d:-45} ] },
+    { elems:[ {t:"line",a:[160,180],b:[640,180],d:0}, {t:"line",a:[160,380],b:[640,380],d:0}, {t:"line",a:[295,98],b:[505,462],d:60} ] },
+    { elems:[ {t:"line",a:[160,300],b:[640,300],d:0}, {t:"seg",a:[200,150],b:[280,450],d:80.4}, {t:"seg",a:[520,120],b:[640,170],d:22.6} ],
+      note:"注意：线段两端不能延长，线段没有真正碰到线，就不算交点。" }
+  ],
+  hard: [
+    { elems:[ {t:"line",a:[145,150],b:[655,150],d:0}, {t:"line",a:[145,390],b:[655,390],d:0},
+              {t:"line",a:[220,98],b:[380,442],d:65}, {t:"line",a:[600,98],b:[440,442],d:115} ] },
+    { elems:[ {t:"line",a:[300,40],b:[300,520],d:90}, {t:"line",a:[530,40],b:[530,520],d:90},
+              {t:"line",a:[175,195],b:[655,195],d:0}, {t:"line",a:[175,385],b:[655,385],d:0} ] }
+  ]
+};
+
+/* ---------------- 全局状态 ---------------- */
+var st = {
+  screen:"start", diff:null, levels:[], li:0, mode:"",
+  rays:[], found:{}, selRay:-1, totalAngles:0, dockedAngles:0,
+  lines:[], pairs:{}, selLine:-1, needPar:0, needPerp:0, dockedLP:0, fig:null,
+  elems:[], stars:[], truePts:[], locked:0,
+  steps:0, t0:0, timerId:null, revealed:false, revealOn:false, colorIdx:0,
+  running:false
+};
+var cv = $("cv"), ctx = cv.getContext("2d");
+var PRAISE = ["太棒了！","配对成功！","你真是小能手！","真厉害！","继续加油！"];
+
+/* ---------------- 计时器与步数（右上角实时显示） ----------------
+   说明：不使用 setInterval —— 计时刷新合并进绘制循环，仅在秒数变化时更新 DOM，
+   避免定时器与画布渲染叠加造成部分低配设备/虚拟显卡环境不稳定。 */
+function startTimer(){
+  st.t0 = Date.now();
+  st.lastSec = -1;
+}
+function stopTimer(){ st.lastSec = -1; }
+function tickTimer(){
+  if (!st.running || st.t0 === 0) return;
+  var s = Math.floor((Date.now() - st.t0) / 1000);
+  if (s === st.lastSec) return;          // 秒数没变就不动 DOM
+  st.lastSec = s;
+  var m = Math.floor(s / 60); s = s % 60;
+  $("hud-time").textContent = (m<10?"0":"")+m + ":" + (s<10?"0":"")+s;
+}
+function addStep(n){
+  st.steps += (n || 1);
+  $("hud-steps").textContent = st.steps;
+}
+function setMsg(text, bad){
+  var bar = $("msgbar");
+  bar.textContent = text;
+  bar.style.color = bad ? "#b91c1c" : "var(--ink)";
+}
+
+/* ---------------- 通用弹层 ---------------- */
+function showModal(title, bodyHTML, buttons){
+  $("md-title").textContent = title;
+  $("md-body").innerHTML = bodyHTML;
+  var box = $("md-btns"); box.innerHTML = "";
+  buttons.forEach(function(bt){
+    var b = document.createElement("button");
+    b.textContent = bt[0];
+    if (bt[2]) b.className = "ghost";
+    b.addEventListener("click", bt[1]);
+    box.appendChild(b);
+  });
+  $("ovlModal").classList.remove("hidden");
+}
+function hideModal(){ $("ovlModal").classList.add("hidden"); }
+
+/* ---------------- 开始一局（随机色板 + 随机抽题） ---------------- */
+function applyPalette(){
+  PAL = pick(PALETTES);
+  var r = document.documentElement.style;
+  r.setProperty("--bg", PAL.bg); r.setProperty("--ink", PAL.ink);
+  r.setProperty("--main", PAL.main); r.setProperty("--soft", PAL.soft);
+  r.setProperty("--c2", PAL.c2); r.setProperty("--c3", PAL.c3);
+}
+function startRun(diff){
+  applyPalette();
+  st.diff = diff; st.steps = 0; $("hud-steps").textContent = "0";
+  $("hud-time").textContent = "00:00";
+  st.levels = [
+    { type:"angle",  fig: pick(ANGLE_FIGS[diff]) },
+    { type:"lines",  fig: pick(LINE_FIGS[diff]) },
+    { type:"points", fig: pick(POINT_FIGS[diff]) }
+  ];
+  $("screen-start").classList.add("hidden");
+  $("screen-game").classList.remove("hidden");
+  $("ovlCele").classList.add("hidden");
+  st.running = true;
+  startTimer();
+  startLevel(0);
+}
+function backToStart(){
+  st.running = false; stopTimer();
+  $("screen-game").classList.add("hidden");
+  $("screen-start").classList.remove("hidden");
+  hideModal();
+}
+
+/* ---------------- 关卡流转 ---------------- */
+var LEVEL_META = {
+  angle:  { name:"第1关 · 彩虹角乐园" },
+  lines:  { name:"第2关 · 线线找朋友" },
+  points: { name:"第3关 · 交点寻宝" }
+};
+function startLevel(i){
+  st.li = i;
+  var lv = st.levels[i];
+  st.mode = lv.type;
+  st.fig = lv.fig;
+  st.revealed = false; st.revealOn = false; st.colorIdx = 0;
+  $("lv-name").textContent = LEVEL_META[st.mode].name + "（" + (i+1) + "/3）";
+  if (st.mode === "angle") initAngle(lv.fig);
+  else if (st.mode === "lines") initLines(lv.fig);
+  else initPoints(lv.fig);
+  buildPanel();
+  showModal(LEVEL_META[st.mode].name + " 开始啦", introText(st.mode, lv.fig), [["开始挑战", hideModal]]);
+}
+function nextLevel(){
+  hideModal();
+  if (st.li < st.levels.length - 1) startLevel(st.li + 1);
+  else celebrate();
+}
+function introText(mode, fig){
+  if (mode === "angle"){
+    var n = fig.rays.length;
+    return "<p>顶点 O 射出了 <b>" + n + "</b> 条射线，每两条射线搭配在一起就组成一个角。</p>" +
+      "<ul><li>先<b>点选一条射线</b>（它会亮起来），再<b>点另一条射线</b>配对，角就出现啦；</li>" +
+      "<li>把出现的角卡片<b>拖进正确的乐园</b>：比直角小→<b>锐角乐园</b>，正好直角→<b>直角乐园</b>，比直角大→<b>钝角乐园</b>；</li>" +
+      "<li>小妙招：<b>找搭档法</b>——固定一条射线，按顺序和其他射线一条条配对，再换下一条固定，一个角都不会漏！</li></ul>";
+  }
+  if (mode === "lines"){
+    var s = "<p>图中有 " + st.lines.length + " 条带数字标签的线。<b>点选两条线配对</b>：互相平行的送进<b>平行港</b>，相交成直角的送进<b>垂直港</b>。</p>" +
+      "<ul><li>平行的两条线处处一样宽，永远不相交；</li><li>垂直的两条线相交成直角（有小方块标志）；</li><li>斜斜相交的线既不平行也不垂直，配不成搭档。</li></ul>";
+    if (fig.note) s += "<p>" + fig.note + "</p>";
+    return s;
+  }
+  var s2 = "<p>线与线<b>延长后相遇</b>的地方叫交点。想一想哪些线延长后会碰到一起，<b>点击画布</b>放一颗星星做记号；点星星可以收回。</p>" +
+    "<ul><li><b>直线</b>（两端都有箭头）两端都能无限延长；</li><li><b>射线</b>（一端有箭头）沿箭头方向无限延长；</li><li><b>线段</b>（两端是圆点）不能延长。</li></ul>" +
+    "<p>找齐后按<b>「确认找齐」</b>按钮！</p>";
+  if (fig.note) s2 += "<p>" + fig.note + "</p>";
+  return s2;
+}
+function levelComplete(){
+  var stars = st.revealed ? 1 : 3;
+  var starStr = "";
+  for (var i = 0; i < stars; i++) starStr += "★ ";
+  showModal("过关啦！",
+    "<div class='stars3'>" + starStr + "</div><p>" + pick(PRAISE) +
+    "本关完成！记住小妙招：<b>固定一条，按顺序找搭档，一个不漏</b>。</p>",
+    st.li < st.levels.length - 1
+      ? [["下一关", nextLevel], ["再看看本关", hideModal, true]]
+      : [["查看战果", nextLevel], ["再看看本关", hideModal, true]]);
+}
+
+/* ==================================================================================
+   第 1 关：彩虹角乐园（数角 + 分类）
+   ================================================================================== */
+function classify(deg){ return deg < 90 ? "锐" : (deg === 90 ? "直" : "钝"); }
+function initAngle(fig){
+  st.rays = fig.rays.slice().sort(function(a,b){ return a-b; });
+  st.found = {}; st.selRay = -1; st.dockedAngles = 0;
+  var n = st.rays.length;
+  st.totalAngles = n * (n-1) / 2;
+  setMsg("点选两条射线配对，把找到的角拖进正确的乐园吧！");
+  updateAngleProg();
+}
+function updateAngleProg(){
+  var foundN = Object.keys(st.found).length;
+  $("lv-prog").textContent = "找到的角 " + foundN + "/" + st.totalAngles +
+    " · 已分类 " + st.dockedAngles + "/" + st.totalAngles;
+  if (foundN === st.totalAngles && st.dockedAngles === st.totalAngles && st.running){
+    levelComplete();
+  }
+}
+function angleHit(px, py){
+  var V = { x:330, y:430 }, R = 235;
+  var best = -1, bd = 18;
+  for (var i = 0; i < st.rays.length; i++){
+    var ex = V.x + R * Math.cos(rad(st.rays[i]));
+    var ey = V.y - R * Math.sin(rad(st.rays[i]));
+    var d = dist2seg(px, py, V.x, V.y, ex, ey);
+    if (d < bd){ bd = d; best = i; }
+  }
+  return best;
+}
+function onAngleClick(px, py){
+  var i = angleHit(px, py);
+  if (i < 0){
+    if (st.selRay >= 0) setMsg("没有点中射线，再试一次！当前已选中射线 " + LETTERS[st.selRay] + "。");
+    return;
+  }
+  addStep();
+  if (st.selRay < 0){
+    st.selRay = i;
+    setMsg("已固定射线 " + LETTERS[i] + "，按顺序找它的搭档吧（再点其它射线配对；再点它一下可换固定对象）！");
+    return;
+  }
+  if (i === st.selRay){
+    st.selRay = -1;
+    setMsg("已取消固定。重新点选一条射线开始配对吧！");
+    return;
+  }
+  var a = Math.min(i, st.selRay), b = Math.max(i, st.selRay);
+  var key = a + "-" + b;
+  if (st.found[key]){
+    /* 这对搭档已找过：自动把新点的射线换成固定对象，方便继续找下一组 */
+    st.selRay = i;
+    setMsg("角 " + LETTERS[a] + LETTERS[b] + " 已经找到过啦！已切换固定射线 " + LETTERS[i] + "，继续找它的搭档吧。");
+    return;
+  }
+  var col = PAL.cols[st.colorIdx % PAL.cols.length]; st.colorIdx++;
+  st.found[key] = { ij:[a,b], col:col, cls:classify(Math.abs(st.rays[a]-st.rays[b])), done:false };
+  spawnAngleCard(a, b, col);
+  setMsg(pick(PRAISE) + " 找到了射线 " + LETTERS[a] + " 和 " + LETTERS[b] + " 组成的角！快把它拖进正确的乐园。");
+  updateAngleProg();
+}
+/* 卡片与图标：全部用纯 CSS 绘制（扇形用 conic-gradient，线条用旋转的圆角条），
+   不创建额外画布、不生成图片，兼容性与稳定性最好。 */
+function sectorEl(a1, a2, col){                 // 按真实角度生成一个纯CSS角扇形
+  var w = document.createElement("div");
+  w.className = "icowrap";
+  var from = 90 - a2, spread = a2 - a1;         // 数学角转 conic 角（顶点在左下角）
+  var s = document.createElement("div");
+  s.className = "sector";
+  s.style.background = "conic-gradient(from " + from.toFixed(1) + "deg at 0% 100%, " +
+    col + " 0deg " + spread.toFixed(1) + "deg, rgba(0,0,0,0) " + spread.toFixed(1) + "deg 360deg)";
+  w.appendChild(s);
+  [a1, a2].forEach(function(ang){
+    var r = document.createElement("div");
+    r.className = "rayl";
+    r.style.background = col;
+    r.style.transform = "rotate(" + (-ang).toFixed(1) + "deg)";
+    w.appendChild(r);
+  });
+  var d = document.createElement("div");
+  d.className = "dotv";
+  d.style.background = col;
+  w.appendChild(d);
+  return w;
+}
+function lineIconEl(kind, col){                 // 纯CSS平行 / 垂直示意
+  var w = document.createElement("div");
+  w.className = "icowrap";
+  function bar(css){
+    var b = document.createElement("div");
+    b.className = "minline";
+    b.style.background = col;
+    for (var k in css) b.style[k] = css[k];
+    w.appendChild(b);
+    return b;
+  }
+  if (kind === "平"){
+    bar({ left:"8px", top:"22px", width:"72px", transform:"rotate(-12deg)" });
+    bar({ left:"8px", top:"44px", width:"72px", transform:"rotate(-12deg)" });
+  } else {
+    bar({ left:"12px", top:"52px", width:"64px" });
+    bar({ left:"12px", top:"4px", width:"5px", height:"52px" });
+    var sq = document.createElement("div");
+    sq.className = "minsq";
+    sq.style.borderColor = col;
+    sq.style.left = "12px"; sq.style.top = "40px";
+    w.appendChild(sq);
+  }
+  return w;
+}
+function spawnAngleCard(a, b, col){
+  var key = a + "-" + b;
+  var card = document.createElement("div");
+  card.className = "card";
+  card.dataset.kind = st.found[key].cls;
+  card.dataset.key = key;
+  card.appendChild(sectorEl(st.rays[a], st.rays[b], col));
+  var sp = document.createElement("span");
+  sp.textContent = LETTERS[a] + " 和 " + LETTERS[b];
+  card.appendChild(sp);
+  $("tray").appendChild(card);
+}
+
+/* ==================================================================================
+   第 2 关：线线找朋友（平行 / 垂直配对）
+   ================================================================================== */
+function initLines(fig){
+  st.lines = fig.lines; st.fig = fig;
+  st.pairs = {}; st.selLine = -1; st.dockedLP = 0;
+  st.needPar = 0; st.needPerp = 0;
+  for (var i = 0; i < st.lines.length; i++){
+    for (var j = i+1; j < st.lines.length; j++){
+      var rel = lineRel(i, j);
+      if (rel === "平") st.needPar++;
+      if (rel === "垂") st.needPerp++;
+    }
+  }
+  setMsg("点选两条线配对：平行送进平行港，垂直送进垂直港！");
+  updateLinesProg();
+}
+function lineRel(i, j){
+  var d1 = st.lines[i].d, d2 = st.lines[j].d;
+  var diff = Math.abs(d1 - d2) % 180;
+  if (diff < 0.01 || Math.abs(diff - 180) < 0.01) return "平";
+  if (Math.abs(diff - 90) < 0.01) return "垂";
+  return "斜";
+}
+function updateLinesProg(){
+  var f = Object.keys(st.pairs).length;
+  $("lv-prog").textContent = "已配对 " + f + "/" + (st.needPar + st.needPerp) +
+    "（平行 " + st.needPar + " 组 · 垂直 " + st.needPerp + " 组）";
+  if (f === st.needPar + st.needPerp && st.dockedLP === f && st.running){
+    levelComplete();
+  }
+}
+function lineHit(px, py){
+  var best = -1, bd = 16;
+  for (var i = 0; i < st.lines.length; i++){
+    var L = st.lines[i];
+    var d = dist2seg(px, py, L.a[0], L.a[1], L.b[0], L.b[1]);
+    if (d < bd){ bd = d; best = i; }
+  }
+  return best;
+}
+function onLinesClick(px, py){
+  var i = lineHit(px, py);
+  if (i < 0){
+    if (st.selLine >= 0) setMsg("没有点中带标签的线，再试试！当前已选中 " + (st.selLine+1) + " 号线。", true);
+    return;
+  }
+  addStep();
+  if (st.selLine < 0){
+    st.selLine = i;
+    setMsg("已选中 " + (i+1) + " 号线，再点一条线配对（再点它一下可取消）！");
+    return;
+  }
+  if (i === st.selLine){
+    st.selLine = -1;
+    setMsg("已取消选中。重新选一条线开始吧！");
+    return;
+  }
+  var a = Math.min(i, st.selLine), b = Math.max(i, st.selLine);
+  var key = a + "-" + b;
+  st.selLine = -1;
+  if (st.pairs[key]){
+    setMsg((a+1) + " 号和 " + (b+1) + " 号这组搭档已经找到过啦！");
+    return;
+  }
+  var rel = lineRel(a, b);
+  if (rel === "斜"){
+    setMsg((a+1) + " 号和 " + (b+1) + " 号斜斜地相交，既不平行也不垂直，不是要找的搭档组合，换一组试试！", true);
+    return;
+  }
+  var col = PAL.cols[st.colorIdx % PAL.cols.length]; st.colorIdx++;
+  st.pairs[key] = { ij:[a,b], kind:rel, col:col, done:false };
+  spawnLineCard(a, b, rel, col);
+  setMsg(pick(PRAISE) + (a+1) + " 号和 " + (b+1) + " 号是一对" + (rel==="平" ? "平行线" : "垂直线") + "！把卡片拖进" + (rel==="平" ? "平行港" : "垂直港") + "吧。");
+  updateLinesProg();
+}
+function spawnLineCard(a, b, kind, col){
+  var key = a + "-" + b;
+  var card = document.createElement("div");
+  card.className = "card";
+  card.dataset.kind = kind;
+  card.dataset.key = key;
+  card.appendChild(lineIconEl(kind, col));
+  var sp = document.createElement("span");
+  sp.textContent = (a+1) + " 和 " + (b+1);
+  card.appendChild(sp);
+  $("tray").appendChild(card);
+}
+
+/* ==================================================================================
+   第 3 关：交点寻宝（延长思想 + 点击定位）
+   ================================================================================== */
+function initPoints(fig){
+  st.elems = fig.elems; st.fig = fig;
+  st.stars = []; st.locked = 0;
+  st.truePts = computeTruePoints(fig.elems);
+  setMsg("想一想哪些线延长后会相遇，点击画布放星星标记交点！");
+  updatePointsProg();
+}
+function computeTruePoints(elems){
+  var pts = [];
+  for (var i = 0; i < elems.length; i++){
+    for (var j = i+1; j < elems.length; j++){
+      var A = elems[i], B = elems[j];
+      var p = interLines(A.a, A.d, B.a, B.d);
+      if (!p) continue;                       // 支撑线平行，无交点
+      var lenA = Math.hypot(A.b[0]-A.a[0], A.b[1]-A.a[1]);
+      var lenB = Math.hypot(B.b[0]-B.a[0], B.b[1]-B.a[1]);
+      var uA = p.t / lenA, uB = p.s / lenB;   // 交点在两条线各自方向上的比例位置
+      var okA = (A.t === "line") || (A.t === "ray" && uA >= 0) || (A.t === "seg" && uA >= 0 && uA <= 1);
+      var okB = (B.t === "line") || (B.t === "ray" && uB >= 0) || (B.t === "seg" && uB >= 0 && uB <= 1);
+      if (!okA || !okB) continue;             // 不在可取的延长范围内
+      if (p.x < 10 || p.x > W-10 || p.y < 10 || p.y > H-10) continue;  // 交点须在画布内可点
+      var dup = false;
+      for (var k = 0; k < pts.length; k++){
+        if (Math.hypot(pts[k].x - p.x, pts[k].y - p.y) < 12) dup = true;
+      }
+      if (!dup) pts.push({ x:p.x, y:p.y });
+    }
+  }
+  return pts;
+}
+function updatePointsProg(){
+  $("lv-prog").textContent = "已放置 " + st.stars.length + " 颗星星 · 已确认 " + st.locked + " 个交点";
+}
+function onPointsClick(px, py){
+  addStep();
+  for (var k = 0; k < st.stars.length; k++){
+    var s = st.stars[k];
+    if (Math.hypot(s.x - px, s.y - py) < 26){
+      if (s.lock){ setMsg("这颗星星已经确认正确，保留哦！", true); return; }
+      st.stars.splice(k, 1);
+      setMsg("收回了一颗星星。");
+      updatePointsProg();
+      return;
+    }
+  }
+  st.stars.push({ x:px, y:py, lock:false, bad:0 });
+  setMsg("放好一颗星星！继续标记，找齐后按「确认找齐」。");
+  updatePointsProg();
+}
+function confirmStars(){
+  addStep();
+  var good = 0, bad = 0;
+  var used = {};
+  st.stars.forEach(function(s){
+    if (s.lock){ good++; return; }
+    var hit = -1;
+    for (var k = 0; k < st.truePts.length; k++){
+      if (!used[k] && Math.hypot(st.truePts[k].x - s.x, st.truePts[k].y - s.y) < 26){ hit = k; break; }
+    }
+    if (hit >= 0){ used[hit] = true; s.lock = true; good++; }
+    else { s.bad = Date.now(); bad++; }
+  });
+  st.locked = good;
+  updatePointsProg();
+  if (good === st.truePts.length && bad === 0){
+    setMsg(st.truePts.length === 0
+      ? "判断正确！这些线互相平行，无论延长多远都不相交，交点 0 个！"
+      : "全部找对啦！本图共有 " + st.truePts.length + " 个交点！");
+    if (st.running) setTimeout(levelComplete, 700);
+  } else {
+    var miss = st.truePts.length - good;
+    setMsg("已确认 " + good + " 个交点" + (miss > 0 ? "，还差 " + miss + " 个" : "") +
+      (bad > 0 ? "；有 " + bad + " 颗星星位置不对被收回了" : "") + "。提示：沿箭头方向把线延长想一想！", true);
+    setTimeout(function(){
+      st.stars = st.stars.filter(function(s){ return !s.bad; });
+      updatePointsProg();
+    }, 900);
+  }
+}
+
+/* ==================================================================================
+   右侧面板构建 + 卡片拖拽（自定义指针拖拽，桌面与触屏都可用）
+   ================================================================================== */
+function buildPanel(){
+  var p = $("panel"); p.innerHTML = "";
+  if (st.mode === "angle"){
+    p.innerHTML =
+      "<div class='pblock'><h4>角卡片托盘（拖到下面正确的乐园）</h4><div class='tray' id='tray'></div></div>" +
+      "<div class='pblock'><h4>三个乐园（比一比直角再分类）</h4><div class='bins'>" +
+      binHTML("锐","锐角乐园") + binHTML("直","直角乐园") + binHTML("钝","钝角乐园") +
+      "</div></div>";
+  } else if (st.mode === "lines"){
+    p.innerHTML =
+      "<div class='pblock'><h4>搭档卡片托盘（拖到下面正确的港口）</h4><div class='tray' id='tray'></div></div>" +
+      "<div class='pblock'><h4>两个港口</h4><div class='bins'>" +
+      binHTML("平","平行港") + binHTML("垂","垂直港") +
+      "</div></div>";
+  } else {
+    p.innerHTML =
+      "<div class='pblock guide'><h4>操作指南</h4>" +
+      "<p>· 直线（两端箭头）两端可无限延长；<br>· 射线（一端箭头）沿箭头延长；<br>· 线段（两端圆点）不能延长。</p>" +
+      "<p style='margin-top:8px'>点击画布放星星标记交点，点星星可收回，找齐后确认！</p></div>" +
+      "<div class='pblock'><button class='btnbig' id='btnConfirm'>确认找齐</button></div>";
+    $("btnConfirm").addEventListener("click", confirmStars);
+  }
+  paintBinRefs();
+}
+function binHTML(kind, name){
+  var inner = "";
+  if (kind === "锐") inner = staticSectorStyle(30, 75);
+  else if (kind === "直") inner = staticSectorStyle(0, 90);
+  else if (kind === "钝") inner = staticSectorStyle(10, 150);
+  return "<div class='bin' data-kind='" + kind + "'><div class='bt'>" + name + "</div>" +
+    "<div class='icowrap'><div class='sector' style='" + inner + "'></div></div>" +
+    "<div class='cnt'>已收 0 张</div><div class='docked'></div></div>";
+}
+/* 静态参照扇形的 conic-gradient 样式（灰黑色示例角） */
+function staticSectorStyle(a1, a2){
+  var from = 90 - a2, spread = a2 - a1;
+  return "background:conic-gradient(from " + from + "deg at 0% 100%, #64748b 0deg " + spread +
+    "deg, rgba(0,0,0,0) " + spread + "deg 360deg)";
+}
+/* 平行港 / 垂直港的参照图标（纯CSS线条），生成后插入 */
+function paintBinRefs(){
+  document.querySelectorAll(".bin").forEach(function(bin){
+    var k = bin.dataset.kind;
+    if (k !== "平" && k !== "垂") return;
+    var holder = bin.querySelector(".icowrap");
+    if (!holder) return;
+    holder.appendChild(lineIconEl(k, "#64748b"));
+  });
+}
+/* ---- 指针拖拽实现 ---- */
+var drag = null;
+function trayPointerDown(e){
+  var card = e.target.closest(".card");
+  if (!card || card.classList.contains("docked")) return;
+  e.preventDefault();
+  var rect = card.getBoundingClientRect();
+  drag = { card:card, dx:e.clientX - rect.left, dy:e.clientY - rect.top };
+  card.classList.add("dragging");
+  card.style.position = "fixed";
+  card.style.left = rect.left + "px"; card.style.top = rect.top + "px";
+  card.style.width = rect.width + "px"; card.style.zIndex = 99;
+  if (card.setPointerCapture){ try{ card.setPointerCapture(e.pointerId); }catch(err){} }
+  moveDrag(e);
+}
+function moveDrag(e){
+  if (!drag) return;
+  drag.card.style.left = (e.clientX - drag.dx) + "px";
+  drag.card.style.top = (e.clientY - drag.dy) + "px";
+  var el = document.elementFromPoint(e.clientX, e.clientY);
+  var bin = el && el.closest ? el.closest(".bin") : null;
+  document.querySelectorAll(".bin.hl").forEach(function(b){ b.classList.remove("hl"); });
+  if (bin) bin.classList.add("hl");
+}
+function endDrag(e){
+  if (!drag) return;
+  var card = drag.card;
+  var el = document.elementFromPoint(e.clientX, e.clientY);
+  var bin = el && el.closest ? el.closest(".bin") : null;
+  document.querySelectorAll(".bin.hl").forEach(function(b){ b.classList.remove("hl"); });
+  card.classList.remove("dragging");
+  card.style.position = ""; card.style.left = ""; card.style.top = "";
+  card.style.width = ""; card.style.zIndex = "";
+  drag = null;
+  if (!bin){
+    setMsg("卡片回到托盘啦，想好再拖哦！");
+    return;
+  }
+  addStep();
+  var right = (bin.dataset.kind === card.dataset.kind);
+  if (right){
+    card.classList.add("docked");
+    bin.querySelector(".docked").appendChild(card);
+    bin.querySelector(".cnt").textContent = "已收 " + bin.querySelectorAll(".card").length + " 张";
+    if (st.mode === "angle"){
+      st.found[card.dataset.key].done = true;
+      st.dockedAngles++;
+      setMsg(pick(PRAISE) + "这个角安家在「" + bin.querySelector(".bt").textContent + "」啦！");
+      updateAngleProg();
+    } else {
+      st.pairs[card.dataset.key].done = true;
+      st.dockedLP++;
+      setMsg(pick(PRAISE) + "这组搭档停靠在「" + bin.querySelector(".bt").textContent + "」啦！");
+      updateLinesProg();
+    }
+  } else {
+    card.classList.add("shake");
+    setTimeout(function(){ card.classList.remove("shake"); }, 500);
+    setMsg(st.mode === "angle"
+      ? "再比一比：这个角和直角比，谁大谁小？拖错了乐园，再想想！"
+      : "这两条线是这种关系吗？平行看宽窄是否处处一样，垂直看是否成直角！", true);
+  }
+}
+$("panel").addEventListener("pointerdown", trayPointerDown);
+$("panel").addEventListener("pointermove", moveDrag);
+$("panel").addEventListener("pointerup", endDrag);
+$("panel").addEventListener("pointercancel", endDrag);
+
+/* ==================================================================================
+   画布绘制
+   ================================================================================== */
+function drawArrow(x, y, d, col, size){
+  var r = rad(d);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - size*Math.cos(r - 0.42), y - size*Math.sin(r - 0.42));
+  ctx.lineTo(x - size*Math.cos(r + 0.42), y - size*Math.sin(r + 0.42));
+  ctx.closePath();
+  ctx.fillStyle = col; ctx.fill();
+}
+function starPath(x, y, r){
+  ctx.beginPath();
+  for (var i = 0; i < 10; i++){
+    var a = -Math.PI/2 + i * Math.PI/5;
+    var rr = i % 2 === 0 ? r : r * 0.45;
+    var px = x + rr * Math.cos(a), py = y + rr * Math.sin(a);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+function labelBadge(x, y, txt, col){
+  ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI*2);
+  ctx.fillStyle = col; ctx.fill();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.font = "bold 19px 'Microsoft YaHei',sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(txt, x, y + 1);
+}
+/* ---- 第 1 关绘制：射线风扇 + 已找到的角扇形 ---- */
+function drawAngle(t){
+  var V = { x:330, y:430 }, R = 235;
+  ctx.lineCap = "round";
+  /* 已找到的角：彩色扇形 */
+  for (var key in st.found){
+    var f = st.found[key];
+    var a1 = -rad(st.rays[f.ij[0]]), a2 = -rad(st.rays[f.ij[1]]);
+    ctx.beginPath(); ctx.moveTo(V.x, V.y);
+    ctx.arc(V.x, V.y, 150, Math.min(a1,a2), Math.max(a1,a2));
+    ctx.closePath();
+    ctx.globalAlpha = 0.32; ctx.fillStyle = f.col; ctx.fill();
+    ctx.globalAlpha = 1; ctx.lineWidth = 2.5; ctx.strokeStyle = f.col; ctx.stroke();
+    var mid = (Math.min(a1,a2) + Math.max(a1,a2)) / 2;
+    var lx = V.x + 100 * Math.cos(mid), ly = V.y + 100 * Math.sin(mid);
+    if (f.done || st.revealOn){
+      ctx.font = "bold 20px 'Microsoft YaHei',sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      var name = f.cls === "锐" ? "锐角" : (f.cls === "直" ? "直角" : "钝角");
+      ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 5;
+      ctx.strokeText(name, lx, ly);
+      ctx.fillStyle = "#1e293b"; ctx.fillText(name, lx, ly);
+    }
+  }
+  /* 揭示答案时：把没找到的角用灰色虚线扇形补全，并画出直角参照线 */
+  if (st.revealOn){
+    ctx.setLineDash([6,5]); ctx.lineWidth = 2; ctx.strokeStyle = "#94a3b8";
+    for (var i = 0; i < st.rays.length; i++){
+      for (var j = i+1; j < st.rays.length; j++){
+        if (st.found[i + "-" + j]) continue;
+        var b1 = -rad(st.rays[i]), b2 = -rad(st.rays[j]);
+        ctx.beginPath(); ctx.moveTo(V.x, V.y);
+        ctx.arc(V.x, V.y, 150, Math.min(b1,b2), Math.max(b1,b2));
+        ctx.closePath(); ctx.stroke();
+      }
+    }
+    ctx.strokeStyle = "#64748b"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(V.x, V.y); ctx.lineTo(V.x + 130, V.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(V.x, V.y); ctx.lineTo(V.x, V.y - 130); ctx.stroke();
+    ctx.strokeRect(V.x, V.y - 36, 36, 36);
+    ctx.setLineDash([]);
+  }
+  /* 射线本体 */
+  for (var n = 0; n < st.rays.length; n++){
+    var ang = st.rays[n];
+    var ex = V.x + R * Math.cos(rad(ang)), ey = V.y - R * Math.sin(rad(ang));
+    var isSel = (n === st.selRay);
+    var pulse = isSel ? 1 + 0.12 * Math.sin(t / 160) : 1;
+    if (isSel){
+      /* 选中高亮：宽半透明底 + 实线，双层描边（不用阴影滤镜，保证各设备稳定） */
+      ctx.lineWidth = 26 * pulse; ctx.strokeStyle = PAL.soft;
+      ctx.beginPath(); ctx.moveTo(V.x, V.y); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.lineWidth = 9 * pulse; ctx.strokeStyle = PAL.main;
+      ctx.beginPath(); ctx.moveTo(V.x, V.y); ctx.lineTo(ex, ey); ctx.stroke();
+    } else {
+      ctx.lineWidth = 6; ctx.strokeStyle = "#334155";
+      ctx.beginPath(); ctx.moveTo(V.x, V.y); ctx.lineTo(ex, ey); ctx.stroke();
+    }
+    drawArrow(ex, ey, -ang, isSel ? PAL.main : "#334155", 16);
+    labelBadge(V.x + (R + 6) * Math.cos(rad(ang)) - 14 * Math.cos(rad(ang)),
+               V.y - (R + 6) * Math.sin(rad(ang)) - 14 * Math.sin(rad(ang)),
+               LETTERS[n], isSel ? PAL.main : "#475569");
+  }
+  /* 顶点 O */
+  ctx.beginPath(); ctx.arc(V.x, V.y, 9, 0, Math.PI*2);
+  ctx.fillStyle = PAL.ink; ctx.fill();
+  ctx.fillStyle = PAL.ink; ctx.font = "bold 24px 'Microsoft YaHei',sans-serif";
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText("O", V.x + 10, V.y + 8);
+}
+/* ---- 第 2 关绘制：线 + 标签（揭示时平行组同色、垂直处画小方块标志） ---- */
+function drawLines(t){
+  ctx.lineCap = "round";
+  /* 装饰三角（灰色虚线，不参加配对） */
+  if (st.fig && st.fig.deco && st.fig.deco.tri){
+    var tri = st.fig.deco.tri;
+    ctx.setLineDash([10,8]); ctx.lineWidth = 3; ctx.strokeStyle = "#cbd5e1";
+    ctx.beginPath();
+    ctx.moveTo(tri[0][0], tri[0][1]);
+    ctx.lineTo(tri[1][0], tri[1][1]);
+    ctx.lineTo(tri[2][0], tri[2][1]);
+    ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  /* 揭示答案：平行组按组同色 */
+  if (st.revealOn){
+    var groupCol = {}, gi = 0;
+    for (var i2 = 0; i2 < st.lines.length; i2++){
+      if (i2 in groupCol) continue;
+      var col = PAL.cols[gi % PAL.cols.length]; gi++;
+      groupCol[i2] = col;
+      for (var j2 = i2+1; j2 < st.lines.length; j2++){
+        if (lineRel(i2, j2) === "平") groupCol[j2] = col;
+      }
+    }
+    st.lines.forEach(function(L, idx){
+      ctx.lineWidth = 5; ctx.strokeStyle = groupCol[idx];
+      ctx.beginPath(); ctx.moveTo(L.a[0], L.a[1]); ctx.lineTo(L.b[0], L.b[1]); ctx.stroke();
+    });
+    /* 垂直对：在交点处画红色小方块（直角标志） */
+    for (var i3 = 0; i3 < st.lines.length; i3++){
+      for (var j3 = i3+1; j3 < st.lines.length; j3++){
+        if (lineRel(i3, j3) !== "垂") continue;
+        var A3 = st.lines[i3], B3 = st.lines[j3];
+        var p3 = interLines(A3.a, A3.d, B3.a, B3.d);
+        if (!p3) continue;
+        var uA3 = dirOf(A3.d), uB3 = dirOf(B3.d);
+        var q3 = { x: p3.x + 30 * uA3[0], y: p3.y + 30 * uA3[1] };  // 沿 A 方向走出 30px
+        var s3 = { x: q3.x - 22 * uB3[0], y: q3.y - 22 * uB3[1] };  // 再沿 B 反方向 22px
+        ctx.lineWidth = 3; ctx.strokeStyle = "#dc2626";
+        ctx.beginPath();
+        ctx.moveTo(s3.x, s3.y);
+        ctx.lineTo(s3.x + 44 * uB3[0], s3.y + 44 * uB3[1]);
+        ctx.moveTo(q3.x, q3.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.stroke();
+      }
+    }
+  }
+  /* 线本体 */
+  st.lines.forEach(function(L, idx){
+    var isSel = (idx === st.selLine);
+    var pulse = isSel ? 1 + 0.12 * Math.sin(t / 160) : 1;
+    if (isSel){
+      /* 选中高亮：宽半透明底 + 实线，双层描边（不用阴影滤镜，保证各设备稳定） */
+      ctx.lineWidth = 26 * pulse; ctx.strokeStyle = PAL.soft;
+      ctx.beginPath(); ctx.moveTo(L.a[0], L.a[1]); ctx.lineTo(L.b[0], L.b[1]); ctx.stroke();
+      ctx.lineWidth = 9 * pulse; ctx.strokeStyle = PAL.main;
+      ctx.beginPath(); ctx.moveTo(L.a[0], L.a[1]); ctx.lineTo(L.b[0], L.b[1]); ctx.stroke();
+    } else {
+      ctx.lineWidth = 6; ctx.strokeStyle = "#334155";
+      ctx.beginPath(); ctx.moveTo(L.a[0], L.a[1]); ctx.lineTo(L.b[0], L.b[1]); ctx.stroke();
+    }
+    drawArrow(L.a[0], L.a[1], L.d + 180, isSel ? PAL.main : "#334155", 15);
+    drawArrow(L.b[0], L.b[1], L.d, isSel ? PAL.main : "#334155", 15);
+    var midx = (L.a[0] + L.b[0]) / 2, midy = (L.a[1] + L.b[1]) / 2;
+    labelBadge(midx, midy, String(idx + 1), isSel ? PAL.main : "#475569");
+  });
+}
+/* ---- 第 3 关绘制：线型 + 星星（揭示时虚线延长并亮出交点） ---- */
+function extendTo(x, y, d, far){
+  var u = dirOf(d);
+  return [x + far * u[0], y + far * u[1]];
+}
+function drawPoints(t){
+  ctx.lineCap = "round";
+  /* 揭示答案：把每条线按可延长方向虚线延展，并亮出真实交点 */
+  if (st.revealOn){
+    ctx.setLineDash([9,7]); ctx.lineWidth = 2.5; ctx.strokeStyle = "#94a3b8";
+    st.elems.forEach(function(E){
+      var far = 1400;
+      if (E.t === "line"){
+        var p1 = extendTo(E.a[0], E.a[1], E.d + 180, far), p2 = extendTo(E.a[0], E.a[1], E.d, far);
+        ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke();
+      } else if (E.t === "ray"){
+        var p3 = extendTo(E.a[0], E.a[1], E.d, far);
+        ctx.beginPath(); ctx.moveTo(E.a[0], E.a[1]); ctx.lineTo(p3[0], p3[1]); ctx.stroke();
+      }
+    });
+    ctx.setLineDash([]);
+    st.truePts.forEach(function(p){
+      starPath(p.x, p.y, 16);
+      ctx.fillStyle = "#16a34a"; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = "#fff"; ctx.stroke();
+    });
+  }
+  /* 线 / 射线 / 线段本体 */
+  st.elems.forEach(function(E){
+    ctx.lineWidth = 6; ctx.strokeStyle = "#334155";
+    ctx.beginPath(); ctx.moveTo(E.a[0], E.a[1]); ctx.lineTo(E.b[0], E.b[1]); ctx.stroke();
+    if (E.t === "line"){
+      drawArrow(E.a[0], E.a[1], E.d + 180, "#334155", 15);
+      drawArrow(E.b[0], E.b[1], E.d, "#334155", 15);
+    } else if (E.t === "ray"){
+      ctx.beginPath(); ctx.arc(E.a[0], E.a[1], 6, 0, Math.PI*2); ctx.fillStyle = "#334155"; ctx.fill();
+      drawArrow(E.b[0], E.b[1], E.d, "#334155", 15);
+    } else {
+      ctx.beginPath(); ctx.arc(E.a[0], E.a[1], 7, 0, Math.PI*2); ctx.fillStyle = "#334155"; ctx.fill();
+      ctx.beginPath(); ctx.arc(E.b[0], E.b[1], 7, 0, Math.PI*2); ctx.fill();
+    }
+  });
+  /* 学生放的星星（正确的金色带绿圈，错误的红色闪烁后收回） */
+  var now = Date.now();
+  st.stars.forEach(function(s){
+    var isBad = s.bad && (now - s.bad < 900);
+    var tw = 1 + 0.1 * Math.sin(t / 130 + s.x);
+    starPath(s.x, s.y, 15 * tw);
+    ctx.fillStyle = isBad ? "#ef4444" : (s.lock ? "#16a34a" : "#f59e0b");
+    ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = "#fff"; ctx.stroke();
+    if (s.lock){
+      ctx.beginPath(); ctx.arc(s.x, s.y, 22 + 2 * Math.sin(t / 200), 0, Math.PI*2);
+      ctx.lineWidth = 3; ctx.strokeStyle = "#16a34a"; ctx.stroke();
+    }
+  });
+  /* 图例：线型说明（帮助辨认直线/射线/线段） */
+  ctx.font = "bold 17px 'Microsoft YaHei',sans-serif";
+  ctx.fillStyle = "#64748b"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.fillText("直线（两端箭头，可两端延长）", 18, 28);
+  ctx.fillText("射线（一端箭头，沿箭头延长）", 18, 52);
+  ctx.fillText("线段（两端圆点，不能延长）", 18, 76);
+}
+/* ---- 主绘制循环（带异常防护；页面切到后台时自动暂停，节省资源） ---- */
+var rafOn = true, lastDraw = 0;
+document.addEventListener("visibilitychange", function(){
+  rafOn = !document.hidden;
+});
+function draw(t){
+  if (!st.running) return;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H);
+  if (st.mode === "angle") drawAngle(t);
+  else if (st.mode === "lines") drawLines(t);
+  else drawPoints(t);
+}
+(function loop(){
+  requestAnimationFrame(loop);
+  if (!rafOn) return;
+  tickTimer();                            // 计时显示（秒变化才更新）
+  var now = performance.now();
+  if (now - lastDraw < 25) return;        // 限帧约 40fps，降低持续渲染负担
+  lastDraw = now;
+  try { draw(now); }
+  catch (e) { /* 单帧绘制异常不中断游戏 */ }
+})();
+
+/* ---------------- 画布点击（点选配对 / 放星星） ---------------- */
+function canvasPos(e){
+  var r = cv.getBoundingClientRect();
+  return { x:(e.clientX - r.left) * W / r.width, y:(e.clientY - r.top) * H / r.height };
+}
+cv.addEventListener("pointerdown", function(e){
+  if (!st.running) return;
+  var p = canvasPos(e);
+  if (st.mode === "angle") onAngleClick(p.x, p.y);
+  else if (st.mode === "lines") onLinesClick(p.x, p.y);
+  else onPointsClick(p.x, p.y);
+});
+
+/* ==================================================================================
+   揭示答案（完整思路 + 画布补全显示）
+   ================================================================================== */
+function revealText(){
+  if (st.mode === "angle"){
+    var cnt = { "锐":0, "直":0, "钝":0 }, linesTxt = [];
+    for (var i = 0; i < st.rays.length; i++){
+      var parts = [];
+      for (var j = i+1; j < st.rays.length; j++){
+        cnt[classify(Math.abs(st.rays[i] - st.rays[j]))]++;
+        parts.push(LETTERS[i] + LETTERS[j]);
+      }
+      if (parts.length) linesTxt.push("固定射线 " + LETTERS[i] + "：" + parts.join("、"));
+    }
+    return "<p><b>找搭档法：</b>固定一条射线，依次和后面的射线配对。</p><ul>" +
+      linesTxt.map(function(s){ return "<li>" + s + "</li>"; }).join("") + "</ul>" +
+      "<p>图中共 <b>" + st.totalAngles + "</b> 个角：锐角 <b>" + cnt["锐"] + "</b> 个、直角 <b>" + cnt["直"] +
+      "</b> 个、钝角 <b>" + cnt["钝"] + "</b> 个。</p>" +
+      "<p>（比直角小的是锐角；正好 90 度、有「小板凳」小方块标志的是直角；比直角大的是钝角。画布上已用灰色虚线补全没找到的角，并画出直角参照线。）</p>";
+  }
+  if (st.mode === "lines"){
+    var par = [], per = [];
+    for (var a = 0; a < st.lines.length; a++){
+      for (var b = a+1; b < st.lines.length; b++){
+        var rel = lineRel(a, b);
+        if (rel === "平") par.push((a+1) + "和" + (b+1));
+        if (rel === "垂") per.push((a+1) + "和" + (b+1));
+      }
+    }
+    var s = "<p><b>找搭档法：</b>给每条线标上号，按顺序两条两条配对。</p>" +
+      "<p>平行（处处一样宽，永不相交），共 <b>" + par.length + "</b> 组：" + (par.join("、") || "无") + "</p>" +
+      "<p>垂直（相交成直角），共 <b>" + per.length + "</b> 组：" + (per.join("、") || "无") + "</p>" +
+      "<p>其余的线斜斜相交，既不平行也不垂直。画布上同色的线互相平行，红色小方块处是垂直的直角标志。</p>";
+    if (st.fig && st.fig.note) s += "<p>" + st.fig.note + "</p>";
+    return s;
+  }
+  var n = st.truePts.length;
+  var s2 = "<p><b>直线和射线都能无限延长</b>，延长后相遇的地方就是交点；<b>线段不能延长</b>，没碰到就不算。</p>" +
+    "<p>逐条延长比一比：本图共有 <b>" + n + "</b> 个交点。</p>";
+  if (n === 0) s2 += "<p>这些线互相平行，无论延长多远都不会相遇，所以交点是 <b>0</b> 个！</p>";
+  if (st.fig && st.fig.note) s2 += "<p>" + st.fig.note + "</p>";
+  s2 += "<p>画布上灰色虚线就是延长线，绿色星星就是全部交点。</p>";
+  return s2;
+}
+function doReveal(){
+  if (!st.running) return;
+  st.revealed = true; st.revealOn = true;
+  setMsg("答案已揭示！看懂思路后可以继续动手，或进入下一关。");
+  showModal("本关答案与思路", revealText(),
+    st.li < st.levels.length - 1
+      ? [["下一关", nextLevel], ["继续动手试试", hideModal, true]]
+      : [["查看战果", nextLevel], ["继续动手试试", hideModal, true]]);
+}
+
+/* ==================================================================================
+   通关庆祝：纯 CSS 彩纸 + 烟花（不占用额外画布，动画交给浏览器合成器）
+   ================================================================================== */
+function launchFX(){
+  var box = $("fxbox");
+  box.innerHTML = "";
+  /* 彩纸：随机位置 / 颜色 / 时长的下落动画（CSS 无限循环） */
+  for (var i = 0; i < 90; i++){
+    var c = document.createElement("div");
+    c.className = "confetti";
+    c.style.left = (Math.random() * 100).toFixed(1) + "%";
+    c.style.width = (7 + Math.random() * 7).toFixed(0) + "px";
+    c.style.height = (10 + Math.random() * 8).toFixed(0) + "px";
+    c.style.background = pick(PAL.cols);
+    c.style.animationDuration = (2.6 + Math.random() * 2.6).toFixed(2) + "s";
+    c.style.animationDelay = (Math.random() * 2.4).toFixed(2) + "s";
+    box.appendChild(c);
+  }
+  /* 烟花：错开时间依次绽放的彩色圆环 */
+  for (var k = 0; k < 7; k++){
+    var f = document.createElement("div");
+    f.className = "fw";
+    f.style.left = (12 + Math.random() * 76).toFixed(1) + "%";
+    f.style.top = (12 + Math.random() * 46).toFixed(1) + "%";
+    f.style.color = pick(PAL.cols);
+    f.style.animationDelay = (k * 0.38 + Math.random() * 0.3).toFixed(2) + "s";
+    box.appendChild(f);
+  }
+}
+function celebrate(){
+  stopTimer();
+  var sec = Math.floor((Date.now() - st.t0) / 1000);
+  var mm = Math.floor(sec / 60), ss = sec % 60;
+  $("cele-stats").innerHTML = "难度：<b>" + (st.diff === "easy" ? "初级" : st.diff === "mid" ? "中级" : "高级") +
+    "</b><br>用时：<b>" + (mm<10?"0":"") + mm + " 分 " + (ss<10?"0":"") + ss + " 秒</b>　总步数：<b>" + st.steps + "</b>";
+  $("ovlCele").classList.remove("hidden");
+  launchFX();
+}
+function stopCele(){
+  $("fxbox").innerHTML = "";            /* 清空动画元素，停止全部CSS动画 */
+  $("ovlCele").classList.add("hidden");
+}
+
+/* ---------------- 顶栏按钮与开始界面事件 ---------------- */
+$("btnRules").addEventListener("click", function(){ $("ovlRules").classList.remove("hidden"); });
+$("btnRulesClose").addEventListener("click", function(){ $("ovlRules").classList.add("hidden"); });
+$("btnReveal").addEventListener("click", doReveal);
+$("btnRestart").addEventListener("click", function(){
+  if (!st.diff) return;
+  startRun(st.diff);
+  setMsg("新一局开始！图形和颜色都重新随机啦。");
+});
+$("btnBack").addEventListener("click", backToStart);
+document.querySelectorAll(".diff").forEach(function(b){
+  b.addEventListener("click", function(){ startRun(b.dataset.diff); });
+});
+$("btnAgain").addEventListener("click", function(){ stopCele(); startRun(st.diff); });
+$("btnChange").addEventListener("click", function(){ stopCele(); backToStart(); });
+
+/* 进入页面时自动弹出规则说明（可随时再看） */
+window.addEventListener("load", function(){ $("ovlRules").classList.remove("hidden"); });
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g004", "name": "\u7ebf\u89d2\u667a\u6167\u4e50\u56ed \u00b7 \u7b2c2\u8bb2 \u7ebf\u89d2\u521d\u6b65\uff08\u4e0b\uff09", "file": "g004.html", "jiaocan": "\u30104\u3011\u7b2c2\u8bb2 \u7ebf\u89d2\u521d\u6b65\uff08\u4e0b\uff09", "unit": "\u7b2c2\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

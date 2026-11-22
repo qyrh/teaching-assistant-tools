@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小掌柜开店记 · 经济问题闯关（小学奥数 · 利润与折扣）</title>
+<!--
+  《小掌柜开店记》—— 小学奥数「经济问题(一)」互动游戏
+  核心玩法：不是选择题！学生通过【拖动滑块/拖动损耗分界线】来"操作出"答案：
+   - 利润率表盘：拖售价/成本滑块，把利润率指针精确对准目标（售价=成本×(1+利润率)）
+   - 折扣罗盘：拖折扣滑块，让现售价正好压在目标线上（售价=定价×折扣）
+   - 盈亏双镜：拖定价滑块，让两方案售价差距=获利+亏损（差量对应分率法）
+   - 损耗算盘：在Canvas货仓条上拖分界线标出损耗，再拖售价滑块达标（损耗与定价）
+   - 促销冲刺：拖剩余件促销价，让总利润率指针达标（利润率目标调度）
+   - 三连价谜题：拖进价滑块，沿着 定价→打折→再降价 链条让最终利润率达标（方程思想）
+  单文件自包含，零外部依赖；所有题目数据源自教参并经人工验算，每局随机抽题。
+-->
+<style>
+  /* ===== 主题变量（每局随机色板会覆盖 --p/--p2/--bg/--ink） ===== */
+  :root{
+    --p:#1f6fb2; --p2:#29b6c5; --bg:#eef6fd; --ink:#12324d;
+    --ok:#2e9e5b; --gold:#f5a623; --card:#ffffff; --bad:#aeb9c4;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    background:var(--bg); color:var(--ink); font-size:19px; line-height:1.6;
+  }
+  .screen{ display:none; max-width:1020px; margin:0 auto; padding:14px 14px 46px; min-height:100vh; }
+  .screen.active{ display:block; }
+  h1{ font-size:34px; margin:14px 0 4px; text-align:center; color:var(--p); letter-spacing:2px; }
+  .subtitle{ text-align:center; font-size:18px; margin-bottom:16px; color:#5a6b7d; }
+  h2{ font-size:24px; margin:6px 0 10px; color:var(--p); }
+
+  /* ===== 按钮 ===== */
+  .btn{
+    display:inline-block; border:0; border-radius:14px; background:var(--p); color:#fff;
+    font-size:20px; font-weight:700; padding:12px 24px; cursor:pointer;
+    box-shadow:0 4px 0 rgba(0,0,0,.18); transition:transform .08s; user-select:none;
+  }
+  .btn:active{ transform:translateY(3px); box-shadow:none; }
+  .btn.small{ font-size:16px; padding:8px 14px; border-radius:10px; }
+  .btn.ghost{ background:#fff; color:var(--p); border:2px solid var(--p); box-shadow:0 3px 0 rgba(0,0,0,.10); }
+  .btn.gold{ background:var(--gold); color:#4a2c00; }
+  .btn.warn{ background:#e0592a; }
+
+  /* ===== 卡片 ===== */
+  .card{
+    background:var(--card); border:3px solid var(--p); border-radius:18px;
+    padding:16px 18px; margin-top:14px; box-shadow:0 6px 14px rgba(20,60,100,.10);
+  }
+  .story-tag{
+    display:inline-block; background:var(--p); color:#fff; border-radius:8px;
+    padding:2px 12px; font-size:16px; font-weight:700; margin-bottom:8px;
+  }
+  #storyBox{ font-size:20px; }
+
+  /* ===== 难度选择 / 关卡地图 ===== */
+  .diff-grid{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin-top:16px; }
+  .diff-card{
+    flex:1 1 260px; max-width:320px; background:var(--card); border:3px solid var(--p);
+    border-radius:20px; padding:20px 18px; text-align:center; cursor:pointer;
+    box-shadow:0 6px 14px rgba(20,60,100,.12); transition:transform .1s;
+  }
+  .diff-card:hover{ transform:translateY(-4px); }
+  .diff-card .dname{ font-size:24px; font-weight:800; color:var(--p); }
+  .diff-card .dtip{ font-size:16px; color:#5a6b7d; margin:8px 0 12px; min-height:48px; }
+  .diff-card .dgo{
+    display:inline-block; background:var(--p); color:#fff; border-radius:12px;
+    padding:8px 26px; font-size:19px; font-weight:700;
+  }
+  .lv-list{ display:flex; flex-direction:column; gap:14px; margin-top:8px; }
+  .lv-card{
+    display:flex; align-items:center; gap:14px; background:var(--card);
+    border:3px solid var(--p); border-radius:16px; padding:14px 18px; cursor:pointer;
+  }
+  .lv-card.locked{ opacity:.55; cursor:not-allowed; }
+  .lv-card .lv-ico{ font-size:30px; width:44px; text-align:center; }
+  .lv-card .lv-name{ flex:1; font-size:21px; font-weight:700; }
+  .lv-card .lv-sub{ font-size:15px; color:#5a6b7d; font-weight:400; }
+  .lv-card .lv-star{ font-size:24px; color:var(--gold); }
+
+  /* ===== 游戏页顶栏 ===== */
+  .topbar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:6px; }
+  .lv-title{ font-size:22px; font-weight:800; color:var(--p); flex:1 1 200px; }
+  .hud{ display:flex; gap:10px; }
+  .hud-item{
+    background:var(--card); border:2px solid var(--p); border-radius:10px;
+    padding:4px 12px; font-size:17px; font-weight:700;
+  }
+  #statusBox{ font-size:19px; font-weight:700; background:#fffbe8; border-color:var(--gold); }
+
+  /* ===== 任务操作区 ===== */
+  .mrow{ display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; }
+  .panel{
+    flex:1 1 270px; background:var(--card); border:3px solid var(--p2);
+    border-radius:16px; padding:14px 16px; min-width:0;
+  }
+  .panel.grow{ flex:2 1 320px; }
+  .ptitle{ font-size:17px; font-weight:800; color:var(--p); margin-bottom:8px; }
+  .slider-label{ font-size:19px; margin:6px 0 2px; }
+  .big{ font-size:32px; font-weight:800; color:var(--p); }
+  input[type="range"]{ width:100%; height:48px; accent-color:var(--p); cursor:pointer; touch-action:none; }
+  .marks{ display:flex; justify-content:space-between; font-size:16px; color:#5a6b7d; }
+  .kv{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+       border-bottom:1px dashed #c9d6e2; padding:7px 0; font-size:18px; }
+  .kv b{ font-size:20px; }
+  .kv.hl{ background:#fff6dd; border-radius:8px; padding:7px 10px; border-bottom:0; }
+  .kv.hl b{ color:#c26a00; font-size:24px; }
+  .hint{ font-size:16px; color:#5a6b7d; margin-top:8px; }
+  canvas.mcv{ width:100%; display:block; }
+
+  /* ===== 损耗货仓条 ===== */
+  .lossbox{ user-select:none; }
+  .losshead{ display:flex; justify-content:space-between; font-size:19px; font-weight:800; margin-bottom:6px; }
+  .lsgood{ color:var(--ok); }
+  .lsbad{ color:#7d8b98; }
+  .losscv{ touch-action:none; cursor:grab; }
+
+  /* ===== 弹窗 ===== */
+  .modal{
+    position:fixed; inset:0; background:rgba(8,28,48,.58); display:none;
+    align-items:center; justify-content:center; z-index:60; padding:16px;
+  }
+  .modal.open{ display:flex; }
+  .modal-card{
+    background:var(--card); border:4px solid var(--p); border-radius:22px;
+    max-width:660px; width:100%; max-height:88vh; overflow:auto; padding:22px 24px;
+    box-shadow:0 14px 40px rgba(0,0,0,.30);
+  }
+  .modal-card h2{ font-size:28px; }
+  .modal-btns{ display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; }
+  .why-box{ background:#f2f8ff; border:2px dashed var(--p2); border-radius:12px; padding:12px 14px; font-size:18px; }
+  .stat-line{ font-size:19px; margin:6px 0; }
+
+  /* ===== 庆祝层 ===== */
+  #fx{ position:fixed; inset:0; pointer-events:none; z-index:50; display:none; }
+
+  @media (max-width:620px){
+    body{ font-size:17px; }
+    h1{ font-size:27px; }
+    .big{ font-size:26px; }
+    .btn{ font-size:18px; padding:10px 18px; }
+    .lv-card .lv-name{ font-size:18px; }
+  }
+</style>
+</head>
+<body>
+  <!-- 屏幕一：难度选择 -->
+  <div id="scrSelect" class="screen">
+    <h1>小掌柜开店记</h1>
+    <div class="subtitle">小学奥数 · 经济问题（一）｜利润 · 折扣 · 损耗 · 定价 闯关探险</div>
+    <div class="diff-grid">
+      <div class="diff-card" data-diff="easy">
+        <div class="dname">初级 · 智慧集市</div>
+        <div class="dtip">例题级热身：学会看利润率表盘、折扣罗盘，共 3 关</div>
+        <span class="dgo">进入集市</span>
+      </div>
+      <div class="diff-card" data-diff="mid">
+        <div class="dname">中级 · 黄金商铺</div>
+        <div class="dtip">练习级进阶：盈亏双镜、促销冲刺，共 4 关</div>
+        <span class="dgo">进入商铺</span>
+      </div>
+      <div class="diff-card" data-diff="hard">
+        <div class="dname">高级 · 财富大厦</div>
+        <div class="dtip">变式综合挑战：损耗算盘、三连价谜题，共 4 关</div>
+        <span class="dgo">登上大厦</span>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:22px;">
+      <button class="btn ghost" id="btnRules1">规则与知识卡</button>
+    </div>
+  </div>
+
+  <!-- 屏幕二：关卡地图 -->
+  <div id="scrLevels" class="screen">
+    <h1 id="lvMapName">关卡地图</h1>
+    <div class="subtitle" id="lvMapTip"></div>
+    <div class="lv-list" id="lvList"></div>
+    <div style="text-align:center;margin-top:22px;">
+      <button class="btn ghost" id="btnBackDiff">返回难度选择</button>
+    </div>
+  </div>
+
+  <!-- 屏幕三：游戏 -->
+  <div id="scrGame" class="screen">
+    <div class="topbar">
+      <button class="btn small ghost" id="btnBackMap">返回地图</button>
+      <div class="lv-title" id="lvName">关卡</div>
+      <div class="hud">
+        <span class="hud-item">时间 <b id="hudTime">00:00</b></span>
+        <span class="hud-item">步数 <b id="hudSteps">0</b></span>
+      </div>
+      <button class="btn small ghost" id="btnRules2">规则</button>
+      <button class="btn small warn" id="btnReveal">揭示答案</button>
+      <button class="btn small" id="btnRestart">重新开始</button>
+    </div>
+    <div class="card" id="storyBox"></div>
+    <div class="card" id="statusBox">读题目 → 动笔算一算 → 再动手操作！</div>
+    <div id="playground"></div>
+  </div>
+
+  <!-- 规则弹窗 -->
+  <div class="modal" id="modalRules">
+    <div class="modal-card">
+      <h2>玩法说明 &amp; 知识卡</h2>
+      <div class="why-box">
+        <b>基本公式（要牢记）</b><br>
+        ① 利润 = 售价 − 成本<br>
+        ② 利润率 = 利润 ÷ 成本 × 100%<br>
+        ③ 售价 = 成本 × (1 + 利润率)；成本 = 售价 ÷ (1 + 利润率)<br>
+        ④ 折扣：售价 = 定价 × 折扣数 ÷ 10（打八折 = 按定价的 80% 出售）<br>
+        ⑤ 损耗：实际能卖的数量 = 总数 × (1 − 损耗率)
+      </div>
+      <p><b>怎么玩：</b>本游戏没有选择题！每一关你都要<b>先动笔算出目标值</b>，再通过
+      <b>拖动滑块</b>或<b>拖动货仓分界线</b>把数字"操作"出来——
+      表盘指针、进度条或分界线正好对准目标时自动通关。</p>
+      <p><b>小提示：</b>右上角有时间和步数统计；卡住了可以点「揭示答案」看完整解法；
+      点「重新开始」可重玩本关。</p>
+      <div class="modal-btns"><button class="btn" id="btnRulesClose">知道了，开始闯关！</button></div>
+    </div>
+  </div>
+
+  <!-- 通关弹窗 -->
+  <div class="modal" id="modalWin">
+    <div class="modal-card" id="winCard"></div>
+  </div>
+
+  <canvas id="fx"></canvas>
+
+<script>
+/* =====================================================================
+ * 一、小工具
+ * ===================================================================== */
+function $(s){ return document.querySelector(s); }
+function fmt(n){ /* 金额/数量：最多两位小数并去尾零 */
+  var r = Math.round(n * 100) / 100;
+  return String(r);
+}
+function fmtRate(p){ /* 百分比：保留一位小数 */
+  return (Math.round(p * 10) / 10).toFixed(1);
+}
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function shuffle(arr){
+  var r = arr.slice();
+  for(var i = r.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = r[i]; r[i] = r[j]; r[j] = t;
+  }
+  return r;
+}
+function pickOne(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function rr(ctx, x, y, w, h, r){ /* 圆角矩形路径 */
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function sizeCanvas(cv, parent, h){ /* 按容器宽度设置画布分辨率，保证文字清晰且字号达标 */
+  var w = Math.max(300, (parent.clientWidth || 340) - 6);
+  cv.width = w; cv.height = h;
+  cv.style.width = '100%'; cv.style.height = h + 'px';
+}
+
+/* =====================================================================
+ * 二、随机色板（G8：每局随机主色，多次玩不腻）
+ * ===================================================================== */
+var PALETTES = [
+  { name:'晨曦橙', p:'#e0622d', p2:'#f5a623', bg:'#fff6ec', ink:'#4a2c12' },
+  { name:'海洋蓝', p:'#1f6fb2', p2:'#29b6c5', bg:'#eef6fd', ink:'#12324d' },
+  { name:'森林绿', p:'#2e8b57', p2:'#7cb342', bg:'#f0f9ef', ink:'#1b3a26' },
+  { name:'莓果紫', p:'#7b4fa6', p2:'#c05ec2', bg:'#f7f1fb', ink:'#3a2154' },
+  { name:'樱粉红', p:'#d64670', p2:'#f2818d', bg:'#fdf1f4', ink:'#521b2c' },
+  { name:'星空蓝紫', p:'#3f51b5', p2:'#7e57c2', bg:'#f0f2fc', ink:'#232a5c' }
+];
+function applyPalette(){
+  var pal = pickOne(PALETTES);
+  var root = document.documentElement.style;
+  root.setProperty('--p', pal.p);
+  root.setProperty('--p2', pal.p2);
+  root.setProperty('--bg', pal.bg);
+  root.setProperty('--ink', pal.ink);
+  Game.pal = pal;
+}
+
+/* =====================================================================
+ * 三、题库（题型与数据源自教参《第19周 经济问题(一)》，数值全部人工验算；
+ *     每关从对应题池随机抽 1 题，实现每局题目随机化）
+ * ===================================================================== */
+var BANK = {
+  /* A类：定价大师——给成本与利润率，拖出售价（售价=成本×(1+利润率)） */
+  price: {
+    easy: [
+      { id:'A1', title:'西服定价', cost:600, rate:25, ans:750, step:5, min:600, max:1000,
+        story:'服装店进了一套西服，进价（成本）是 600 元。掌柜想让它获得 25% 的利润率。请先算出售价应为多少元，再拖动【售价滑块】把定价操作出来。',
+        why:'利润 = 成本×利润率 = 600×25% = 150（元）；售价 = 成本×(1+利润率) = 600×(1+25%) = 750（元）。检验：(750−600)÷600×100% = 25%，正确！' },
+      { id:'A4', title:'童装定价', cost:80, rate:25, ans:100, step:1, min:80, max:140,
+        story:'童装店进了一批童装，每件成本 80 元，想获得 25% 的利润率。先算出售价，再拖动【售价滑块】定价。',
+        why:'售价 = 80×(1+25%) = 100（元）。检验：(100−80)÷80×100% = 25%，正确！' },
+      { id:'A7', title:'玩具熊定价', cost:45, rate:20, ans:54, step:0.5, min:45, max:75,
+        story:'玩具店进了一只玩具熊，成本 45 元，想获得 20% 的利润率。先算出售价，再拖动【售价滑块】定价。',
+        why:'售价 = 45×(1+20%) = 54（元）。检验：(54−45)÷45×100% = 20%，正确！' },
+      { id:'B2p', title:'奶茶定价', cost:30, rate:30, ans:39, step:0.5, min:30, max:55,
+        story:'奶茶店制作一杯奶茶的成本是 30 元。现在想把利润率提高到 30%。先算出售价，再拖动【售价滑块】定价。',
+        why:'售价 = 30×(1+30%) = 39（元）。检验：(39−30)÷30×100% = 30%，正确！' }
+    ],
+    mid: [
+      { id:'A2', title:'电脑定价', cost:3500, rate:12, ans:3920, step:10, min:3500, max:4400,
+        story:'家电城购进一台电脑，成本 3500 元，售出后想获得 12% 的利润率。先算出售价，再拖动【售价滑块】定价。',
+        why:'售价 = 3500×(1+12%) = 3500×1.12 = 3920（元）。检验：(3920−3500)÷3500×100% = 12%，正确！' },
+      { id:'A5', title:'书包定价', cost:150, rate:40, ans:210, step:2, min:150, max:280,
+        story:'文具店购进一批书包，每个成本 150 元，想获得 40% 的利润率。先算出售价，再拖动【售价滑块】定价。',
+        why:'售价 = 150×(1+40%) = 210（元）。检验：(210−150)÷150×100% = 40%，正确！' },
+      { id:'A6', title:'台灯定价', cost:200, rate:15, ans:230, step:2, min:200, max:320,
+        story:'灯饰店进了一批台灯，每台成本 200 元，想获得 15% 的利润率。先算出售价，再拖动【售价滑块】定价。',
+        why:'售价 = 200×(1+15%) = 230（元）。检验：(230−200)÷200×100% = 15%，正确！' },
+      { id:'A8', title:'音箱定价', cost:1200, rate:30, ans:1560, step:10, min:1200, max:2000,
+        story:'电器行购进一台音箱，成本 1200 元，想获得 30% 的利润率。先算出售价，再拖动【售价滑块】定价。',
+        why:'售价 = 1200×(1+30%) = 1560（元）。检验：(1560−1200)÷1200×100% = 30%，正确！' }
+    ]
+  },
+  /* B类：成本侦探——给售价与利润率，拖出成本（成本=售价÷(1+利润率)） */
+  cost: {
+    easy: [
+      { id:'B1', title:'杂志成本', price:120, rate:25, ans:96, step:1, min:60, max:120,
+        story:'报刊亭一套杂志的售价是 120 元，已知利润率是 25%。先算出这套杂志的成本，再拖动【成本滑块】把它找出来。',
+        why:'成本 = 售价 ÷ (1+利润率) = 120÷(1+25%) = 96（元），利润 = 120−96 = 24（元）。检验：24÷96×100% = 25%，正确！' },
+      { id:'B2', title:'奶茶成本', price:36, rate:20, ans:30, step:0.5, min:15, max:36,
+        story:'一杯奶茶售价 36 元，利润率是 20%。先算出成本，再拖动【成本滑块】把它找出来。',
+        why:'成本 = 36÷(1+20%) = 30（元）。检验：(36−30)÷30×100% = 20%，正确！' },
+      { id:'B3', title:'电商进价', price:110, rate:10, ans:100, step:1, min:55, max:110,
+        story:'电商平台一件商品售价 110 元，仍可获利 10%（利润率 10%）。先算出进价，再拖动【成本滑块】把它找出来。',
+        why:'进价 = 110÷(1+10%) = 100（元）。检验：(110−100)÷100×100% = 10%，正确！' },
+      { id:'B4', title:'蛋糕成本', price:150, rate:25, ans:120, step:1, min:75, max:150,
+        story:'蛋糕店一款蛋糕售价 150 元，利润率是 25%。先算出成本，再拖动【成本滑块】把它找出来。',
+        why:'成本 = 150÷(1+25%) = 120（元）。检验：(150−120)÷120×100% = 25%，正确！' },
+      { id:'B5', title:'风扇成本', price:91, rate:30, ans:70, step:1, min:45, max:91,
+        story:'家电行一台风扇售价 91 元，利润率是 30%。先算出成本，再拖动【成本滑块】把它找出来。',
+        why:'成本 = 91÷(1+30%) = 70（元）。检验：(91−70)÷70×100% = 30%，正确！' },
+      { id:'B6', title:'钢笔成本', price:28, rate:40, ans:20, step:0.5, min:12, max:28,
+        story:'文具店一支钢笔售价 28 元，利润率是 40%。先算出成本，再拖动【成本滑块】把它找出来。',
+        why:'成本 = 28÷(1+40%) = 20（元）。检验：(28−20)÷20×100% = 40%，正确！' }
+    ]
+  },
+  /* C类：折扣罗盘——给标价与目标售价，拖出折扣（售价=定价×折扣÷10） */
+  discount: {
+    easy: [
+      { id:'C1', title:'门票团购', priceTag:100, target:90, ans:9.0,
+        story:'科技馆「火星展」门票标价 100 元，团购价 90 元（比标价优惠 10 元）。先算出团购打的是几折，再拖动【折扣滑块】把折扣操作出来。',
+        why:'折扣 = 现售价 ÷ 标价 = 90÷100 = 0.9，即按标价的 90% 出售，打九折。检验：100×90% = 90（元），正好优惠 100−90 = 10（元）。' },
+      { id:'C2', title:'积木折扣', priceTag:100, target:80, ans:8.0,
+        story:'果果买一盒标价 100 元的积木，实际付了 80 元（比标价便宜 20 元）。先算出打的是几折，再拖动【折扣滑块】操作出来。',
+        why:'80÷100 = 0.8 → 打八折。检验：100×80% = 80（元），正好便宜 20 元。' },
+      { id:'C4', title:'半价日', priceTag:220, target:110, ans:5.0,
+        story:'电商平台一件商品标价 220 元，半价日只卖 110 元。先算出打的是几折，再拖动【折扣滑块】操作出来。',
+        why:'110÷220 = 0.5 → 打五折。检验：220×50% = 110（元）。' }
+    ],
+    mid: [
+      { id:'C3', title:'滑板店庆', priceTag:1200, target:960, ans:8.0,
+        story:'一块滑板标价 1200 元，店庆活动价 960 元。先算出活动打的是几折，再拖动【折扣滑块】操作出来。',
+        why:'960÷1200 = 0.8 → 打八折。检验：1200×80% = 960（元）。' },
+      { id:'C5', title:'台灯促销', priceTag:600, target:450, ans:7.5,
+        story:'一盏台灯标价 600 元，促销价 450 元。先算出促销打的是几折，再拖动【折扣滑块】操作出来。',
+        why:'450÷600 = 0.75 → 打七五折。检验：600×75% = 450（元）。' },
+      { id:'C6', title:'头盔换季', priceTag:360, target:216, ans:6.0,
+        story:'一个头盔标价 360 元，换季价 216 元。先算出换季打的是几折，再拖动【折扣滑块】操作出来。',
+        why:'216÷360 = 0.6 → 打六折。检验：360×60% = 216（元）。' },
+      { id:'C7', title:'跑鞋会员', priceTag:150, target:132, ans:8.8,
+        story:'一双跑鞋标价 150 元，会员价 132 元。先算出会员折扣是几折，再拖动【折扣滑块】操作出来。',
+        why:'132÷150 = 0.88 → 打八八折。检验：150×88% = 132（元）。' }
+    ]
+  },
+  /* D类：盈亏双镜——两方案售价差距=获利+亏损，拖出定价（差量对应分率法） */
+  dual: {
+    easy: [
+      { id:'D1', title:'手机定价', hi:80, lo:45, gain:500, lose:375, ans:2500, cost:1500,
+        story:'一部手机：如果按当前定价的 80% 出售（即降价 20%），可获利 500 元；如果按当前定价的 45% 出售（即降价 55%），将亏损 375 元。拖动【定价滑块】，让两个方案的售价差距正好等于「获利 + 亏损」，就能同时满足两个方案，找出当前定价！',
+        why:'定价 = (500+375)÷(80%−45%) = 875÷35% = 2500（元）；成本 = 2500×80% − 500 = 2000−500 = 1500（元）。检验：1500−2500×45% = 1500−1125 = 375（元），正好亏 375 元！' },
+      { id:'D4', title:'空调定价', hi:80, lo:50, gain:800, lose:400, ans:4000, cost:2400,
+        story:'一台空调：按当前定价的 80% 出售可获利 800 元；按当前定价的 50% 出售将亏损 400 元。拖动【定价滑块】，让两个方案的售价差距正好等于「获利 + 亏损」，找出当前定价！',
+        why:'定价 = (800+400)÷(80%−50%) = 1200÷30% = 4000（元）；成本 = 4000×80% − 800 = 3200−800 = 2400（元）。检验：2400−4000×50% = 2400−2000 = 400（元），正好亏 400 元！' }
+    ],
+    hard: [
+      { id:'D2', title:'大宗商品', hi:95, lo:75, gain:2520, lose:1750, ans:21350, cost:17762.5,
+        story:'一批大宗商品：按当前定价的 95% 出售可获利 2520 元；按当前定价的 75% 出售就会亏损 1750 元。拖动【定价滑块】，让两个方案的售价差距正好等于「获利 + 亏损」，找出该商品的定价。',
+        why:'定价 = (2520+1750)÷(95%−75%) = 4270÷20% = 21350（元）；成本 = 21350×95% − 2520 = 20282.5−2520 = 17762.5（元）。检验：17762.5−21350×75% = 17762.5−16012.5 = 1750（元），正好亏 1750 元！' },
+      { id:'D3', title:'家具定价', hi:90, lo:70, gain:900, lose:300, ans:6000, cost:4500,
+        story:'一套家具：按当前定价的 90% 出售可获利 900 元；按当前定价的 70% 出售将亏损 300 元。拖动【定价滑块】，让两个方案的售价差距正好等于「获利 + 亏损」，找出当前定价！',
+        why:'定价 = (900+300)÷(90%−70%) = 1200÷20% = 6000（元）；成本 = 6000×90% − 900 = 5400−900 = 4500（元）。检验：4500−6000×70% = 4500−4200 = 300（元），正好亏 300 元！' },
+      { id:'D5', title:'自行车定价', hi:85, lo:65, gain:1050, lose:350, ans:7000, cost:4900,
+        story:'一辆自行车：按当前定价的 85% 出售可获利 1050 元；按当前定价的 65% 出售将亏损 350 元。拖动【定价滑块】，让两个方案的售价差距正好等于「获利 + 亏损」，找出当前定价！',
+        why:'定价 = (1050+350)÷(85%−65%) = 1400÷20% = 7000（元）；成本 = 7000×85% − 1050 = 5950−1050 = 4900（元）。检验：4900−7000×65% = 4900−4550 = 350（元），正好亏 350 元！' }
+    ]
+  },
+  /* E类：损耗算盘——Canvas拖分界线标损耗 + 拖售价达标（损耗与综合定价） */
+  loss: [
+    { id:'E1', title:'瓷器茶具', N:1000, unit:'套', buy:26, freight:10000, losses:[20], rate:30,
+      tc:36000, good1:800, good2:null, income:46800, ans:58.5,
+      story:'瓷器商店去景德镇收购瓷质茶具共 1000 套，每套收购价 26 元，运费共 10000 元。运输和销售过程中损耗了 20%，商店想实现 30% 的利润。第一步：拖动货仓分界线，把损耗的茶具标出来；第二步：拖动【每套售价滑块】，让总收入正好达到目标。',
+      why:'总成本 = 收购价 + 运费 = 1000×26 + 10000 = 36000（元）；完好茶具 = 1000×(1−20%) = 800（套）；目标总收入 = 36000×(1+30%) = 46800（元）；每套售价 = 46800÷800 = 58.5（元）。' },
+    { id:'E2', title:'山货零售', N:1000, unit:'千克', buy:3, freight:600, losses:[10], rate:25,
+      tc:3600, good1:900, good2:null, income:4500, ans:5,
+      story:'某批发商收购山货 1000 千克，收购价 3 元/千克，运费共 600 元。运输与销售过程中的损耗是 10%，批发商想实现 25% 的利润率。先拖动分界线标出损耗，再拖动【零售价滑块】定价。',
+      why:'总成本 = 1000×3 + 600 = 3600（元）；完好山货 = 1000×(1−10%) = 900（千克）；目标总收入 = 3600×(1+25%) = 4500（元）；零售价 = 4500÷900 = 5（元/千克）。' },
+    { id:'E3', title:'苹果双损', N:1000, unit:'千克', buy:2.52, freight:900, losses:[10,5], rate:25,
+      tc:3420, good1:900, good2:855, income:4275, ans:5,
+      story:'某批发商购进苹果 1000 千克，购进单价 2.52 元/千克，运费共 900 元。运输过程中苹果损耗了 10%，预计销售过程中还会损耗剩下的 5%。批发商想实现 25% 的利润率。请分两次拖动分界线标出两轮损耗，再拖动【零售价滑块】定价。',
+      why:'总成本 = 1000×2.52 + 900 = 3420（元）；运输后完好 = 1000×(1−10%) = 900（千克），销售后再完好 = 900×(1−5%) = 855（千克）；目标总收入 = 3420×(1+25%) = 4275（元）；零售价 = 4275÷855 = 5（元/千克）。' },
+    { id:'E4', title:'干货分装', N:750, unit:'件', buy:7.2, freight:600, losses:[20], rate:30,
+      tc:6000, good1:600, good2:null, income:7800, ans:13,
+      story:'一家干货店购进干货 750 件，每件收购价 7.2 元，运费共 600 元。运输和销售过程中损耗了 20%，商店想实现 30% 的利润。先拖动分界线标出损耗，再拖动【每件售价滑块】定价。',
+      why:'总成本 = 750×7.2 + 600 = 5400 + 600 = 6000（元）；完好干货 = 750×(1−20%) = 600（件）；目标总收入 = 6000×(1+30%) = 7800（元）；每件售价 = 7800÷600 = 13（元）。' }
+  ],
+  /* F类：促销冲刺——拖剩余件促销价，让总利润率达标（利润率目标调度） */
+  promo: {
+    mid: [
+      { id:'F1', title:'衬衫大促', tc:40000, soldQty:400, soldPrice:120, restQty:100, rate:45,
+        income:58000, ans:100, cut:20, min:80, max:120, step:1,
+        story:'商场以每件 80 元购进某品牌衬衫 500 件（总成本 40000 元），先以每件 120 元销售了 400 件。因换季促销，剩下 100 件要降价出售。商场希望销售完这批衬衫后，总利润正好达到 45%。先算出剩余衬衫每件应卖多少元，再拖动【促销价滑块】操作出来。',
+        why:'目标总收入 = 40000×(1+45%) = 58000（元）；已售收入 = 120×400 = 48000（元）；剩余 100 件应卖得 58000−48000 = 10000（元）；促销价 = 10000÷100 = 100（元/件），每件降价 120−100 = 20（元）。' },
+      { id:'F4', title:'文具盒促销', tc:8000, soldQty:300, soldPrice:30, restQty:100, rate:40,
+        income:11200, ans:22, cut:8, min:20, max:30, step:1,
+        story:'文具店以每盒 20 元购进文具盒 400 盒（总成本 8000 元），先以每盒 30 元售出 300 盒。剩下 100 盒准备降价促销，希望销售完后总利润正好达到 40%。先算出促销价，再拖动【促销价滑块】操作出来。',
+        why:'目标总收入 = 8000×(1+40%) = 11200（元）；已售收入 = 30×300 = 9000（元）；剩余应卖得 11200−9000 = 2200（元）；促销价 = 2200÷100 = 22（元/盒），每盒降价 30−22 = 8（元）。' }
+    ],
+    hard: [
+      { id:'F2', title:'童鞋促销', tc:24000, soldQty:250, soldPrice:112, restQty:50, rate:35,
+        income:32400, ans:88, cut:24, min:80, max:112, step:1,
+        story:'鞋城以每双 80 元购进童鞋 300 双（总成本 24000 元），先以每双 112 元售出 250 双。剩下 50 双准备降价促销，希望销售完后总利润正好达到 35%。先算出促销价，再拖动【促销价滑块】操作出来。',
+        why:'目标总收入 = 24000×(1+35%) = 32400（元）；已售收入 = 112×250 = 28000（元）；剩余应卖得 32400−28000 = 4400（元）；促销价 = 4400÷50 = 88（元/双），每双降价 112−88 = 24（元）。' },
+      { id:'F3', title:'毛巾促销', tc:5000, soldQty:600, soldPrice:8, restQty:400, rate:40,
+        income:7000, ans:5.5, cut:2.5, min:5, max:8, step:0.5,
+        story:'百货店以每条 5 元购进毛巾 1000 条（总成本 5000 元），先以每条 8 元售出 600 条。剩下 400 条准备降价促销，希望销售完后总利润正好达到 40%。先算出促销价，再拖动【促销价滑块】操作出来。',
+        why:'目标总收入 = 5000×(1+40%) = 7000（元）；已售收入 = 8×600 = 4800（元）；剩余应卖得 7000−4800 = 2200（元）；促销价 = 2200÷400 = 5.5（元/条），每条降价 8−5.5 = 2.5（元）。' }
+    ]
+  },
+  /* G类：三连价谜题——拖进价，沿 定价→打折→再降价 链条让最终利润率达标（方程思想） */
+  chain: [
+    { id:'G1', title:'电饭煲三连价', markup:80, disc:9, extra:96, rate:30, ans:300, min:100, max:500, step:5,
+      story:'天天电器商城销售一种电饭煲：第一天按 80% 的利润率定价，没有售出；第二天在此基础上打九折，还是没售出；第三天再降价 96 元，终于售出。已知卖出这台电饭煲的利润是进价的 30%。先算出进价，再拖动【进价滑块】把它找出来。',
+      why:'设进价 300 元：定价 = 300×(1+80%) = 540（元）；九折后 = 540×90% = 486（元）；再降 96 元 → 486−96 = 390（元）；利润 = 390−300 = 90（元），利润率 = 90÷300×100% = 30%，符合条件！' },
+    { id:'G2', title:'台灯三连价', markup:100, disc:8, extra:90, rate:20, ans:225, min:100, max:400, step:5,
+      story:'灯饰店一款台灯：先按 100% 的利润率定价，没售出；再打八折，没售出；最后再降价 90 元售出，最终利润是进价的 20%。先算出进价，再拖动【进价滑块】把它找出来。',
+      why:'设进价 225 元：定价 = 225×(1+100%) = 450（元）；八折后 = 450×80% = 360（元）；再降 90 元 → 270（元）；利润 = 270−225 = 45（元），利润率 = 45÷225×100% = 20%，符合条件！' },
+    { id:'G3', title:'音响三连价', markup:60, disc:9, extra:76, rate:25, ans:400, min:150, max:600, step:5,
+      story:'电器行一款音响：先按 60% 的利润率定价，没售出；再打九折，没售出；最后再降价 76 元售出，最终利润是进价的 25%。先算出进价，再拖动【进价滑块】把它找出来。',
+      why:'设进价 400 元：定价 = 400×(1+60%) = 640（元）；九折后 = 640×90% = 576（元）；再降 76 元 → 500（元）；利润 = 500−400 = 100（元），利润率 = 100÷400×100% = 25%，符合条件！' },
+    { id:'G4', title:'打印机三连价', markup:80, disc:9, extra:45, rate:44, ans:250, min:100, max:400, step:5,
+      story:'打印机专卖店一款打印机：先按 80% 的利润率定价，没售出；再打九折，没售出；最后再降价 45 元售出，最终利润是进价的 44%。先算出进价，再拖动【进价滑块】把它找出来。',
+      why:'设进价 250 元：定价 = 250×(1+80%) = 450（元）；九折后 = 450×90% = 405（元）；再降 45 元 → 360（元）；利润 = 360−250 = 110（元），利润率 = 110÷250×100% = 44%，符合条件！' }
+  ]
+};
+
+/* =====================================================================
+ * 四、难度与关卡配置（每关从题池随机抽题）
+ * ===================================================================== */
+function getPool(kind, pool){
+  var b = BANK[kind];
+  if(Array.isArray(b)){ return b; }
+  return b[pool];
+}
+var DIFFS = {
+  easy: { key:'easy', name:'初级 · 智慧集市', tip:'例题级热身：利润率表盘、成本侦探、折扣罗盘',
+    levels: [
+      { kind:'price', pool:'easy', title:'第1关 开业定价', sub:'拖售价，对准利润率' },
+      { kind:'cost',  pool:'easy', title:'第2关 成本侦探', sub:'拖成本，反推利润率' },
+      { kind:'discount', pool:'easy', title:'第3关 折扣罗盘', sub:'拖折扣，压准目标价' }
+    ]},
+  mid: { key:'mid', name:'中级 · 黄金商铺', tip:'练习级进阶：折扣、定价、促销冲刺与盈亏双镜',
+    levels: [
+      { kind:'discount', pool:'mid', title:'第1关 折扣罗盘', sub:'更难的折扣' },
+      { kind:'price', pool:'mid', title:'第2关 开业定价', sub:'更大的数字' },
+      { kind:'promo', pool:'mid', title:'第3关 促销冲刺', sub:'降价也要达标' },
+      { kind:'dual', pool:'easy', title:'第4关 盈亏双镜', sub:'一价定盈亏' }
+    ]},
+  hard: { key:'hard', name:'高级 · 财富大厦', tip:'变式综合挑战：盈亏、损耗、三连价与冲刺',
+    levels: [
+      { kind:'dual', pool:'hard', title:'第1关 盈亏双镜', sub:'大数差量法' },
+      { kind:'loss', pool:'all', title:'第2关 损耗算盘', sub:'拖分界线标损耗' },
+      { kind:'chain', pool:'all', title:'第3关 三连价谜题', sub:'定价→打折→再降' },
+      { kind:'promo', pool:'hard', title:'第4关 促销冲刺', sub:'终极调度' }
+    ]}
+};
+
+/* =====================================================================
+ * 五、全局游戏状态
+ * ===================================================================== */
+var Game = {
+  diff:null, levelIdx:0, inst:null, pal:PALETTES[1],
+  time:0, steps:0, timerId:null, lastStep:0,
+  won:false, revealing:false,
+  done:{ easy:{}, mid:{}, hard:{} },   /* 已通关标记 */
+  picks:{ easy:null, mid:null, hard:null }, /* 每局抽题结果 */
+  mission:null, redraws:[]
+};
+
+/* =====================================================================
+ * 六、屏幕切换 / HUD / 提示
+ * ===================================================================== */
+function showScreen(name){
+  ['scrSelect','scrLevels','scrGame'].forEach(function(id){
+    document.getElementById(id).classList.remove('active');
+  });
+  document.getElementById('scr' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+}
+function renderHud(){
+  var m = Math.floor(Game.time / 60), s = Game.time % 60;
+  $('#hudTime').textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  $('#hudSteps').textContent = String(Game.steps);
+}
+function stepBump(){ /* 步数节流统计：每 250ms 内的连续操作计 1 步 */
+  var now = Date.now();
+  if(now - Game.lastStep > 250){ Game.steps++; Game.lastStep = now; renderHud(); }
+}
+function setStatus(t){ $('#statusBox').textContent = t; }
+
+/* =====================================================================
+ * 七、绘图组件：利润率表盘 / 目标进度条 / 损耗货仓条
+ * ===================================================================== */
+function drawGauge(cv, o){ /* 半圆表盘：{v,min,max,target,label,color} */
+  var ctx = cv.getContext('2d');
+  var w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+  var cx = w / 2, cy = h - 44, R = Math.min(w / 2 - 20, h - 100);
+  if(R < 56){ return; }
+  function ang(v){ /* 值 → 弧度：min→PI(左)，max→2PI(右) */
+    var k = clamp((v - o.min) / (o.max - o.min), 0, 1);
+    return Math.PI + k * Math.PI;
+  }
+  /* 底弧 */
+  ctx.lineWidth = 16; ctx.lineCap = 'round';
+  ctx.strokeStyle = '#dde5ee';
+  ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 2 * Math.PI); ctx.stroke();
+  /* 目标绿区（±5度） */
+  var ta = ang(o.target), half = 5 * Math.PI / 180;
+  ctx.strokeStyle = '#2e9e5b';
+  ctx.beginPath(); ctx.arc(cx, cy, R, ta - half, ta + half); ctx.stroke();
+  /* 当前值弧 */
+  ctx.strokeStyle = o.color || '#1f6fb2';
+  ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, ang(o.v)); ctx.stroke();
+  /* 指针 */
+  var a = ang(o.v);
+  ctx.strokeStyle = '#12324d'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(a) * R * 0.80, cy + Math.sin(a) * R * 0.80);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 9, 0, 6.2832);
+  ctx.fillStyle = '#12324d'; ctx.fill();
+  /* 数值与目标文字（≥16px） */
+  ctx.textAlign = 'center';
+  ctx.fillStyle = o.color || '#1f6fb2';
+  ctx.font = 'bold 26px sans-serif';
+  ctx.fillText(fmtRate(o.v) + '%', cx, cy + 34);
+  ctx.fillStyle = '#2e9e5b';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText('目标 ' + fmtRate(o.target) + '%', cx, cy - R - 12);
+  ctx.fillStyle = '#5a6b7d';
+  ctx.font = '16px sans-serif';
+  ctx.fillText(o.label || '', cx, h - 4);
+}
+function drawTbar(cv, o){ /* 水平目标条：{v,max,target,label,unit,color} */
+  var ctx = cv.getContext('2d');
+  var w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+  var x = 10, y = 46, bw = w - 20, bh = 30;
+  rr(ctx, x, y, bw, bh, 12); ctx.fillStyle = '#e3e9f0'; ctx.fill();
+  var fw = bw * clamp(o.v / o.max, 0, 1);
+  if(fw > 2){ rr(ctx, x, y, fw, bh, 12); ctx.fillStyle = o.color || '#1f6fb2'; ctx.fill(); }
+  /* 目标金线与旗标 */
+  var tx = x + bw * clamp(o.target / o.max, 0, 1);
+  ctx.fillStyle = '#f5a623';
+  ctx.fillRect(tx - 3, y - 10, 6, bh + 20);
+  ctx.font = 'bold 16px sans-serif';
+  var txt = '目标 ' + fmt(o.target) + (o.unit || '');
+  var tw = ctx.measureText(txt).width;
+  var lx = clamp(tx - tw / 2, 4, w - tw - 4);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#c26a00';
+  ctx.fillText(txt, lx, y - 16);
+  /* 当前值（右下角，右对齐，与左下角"0"刻度互不遮挡） */
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillStyle = o.color || '#1f6fb2';
+  ctx.textAlign = 'right';
+  var vt = (o.label ? o.label + ' ' : '') + fmt(o.v) + (o.unit || '');
+  ctx.fillText(vt, x + bw, y + bh + 30);
+  /* 两端刻度：0 在左下，最大值在右上 */
+  ctx.font = '16px sans-serif'; ctx.fillStyle = '#5a6b7d';
+  ctx.textAlign = 'left';
+  ctx.fillText('0', x, y + bh + 30);
+  ctx.textAlign = 'right';
+  ctx.fillText(fmt(o.max) + (o.unit || ''), x + bw, y - 2);
+}
+/* 损耗货仓条：Canvas 拖拽分界线（鼠标 + 触摸），真操作交互 */
+function makeLossBar(mount, opt, onChange){
+  var wrap = document.createElement('div');
+  wrap.className = 'lossbox';
+  wrap.innerHTML =
+    '<div class="losshead"><span class="lsgood">完好：<b>0</b> ' + opt.unit + '</span>' +
+    '<span class="lsbad">损耗：<b>0</b> ' + opt.unit + '</span></div>' +
+    '<canvas class="losscv mcv" width="600" height="130"></canvas>' +
+    '<div class="hint">按住黄色圆手柄左右拖动分界线（右侧为损耗区）</div>';
+  mount.innerHTML = '';
+  mount.appendChild(wrap);
+  var cv = wrap.querySelector('canvas');
+  sizeCanvas(cv, wrap, 130);
+  var S = { good: opt.good, drag:false };
+  function draw(){
+    var ctx = cv.getContext('2d');
+    var w = cv.width, h = cv.height;
+    ctx.clearRect(0, 0, w, h);
+    var x = 14, y = 34, bw = w - 28, bh = 56;
+    rr(ctx, x, y, bw, bh, 12); ctx.fillStyle = '#e3e9f0'; ctx.fill();
+    var gw = bw * S.good / opt.total;
+    /* 完好区（绿） */
+    ctx.save(); rr(ctx, x, y, Math.max(gw, 2), bh, 12); ctx.clip();
+    ctx.fillStyle = '#2e9e5b'; ctx.fillRect(x, y, gw, bh);
+    if(gw > 78){
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('完好 ' + fmt(S.good), x + gw / 2, y + bh / 2 + 7);
+    }
+    ctx.restore();
+    /* 损耗区（灰） */
+    ctx.save(); rr(ctx, x + gw, y, Math.max(bw - gw, 2), bh, 12); ctx.clip();
+    ctx.fillStyle = '#aeb9c4'; ctx.fillRect(x + gw, y, bw - gw, bh);
+    if(bw - gw > 78){
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('损耗 ' + fmt(opt.total - S.good), x + gw + (bw - gw) / 2, y + bh / 2 + 7);
+    }
+    ctx.restore();
+    /* 分界线 + 手柄 */
+    var dx = x + gw;
+    ctx.fillStyle = '#12324d'; ctx.fillRect(dx - 3, y - 8, 6, bh + 16);
+    ctx.beginPath(); ctx.arc(dx, y + bh / 2, 16, 0, 6.2832);
+    ctx.fillStyle = '#f5a623'; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = '#12324d'; ctx.stroke();
+    /* 刻度 */
+    ctx.fillStyle = '#5a6b7d'; ctx.font = '16px sans-serif';
+    ctx.textAlign = 'left'; ctx.fillText('0', x, 26);
+    ctx.textAlign = 'right'; ctx.fillText(fmt(opt.total), x + bw, 26);
+  }
+  function posToGood(clientX){
+    var r = cv.getBoundingClientRect();
+    var x = 14, bw = r.width - 28;
+    var f = (clientX - r.left - x) / bw;
+    f = clamp(f, 0, 1);
+    return Math.round(f * opt.total);
+  }
+  function applyPos(clientX){
+    var g = posToGood(clientX);
+    if(g !== S.good){ S.good = g; draw(); upd(); onChange(S.good); }
+  }
+  function moveHandler(e){
+    if(!S.drag){ return; }
+    applyPos(e.clientX);
+  }
+  function downMouse(e){ e.preventDefault(); S.drag = true; applyPos(e.clientX); }
+  function downTouch(e){ e.preventDefault(); S.drag = true; if(e.touches[0]){ applyPos(e.touches[0].clientX); } }
+  function moveTouch(e){ if(S.drag){ e.preventDefault(); if(e.touches[0]){ applyPos(e.touches[0].clientX); } } }
+  function up(){ S.drag = false; }
+  cv.addEventListener('mousedown', downMouse);
+  window.addEventListener('mousemove', moveHandler);
+  window.addEventListener('mouseup', up);
+  cv.addEventListener('touchstart', downTouch, { passive:false });
+  cv.addEventListener('touchmove', moveTouch, { passive:false });
+  window.addEventListener('touchend', up);
+  function upd(){
+    wrap.querySelector('.lsgood b').textContent = fmt(S.good);
+    wrap.querySelector('.lsbad b').textContent = fmt(opt.total - S.good);
+  }
+  upd(); draw();
+  Game.redraws.push(function(){ sizeCanvas(cv, wrap, 130); draw(); });
+  return {
+    set:function(g){ S.good = g; draw(); upd(); },
+    lock:function(){ S.drag = false; },
+    dim:function(){ wrap.style.opacity = '0.55'; }
+  };
+}
+
+/* =====================================================================
+ * 八、滑块动画 / 通关流程
+ * ===================================================================== */
+function animSlider(el, to, dur, onFrame, onEnd){
+  var from = parseFloat(el.value), t0 = performance.now();
+  function f(t){
+    var k = Math.min(1, (t - t0) / dur);
+    var e = 1 - Math.pow(1 - k, 3);
+    var v = from + (to - from) * e;
+    el.value = String(v);
+    if(onFrame){ onFrame(parseFloat(el.value)); }
+    if(k < 1){ requestAnimationFrame(f); }
+    else{
+      el.value = String(to);
+      if(onFrame){ onFrame(to); }
+      if(onEnd){ onEnd(); }
+    }
+  }
+  requestAnimationFrame(f);
+}
+function levelWin(revealed){
+  if(Game.won){ return; }
+  Game.won = true;
+  Game.revealing = false;
+  if(Game.timerId){ clearInterval(Game.timerId); Game.timerId = null; }
+  if(Game.mission && Game.mission.afterWin){ Game.mission.afterWin(); }
+  celebrate(revealed ? 120 : 180);
+  setStatus(revealed ? '这是本题的完整解法，结合下面的解析再看一遍吧！' : '太棒了！任务完成，掌声送给你！');
+  setTimeout(function(){ showWinModal(revealed); }, 700);
+}
+function showWinModal(revealed){
+  var inst = Game.inst;
+  var L = DIFFS[Game.diff].levels;
+  var isLast = Game.levelIdx + 1 >= L.length;
+  var title = revealed ? '答案揭晓' : '闯关成功！';
+  var html =
+    '<h2>' + title + '</h2>' +
+    '<div class="stat-line">用时：<b>' + $('#hudTime').textContent + '</b> ｜ 操作步数：<b>' + Game.steps + '</b> 步</div>' +
+    '<div class="why-box"><b>完整解析</b><br>' + inst.why + '</div>' +
+    '<div class="modal-btns">' +
+    (isLast ? '<button class="btn gold" id="mBtnFinale">查看最终成绩</button>'
+            : '<button class="btn gold" id="mBtnNext">下一关</button>') +
+    '<button class="btn ghost" id="mBtnAgain">再玩一次</button>' +
+    '<button class="btn ghost" id="mBtnMap">返回地图</button>' +
+    '</div>';
+  $('#winCard').innerHTML = html;
+  $('#modalWin').classList.add('open');
+  if(isLast){
+    $('#mBtnFinale').onclick = function(){
+      $('#modalWin').classList.remove('open');
+      celebrate(300);
+      setTimeout(function(){
+        $('#winCard').innerHTML =
+          '<h2>全部通关！</h2>' +
+          '<div class="stat-line">恭喜你成为<b>金牌小掌柜</b>！利润、折扣、损耗、定价全都拿下！</div>' +
+          '<div class="stat-line">本难度用时：<b>' + $('#hudTime').textContent + '</b></div>' +
+          '<div class="modal-btns"><button class="btn gold" id="mBtnDiff2">返回难度选择</button></div>';
+        $('#modalWin').classList.add('open');
+        $('#mBtnDiff2').onclick = function(){
+          $('#modalWin').classList.remove('open');
+          renderLevels(); showScreen('levels');
+        };
+      }, 900);
+    };
+  } else {
+    $('#mBtnNext').onclick = function(){
+      $('#modalWin').classList.remove('open');
+      startLevel(Game.diff, Game.levelIdx + 1);
+    };
+  }
+  $('#mBtnAgain').onclick = function(){
+    $('#modalWin').classList.remove('open');
+    startLevel(Game.diff, Game.levelIdx);
+  };
+  $('#mBtnMap').onclick = function(){
+    $('#modalWin').classList.remove('open');
+    renderLevels(); showScreen('levels');
+  };
+}
+
+/* =====================================================================
+ * 九、庆祝动画（Canvas 彩纸 + 星星）
+ * ===================================================================== */
+function celebrate(n){
+  var cv = $('#fx'), ctx = cv.getContext('2d');
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  cv.style.display = 'block';
+  var colors = ['#f5a623', '#2e9e5b', '#e0592a', '#1f6fb2', '#c05ec2', '#ffd54f'];
+  var parts = [], i;
+  for(i = 0; i < n; i++){
+    parts.push({
+      x: Math.random() * cv.width,
+      y: -20 - Math.random() * cv.height * 0.4,
+      w: 8 + Math.random() * 9,
+      vy: 2.2 + Math.random() * 3.6,
+      vx: -1.6 + Math.random() * 3.2,
+      rot: Math.random() * 6.28,
+      vr: -0.16 + Math.random() * 0.32,
+      c: colors[i % colors.length],
+      shape: i % 3
+    });
+  }
+  var t0 = performance.now();
+  function frame(t){
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for(var i = 0; i < parts.length; i++){
+      var p = parts[i];
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      if(p.shape === 0){
+        ctx.fillRect(-p.w / 2, -p.w, p.w, p.w * 2);
+      } else if(p.shape === 1){
+        ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, 6.2832); ctx.fill();
+      } else {
+        ctx.beginPath();
+        for(var k = 0; k < 5; k++){
+          var a1 = -Math.PI / 2 + k * 2 * Math.PI / 5;
+          var a2 = a1 + Math.PI / 5;
+          var R1 = p.w * 0.75, R2 = p.w * 0.32;
+          ctx.lineTo(Math.cos(a1) * R1, Math.sin(a1) * R1);
+          ctx.lineTo(Math.cos(a2) * R2, Math.sin(a2) * R2);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+    if(t - t0 < 2800){ requestAnimationFrame(frame); }
+    else{ ctx.clearRect(0, 0, cv.width, cv.height); cv.style.display = 'none'; }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =====================================================================
+ * 十、六大任务构建器（每种题型 = 一种"操作出答案"的数学动作）
+ * ===================================================================== */
+function kvRow(label, val, hl){
+  return '<div class="kv' + (hl ? ' hl' : '') + '"><span>' + label + '</span><b>' + val + '</b></div>';
+}
+function wireSlider(el, updateFn){
+  el.addEventListener('input', function(){
+    stepBump();
+    updateFn(parseFloat(el.value));
+  });
+}
+function checkWin(v, winFn){
+  if(!Game.won && !Game.revealing && winFn(v)){ levelWin(false); }
+}
+
+/* ---- A/B：利润率表盘（拖售价 或 拖成本） ---- */
+function buildRateMission(inst, mode){
+  var isSell = (mode === 'sell'); /* A类拖售价；B类拖成本 */
+  var sliderLabel = isSell ? '售价（元）' : '成本（元）';
+  var fixedVal = isSell ? inst.cost : inst.price;
+  var fixedName = isSell ? '成本（元）' : '售价（元）';
+  var gmax = Math.max(30, inst.rate * 2.4);
+  $('#playground').innerHTML =
+    '<div class="mrow">' +
+    '<div class="panel grow"><div class="ptitle">操作台：拖动滑块定价</div>' +
+    '<div class="slider-label">' + sliderLabel + '：<b id="mVal" class="big">--</b> 元</div>' +
+    '<input id="mSlider" type="range" min="' + inst.min + '" max="' + inst.max + '" step="' + inst.step + '" value="' + inst.min + '">' +
+    '<div class="marks"><span>' + inst.min + '</span><span>' + inst.max + '</span></div>' +
+    '<div class="hint">目标：让利润率表盘的指针正好指到绿色目标区（先动笔算，再拖动）</div>' +
+    '</div>' +
+    '<div class="panel"><div class="ptitle">实时数据</div><div id="mRows"></div></div>' +
+    '<div class="panel"><div class="ptitle">利润率表盘</div>' +
+    '<canvas id="mGauge" class="mcv" width="360" height="230"></canvas></div>' +
+    '</div>';
+  var slider = $('#mSlider'), rows = $('#mRows'), cv = $('#mGauge');
+  function update(v){
+    var profit = isSell ? (v - fixedVal) : (fixedVal - v);
+    /* 利润率 = 利润 ÷ 成本 × 100%：拖售价时成本是 fixedVal，拖成本时成本就是 v */
+    var costNow = isSell ? fixedVal : v;
+    var rate = costNow > 0 ? profit / costNow * 100 : 0;
+    $('#mVal').textContent = fmt(v);
+    rows.innerHTML =
+      kvRow(fixedName, fmt(fixedVal) + ' 元') +
+      kvRow(isSell ? '利润（售价−成本）' : '利润（售价−成本）', fmt(profit) + ' 元') +
+      kvRow('利润率 = 利润 ÷ 成本', fmtRate(rate) + '%', true);
+    sizeCanvas(cv, cv.parentElement, 230);
+    drawGauge(cv, { v:rate, min:0, max:gmax, target:inst.rate, label:'利润率表盘', color:Game.pal.p });
+    checkWin(v, function(x){ return Math.abs(x - inst.ans) < inst.step / 2; });
+  }
+  wireSlider(slider, update);
+  Game.mission = {
+    afterWin:update,
+    reveal:function(){
+      Game.revealing = true;
+      animSlider(slider, inst.ans, 800, update, function(){ levelWin(true); });
+    }
+  };
+  update(parseFloat(slider.value));
+}
+
+/* ---- C：折扣罗盘（拖折扣，让现售价压准目标线） ---- */
+function buildDiscountMission(inst){
+  $('#playground').innerHTML =
+    '<div class="mrow">' +
+    '<div class="panel grow"><div class="ptitle">操作台：拖动折扣滑块</div>' +
+    '<div class="slider-label">当前折扣：<b id="mVal" class="big">--</b> 折</div>' +
+    '<input id="mSlider" type="range" min="5" max="10" step="0.1" value="10">' +
+    '<div class="marks"><span>5.0折</span><span>10折(原价)</span></div>' +
+    '<div class="hint">折扣 = 现售价 ÷ 标价；打 X 折 = 按标价的 (X×10)% 出售</div>' +
+    '</div>' +
+    '<div class="panel"><div class="ptitle">实时数据</div><div id="mRows"></div>' +
+    '<canvas id="mTbar" class="mcv" width="360" height="120" style="margin-top:10px"></canvas>' +
+    '</div>' +
+    '</div>';
+  var slider = $('#mSlider'), rows = $('#mRows'), cv = $('#mTbar');
+  function update(v){
+    var now = inst.priceTag * v / 10;
+    var save = inst.priceTag - now;
+    $('#mVal').textContent = fmtRate(v);
+    rows.innerHTML =
+      kvRow('标价', fmt(inst.priceTag) + ' 元') +
+      kvRow('现售价 = 标价 × 折扣', fmt(now) + ' 元', true) +
+      kvRow('比标价便宜', fmt(save) + ' 元');
+    sizeCanvas(cv, cv.parentElement, 120);
+    drawTbar(cv, { v:now, max:inst.priceTag, target:inst.target, label:'现售价', unit:'元', color:Game.pal.p });
+    checkWin(v, function(x){ return Math.abs(inst.priceTag * x / 10 - inst.target) < 0.25; });
+  }
+  wireSlider(slider, update);
+  Game.mission = {
+    afterWin:update,
+    reveal:function(){
+      Game.revealing = true;
+      animSlider(slider, inst.ans, 800, update, function(){ levelWin(true); });
+    }
+  };
+  update(10);
+}
+
+/* ---- D：盈亏双镜（拖定价，让两方案售价差距 = 获利 + 亏损） ---- */
+function buildDualMission(inst){
+  var gapTarget = inst.gain + inst.lose;
+  var gapMax = 30000 * (inst.hi - inst.lo) / 100;
+  $('#playground').innerHTML =
+    '<div class="mrow">' +
+    '<div class="panel grow"><div class="ptitle">操作台：拖动定价滑块</div>' +
+    '<div class="slider-label">当前定价：<b id="mVal" class="big">--</b> 元</div>' +
+    '<input id="mSlider" type="range" min="500" max="30000" step="50" value="500">' +
+    '<div class="marks"><span>500</span><span>30000</span></div>' +
+    '<div class="hint">方法卡：售价差距 = 定价 × (甲% − 乙%)；令差距 = 获利 + 亏损，定价即解出</div>' +
+    '</div>' +
+    '<div class="panel"><div class="ptitle">两个方案实时对照</div><div id="mRows"></div>' +
+    '<canvas id="mTbar" class="mcv" width="360" height="120" style="margin-top:10px"></canvas>' +
+    '</div>' +
+    '</div>';
+  var slider = $('#mSlider'), rows = $('#mRows'), cv = $('#mTbar');
+  function update(v){
+    var pa = v * inst.hi / 100, pb = v * inst.lo / 100;
+    var gap = pa - pb;
+    $('#mVal').textContent = fmt(v);
+    var html =
+      kvRow('甲方案售价（定价×' + inst.hi + '%）', fmt(pa) + ' 元') +
+      kvRow('乙方案售价（定价×' + inst.lo + '%）', fmt(pb) + ' 元') +
+      kvRow('售价差距（甲 − 乙）', fmt(gap) + ' 元', true);
+    if(Game.won){ html += kvRow('成本 = 甲售价 − 获利', fmt(inst.cost) + ' 元', true); }
+    rows.innerHTML = html;
+    sizeCanvas(cv, cv.parentElement, 120);
+    drawTbar(cv, { v:gap, max:gapMax, target:gapTarget, label:'差距', unit:'元', color:Game.pal.p });
+    checkWin(v, function(x){ return Math.abs(x * (inst.hi - inst.lo) / 100 - gapTarget) < 0.5; });
+  }
+  wireSlider(slider, update);
+  Game.mission = {
+    afterWin:update,
+    reveal:function(){
+      Game.revealing = true;
+      animSlider(slider, inst.ans, 900, update, function(){ levelWin(true); });
+    }
+  };
+  update(500);
+}
+
+/* ---- F：促销冲刺（拖剩余件促销价，让总利润率达标） ---- */
+function buildPromoMission(inst){
+  var soldIncome = inst.soldQty * inst.soldPrice;
+  var gmax = Math.max(30, inst.rate * 2.2);
+  var barMax = soldIncome + inst.restQty * inst.max;
+  $('#playground').innerHTML =
+    '<div class="mrow">' +
+    '<div class="panel grow"><div class="ptitle">操作台：拖动促销价滑块</div>' +
+    '<div class="slider-label">剩余件促销价：<b id="mVal" class="big">--</b> 元/件</div>' +
+    '<input id="mSlider" type="range" min="' + inst.min + '" max="' + inst.max + '" step="' + inst.step + '" value="' + inst.max + '">' +
+    '<div class="marks"><span>' + inst.min + '</span><span>' + inst.max + '</span></div>' +
+    '<div class="hint">方法卡：目标总收入 = 总成本×(1+目标利润率)；剩余件应卖 = 目标总收入 − 已售收入</div>' +
+    '</div>' +
+    '<div class="panel"><div class="ptitle">实时账本</div><div id="mRows"></div>' +
+    '<canvas id="mTbar" class="mcv" width="360" height="120" style="margin-top:10px"></canvas>' +
+    '</div>' +
+    '<div class="panel"><div class="ptitle">总利润率表盘</div>' +
+    '<canvas id="mGauge" class="mcv" width="360" height="230"></canvas></div>' +
+    '</div>';
+  var slider = $('#mSlider'), rows = $('#mRows'), cvg = $('#mGauge'), cvt = $('#mTbar');
+  function update(v){
+    var restIncome = inst.restQty * v;
+    var total = soldIncome + restIncome;
+    var profit = total - inst.tc;
+    var rate = profit / inst.tc * 100;
+    $('#mVal').textContent = fmt(v);
+    rows.innerHTML =
+      kvRow('已售收入（' + inst.soldQty + '件×' + inst.soldPrice + '元）', fmt(soldIncome) + ' 元') +
+      kvRow('剩余收入（' + inst.restQty + '件×现价）', fmt(restIncome) + ' 元') +
+      kvRow('总收入', fmt(total) + ' 元', true) +
+      kvRow('每件比原售价降', fmt(inst.soldPrice - v) + ' 元');
+    sizeCanvas(cvt, cvt.parentElement, 120);
+    drawTbar(cvt, { v:total, max:barMax, target:inst.income, label:'总收入', unit:'元', color:Game.pal.p });
+    sizeCanvas(cvg, cvg.parentElement, 230);
+    drawGauge(cvg, { v:rate, min:0, max:gmax, target:inst.rate, label:'总利润率', color:Game.pal.p });
+    checkWin(v, function(x){ return Math.abs(soldIncome + inst.restQty * x - inst.income) < 0.5; });
+  }
+  wireSlider(slider, update);
+  Game.mission = {
+    afterWin:update,
+    reveal:function(){
+      Game.revealing = true;
+      animSlider(slider, inst.ans, 800, update, function(){ levelWin(true); });
+    }
+  };
+  update(parseFloat(slider.value));
+}
+
+/* ---- G：三连价谜题（拖进价，沿 定价→打折→再降价 链条让最终利润率达标） ---- */
+function buildChainMission(inst){
+  var gmax = Math.max(60, inst.rate * 2.2);
+  $('#playground').innerHTML =
+    '<div class="mrow">' +
+    '<div class="panel grow"><div class="ptitle">操作台：拖动进价滑块</div>' +
+    '<div class="slider-label">进价：<b id="mVal" class="big">--</b> 元</div>' +
+    '<input id="mSlider" type="range" min="' + inst.min + '" max="' + inst.max + '" step="' + inst.step + '" value="' + inst.min + '">' +
+    '<div class="marks"><span>' + inst.min + '</span><span>' + inst.max + '</span></div>' +
+    '<div class="hint">价格链条：进价 → ×(1+加价率)定价 → ×折扣 → −再降金额 → 最终售价</div>' +
+    '</div>' +
+    '<div class="panel"><div class="ptitle">价格链条实时演算</div><div id="mRows"></div></div>' +
+    '<div class="panel"><div class="ptitle">最终利润率表盘</div>' +
+    '<canvas id="mGauge" class="mcv" width="360" height="230"></canvas></div>' +
+    '</div>';
+  var slider = $('#mSlider'), rows = $('#mRows'), cv = $('#mGauge');
+  function update(v){
+    var p1 = v * (1 + inst.markup / 100);      /* 第一天定价 */
+    var p2 = p1 * inst.disc / 10;              /* 第二天打折 */
+    var p3 = p2 - inst.extra;                  /* 第三天再降 */
+    var profit = p3 - v;
+    var rate = profit / v * 100;
+    $('#mVal').textContent = fmt(v);
+    rows.innerHTML =
+      kvRow('① 定价（×(1+' + inst.markup + '%)）', fmt(p1) + ' 元') +
+      kvRow('② 打' + inst.disc + '折后', fmt(p2) + ' 元') +
+      kvRow('③ 再降' + inst.extra + '元后', fmt(p3) + ' 元', true) +
+      kvRow('最终利润', fmt(profit) + ' 元');
+    sizeCanvas(cv, cv.parentElement, 230);
+    drawGauge(cv, { v:rate, min:-40, max:gmax, target:inst.rate, label:'最终利润率', color:Game.pal.p });
+    checkWin(v, function(x){ /* 满足：最终利润率 = 目标（±0.2个百分点，保证唯一解） */
+      var pp3 = x * (1 + inst.markup / 100) * inst.disc / 10 - inst.extra;
+      return Math.abs((pp3 - x) / x * 100 - inst.rate) < 0.2;
+    });
+  }
+  wireSlider(slider, update);
+  Game.mission = {
+    afterWin:update,
+    reveal:function(){
+      Game.revealing = true;
+      animSlider(slider, inst.ans, 900, update, function(){ levelWin(true); });
+    }
+  };
+  update(parseFloat(slider.value));
+}
+
+/* ---- E：损耗算盘（Canvas拖分界线标损耗 + 拖售价达标） ---- */
+function buildLossMission(inst){
+  $('#playground').innerHTML =
+    '<div class="mrow">' +
+    '<div class="panel grow"><div class="ptitle" id="lossStage">第一步：拖动分界线，标出损耗</div>' +
+    '<div id="lossMount"></div>' +
+    '<div class="hint">先动笔算：完好数量 = 总数 × (1 − 损耗率)，再把分界线拖到那个数</div>' +
+    '</div>' +
+    '<div class="panel"><div class="ptitle">实时数据</div><div id="mRows"></div>' +
+    '<div id="priceZone" style="display:none;margin-top:14px;">' +
+    '<div class="slider-label">' + (inst.unit === '套' ? '每套售价' : (inst.unit === '件' ? '每件售价' : '每千克售价')) +
+    '：<b id="mVal" class="big">--</b> 元</div>' +
+    '<input id="mSlider" type="range" min="1" max="120" step="0.5" value="1">' +
+    '<canvas id="mTbar" class="mcv" width="360" height="120"></canvas>' +
+    '</div>' +
+    '</div>' +
+    '</div>';
+  var st = { phase:0, good:inst.N, ctrl:null, busy:false };
+  var rows = $('#mRows'), cvt = null, slider = null;
+  function updateRows(){
+    var html =
+      kvRow('总成本（收购+运费）', fmt(inst.tc) + ' 元') +
+      kvRow('目标总收入', fmt(inst.income) + ' 元', true) +
+      kvRow('当前完好数量', fmt(st.good) + ' ' + inst.unit);
+    if(st.phase >= 2 && slider){
+      html += kvRow('当前总收入', fmt(st.good * parseFloat(slider.value)) + ' 元', true);
+    }
+    rows.innerHTML = html;
+  }
+  function flashWin(){
+    setStatus('很好！' + (st.phase === 1 || (st.phase === 0 && !inst.good2) ? '损耗标对了，进入下一步！' : ''));
+  }
+  function onGood1(g){
+    st.good = g;
+    updateRows();
+    stepBump();
+    if(st.busy){ return; }
+    if(g === inst.good1){
+      st.busy = true;
+      st.ctrl.lock();
+      if(!inst.good2){
+        st.ctrl.dim();
+        setStatus('损耗标对了！现在拖动右侧的售价滑块，让总收入达到目标。');
+        setTimeout(function(){ st.phase = 2; st.busy = false; startPrice(); }, 600);
+      } else {
+        st.ctrl.dim();
+        setStatus('运输损耗标对了！接下来销售过程中还要损耗剩下的 ' + inst.losses[1] + '%。');
+        setTimeout(function(){ st.phase = 1; st.busy = false; startStage2(); }, 900);
+      }
+    }
+  }
+  function onGood2(g){
+    st.good = g;
+    updateRows();
+    stepBump();
+    if(st.busy){ return; }
+    if(g === inst.good2){
+      st.busy = true;
+      st.ctrl.lock(); st.ctrl.dim();
+      setStatus('两轮损耗都标对了！现在拖动右侧的零售价滑块，让总收入达到目标。');
+      setTimeout(function(){ st.phase = 2; st.busy = false; startPrice(); }, 600);
+    }
+  }
+  function startStage1(){
+    $('#lossStage').textContent = '第一步：拖动分界线，标出运输损耗 ' + inst.losses[0] + '%';
+    st.ctrl = makeLossBar($('#lossMount'), { total:inst.N, unit:inst.unit, good:inst.N }, onGood1);
+    st.good = inst.N;
+    updateRows();
+  }
+  function startStage2(){
+    $('#lossStage').textContent = '第二步：销售中又损耗剩下的 ' + inst.losses[1] + '%，请拖分界线标出';
+    st.ctrl = makeLossBar($('#lossMount'), { total:st.good, unit:inst.unit, good:st.good }, onGood2);
+    updateRows();
+  }
+  function startPrice(){
+    $('#lossStage').textContent = '最后一步：拖动售价滑块，让总收入正好达到目标线';
+    $('#priceZone').style.display = 'block';
+    slider = $('#mSlider');
+    cvt = $('#mTbar');
+    function updatePrice(v){
+      var income = st.good * v;
+      $('#mVal').textContent = fmt(v);
+      sizeCanvas(cvt, cvt.parentElement, 120);
+      drawTbar(cvt, { v:income, max:inst.income * 1.25, target:inst.income, label:'总收入', unit:'元', color:Game.pal.p });
+      updateRows();
+      stepBump();
+      checkWin(v, function(x){ return Math.abs(st.good * x - inst.income) < 0.5; });
+    }
+    wireSlider(slider, updatePrice);
+    Game.mission.revealPrice = updatePrice;
+    updatePrice(parseFloat(slider.value));
+  }
+  Game.mission = {
+    afterWin:updateRows,
+    reveal:function(){
+      Game.revealing = true;
+      st.busy = true; /* 揭示模式下屏蔽拖拽回调里的自动晋级，避免与揭示流程冲突 */
+      /* 直接演示完整解法：分界线 → 正确位置，滑块 → 正确售价 */
+      if(st.phase === 0){
+        if(inst.good2){
+          st.good = inst.good1;
+          startStage2();            /* 建立第二轮货仓条（总数=第一轮完好数） */
+          st.ctrl.set(inst.good2);  /* 拖到最终完好数 */
+          st.good = inst.good2;
+        } else {
+          st.good = inst.good1;
+          st.ctrl.set(inst.good1);
+        }
+      } else if(st.phase === 1){
+        st.good = inst.good2;
+        st.ctrl.set(inst.good2);
+      }
+      if(!slider){ startPrice(); }
+      slider.value = String(inst.ans);
+      Game.mission.revealPrice(inst.ans);
+      levelWin(true);
+    }
+  };
+  startStage1();
+}
+
+/* =====================================================================
+ * 十一、关卡调度
+ * ===================================================================== */
+function buildMission(inst){
+  Game.mission = null;
+  Game.redraws = [];
+  var kind = null;
+  /* 判断当前关卡的题型种类 */
+  var lv = DIFFS[Game.diff].levels[Game.levelIdx];
+  kind = lv.kind;
+  if(kind === 'price'){ buildRateMission(inst, 'sell'); }
+  else if(kind === 'cost'){ buildRateMission(inst, 'buy'); }
+  else if(kind === 'discount'){ buildDiscountMission(inst); }
+  else if(kind === 'dual'){ buildDualMission(inst); }
+  else if(kind === 'promo'){ buildPromoMission(inst); }
+  else if(kind === 'chain'){ buildChainMission(inst); }
+  else if(kind === 'loss'){ buildLossMission(inst); }
+}
+function missionHint(inst){
+  var lv = DIFFS[Game.diff].levels[Game.levelIdx];
+  var k = lv.kind;
+  if(k === 'price'){ return '目标：利润率 = ' + inst.rate + '%。先算：售价 = 成本×(1+利润率)，再拖滑块对准表盘绿区。'; }
+  if(k === 'cost'){ return '目标：利润率 = ' + inst.rate + '%。先算：成本 = 售价÷(1+利润率)，再拖滑块对准表盘绿区。'; }
+  if(k === 'discount'){ return '目标：现售价 = ' + inst.target + ' 元。先算：折扣 = 现售价÷标价，再拖折扣滑块。'; }
+  if(k === 'dual'){ return '目标：两方案售价差距 = ' + (inst.gain + inst.lose) + ' 元。先算：定价 = 差距÷(甲%−乙%)，再拖定价滑块。'; }
+  if(k === 'promo'){ return '目标：总利润率 = ' + inst.rate + '%。先算：促销价 = (目标总收入−已售收入)÷剩余件数，再拖滑块。'; }
+  if(k === 'chain'){ return '目标：最终利润率 = ' + inst.rate + '%。按 定价→打折→再降价 的链条列式算进价，再拖滑块。'; }
+  return '两步走：先标损耗，再定售价。';
+}
+function startLevel(diff, idx){
+  applyPalette();
+  Game.diff = diff;
+  Game.levelIdx = idx;
+  /* 每局进入难度时随机抽题（反重复） */
+  if(!Game.picks[diff]){
+    Game.picks[diff] = DIFFS[diff].levels.map(function(lv){
+      return pickOne(getPool(lv.kind, lv.pool));
+    });
+  }
+  var inst = Game.picks[diff][idx];
+  Game.inst = inst;
+  Game.time = 0; Game.steps = 0; Game.lastStep = 0;
+  Game.won = false; Game.revealing = false;
+  showScreen('game');
+  $('#lvName').textContent = DIFFS[diff].name + ' · ' + DIFFS[diff].levels[idx].title;
+  $('#storyBox').innerHTML = '<div class="story-tag">题目</div>' + inst.story;
+  if(Game.timerId){ clearInterval(Game.timerId); }
+  Game.timerId = setInterval(function(){ Game.time++; renderHud(); }, 1000);
+  renderHud();
+  setStatus(missionHint(inst));
+  buildMission(inst);
+}
+function renderLevels(){
+  var d = DIFFS[Game.diff];
+  $('#lvMapName').textContent = d.name + ' · 关卡地图';
+  $('#lvMapTip').textContent = d.tip + '（点击关卡开始）';
+  var html = '';
+  d.levels.forEach(function(lv, i){
+    var done = Game.done[Game.diff][i];
+    var locked = (i > 0) && !Game.done[Game.diff][i - 1];
+    var ico = done ? '<span style="color:var(--ok)">★</span>' : (locked ? '<span style="color:#98a6b3">■</span>' : '<span style="color:var(--gold)">▶</span>');
+    html += '<div class="lv-card' + (locked ? ' locked' : '') + '" data-idx="' + i + '">' +
+      '<div class="lv-ico">' + ico + '</div>' +
+      '<div class="lv-name">' + lv.title + '<div class="lv-sub">' + lv.sub + '</div></div>' +
+      '<div class="lv-star">' + (done ? '★★★' : '') + '</div>' +
+      '</div>';
+  });
+  $('#lvList').innerHTML = html;
+  Array.prototype.forEach.call(document.querySelectorAll('.lv-card'), function(el){
+    el.onclick = function(){
+      var i = parseInt(el.getAttribute('data-idx'), 10);
+      var locked = (i > 0) && !Game.done[Game.diff][i - 1];
+      if(!locked){ startLevel(Game.diff, i); }
+    };
+  });
+}
+
+/* =====================================================================
+ * 十二、事件绑定与初始化
+ * ===================================================================== */
+document.querySelectorAll('.diff-card').forEach(function(el){
+  el.onclick = function(){
+    Game.diff = el.getAttribute('data-diff');
+    Game.picks[Game.diff] = null; /* 每次进入难度重新随机抽题 */
+    renderLevels();
+    showScreen('levels');
+  };
+});
+$('#btnBackDiff').onclick = function(){ showScreen('select'); };
+$('#btnBackMap').onclick = function(){
+  if(Game.timerId){ clearInterval(Game.timerId); Game.timerId = null; }
+  renderLevels(); showScreen('levels');
+};
+$('#btnRestart').onclick = function(){ startLevel(Game.diff, Game.levelIdx); };
+$('#btnReveal').onclick = function(){
+  if(Game.won || Game.revealing){ return; }
+  if(Game.mission && Game.mission.reveal){ Game.mission.reveal(); }
+};
+$('#btnRules1').onclick = function(){ $('#modalRules').classList.add('open'); };
+$('#btnRules2').onclick = function(){ $('#modalRules').classList.add('open'); };
+$('#btnRulesClose').onclick = function(){ $('#modalRules').classList.remove('open'); };
+window.addEventListener('resize', function(){
+  Game.redraws.forEach(function(f){ f(); });
+});
+/* 首次进入自动弹出规则说明（G6） */
+showScreen('select');
+applyPalette();
+$('#modalRules').classList.add('open');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-o/g014", "name": "\u5c0f\u638c\u67dc\u5f00\u5e97\u8bb0 \u00b7 \u7ecf\u6d4e\u95ee\u9898\u95ef\u5173\uff08\u5c0f\u5b66\u5965\u6570 \u00b7 \u5229\u6da6\u4e0e\u6298\u6263\uff09", "file": "g014.html", "jiaocan": "\u301039\u3011#\u4f8b\u9898#\u7b2c19\u5468 \u7ecf\u6d4e\u95ee\u9898\uff08\u4e00\uff09", "unit": "\u7b2c19\u5468", "grade": "6\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "O\uff1a\u5c0f\u5b66\u5965\u65702", "kind": "\u6e38\u620f", "kinds": ["\u4f8b\u9898"], "ver": "1.0.0", "hub": "\u5c0f\u5b66\u5965\u65702\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-o"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

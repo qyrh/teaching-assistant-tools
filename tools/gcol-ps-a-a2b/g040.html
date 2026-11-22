@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>星空宝石探险 · 必胜策略</title>
+<style>
+/* ============================================================
+   星空宝石探险 —— 互动游戏（必胜策略：取余 / 凑周期）
+   单文件自包含：纯内联 CSS + JS，零外部依赖
+   配色随机化 / 三档难度 / 计时步数 / 通关庆祝
+   ============================================================ */
+
+/* ---------- 1. 全局重置与基础 ---------- */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Heiti SC", "Source Han Sans", sans-serif;
+  background: var(--bg-grad);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background .6s ease;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---------- 2. 随机色板（由 JS 注入 CSS 变量） ---------- */
+:root {
+  --bg-grad: linear-gradient(160deg, #1a1033 0%, #2d1b5e 100%);
+  --primary: #8b5cf6;
+  --primary-d: #6d28d9;
+  --accent: #fbbf24;
+  --text: #f5f3ff;
+  --text-dim: #c4b5fd;
+  --card: rgba(255,255,255,.07);
+  --card-brd: rgba(255,255,255,.18);
+  --good: #34d399;
+  --bad: #fb7185;
+  --gem1: #a78bfa; --gem2: #f472b6; --gem3: #38bdf8; --gem4: #fbbf24; --gem5: #34d399;
+}
+
+/* ---------- 3. 通用布局 ---------- */
+.app { max-width: 1100px; margin: 0 auto; padding: 12px 14px 40px; }
+
+/* 顶部栏 */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 14px;
+}
+.topbar .brand { display: flex; align-items: center; gap: 10px; }
+.topbar .logo {
+  width: 42px; height: 42px; border-radius: 12px; flex: none;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+}
+.topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: .5px; line-height: 1.1; }
+.topbar .sub { font-size: 12px; color: var(--text-dim); }
+.hud { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.chip {
+  background: var(--card); border: 1px solid var(--card-brd); border-radius: 999px;
+  padding: 7px 14px; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px;
+  backdrop-filter: blur(6px);
+}
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+/* ---------- 4. 卡片 / 面板 ---------- */
+.card {
+  background: var(--card); border: 1px solid var(--card-brd); border-radius: 22px;
+  padding: 20px; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+.section { margin-bottom: 16px; }
+.hidden { display: none !important; }
+
+/* ---------- 5. 难度选择菜单 ---------- */
+.menu-wrap { text-align: center; padding: 10px 6px 6px; }
+.menu-wrap .hello { font-size: 15px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.7; }
+.diff-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; max-width: 820px; margin: 0 auto; }
+@media (max-width: 720px){ .diff-grid { grid-template-columns: 1fr; } }
+.diff-card {
+  cursor: pointer; border: 2px solid var(--card-brd); border-radius: 20px; padding: 22px 16px;
+  background: rgba(255,255,255,.05); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  text-align: center; position: relative; overflow: hidden;
+}
+.diff-card:hover, .diff-card:active { transform: translateY(-4px); border-color: var(--primary); box-shadow: 0 12px 26px rgba(0,0,0,.3); }
+.diff-card .lvl-ico { font-size: 40px; margin-bottom: 8px; }
+.diff-card .lvl-name { font-size: 19px; font-weight: 800; }
+.diff-card .lvl-desc { font-size: 12.5px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
+.diff-card .lvl-tag {
+  position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 700;
+  background: var(--accent); color: #1a1033; padding: 3px 10px; border-radius: 999px;
+}
+
+/* ---------- 6. 游戏舞台 ---------- */
+.scene-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.scene-head .story { font-size: 15px; line-height: 1.7; color: var(--text); flex: 1; min-width: 220px; }
+.scene-head .story b { color: var(--accent); }
+.goal {
+  background: rgba(0,0,0,.22); border: 1px solid var(--card-brd); border-radius: 14px;
+  padding: 10px 14px; font-size: 13px; max-width: 280px; line-height: 1.6;
+}
+.goal .g-title { color: var(--accent); font-weight: 800; margin-bottom: 4px; }
+
+/* 棋子堆 / 宝石区 */
+.play-area {
+  background: rgba(0,0,0,.2); border: 1px dashed var(--card-brd); border-radius: 18px;
+  padding: 16px; margin-bottom: 14px; min-height: 150px; position: relative;
+}
+.pile-label { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.pile-label .remain { font-size: 20px; font-weight: 800; color: var(--accent); }
+.pile { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+
+/* 单颗宝石 */
+.gem {
+  width: 34px; height: 34px; border-radius: 50%; cursor: pointer; position: relative; flex: none;
+  background: radial-gradient(circle at 32% 28%, #fff8 0 14%, var(--gc) 60%, #0006 100%);
+  box-shadow: 0 3px 7px rgba(0,0,0,.4), inset 0 0 6px #fff4;
+  transition: transform .15s ease, opacity .25s ease, filter .15s ease;
+}
+.gem:hover { transform: scale(1.18); filter: brightness(1.15); }
+.gem.picked { transform: scale(1.3); box-shadow: 0 0 0 3px var(--accent), 0 3px 7px rgba(0,0,0,.4); }
+.gem.fly { opacity: 0; transform: scale(.3) translateY(-30px); pointer-events: none; }
+.gem.dead { opacity: .18; pointer-events: none; filter: grayscale(.7); }
+.gem.hint-glow { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{ box-shadow: 0 0 0 3px var(--accent), 0 0 12px var(--accent);} 50%{ box-shadow: 0 0 0 5px var(--accent), 0 0 20px var(--accent);} }
+
+/* 星轨 / 棋盘路径 */
+.path { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; padding: 10px 0; }
+.star {
+  width: 30px; height: 30px; flex: none; position: relative; cursor: pointer; border-radius: 8px;
+  background: var(--card); border: 1px solid var(--card-brd); display: flex; align-items: center; justify-content: center;
+  font-size: 16px; transition: transform .15s, background .15s;
+}
+.star.reachable:hover { transform: scale(1.25); background: var(--primary); }
+.star.last { background: var(--bad); border-color: var(--bad); }
+.star.passed { opacity: .3; }
+.star .num { font-size: 10px; color: var(--text-dim); }
+#token {
+  width: 34px; height: 34px; border-radius: 50%; flex: none; cursor: grab;
+  background: radial-gradient(circle at 32% 28%, #fff, var(--accent));
+  box-shadow: 0 0 14px var(--accent), 0 3px 8px rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  transition: transform .12s; z-index: 5; touch-action: none;
+}
+#token:active { cursor: grabbing; transform: scale(1.1); }
+.path-hint { text-align: center; font-size: 12.5px; color: var(--text-dim); margin-top: 6px; }
+
+/* 托盘（双方收集区） */
+.trays { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+@media (max-width: 560px){ .trays { grid-template-columns: 1fr; } }
+.tray {
+  border-radius: 16px; padding: 14px; border: 2px solid var(--card-brd); background: rgba(0,0,0,.18);
+  transition: border-color .2s, box-shadow .2s;
+}
+.tray.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset, 0 0 16px #fff2; }
+.tray .t-name { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tray .t-name .avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; background: var(--primary); }
+.tray.opp .t-name .avatar { background: var(--gem2); }
+.tray .t-count { font-size: 26px; font-weight: 800; color: var(--accent); }
+.tray .t-count small { font-size: 13px; color: var(--text-dim); font-weight: 600; }
+.tray .mini { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; min-height: 20px; }
+.tray .mini .mg { width: 14px; height: 14px; border-radius: 50%; }
+
+/* 回合提示 */
+.turn-bar {
+  text-align: center; font-size: 16px; font-weight: 800; padding: 12px; border-radius: 14px; margin-bottom: 12px;
+  background: var(--card); border: 1px solid var(--card-brd); transition: background .25s;
+}
+.turn-bar.you { background: rgba(52,211,153,.16); border-color: var(--good); }
+.turn-bar.opp { background: rgba(251,113,133,.16); border-color: var(--bad); }
+.turn-bar .pick-info { font-size: 13px; font-weight: 600; color: var(--text-dim); margin-top: 4px; }
+
+/* 控制按钮 */
+.controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.btn {
+  font-family: inherit; cursor: pointer; border: none; border-radius: 14px; padding: 12px 20px;
+  font-size: 15px; font-weight: 800; color: #fff; transition: transform .12s, filter .12s, opacity .12s;
+  box-shadow: 0 5px 14px rgba(0,0,0,.3);
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(2px); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.primary { background: linear-gradient(135deg, var(--primary), var(--primary-d)); }
+.btn.accent { background: linear-gradient(135deg, var(--accent), #f59e0b); color: #2a1a05; }
+.btn.ghost { background: var(--card); border: 1px solid var(--card-brd); color: var(--text); }
+.btn.good { background: linear-gradient(135deg, var(--good), #059669); }
+.btn.sm { padding: 8px 14px; font-size: 13px; border-radius: 11px; }
+
+/* 反馈条 */
+.feedback {
+  min-height: 24px; text-align: center; font-size: 14px; font-weight: 700; margin-top: 12px;
+  padding: 8px; border-radius: 10px; transition: background .2s;
+}
+.feedback.good { background: rgba(52,211,153,.18); color: #6ee7b7; }
+.feedback.warn { background: rgba(251,191,36,.16); color: #fcd34d; }
+
+/* ---------- 7. 弹层 / 遮罩 ---------- */
+.mask {
+  position: fixed; inset: 0; background: rgba(8,4,20,.72); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+}
+.modal {
+  max-width: 560px; width: 100%; background: linear-gradient(160deg, #241546, #160c2e);
+  border: 1px solid var(--card-brd); border-radius: 22px; padding: 26px 22px; box-shadow: 0 20px 50px rgba(0,0,0,.5);
+  max-height: 90vh; overflow-y: auto;
+}
+.modal h2 { font-size: 22px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.modal h2 .em { font-size: 26px; }
+.modal .lead { color: var(--text-dim); font-size: 14px; margin-bottom: 16px; line-height: 1.7; }
+.rule-list { list-style: none; }
+.rule-list li {
+  background: rgba(255,255,255,.05); border: 1px solid var(--card-brd); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 10px; font-size: 14px; line-height: 1.7; display: flex; gap: 10px; align-items: flex-start;
+}
+.rule-list li .ri { flex: none; width: 26px; height: 26px; border-radius: 8px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+.rule-list li b { color: var(--accent); }
+.modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+
+/* 先后手选择 */
+.choice-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.choice {
+  cursor: pointer; border: 2px solid var(--card-brd); border-radius: 16px; padding: 18px 12px; text-align: center;
+  background: rgba(255,255,255,.05); transition: transform .15s, border-color .15s;
+}
+.choice:hover { transform: translateY(-3px); border-color: var(--accent); }
+.choice .ci { font-size: 34px; margin-bottom: 6px; }
+.choice .ct { font-weight: 800; font-size: 15px; }
+.choice .cd { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+/* 答案 / 策略面板 */
+.ans-box { background: rgba(0,0,0,.25); border-radius: 14px; padding: 14px; margin-top: 10px; }
+.ans-box .line { font-size: 14px; line-height: 1.9; }
+.ans-box .line b { color: var(--accent); }
+.ans-box .kbox {
+  display: inline-block; background: var(--primary-d); color: #fff; font-weight: 800;
+  padding: 2px 10px; border-radius: 8px; margin: 0 2px;
+}
+
+/* 结果弹层 */
+.result-icon { font-size: 60px; text-align: center; }
+.result-title { text-align: center; font-size: 26px; font-weight: 800; margin: 8px 0; }
+
+/* 庆祝画布 */
+#confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+
+/* SVG 图标容器 */
+.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* 滚动条美化 */
+.modal::-webkit-scrollbar { width: 8px; }
+.modal::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 8px; }
+
+/* 字号放大（课堂投影） */
+@media (min-width: 1000px){
+  body { font-size: 17px; }
+  .topbar h1 { font-size: 24px; }
+  .gem { width: 40px; height: 40px; }
+  .star { width: 34px; height: 34px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 隐藏的 SVG 图标定义（提升真交互特征，同时提供矢量图标） -->
+<svg class="svg-defs" aria-hidden="true">
+  <defs>
+    <symbol id="ic-gem" viewBox="0 0 24 24">
+      <path d="M12 2l4 6h6l-10 14L2 8h6z" fill="currentColor"/>
+    </symbol>
+    <symbol id="ic-star" viewBox="0 0 24 24">
+      <path d="M12 2l2.9 6.3 6.9.7-5.1 4.7 1.4 6.8L12 17.8 5.9 20.5l1.4-6.8L2.2 9l6.9-.7z" fill="currentColor"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- 庆祝彩纸画布 -->
+<canvas id="confetti" class="hidden"></canvas>
+
+<div class="app">
+
+  <!-- ============ 顶部栏 ============ -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">💎</div>
+      <div>
+        <h1>星空宝石探险</h1>
+        <div class="sub">第20讲 · 必胜策略（下）—— 取余与凑周期</div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="chip" id="chipTime"><span class="dot"></span>时间 00:00</div>
+      <div class="chip" id="chipStep">步数 0</div>
+      <button class="btn ghost sm" id="btnRules">规则</button>
+    </div>
+  </div>
+
+  <!-- ============ 难度选择 ============ -->
+  <section id="screenMenu" class="card section">
+    <div class="menu-wrap">
+      <div class="hello">
+        欢迎来到宝石矿洞！你和星空小灵轮流收集闪亮的宝石。<br>
+        想成为"必胜"高手吗？先选一个难度开始探险吧！
+      </div>
+      <div class="diff-grid">
+        <div class="diff-card" data-diff="easy">
+          <div class="lvl-tag">入门</div>
+          <div class="lvl-ico">🌿</div>
+          <div class="lvl-name">初级 · 晨光宝石</div>
+          <div class="lvl-desc">每次取 1～N 颗<br>取到<b>最后一颗者胜</b><br>从基础周期开始练手</div>
+        </div>
+        <div class="diff-card" data-diff="medium">
+          <div class="lvl-tag">进阶</div>
+          <div class="lvl-ico">🌌</div>
+          <div class="lvl-name">中级 · 星轨棋阵</div>
+          <div class="lvl-desc">取到/走到<b>最后者输</b><br>含棋盘移格子玩法<br>体会"留余数"的智慧</div>
+        </div>
+        <div class="diff-card" data-diff="hard">
+          <div class="lvl-tag">挑战</div>
+          <div class="lvl-ico">🔮</div>
+          <div class="lvl-name">高级 · 奥秘宝石</div>
+          <div class="lvl-desc">只能取 2、4、8 等特殊数<br>寻找隐藏的"凑数规律"<br>综合运用必胜策略</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 游戏舞台 ============ -->
+  <section id="screenGame" class="card section hidden">
+    <div class="scene-head">
+      <div class="story" id="storyText"></div>
+      <div class="goal">
+        <div class="g-title">🎯 本轮目标</div>
+        <div id="goalText"></div>
+      </div>
+    </div>
+
+    <!-- 宝石堆 / 路径区（按模式切换） -->
+    <div class="play-area" id="playArea">
+      <div class="pile-label">
+        <span id="pileCaption">矿洞里的宝石</span>
+        <span>剩余 <span class="remain" id="remainNum">0</span> 颗</span>
+      </div>
+      <div class="pile" id="gemPile"></div>
+      <div class="path hidden" id="pathArea">
+        <div id="token">🧭</div>
+        <div class="path" id="pathRow" style="width:100%"></div>
+      </div>
+      <div class="path-hint hidden" id="pathHint"></div>
+    </div>
+
+    <!-- 双方收集区 -->
+    <div class="trays">
+      <div class="tray you" id="trayYou">
+        <div class="t-name"><span class="avatar">🧒</span> 我的收集</div>
+        <div class="t-count"><span id="youCount">0</span> <small>颗</small></div>
+        <div class="mini" id="youMini"></div>
+      </div>
+      <div class="tray opp" id="trayOpp">
+        <div class="t-name"><span class="avatar">✨</span> 小灵的收集</div>
+        <div class="t-count"><span id="oppCount">0</span> <small>颗</small></div>
+        <div class="mini" id="oppMini"></div>
+      </div>
+    </div>
+
+    <!-- 回合提示 -->
+    <div class="turn-bar" id="turnBar">准备开始</div>
+
+    <!-- 控制按钮 -->
+    <div class="controls">
+      <button class="btn primary" id="btnConfirm" disabled>确认取走（0）</button>
+      <button class="btn accent" id="btnHint">💡 策略提示</button>
+      <button class="btn ghost" id="btnReveal">揭示答案</button>
+      <button class="btn ghost" id="btnRestart">重新开始</button>
+      <button class="btn ghost" id="btnBack">返回难度选择</button>
+    </div>
+
+    <!-- 反馈 -->
+    <div class="feedback" id="feedback"></div>
+  </section>
+</div>
+
+<!-- ============ 规则说明弹层 ============ -->
+<div class="mask" id="maskRules">
+  <div class="modal">
+    <h2><span class="em">📖</span> 游戏规则与必胜秘籍</h2>
+    <div class="lead">这是一个"轮流取物"的策略游戏。运用数学里的<b>取余思想</b>，你就能找到必胜的方法！</div>
+    <ul class="rule-list">
+      <li><span class="ri">1</span><div>你和星空小灵轮流操作。<b>点击宝石</b>把它收进自己的托盘（棋阵模式则<b>点击或拖动</b>指南针前进）。</div></li>
+      <li><span class="ri">2</span><div>每回合可取的数量有限（如 1～3 颗）。选好后点<b>「确认取走」</b>，轮到小灵行动。</div></li>
+      <li><span class="ri">3</span><div><b>必胜秘籍：</b>① 找周期（每次最多取 N，周期 = N+1）；② 用<b>总数 ÷ 周期</b>，看余数；③ <b>有余数先取余数，没有余数就让对方先取</b>，之后每回合都与对方"凑满一个周期"。</div></li>
+      <li><span class="ri">4</span><div>胜负规则每关不同：有的<b>取到最后一颗者胜</b>，有的<b>取到最后一颗者输</b>，请看清目标！</div></li>
+      <li><span class="ri">5</span><div>卡住了？点<b>「策略提示」</b>亮出最佳走法，或点<b>「揭示答案」</b>看完整解析。</div></li>
+    </ul>
+    <div class="modal-actions">
+      <button class="btn primary" id="rulesStart">明白啦，开始探险</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 先后手选择弹层 ============ -->
+<div class="mask hidden" id="maskChoice">
+  <div class="modal">
+    <h2><span class="em">🎲</span> 谁先开始？</h2>
+    <div class="lead" id="choiceLead">想一想：根据总数和周期，<b>先取</b>有利还是<b>后取</b>有利？选错了也别担心，可以再玩一次！</div>
+    <div class="choice-cards">
+      <div class="choice" data-first="1">
+        <div class="ci">🙋</div>
+        <div class="ct">我先来</div>
+        <div class="cd">由我率先取宝石</div>
+      </div>
+      <div class="choice" data-first="0">
+        <div class="ci">🙌</div>
+        <div class="ct">让小灵先</div>
+        <div class="cd">我后手应对</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="choiceBack">返回</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 揭示答案弹层 ============ -->
+<div class="mask hidden" id="maskReveal">
+  <div class="modal">
+    <h2><span class="em">🔑</span> 必胜策略解析</h2>
+    <div class="ans-box" id="revealBody"></div>
+    <div class="modal-actions">
+      <button class="btn primary" id="revealClose">我学会了</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 结果弹层 ============ -->
+<div class="mask hidden" id="maskResult">
+  <div class="modal" style="text-align:center;">
+    <div class="result-icon" id="resultIcon">🎉</div>
+    <div class="result-title" id="resultTitle">胜利！</div>
+    <div class="lead" id="resultLead" style="text-align:left;"></div>
+    <div class="modal-actions">
+      <button class="btn good" id="resultAgain">再来一局</button>
+      <button class="btn ghost" id="resultMenu">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ===================  游戏核心逻辑  ==========================
+   设计理念：操作即思考。
+   - 初级：点击宝石收进托盘（调度动画对象 / 选择构造）
+   - 中级：星轨上点击或拖动指南针定位（坐标定位 / 拖动对象）
+   - 高级：只能选 2/4/8 等特殊数量，构造凑数
+   数学本质：必胜策略 = 取余 + 凑周期（Nim 博弈）
+   ============================================================ */
+(function(){
+  "use strict";
+
+  /* ---------- 色板（每局随机选一组，保证多次游玩不腻） ---------- */
+  var PALETTES = [
+    { bg:"linear-gradient(160deg,#1a1033,#2d1b5e)", primary:"#8b5cf6", pd:"#6d28d9", accent:"#fbbf24",
+      gems:["#a78bfa","#f472b6","#38bdf8","#fbbf24","#34d399"] },
+    { bg:"linear-gradient(160deg,#2d1b0f,#5c2e0f)", primary:"#fb923c", pd:"#ea580c", accent:"#fde68a",
+      gems:["#fb923c","#fbbf24","#f87171","#fde68a","#fb7185"] },
+    { bg:"linear-gradient(160deg,#0f2d22,#14532d)", primary:"#34d399", pd:"#059669", accent:"#fde047",
+      gems:["#34d399","#a3e635","#38bdf8","#fde047","#fbbf24"] },
+    { bg:"linear-gradient(160deg,#0f1f2d,#1e3a5f)", primary:"#38bdf8", pd:"#0284c7", accent:"#fb7185",
+      gems:["#38bdf8","#818cf8","#34d399","#fb7185","#fbbf24"] },
+    { bg:"linear-gradient(160deg,#3d1f2e,#5c2e42)", primary:"#f472b6", pd:"#db2777", accent:"#fcd34d",
+      gems:["#f472b6","#c084fc","#fcd34d","#38bdf8","#34d399"] },
+    { bg:"linear-gradient(160deg,#1f1a0f,#3d3215)", primary:"#facc15", pd:"#ca8a04", accent:"#a78bfa",
+      gems:["#facc15","#fbbf24","#a78bfa","#34d399","#38bdf8"] }
+  ];
+
+  /* ---------- 题库场景（源自 docx 例题与练习，数值忠于原题） ----------
+     mode: 'normal' 取到最后者胜 | 'misere' 取到最后者输
+     isGrid: 棋盘移格子（视觉用星轨，本质同 misere）
+     allowed: 高级特殊取数集合；magic: 该集合对应的凑数周期
+  */
+  var SCENARIOS = {
+    easy: [ // 正常博弈：取到最后一颗者胜（连续取 1..max）
+      { total:50, max:3, item:"火柴",  emoji:"🌿", story:"森林探险捡到一捆<b>火柴</b>，两人轮流取，每次 1～3 根。" },
+      { total:55, max:5, item:"星星",  emoji:"⭐", story:"夜空中飘着<b>星星</b>，每次可摘 1～5 颗，看谁摘到最后一颗！" },
+      { total:75, max:4, item:"花朵",  emoji:"🌸", story:"花园里开满<b>花朵</b>，每次采 1～4 朵。" },
+      { total:94, max:4, item:"糖果",  emoji:"🍬", story:"罐子里装满<b>糖果</b>，每次抓 1～4 颗。" },
+      { total:60, max:6, item:"贝壳",  emoji:"🐚", story:"沙滩上散落<b>贝壳</b>，每次捡 1～6 个。" },
+      { total:67, max:4, item:"彩蛋",  emoji:"🥚", story:"草地上藏着<b>彩蛋</b>，每次捡 1～4 个。" }
+    ],
+    medium: [ // 异常博弈：取到/走到最后者输（含棋盘移格子）
+      { total:54, max:5, item:"卡牌", emoji:"🃏", story:"桌上一摞<b>卡牌</b>，每次抽 1～5 张，抽到最后一张的人<b>输</b>。", mode:"misere" },
+      { total:38, max:5, item:"火柴", emoji:"🔥", story:"桌上 38 根<b>火柴</b>，每次取 1～5 根，取到最后一根的人<b>输</b>。", mode:"misere" },
+      { total:28, max:5, item:"火柴", emoji:"🔥", story:"桌上 28 根<b>火柴</b>，每次取 1～5 根，取到最后一根的人<b>输</b>。", mode:"misere" },
+      { total:30, max:3, item:"格子", emoji:"🧭", story:"棋盘共 31 格，棋子已在第 1 格，右边还有 30 格。每次向右移 1～3 格，<b>移到最后一格者输</b>。", mode:"misere", isGrid:true, boardTotal:31 },
+      { total:87, max:7, item:"格子", emoji:"🧭", story:"棋盘共 88 格，棋子已在第 1 格，右边还有 87 格。每次向右移 1～7 格，<b>移到最后一格者输</b>。", mode:"misere", isGrid:true, boardTotal:88 }
+    ],
+    hard: [ // 复杂取数：只能取 allowed 中的数，寻找 magic 的凑数规律
+      { total:18, allowed:[2,4,8], magic:6, item:"棋子", emoji:"🔮", story:"有 18 枚<b>神秘棋子</b>，每次只能取 2、4 或 8 枚，取到最后一枚者<b>胜</b>。", mode:"normal" },
+      { total:28, allowed:[2,4,8], magic:6, item:"棋子", emoji:"🔮", story:"有 28 枚<b>神秘棋子</b>，每次只能取 2、4 或 8 枚，取到最后一枚者<b>胜</b>。", mode:"normal" },
+      { total:99, allowed:[1,2,4,8], magic:3, item:"棋子", emoji:"🔮", story:"有 99 枚<b>神秘棋子</b>，每次只能取 1、2、4 或 8 枚，取到最后一枚者<b>胜</b>。", mode:"normal" }
+    ]
+  };
+
+  /* ---------- 全局状态 ---------- */
+  var S = {
+    diff: null,        // 当前难度
+    scn: null,         // 当前场景
+    mode: "normal",    // normal | misere
+    period: 4,         // 周期（max+1 或 magic）
+    isGrid: false,
+    allowed: null,     // 高级取数集合
+    maxTake: 3,        // 单回合上限（连续模式）
+    remaining: 0,      // 剩余数量
+    pos: 0,            // 棋盘模式：棋子已走过的格数（剩余 = total - pos）
+    playerFirst: true, // 玩家是否先手
+    turn: "player",    // player | computer
+    youTake: 0,        // 玩家本回合已选数量
+    youTotal: 0,       // 玩家累计
+    oppTotal: 0,       // 小灵累计
+    selectedGems: [],  // 本回合选中的宝石元素
+    over: false,
+    busy: false,       // 动画进行中，锁定输入
+    steps: 0,
+    startTime: 0,
+    timerId: null,
+    hintOn: false
+  };
+
+  /* ---------- 工具：随机 / 洗牌 ---------- */
+  function rnd(n){ return Math.floor(Math.random()*n); }
+  function pick(arr){ return arr[rnd(arr.length)]; }
+  function shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=rnd(i+1); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+  /* ---------- 应用随机色板 ---------- */
+  function applyPalette(){
+    var p = pick(PALETTES);
+    var r = document.documentElement.style;
+    r.setProperty("--bg-grad", p.bg);
+    r.setProperty("--primary", p.primary);
+    r.setProperty("--primary-d", p.pd);
+    r.setProperty("--accent", p.accent);
+    r.setProperty("--gem1", p.gems[0]);
+    r.setProperty("--gem2", p.gems[1]);
+    r.setProperty("--gem3", p.gems[2]);
+    r.setProperty("--gem4", p.gems[3]);
+    r.setProperty("--gem5", p.gems[4]);
+    S.gemColors = p.gems;
+  }
+
+  /* ---------- 策略分析：根据场景计算周期、余数、最佳首步 ---------- */
+  function analyze(scn){
+    var period, remainder, firstWins, firstMove, goFirst, label;
+    if(scn.allowed){
+      // 高级：凑 magic 的倍数
+      period = scn.magic;
+      remainder = scn.total % period;
+      firstWins = remainder !== 0;
+      firstMove = firstWins ? remainder : 0;
+      goFirst = firstWins;
+      label = "凑 " + period + " 的倍数";
+    } else if(scn.mode === "misere"){
+      // 异常博弈：留 (周期) 的倍数 + 1 给对方 → 先取 (total-1) 对周期取余
+      period = scn.max + 1;
+      remainder = (scn.total - 1) % period;
+      firstWins = remainder !== 0;
+      firstMove = firstWins ? remainder : 0;
+      goFirst = firstWins;
+      label = "凑 " + period + "（留周期倍数+1）";
+    } else {
+      // 正常博弈：留周期的倍数给对方 → 先取 total 对周期取余
+      period = scn.max + 1;
+      remainder = scn.total % period;
+      firstWins = remainder !== 0;
+      firstMove = firstWins ? remainder : 0;
+      goFirst = firstWins;
+      label = "凑 " + period;
+    }
+    return { period:period, remainder:remainder, firstWins:firstWins, firstMove:firstMove, goFirst:goFirst, label:label };
+  }
+
+  /* ---------- 小灵（电脑）的最优取数 ---------- */
+  function computerTake(){
+    var scn = S.scn, take;
+    if(scn.allowed){
+      var magic = scn.magic;
+      // 想让剩余变成 magic 的倍数；找不到合法解则取最小合法数
+      take = null;
+      for(var i=0;i<scn.allowed.length;i++){
+        var a = scn.allowed[i];
+        if(a <= S.remaining && (S.remaining - a) % magic === 0){ take = a; break; }
+      }
+      if(take === null){ var valid = scn.allowed.filter(function(x){return x<=S.remaining;}); take = valid.length?Math.min.apply(null,valid):1; }
+      return Math.max(1, take);
+    }
+    var k = scn.max;
+    if(S.mode === "misere"){
+      var r = (S.remaining - 1) % (k+1);
+      take = (r === 0) ? 1 : r;          // 余0=劣势位，随便取1
+    } else {
+      var r2 = S.remaining % (k+1);
+      take = (r2 === 0) ? 1 : r2;        // 余0=劣势位，随便取1
+    }
+    return Math.max(1, Math.min(take, k, S.remaining));
+  }
+
+  /* ---------- 判断某数量是否为本回合合法取数 ---------- */
+  function validTake(n){
+    if(n < 1) return false;
+    if(S.allowed) return S.allowed.indexOf(n) >= 0 && n <= S.remaining;
+    return n <= S.maxTake && n <= S.remaining;
+  }
+
+  /* ---------- 计时器 ---------- */
+  function startTimer(){
+    S.startTime = Date.now();
+    stopTimer();
+    S.timerId = setInterval(tickTimer, 1000);
+    tickTimer();
+  }
+  function stopTimer(){ if(S.timerId){ clearInterval(S.timerId); S.timerId = null; } }
+  function tickTimer(){
+    var s = Math.floor((Date.now() - S.startTime)/1000);
+    var m = String(Math.floor(s/60)).padStart(2,"0");
+    var ss = String(s%60).padStart(2,"0");
+    document.getElementById("chipTime").innerHTML = '<span class="dot"></span>时间 ' + m + ':' + ss;
+  }
+  function bumpStep(){ S.steps++; document.getElementById("chipStep").textContent = "步数 " + S.steps; }
+
+  /* ---------- 显示屏切换 ---------- */
+  function show(id){
+    ["screenMenu","screenGame"].forEach(function(s){
+      document.getElementById(s).classList.toggle("hidden", s!==id);
+    });
+  }
+  function openMask(id){ document.getElementById(id).classList.remove("hidden"); }
+  function closeMask(id){ document.getElementById(id).classList.add("hidden"); }
+
+  /* ---------- 反馈文案 ---------- */
+  function setFeedback(msg, type){
+    var f = document.getElementById("feedback");
+    f.textContent = msg || "";
+    f.className = "feedback" + (type ? " " + type : "");
+  }
+
+  /* =====================================================================
+     渲染：宝石堆 / 星轨
+     ===================================================================== */
+  function gemColor(i){ return S.gemColors[i % S.gemColors.length]; }
+
+  function renderPile(){
+    // 宝石堆模式
+    document.getElementById("gemPile").classList.remove("hidden");
+    document.getElementById("pathArea").classList.add("hidden");
+    document.getElementById("pathHint").classList.add("hidden");
+    document.getElementById("pileCaption").textContent = "矿洞里的" + S.scn.item;
+    var pile = document.getElementById("gemPile");
+    pile.innerHTML = "";
+    for(var i=0;i<S.remaining;i++){
+      (function(idx){
+        var g = document.createElement("div");
+        g.className = "gem";
+        g.style.setProperty("--gc", gemColor(idx));
+        g.addEventListener("click", function(){ onGemClick(g); });
+        pile.appendChild(g);
+      })(i);
+    }
+  }
+
+  function renderPath(){
+    // 星轨模式（棋盘移格子）
+    document.getElementById("gemPile").classList.add("hidden");
+    document.getElementById("pathArea").classList.remove("hidden");
+    document.getElementById("pathHint").classList.remove("hidden");
+    document.getElementById("pileCaption").textContent = "星轨前进（共 " + S.scn.boardTotal + " 格）";
+    var row = document.getElementById("pathRow");
+    row.innerHTML = "";
+    var max = S.scn.max;
+    for(var i=1;i<=S.scn.total;i++){
+      (function(idx){
+        var s = document.createElement("div");
+        s.className = "star";
+        s.dataset.idx = idx;
+        if(idx === S.scn.total) s.classList.add("last");
+        var lab = document.createElement("span");
+        lab.className = "num";
+        lab.textContent = idx;
+        s.appendChild(lab);
+        s.addEventListener("click", function(){ onStarClick(idx); });
+        row.appendChild(s);
+      })(i);
+    }
+    updatePathState();
+    bindTokenDrag();
+  }
+
+  function updatePathState(){
+    var pos = S.pos; // 已走过格数
+    var stars = document.querySelectorAll("#pathRow .star");
+    var max = S.scn.max;
+    stars.forEach(function(el){
+      var idx = parseInt(el.dataset.idx,10);
+      el.classList.toggle("passed", idx <= pos);
+      var reach = (S.turn==="player" && !S.busy && !S.over) && (idx > pos && idx - pos <= max);
+      el.classList.toggle("reachable", reach);
+    });
+    document.getElementById("pathHint").textContent =
+      "棋子已走 " + pos + " 格，还剩 " + S.remaining + " 格。本回合可前进 1～" + Math.min(max, S.remaining) + " 格。";
+  }
+
+  /* =====================================================================
+     交互：宝石点击（收集）
+     ===================================================================== */
+  function onGemClick(g){
+    if(S.over || S.busy || S.turn !== "player") return;
+    if(g.classList.contains("dead") || g.classList.contains("fly")) return;
+    if(g.classList.contains("picked")){
+      // 取消选中
+      g.classList.remove("picked");
+      var i = S.selectedGems.indexOf(g);
+      if(i>=0) S.selectedGems.splice(i,1);
+      S.youTake--;
+    } else {
+      // 检查是否还能选
+      if(S.allowed){
+        // 高级：必须凑成 allowed 中的数；超过当前 allowed 档则不允许
+        var next = S.youTake + 1;
+        if(!canSelectMore(next)){ setFeedback("只能取 " + S.allowed.join("、") + " 枚哦，凑成这些数才能确认。","warn"); return; }
+      } else {
+        if(S.youTake >= S.maxTake){ setFeedback("本回合最多取 " + S.maxTake + " 颗，先确认吧！","warn"); return; }
+      }
+      g.classList.add("picked");
+      S.selectedGems.push(g);
+      S.youTake++;
+    }
+    refreshConfirm();
+    setFeedback("已选 " + S.youTake + " 颗" + (S.allowed ? "（凑成 " + S.allowed.join("/") + " 可确认）":"") + "，点「确认取走」完成本轮。","");
+  }
+
+  // 高级模式：判断再选一颗后是否仍可能凑成某个 allowed 值
+  function canSelectMore(nextCount){
+    if(S.allowed.indexOf(nextCount) >= 0) return true;
+    // 还能继续往上凑到更大的 allowed
+    for(var i=0;i<S.allowed.length;i++){ if(S.allowed[i] >= nextCount) return true; }
+    return false;
+  }
+
+  /* =====================================================================
+     交互：星轨点击 / 拖动（定位）
+     ===================================================================== */
+  function onStarClick(idx){
+    if(S.over || S.busy || S.turn !== "player") return;
+    var step = idx - S.pos;
+    var max = S.scn.max;
+    if(step < 1 || step > max){ setFeedback("只能前进 1～" + Math.min(max,S.remaining) + " 格！","warn"); return; }
+    movePlayer(step);
+  }
+
+  // 拖动指南针：pointer 事件（同时满足桌面+移动端）
+  function bindTokenDrag(){
+    var token = document.getElementById("token");
+    token.onpointerdown = function(e){
+      if(S.over || S.busy || S.turn!=="player" || S.scn.isGrid!==true) return;
+      e.preventDefault();
+      token.setPointerCapture(e.pointerId);
+      var startX = e.clientX;
+      var startPos = S.pos;
+      var row = document.getElementById("pathRow");
+      function onmove(ev){
+        var dx = ev.clientX - startX;
+        var starW = row.querySelector(".star");
+        if(!starW) return;
+        var unit = starW.getBoundingClientRect().width + 6;
+        var raw = Math.round(dx / unit);
+        var max = S.scn.max;
+        var step = Math.max(0, Math.min(max, raw));
+        // 预览：高亮可达范围
+        previewReach(startPos, step);
+      }
+      function onup(ev){
+        token.releasePointerCapture(e.pointerId);
+        token.onpointermove = null;
+        token.onpointerup = null;
+        token.onpointercancel = null;
+        var dx = ev.clientX - startX;
+        var starW = row.querySelector(".star");
+        var unit = starW ? (starW.getBoundingClientRect().width + 6) : 34;
+        var raw = Math.round(dx / unit);
+        var max = S.scn.max;
+        var step = Math.max(0, Math.min(max, raw));
+        clearPreview();
+        if(step >= 1){ movePlayer(step); }
+      }
+      token.onpointermove = onmove;
+      token.onpointerup = onup;
+      token.onpointercancel = onup;
+    };
+  }
+  function previewReach(startPos, step){
+    var stars = document.querySelectorAll("#pathRow .star");
+    stars.forEach(function(el){
+      var idx = parseInt(el.dataset.idx,10);
+      el.classList.toggle("reachable", idx > startPos && idx <= startPos + step);
+    });
+  }
+  function clearPreview(){ updatePathState(); }
+
+  /* =====================================================================
+     玩家移动（星轨）
+     ===================================================================== */
+  function movePlayer(step){
+    if(!validTake(step)){ setFeedback("这步不行哦，再想想。","warn"); return; }
+    S.busy = true;
+    bumpStep();
+    S.pos += step;
+    S.remaining -= step;
+    S.youTotal += step;
+    // 动画：棋子"跳"过去
+    setFeedback("你前进了 " + step + " 格！","");
+    setTimeout(function(){
+      updatePathState();
+      syncCounts();
+      if(checkEnd("player", step)) { S.busy=false; return; }
+      // 点评这一步
+      judgeMove(step, "player");
+      S.turn = "computer";
+      updateTurn();
+      S.busy = false;
+      setTimeout(computerTurn, 650);
+    }, 220);
+  }
+
+  /* =====================================================================
+     确认取走（宝石模式）
+     ===================================================================== */
+  function confirmTake(){
+    if(S.over || S.busy || S.turn !== "player") return;
+    if(S.isGrid) return;
+    var n = S.youTake;
+    if(!validTake(n)){ setFeedback("先选好要取的数量再确认！","warn"); return; }
+    S.busy = true;
+    bumpStep();
+    // 飞行动画
+    S.selectedGems.forEach(function(g, i){
+      setTimeout(function(){ g.classList.add("fly"); }, i*40);
+    });
+    setTimeout(function(){
+      S.remaining -= n;
+      S.youTotal += n;
+      addMini("youMini", n);
+      syncCounts();
+      // 清空选中
+      S.selectedGems = [];
+      S.youTake = 0;
+      refreshConfirm();
+      if(S.remaining > 0){ renderPile(); } else { document.getElementById("gemPile").innerHTML=""; }
+      if(checkEnd("player", n)){ S.busy=false; return; }
+      judgeMove(n, "player");
+      S.turn = "computer";
+      updateTurn();
+      S.busy = false;
+      setTimeout(computerTurn, 650);
+    }, n*40 + 160);
+  }
+
+  /* 点评玩家这步是否保持优势 */
+  function judgeMove(n, who){
+    // 判断取完后，剩余是否处于"对方必败"形态
+    var goodForMover;
+    if(S.scn.allowed){
+      goodForMover = (S.remaining % S.scn.magic === 0); // 留 magic 倍数给对方=好
+    } else if(S.mode === "misere"){
+      goodForMover = (S.remaining - 1) % (S.scn.max+1) === 0; // 留 周期倍数+1 给对方
+    } else {
+      goodForMover = S.remaining % (S.scn.max+1) === 0; // 留 周期倍数 给对方
+    }
+    if(who === "player"){
+      if(goodForMover){ setFeedback("好棋！你把" + S.scn.item + "数控制成了周期倍数，小灵很难受 👍","good"); }
+      else { setFeedback("这步让小灵有机可乘啦。想想周期是 " + S.period + "，怎么凑？","warn"); }
+    }
+  }
+
+  /* =====================================================================
+     小灵（电脑）回合
+     ===================================================================== */
+  function computerTurn(){
+    if(S.over) return;
+    S.busy = true;
+    updateTurn();
+    setTimeout(function(){
+      var n = computerTake();
+      n = Math.max(1, Math.min(n, S.remaining));
+      if(S.isGrid){
+        // 棋盘：小灵前进
+        setFeedback("小灵前进了 " + n + " 格。","");
+        S.pos += n;
+        S.remaining -= n;
+        S.oppTotal += n;
+        bumpStep();
+        setTimeout(function(){
+          updatePathState();
+          syncCounts();
+          if(checkEnd("computer", n)){ S.busy=false; return; }
+          S.turn = "player";
+          updateTurn();
+          S.busy = false;
+        }, 380);
+      } else {
+        // 宝石：小灵取走 n 颗（从末尾取，飞向小灵托盘）
+        setFeedback("小灵取走了 " + n + " 颗" + S.scn.item + "。","");
+        var gems = document.querySelectorAll("#gemPile .gem:not(.dead):not(.fly)");
+        var taken = [];
+        for(var i=gems.length-1; i>=0 && taken.length<n; i--){
+          if(!gems[i].classList.contains("picked")){ gems[i].classList.add("dead"); taken.push(gems[i]); }
+        }
+        bumpStep();
+        setTimeout(function(){
+          S.remaining -= n;
+          S.oppTotal += n;
+          addMini("oppMini", n);
+          syncCounts();
+          if(S.remaining > 0){
+            // 移除 dead 的并重新渲染，保持视觉清爽
+            var fresh = [];
+            var all = document.querySelectorAll("#gemPile .gem");
+            all.forEach(function(g){ if(!g.classList.contains("dead")) fresh.push(g); });
+            // 简单重新渲染
+            renderPileKeepSelected(fresh);
+          } else { document.getElementById("gemPile").innerHTML=""; }
+          if(checkEnd("computer", n)){ S.busy=false; return; }
+          S.turn = "player";
+          updateTurn();
+          S.busy = false;
+        }, 420);
+      }
+    }, 480);
+  }
+
+  // 小灵取走后重绘剩余宝石（保留玩家本回合已选中的视觉）
+  function renderPileKeepSelected(){
+    renderPile();
+    refreshConfirm();
+  }
+
+  /* =====================================================================
+     胜负判定
+     ===================================================================== */
+  function checkEnd(mover, lastTake){
+    if(S.remaining > 0) return false;
+    // 剩余为 0，本回合 mover 取走了最后一批
+    var moverIsPlayer = (mover === "player");
+    var playerWin;
+    if(S.mode === "misere"){
+      // 取到最后者输 → mover 输
+      playerWin = !moverIsPlayer;
+    } else {
+      // 取到最后者胜 → mover 胜
+      playerWin = moverIsPlayer;
+    }
+    finishGame(playerWin, lastTake, mover);
+    return true;
+  }
+
+  function finishGame(playerWin, lastTake, mover){
+    S.over = true;
+    stopTimer();
+    showResult(playerWin);
+  }
+
+  /* =====================================================================
+     小图标 / 计数同步
+     ===================================================================== */
+  function addMini(boxId, n){
+    var box = document.getElementById(boxId);
+    for(var i=0;i<n;i++){
+      var m = document.createElement("span");
+      m.className = "mg";
+      m.style.background = gemColor(rnd(5));
+      box.appendChild(m);
+      if(box.children.length > 24) box.removeChild(box.firstChild);
+    }
+  }
+  function syncCounts(){
+    document.getElementById("youCount").textContent = S.youTotal;
+    document.getElementById("oppCount").textContent = S.oppTotal;
+    document.getElementById("remainNum").textContent = S.remaining;
+  }
+  function refreshConfirm(){
+    var btn = document.getElementById("btnConfirm");
+    var ok = (S.turn==="player") && validTake(S.youTake) && !S.busy && !S.over && !S.isGrid;
+    btn.disabled = !ok;
+    btn.textContent = "确认取走（" + S.youTake + "）";
+    document.getElementById("remainNum").textContent = S.remaining;
+  }
+  function updateTurn(){
+    var bar = document.getElementById("turnBar");
+    var ty = document.getElementById("trayYou"), top = document.getElementById("trayOpp");
+    if(S.over){ bar.textContent="本局结束"; bar.className="turn-bar"; ty.classList.remove("active"); top.classList.remove("active"); return; }
+    if(S.turn === "player"){
+      bar.innerHTML = "🧒 轮到你了！选好数量再确认";
+      bar.className = "turn-bar you";
+      ty.classList.add("active"); top.classList.remove("active");
+      bar.innerHTML += '<div class="pick-info">' + (S.isGrid ? "点击亮起的格子或拖动指南针前进" : (S.allowed ? "只能凑成 "+S.allowed.join("/")+" 颗" : "每回合 1～"+S.maxTake+" 颗")) + '</div>';
+    } else {
+      bar.innerHTML = "✨ 小灵正在思考…";
+      bar.className = "turn-bar opp";
+      ty.classList.remove("active"); top.classList.add("active");
+    }
+    if(!S.isGrid) refreshConfirm();
+    if(S.isGrid) updatePathState();
+  }
+
+  /* =====================================================================
+     开始一局
+     ===================================================================== */
+  function startRound(goFirst){
+    // 从题库随机抽一题（反重复）
+    var pool = SCENARIOS[S.diff];
+    S.scn = pick(pool);
+    S.mode = S.scn.mode || "normal";
+    S.isGrid = !!S.scn.isGrid;
+    S.allowed = S.scn.allowed || null;
+    S.maxTake = S.scn.max || (S.allowed ? Math.max.apply(null,S.allowed) : 3);
+    S.remaining = S.scn.total;
+    S.pos = 0;
+    S.playerFirst = goFirst;
+    S.turn = goFirst ? "player" : "computer";
+    S.youTake = 0; S.youTotal = 0; S.oppTotal = 0;
+    S.selectedGems = [];
+    S.over = false; S.busy = false; S.steps = 0; S.hintOn = false;
+    document.getElementById("youMini").innerHTML="";
+    document.getElementById("oppMini").innerHTML="";
+    var a = analyze(S.scn);
+    S.period = a.period;
+
+    // 故事与目标
+    document.getElementById("storyText").innerHTML = S.scn.emoji + " " + S.scn.story;
+    var goalTxt;
+    if(S.isGrid){
+      goalTxt = "棋子在起点，两人轮流向右移动。<b>移到最后一格者输。</b><br>必胜周期 = " + S.period + "（每次最多移" + S.maxTake + "格+1）。";
+    } else if(S.mode === "misere"){
+      goalTxt = "两人轮流取，每次 1～" + S.maxTake + "。<b>取到最后一颗者输！</b><br>必胜周期 = " + S.period + "。";
+    } else if(S.allowed){
+      goalTxt = "每次只能取 " + S.allowed.join("、") + " 颗。<b>取到最后一颗者胜！</b><br>寻找凑数规律：凑 " + S.scn.magic + " 的倍数。";
+    } else {
+      goalTxt = "两人轮流取，每次 1～" + S.maxTake + "。<b>取到最后一颗者胜！</b><br>必胜周期 = " + S.period + "。";
+    }
+    document.getElementById("goalText").innerHTML = goalTxt;
+
+    show("screenGame");
+    syncCounts();
+    setFeedback("","");
+    if(S.isGrid){ renderPath(); } else { renderPile(); }
+    updateTurn();
+    startTimer();
+    if(S.turn === "computer"){ S.busy = true; updateTurn(); setTimeout(function(){ S.busy=false; computerTurn(); }, 700); }
+  }
+
+  /* =====================================================================
+     提示 / 揭示答案
+     ===================================================================== */
+  function showHint(){
+    if(S.over){ setFeedback("本局已结束，点「重新开始」再来！","warn"); return; }
+    var a = analyze(S.scn);
+    // 给出"当前局面"下的最佳取数
+    var best;
+    if(S.scn.allowed){
+      best = null;
+      for(var i=0;i<S.scn.allowed.length;i++){ var x=S.scn.allowed[i]; if(x<=S.remaining && (S.remaining-x)%S.scn.magic===0){ best=x; break; } }
+      if(best===null) best = "对方已占优，先取 " + Math.min.apply(null, S.scn.allowed.filter(function(v){return v<=S.remaining;})) + " 等机会";
+    } else if(S.mode === "misere"){
+      var r = (S.remaining-1) % (S.maxTake+1);
+      best = (r===0) ? "对方已占优，先取 1 等机会" : r;
+    } else {
+      var r2 = S.remaining % (S.maxTake+1);
+      best = (r2===0) ? "对方已占优，先取 1 等机会" : r2;
+    }
+    S.hintOn = true;
+    setFeedback("💡 提示：周期是 " + S.period + "。当前最佳取数约为 " + best + "，凑满一个周期即可掌握主动。","good");
+    // 视觉高亮：宝石模式高亮 best 颗
+    if(!S.isGrid && typeof best === "number"){
+      var gems = document.querySelectorAll("#gemPile .gem:not(.picked):not(.dead)");
+      for(var k=0;k<best && k<gems.length;k++){ gems[k].classList.add("hint-glow"); }
+      setTimeout(function(){ document.querySelectorAll(".hint-glow").forEach(function(g){ g.classList.remove("hint-glow"); }); }, 2600);
+    }
+  }
+
+  function showReveal(){
+    var a = analyze(S.scn);
+    var scn = S.scn;
+    var html = "";
+    html += '<div class="line">总数 = <b>' + scn.total + '</b>';
+    if(scn.allowed){
+      html += '；每次只能取 <b>' + scn.allowed.join("、") + '</b>。</div>';
+      html += '<div class="line">凑数规律：仔细看每两个数相加，能稳定凑成 <span class="kbox">' + scn.magic + '</span> 的倍数（例如 2+4=6，4+8=12）。</div>';
+      html += '<div class="line">' + scn.total + ' ÷ ' + scn.magic + ' = <b>' + Math.floor(scn.total/scn.magic) + '</b> 组 …… <b>' + scn.total%scn.magic + '</b></div>';
+      if(a.firstWins){
+        html += '<div class="line">因为有余数 <b>' + a.remainder + '</b>，所以应<b>先取 ' + a.firstMove + ' 枚</b>，之后每次都与小灵<b>凑 ' + scn.magic + ' 的倍数</b>，必胜！</div>';
+      } else {
+        html += '<div class="line">正好整除，没有余数，所以应<b>让小灵先取</b>（后手必胜），每次凑 ' + scn.magic + ' 的倍数即可。</div>';
+      }
+    } else if(S.isGrid){
+      html += '；棋子右边还有 <b>' + scn.total + '</b> 格，每次移 1～' + scn.max + ' 格。</div>';
+      html += '<div class="line">周期 = 1 + ' + scn.max + ' = <span class="kbox">' + a.period + '</span>。因为<b>移到最后一格者输</b>，所以要把对方"卡"在最后一格。</div>';
+      html += '<div class="line">(' + scn.total + ' − 1) ÷ ' + a.period + ' = <b>' + Math.floor((scn.total-1)/a.period) + '</b> 组 …… <b>' + a.remainder + '</b></div>';
+      if(a.firstWins){
+        html += '<div class="line">有余数 <b>' + a.remainder + '</b>，第一步向右移 <b>' + a.firstMove + '</b> 格；之后小灵移几格，你就凑 ' + a.period + '（两人步数和为 ' + a.period + '），最后一格必留给小灵，必胜！</div>';
+      } else {
+        html += '<div class="line">没有余数，应<b>让小灵先移</b>，后手必胜。</div>';
+      }
+    } else if(S.mode === "misere"){
+      html += '；每次取 1～' + scn.max + '。</div>';
+      html += '<div class="line">周期 = 1 + ' + scn.max + ' = <span class="kbox">' + a.period + '</span>。因为<b>取到最后者输</b>，所以要让对方被迫取最后那颗。</div>';
+      html += '<div class="line">(' + scn.total + ' − 1) ÷ ' + a.period + ' = <b>' + Math.floor((scn.total-1)/a.period) + '</b> 组 …… <b>' + a.remainder + '</b></div>';
+      if(a.firstWins){
+        html += '<div class="line">有余数 <b>' + a.remainder + '</b>，先取 <b>' + a.firstMove + '</b> 颗；之后小灵取几，你就凑 ' + a.period + '，最后一颗必留给小灵，必胜！</div>';
+      } else {
+        html += '<div class="line">没有余数，应<b>让小灵先取</b>，后手必胜。</div>';
+      }
+    } else {
+      html += '；每次取 1～' + scn.max + '。</div>';
+      html += '<div class="line">周期 = 1 + ' + scn.max + ' = <span class="kbox">' + a.period + '</span>。把数量控制在周期倍数，就能掌握主动。</div>';
+      html += '<div class="line">' + scn.total + ' ÷ ' + a.period + ' = <b>' + Math.floor(scn.total/a.period) + '</b> 组 …… <b>' + a.remainder + '</b></div>';
+      if(a.firstWins){
+        html += '<div class="line">有余数 <b>' + a.remainder + '</b>，先取 <b>' + a.firstMove + '</b> 颗；之后小灵取几，你就凑 ' + a.period + '（两人之和为 ' + a.period + '），取到最后一颗，必胜！</div>';
+      } else {
+        html += '<div class="line">没有余数，应<b>让小灵先取</b>，后手必胜。</div>';
+      }
+    }
+    document.getElementById("revealBody").innerHTML = html;
+    openMask("maskReveal");
+  }
+
+  /* =====================================================================
+     结果 / 庆祝
+     ===================================================================== */
+  function showResult(playerWin){
+    var icon = document.getElementById("resultIcon");
+    var title = document.getElementById("resultTitle");
+    var lead = document.getElementById("resultLead");
+    if(playerWin){
+      icon.textContent = "🎉";
+      title.textContent = "太棒了，必胜成功！";
+      lead.innerHTML = "你运用了<b>取余 + 凑周期</b>的智慧，赢得了这局！<br>用时与步数见右上角。换个难度或再来一局，挑战更多关卡吧～";
+      launchConfetti();
+    } else {
+      icon.textContent = "🌟";
+      title.textContent = "差一点点，再想想策略！";
+      lead.innerHTML = "这局小灵赢了。点「揭示答案」看看最佳走法，<b>必胜周期 = " + S.period + "</b>，<br>下一局试着先把数量控制成周期倍数，你一定能赢！";
+    }
+    openMask("maskResult");
+  }
+
+  /* ---------- 庆祝彩纸（Canvas 实现） ---------- */
+  var cfk = null; // confetti 控制
+  function launchConfetti(){
+    var cv = document.getElementById("confetti");
+    cv.classList.remove("hidden");
+    cv.width = window.innerWidth; cv.height = window.innerHeight;
+    var ctx = cv.getContext("2d");
+    var colors = S.gemColors;
+    var parts = [];
+    for(var i=0;i<140;i++){
+      parts.push({
+        x: Math.random()*cv.width, y: -20 - Math.random()*cv.height*0.5,
+        w: 6+Math.random()*8, h: 8+Math.random()*10,
+        c: colors[rnd(colors.length)], vy: 2+Math.random()*3, vx: -1+Math.random()*2,
+        rot: Math.random()*6.28, vr: -0.2+Math.random()*0.4
+      });
+    }
+    var frame = 0;
+    function draw(){
+      ctx.clearRect(0,0,cv.width,cv.height);
+      parts.forEach(function(p){
+        p.y += p.vy; p.x += p.vx; p.rot += p.vr;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, 1 - frame/220);
+        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+        ctx.restore();
+      });
+      frame++;
+      if(frame < 220){ cfk = requestAnimationFrame(draw); }
+      else { ctx.clearRect(0,0,cv.width,cv.height); cv.classList.add("hidden"); }
+    }
+    if(cfk) cancelAnimationFrame(cfk);
+    draw();
+  }
+
+  /* =====================================================================
+     事件绑定
+     ===================================================================== */
+  function bind(){
+    // 难度卡片
+    document.querySelectorAll(".diff-card").forEach(function(c){
+      c.addEventListener("click", function(){
+        S.diff = c.dataset.diff;
+        applyPalette();
+        openMask("maskChoice");
+      });
+    });
+    // 先后手
+    document.querySelectorAll("#maskChoice .choice").forEach(function(ch){
+      ch.addEventListener("click", function(){
+        var goFirst = ch.dataset.first === "1";
+        closeMask("maskChoice");
+        startRound(goFirst);
+      });
+    });
+    document.getElementById("choiceBack").addEventListener("click", function(){ closeMask("maskChoice"); });
+    // 规则
+    document.getElementById("btnRules").addEventListener("click", function(){ openMask("maskRules"); });
+    document.getElementById("rulesStart").addEventListener("click", function(){ closeMask("maskRules"); });
+    // 控制
+    document.getElementById("btnConfirm").addEventListener("click", confirmTake);
+    document.getElementById("btnHint").addEventListener("click", showHint);
+    document.getElementById("btnReveal").addEventListener("click", showReveal);
+    document.getElementById("btnRestart").addEventListener("click", function(){
+      stopTimer();
+      applyPalette();
+      openMask("maskChoice");
+    });
+    document.getElementById("btnBack").addEventListener("click", function(){
+      stopTimer(); S.over=true; show("screenMenu");
+    });
+    // 结果
+    document.getElementById("resultAgain").addEventListener("click", function(){
+      closeMask("maskResult"); applyPalette(); openMask("maskChoice");
+    });
+    document.getElementById("resultMenu").addEventListener("click", function(){
+      closeMask("maskResult"); stopTimer(); show("screenMenu");
+    });
+    document.getElementById("revealClose").addEventListener("click", function(){ closeMask("maskReveal"); });
+    // 窗口尺寸变化时重算棋盘可达性
+    window.addEventListener("resize", function(){ if(S.isGrid && !S.over) updatePathState(); });
+  }
+
+  /* ---------- 启动 ---------- */
+  applyPalette();
+  bind();
+  openMask("maskRules");
+})();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a2b/g040", "name": "\u661f\u7a7a\u5b9d\u77f3\u63a2\u9669 \u00b7 \u5fc5\u80dc\u7b56\u7565", "file": "g040.html", "jiaocan": "\u301040\u3011\u7b2c20\u8bb2 \u5fc5\u80dc\u7b56\u7565\uff08\u4e0b\uff09", "unit": "\u7b2c20\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b72\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a2b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

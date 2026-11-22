@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星尘工坊 · 整式的加减 闯关游戏</title>
+<style>
+/* ============ 全局变量（配色每局随机切换） ============ */
+:root{
+  --p:#2563eb;      /* 主色 */
+  --b1:#eef2ff;     /* 背景渐变起点 */
+  --b2:#dbeafe;     /* 背景渐变终点 */
+  --acc:#f59e0b;    /* 强调色 */
+  --ink:#1e293b;    /* 正文墨色 */
+  --ok:#16a34a;     /* 正确 */
+  --bad:#dc2626;    /* 错误 */
+  --card:#ffffff;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:linear-gradient(160deg,var(--b1),var(--b2));
+  color:var(--ink);
+  min-height:100vh;
+  -webkit-tap-highlight-color:transparent;
+}
+.hidden{display:none !important;}
+
+/* ============ 特效层：CSS 彩纸与星星（合成器动画，不占用主线程） ============ */
+#fxlayer{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden;}
+#fxlayer>div{position:absolute;inset:0;}
+.cbit{
+  position:absolute;display:block;
+  border-radius:2px;
+  will-change:transform,opacity;
+  animation:confetti-fly var(--dur) cubic-bezier(.17,.67,.35,.98) forwards;
+}
+.cbit.star{background:transparent !important;font-size:26px;line-height:1;width:auto !important;height:auto !important;border-radius:0;}
+@keyframes confetti-fly{
+  from{transform:translate(0,0) rotate(0deg);opacity:1;}
+  to{transform:translate(var(--tx),var(--ty)) rotate(var(--rot));opacity:0;}
+}
+
+/* ============ 难度选择页 ============ */
+#scr-diff{max-width:1080px;margin:0 auto;padding:34px 16px 60px;text-align:center;}
+.brand{font-size:44px;font-weight:900;color:var(--p);letter-spacing:2px;}
+.brand small{display:block;font-size:20px;font-weight:700;color:var(--ink);margin-top:8px;letter-spacing:6px;}
+.diff-cards{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:34px;}
+.diff-card{
+  width:290px;background:var(--card);border:4px solid var(--p);border-radius:22px;
+  padding:26px 18px;cursor:pointer;transition:transform .18s, box-shadow .18s;
+  box-shadow:0 8px 18px rgba(30,41,59,.12);
+}
+.diff-card:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 14px 28px rgba(30,41,59,.2);}
+.diff-card h2{margin:0 0 6px;font-size:27px;color:var(--p);}
+.diff-card .tag{display:inline-block;background:var(--acc);color:#fff;border-radius:999px;
+  padding:4px 14px;font-weight:800;font-size:16px;margin-bottom:10px;}
+.diff-card p{font-size:17px;line-height:1.7;margin:8px 0 0;color:#334155;}
+.diff-note{margin-top:26px;font-size:16px;color:#475569;}
+
+/* ============ 顶栏 ============ */
+#topbar{
+  position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:rgba(255,255,255,.92);border-bottom:4px solid var(--p);
+  padding:8px 14px;box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+#tb-title{font-weight:900;font-size:19px;color:var(--p);margin-right:4px;}
+.tb-chip{background:var(--b2);border:2px solid var(--p);border-radius:999px;
+  padding:3px 12px;font-weight:800;font-size:16px;}
+#tb-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.stat{font-weight:900;font-size:18px;color:var(--p);white-space:nowrap;}
+.btn{
+  border:3px solid var(--p);background:#fff;color:var(--p);border-radius:12px;
+  padding:7px 14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;
+}
+.btn:active{transform:scale(.96);}
+.btn-primary{background:var(--p);color:#fff;}
+
+/* ============ 题干面板与工作区 ============ */
+#game-main{max-width:1120px;margin:0 auto;padding:14px 14px 80px;}
+#qpanel{background:var(--card);border-radius:16px;border-left:12px solid var(--acc);
+  padding:14px 18px;box-shadow:0 4px 12px rgba(30,41,59,.08);margin-bottom:14px;}
+#qtitle{font-size:21px;font-weight:900;color:var(--p);}
+#qtitle .src{font-size:15px;color:#64748b;font-weight:700;margin-left:10px;}
+#qtext{font-size:19px;line-height:1.8;margin-top:6px;}
+#stage-head{background:rgba(255,255,255,.8);border-radius:14px;padding:10px 16px;margin-bottom:12px;
+  border:2px dashed var(--p);}
+#stage-prog{font-weight:900;color:var(--acc);font-size:18px;margin-right:12px;}
+#stage-intro{font-size:18px;line-height:1.7;}
+#stage-area{min-height:240px;}
+
+/* ============ 通用卡片元素 ============ */
+.panelbox{background:var(--card);border-radius:16px;padding:14px;box-shadow:0 4px 12px rgba(30,41,59,.08);}
+.section-label{font-weight:900;font-size:18px;color:var(--p);margin:2px 0 8px;}
+
+/* 分拣家族箱 */
+#bins{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-bottom:6px;}
+.bin{
+  min-width:158px;min-height:170px;border:4px dashed var(--p);border-radius:16px;background:#fff;
+  padding:8px;position:relative;transition:transform .15s, background .15s;
+}
+.bin.hover{background:var(--b2);border-color:var(--acc);transform:scale(1.04);}
+.bin-label{font-weight:900;font-size:19px;color:var(--p);text-align:center;}
+.bin-sub{font-size:14px;color:#64748b;text-align:center;margin-top:2px;}
+.bin-slot{margin-top:8px;display:flex;flex-direction:column;gap:6px;align-items:center;min-height:52px;}
+.bin-math{font-size:17px;line-height:1.55;color:#334155;text-align:center;margin-top:4px;min-height:22px;}
+.bin-math b{color:var(--ok);}
+
+/* 卡片托盘 */
+#tray{position:relative;margin-top:14px;border-radius:16px;background:rgba(255,255,255,.55);
+  border:3px solid rgba(30,41,59,.08);}
+.tile{
+  position:absolute;padding:10px 15px;background:#fff;border:3px solid var(--p);border-radius:14px;
+  font-size:22px;font-weight:800;box-shadow:0 4px 10px rgba(0,0,0,.14);cursor:grab;
+  user-select:none;touch-action:none;white-space:nowrap;
+}
+.tile.dragging{box-shadow:0 14px 26px rgba(0,0,0,.25);transform:scale(1.07);cursor:grabbing;}
+.tile.inbin{position:static !important;left:auto !important;top:auto !important;width:auto !important;margin:0 !important;}
+.tile.pop{animation:pop .35s;}
+@keyframes pop{0%{transform:scale(.4);}70%{transform:scale(1.15);}100%{transform:scale(1);}}
+
+/* 括号传送门 */
+.gate-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0;justify-content:center;}
+.grp-label{font-size:21px;font-weight:900;background:var(--b2);border-radius:12px;padding:8px 14px;border:3px solid var(--p);}
+.gate{
+  width:118px;height:118px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b8,var(--acc) 70%);
+  border:5px solid #fff;color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:27px;font-weight:900;box-shadow:0 6px 14px rgba(0,0,0,.2);flex:0 0 auto;
+  transition:transform .15s;
+}
+.gate.hover{transform:scale(1.12);outline:4px solid var(--ok);}
+.gate small{display:block;font-size:14px;font-weight:800;text-align:center;}
+.grp-cards{display:flex;gap:10px;flex-wrap:wrap;}
+.gcard{
+  padding:10px 15px;background:#fff;border:3px solid var(--acc);border-radius:14px;font-size:22px;font-weight:800;
+  box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:grab;user-select:none;touch-action:none;
+}
+.gcard.used{opacity:.22;border-style:dashed;pointer-events:none;text-decoration:line-through;}
+.shelf{min-height:64px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px;}
+.outcard{padding:10px 15px;background:#e2e8f0;border:3px solid #64748b;border-radius:14px;font-size:22px;font-weight:800;color:#334155;}
+.blankcard{
+  padding:10px 16px;border:4px dashed var(--acc);border-radius:14px;font-size:22px;font-weight:900;
+  background:#fffdf3;color:var(--acc);min-width:70px;text-align:center;transition:transform .15s;
+}
+.blankcard.hover{transform:scale(1.1);background:#fef3c7;}
+.blankcard.filled{border-style:solid;border-color:var(--ok);color:var(--ok);background:#f0fdf4;cursor:default;}
+
+/* 能量数字块 */
+.chip-tray{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;justify-content:center;}
+.chip{
+  min-width:60px;text-align:center;padding:10px 12px;border-radius:50%;background:var(--p);color:#fff;
+  font-size:22px;font-weight:900;cursor:grab;user-select:none;touch-action:none;
+  border:3px solid #fff;box-shadow:0 5px 12px rgba(0,0,0,.25);
+}
+.chip.dragging{transform:scale(1.12);}
+
+/* 调节台（滑块） */
+.slider-box{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;margin-top:8px;}
+.sl{background:#fff;border:3px solid var(--p);border-radius:16px;padding:12px 18px;text-align:center;min-width:210px;}
+.sl-name{font-size:22px;font-weight:900;color:var(--p);}
+.sl-val{font-size:26px;font-weight:900;color:var(--acc);margin:2px 0;}
+.sl input[type=range]{width:190px;height:34px;cursor:pointer;}
+.disp-card{
+  background:#fff;border:4px solid var(--acc);border-radius:18px;padding:18px 22px;text-align:center;
+  font-size:30px;font-weight:900;margin:10px auto;max-width:760px;line-height:1.8;letter-spacing:1px;
+}
+.disp-card.glow{animation:glow .8s infinite alternate;border-color:var(--ok);color:var(--ok);}
+@keyframes glow{from{box-shadow:0 0 6px rgba(22,163,74,.4);}to{box-shadow:0 0 26px rgba(22,163,74,.95);}}
+.ghost{color:#94a3b8;text-decoration:line-through;font-size:22px;font-weight:700;}
+.static-line{text-align:center;font-size:20px;font-weight:700;color:#475569;margin-top:6px;}
+.meters{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:10px;}
+.meter{background:#fff;border:3px solid var(--p);border-radius:14px;padding:10px 14px;min-width:210px;}
+.meter .m-label{font-size:17px;font-weight:800;color:#334155;}
+.meter .m-val{font-size:24px;font-weight:900;margin:4px 0;}
+.meter.good{border-color:var(--ok);}
+.meter.good .m-val{color:var(--ok);}
+.meter .m-bar{height:14px;background:#e2e8f0;border-radius:999px;overflow:hidden;}
+.meter .m-bar i{display:block;height:100%;background:var(--p);border-radius:999px;transition:width .2s;}
+.meter.good .m-bar i{background:var(--ok);}
+
+/* 配方圣殿 */
+.recipe-slots{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;}
+.slot{
+  background:linear-gradient(160deg,#fff8e1,#ffe9b8);border:4px solid var(--acc);border-radius:18px;
+  padding:14px 18px;text-align:center;min-width:220px;
+}
+.slot .s-label{font-size:22px;font-weight:900;}
+.slot .s-eq{font-size:20px;font-weight:800;color:#b45309;margin-top:4px;}
+.slot .s-blank{
+  margin:10px auto 4px;width:74px;height:74px;line-height:66px;border-radius:50%;
+  border:4px dashed var(--p);font-size:26px;font-weight:900;color:var(--p);background:#fff;
+  transition:transform .15s;
+}
+.slot .s-blank.hover{transform:scale(1.12);}
+.slot .s-blank.filled{border-style:solid;border-color:var(--ok);background:var(--ok);color:#fff;}
+.slot .s-expand{font-size:17px;color:#334155;margin-top:6px;min-height:24px;font-weight:700;}
+.value-line{font-size:26px;font-weight:900;color:var(--ok);text-align:center;margin-top:12px;}
+
+/* 数值封印 */
+.value-q{font-size:26px;font-weight:900;text-align:center;margin:14px 0;}
+.value-blank{
+  display:inline-block;min-width:110px;padding:12px 18px;border:4px dashed var(--acc);border-radius:14px;
+  font-size:28px;font-weight:900;color:var(--acc);background:#fffdf3;margin-left:10px;vertical-align:middle;
+  transition:transform .15s;
+}
+.value-blank.hover{transform:scale(1.1);}
+.value-blank.filled{border-style:solid;border-color:var(--ok);color:var(--ok);background:#f0fdf4;}
+
+/* 阶段完成横幅 */
+.stage-done{
+  margin-top:14px;background:#f0fdf4;border:4px solid var(--ok);border-radius:16px;
+  padding:14px 18px;font-size:22px;font-weight:900;color:var(--ok);text-align:center;animation:pop .4s;
+}
+.stage-done .sum{font-size:26px;color:var(--ink);margin-top:6px;}
+
+/* 消息条 */
+#msgbar{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:500;
+  max-width:92vw;text-align:center;
+}
+#msgbar span{
+  display:inline-block;padding:10px 22px;border-radius:999px;font-size:19px;font-weight:800;color:#fff;
+  box-shadow:0 6px 16px rgba(0,0,0,.25);animation:pop .3s;
+}
+.msg-ok{background:var(--ok);} .msg-bad{background:var(--bad);} .msg-info{background:var(--p);}
+
+/* 覆盖层 */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:9000;padding:14px;}
+.ov-panel{
+  background:#fff;border-radius:22px;border-top:12px solid var(--p);
+  padding:26px 30px;max-width:760px;width:100%;max-height:86vh;overflow:auto;
+}
+.ov-panel h2{margin:0 0 12px;font-size:28px;color:var(--p);}
+.ov-panel .body{font-size:19px;line-height:1.9;}
+.ov-panel .body b{color:var(--p);}
+.ov-btns{display:flex;gap:14px;justify-content:center;margin-top:20px;flex-wrap:wrap;}
+.ov-btns .btn{font-size:19px;padding:10px 26px;}
+.stars-row{font-size:54px;text-align:center;letter-spacing:8px;color:var(--acc);margin:6px 0;}
+.reveal-ans{background:#f0fdf4;border:3px solid var(--ok);border-radius:14px;padding:12px 16px;margin:10px 0;font-weight:800;}
+.reveal-exp{background:#eff6ff;border:3px solid var(--p);border-radius:14px;padding:12px 16px;line-height:1.9;}
+.win-stats{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:14px 0;}
+.win-stat{background:var(--b2);border:3px solid var(--p);border-radius:16px;padding:12px 22px;text-align:center;}
+.win-stat .n{font-size:32px;font-weight:900;color:var(--p);}
+.win-stat .l{font-size:16px;font-weight:700;color:#475569;}
+
+/* 移动端适配 */
+@media (max-width:720px){
+  .brand{font-size:32px;}
+  .diff-card{width:86%;}
+  .tile,.gcard,.blankcard,.chip{font-size:19px;}
+  .disp-card{font-size:23px;}
+  .gate{width:96px;height:96px;font-size:22px;}
+  #tb-title{font-size:16px;}
+  .stat{font-size:16px;}
+  .btn{font-size:14px;padding:6px 10px;}
+  #qtext{font-size:17px;}
+}
+</style>
+</head>
+<body>
+
+<!-- 特效层：CSS 彩纸与星星 -->
+<div id="fxlayer"></div>
+
+<!-- ============ 难度选择页 ============ -->
+<div id="scr-diff">
+  <div class="brand">星尘工坊 · 整式的加减<small>初 中 闯 关 游 戏</small></div>
+  <div class="diff-cards">
+    <div class="diff-card" data-diff="easy">
+      <span class="tag">初级</span>
+      <h2>星光分拣台</h2>
+      <p>认识单项式的次数与同类项，把散落的卡片送回家族箱，体验合并同类项的全过程。</p>
+    </div>
+    <div class="diff-card" data-diff="mid">
+      <span class="tag">中级</span>
+      <h2>括号传送门</h2>
+      <p>把卡片搬过带乘数的传送门去括号，填对每张卡片的新系数，再合并、化简求值。</p>
+    </div>
+    <div class="diff-card" data-diff="hard">
+      <span class="tag">高级</span>
+      <h2>大师试炼场</h2>
+      <p>整体代入、配方凑整、参数调节、找回丢失的多项式——整式加减的综合挑战。</p>
+    </div>
+  </div>
+  <div class="diff-note">每局随机抽取 3 个关卡，主色随机切换 · 适合课堂投影与触屏操作</div>
+</div>
+
+<!-- ============ 游戏主界面 ============ -->
+<div id="scr-game" class="hidden">
+  <div id="topbar">
+    <span id="tb-title">星尘工坊</span>
+    <span class="tb-chip" id="tb-diff">初级</span>
+    <span class="tb-chip" id="tb-round">第1/3关</span>
+    <div id="tb-right">
+      <span class="stat">用时 <span id="tb-time">00:00</span></span>
+      <span class="stat">步数 <span id="tb-steps">0</span></span>
+      <button class="btn" id="btn-rules">规则</button>
+      <button class="btn" id="btn-reveal">揭示答案</button>
+      <button class="btn" id="btn-restart">重新开始</button>
+      <button class="btn" id="btn-back">返回难度选择</button>
+    </div>
+  </div>
+  <div id="game-main">
+    <div id="qpanel">
+      <div id="qtitle"></div>
+      <div id="qtext"></div>
+    </div>
+    <div id="stage-head">
+      <span id="stage-prog"></span><span id="stage-intro"></span>
+    </div>
+    <div id="stage-area"></div>
+  </div>
+</div>
+
+<!-- 规则说明 -->
+<div id="ov-rules" class="overlay hidden">
+  <div class="ov-panel">
+    <h2>玩法规则</h2>
+    <div class="body">
+      <b>目标：</b>选择难度后，随机抽取 3 个关卡，全部完成即可点亮彩虹桥庆祝！<br>
+      <b>分拣台：</b>用手指或鼠标把单项式卡片<b>拖进</b>正确的"家族箱"，同类项会自动合并；放错箱子会被弹回并告诉你原因。<br>
+      <b>括号传送门：</b>把括号里的卡片<b>拖过</b>带乘数的圆形传送门，卡片会变成待填系数的新卡片；再把<b>数字能量块</b>拖到空格上填对系数。<br>
+      <b>调节台：</b>拖动滑块，观察式子和仪表实时变化，达成目标（如"四次三项式""噪声归零"）即过关。<br>
+      <b>配方圣殿：</b>给每个"配方"拖入正确的乘数，让展开式恰好凑成目标整式，代入数值得到答案。<br>
+      <b>顶栏：</b>右上角实时显示用时与步数；可随时查看规则、<b>揭示答案</b>、重新开始本关或返回难度选择。<br>
+      <b>小贴士：</b>合并后系数为 0 的项会自动消失；去括号时，括号前的数要乘到里面的每一项哦！
+    </div>
+    <div class="ov-btns"><button class="btn btn-primary" id="btn-rules-close">开始闯关</button></div>
+  </div>
+</div>
+
+<!-- 揭示答案 -->
+<div id="ov-reveal" class="overlay hidden">
+  <div class="ov-panel">
+    <h2>答案与解析</h2>
+    <div class="body" id="reveal-body"></div>
+    <div class="ov-btns"><button class="btn btn-primary" id="btn-reveal-close">我明白了，继续闯关</button></div>
+  </div>
+</div>
+
+<!-- 单关完成 -->
+<div id="ov-round" class="overlay hidden">
+  <div class="ov-panel" style="text-align:center;">
+    <h2 id="round-ov-title">本关完成！</h2>
+    <div class="stars-row" id="round-ov-stars"></div>
+    <div class="body" id="round-ov-note"></div>
+    <div class="ov-btns"><button class="btn btn-primary" id="btn-next-round">下一关</button></div>
+  </div>
+</div>
+
+<!-- 通关庆祝 -->
+<div id="ov-win" class="overlay hidden">
+  <div class="ov-panel" style="text-align:center;">
+    <h2 style="font-size:34px;">恭喜通关，彩虹桥点亮！</h2>
+    <div class="stars-row" id="win-stars"></div>
+    <div class="win-stats">
+      <div class="win-stat"><div class="n" id="win-time">00:00</div><div class="l">总用时</div></div>
+      <div class="win-stat"><div class="n" id="win-steps">0</div><div class="l">总步数</div></div>
+      <div class="win-stat"><div class="n" id="win-wrong">0</div><div class="l">失误次数</div></div>
+    </div>
+    <div class="body" id="win-note">整式的加减手法已经炉火纯青，快去挑战更高的难度吧！</div>
+    <div class="ov-btns">
+      <button class="btn btn-primary" id="btn-again">再来一局（重新抽关）</button>
+      <button class="btn" id="btn-win-back">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<div id="msgbar"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   星尘工坊 · 整式的加减（初中 · 第二章过关检测）
+   核心玩法：拖拽分拣合并同类项 / 括号传送门去括号 / 滑块参数调节 / 配方整体代入
+   ===================================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+function $(s){return document.querySelector(s);}
+function $$(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
+function shuffle(arr){ // 返回打乱后的新数组
+  var a=arr.slice();
+  for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}
+  return a;
+}
+function supHtml(s){return '<sup style="font-size:.72em;">'+s+'</sup>';}
+/* 把若干带符号项拼接成规范表达式：['2x','-5','ab'] → "2x - 5 + ab" */
+function smartJoin(texts){
+  var out='';
+  for(var i=0;i<texts.length;i++){
+    var t=String(texts[i]);
+    if(i===0){out=t;continue;}
+    if(t.indexOf('-')===0){out+=' - '+t.slice(1);}
+    else{out+=' + '+t;}
+  }
+  return out||'0';
+}
+/* 系数格式化：1→''，-1→'-'，其余原样 */
+function coefFmt(c){
+  if(c===1)return '';
+  if(c===-1)return '-';
+  return String(c);
+}
+var PRAISE=['漂亮！','干得好！','归位完美！','正是如此！','太棒了！','合并成功！','手感绝佳！'];
+
+/* ---------------- 随机配色（每局换主色） ---------------- */
+var PALETTES=[
+  {p:'#2563eb',b1:'#eef2ff',b2:'#dbeafe',acc:'#f59e0b'},
+  {p:'#059669',b1:'#ecfdf5',b2:'#d1fae5',acc:'#ea580c'},
+  {p:'#db2777',b1:'#fdf2f8',b2:'#fce7f3',acc:'#7c3aed'},
+  {p:'#ea580c',b1:'#fff7ed',b2:'#ffedd5',acc:'#0d9488'},
+  {p:'#7c3aed',b1:'#f5f3ff',b2:'#ede9fe',acc:'#059669'},
+  {p:'#0891b2',b1:'#ecfeff',b2:'#cffafe',acc:'#e11d48'}
+];
+function applyPalette(){
+  var pal=PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  var r=document.documentElement.style;
+  r.setProperty('--p',pal.p);r.setProperty('--b1',pal.b1);
+  r.setProperty('--b2',pal.b2);r.setProperty('--acc',pal.acc);
+}
+
+/* =====================================================================
+   题库（改编自《过关检测 第二章 整式的加减》，含同型变式）
+   阶段类型：sort 分拣合并 / gate 括号传送门 / slider 滑块调节 / recipe 配方代入 / value 数值封印
+   ===================================================================== */
+var ROUNDS={easy:[],mid:[],hard:[]};
+
+/* ---------- 初级：星光分拣 ---------- */
+/* 初级-1 次数分拣（原题第5题） */
+ROUNDS.easy.push({
+  id:'E1',title:'次数分拣台',src:'改编自过关检测 第5题',
+  q:'多项式 -5x⁵y⁴+3xy²-4x³y+2x⁴y³-5x⁵y²-6 的卡片散落一地。请把每张单项式卡片送进按"次数"命名的家族箱（单项式的次数 = 各字母指数的和）。全部归位后，水晶会显示：次数最高项的系数、四次项、常数项。',
+  stages:[
+    {type:'sort',flavor:'degree',intro:'第1步：把 6 张卡片按次数拖进正确的家族箱。',
+     bins:[{key:'d9',label:'9次家族',deg:9},{key:'d7',label:'7次家族',deg:7},{key:'d4',label:'4次家族',deg:4},{key:'d3',label:'3次家族',deg:3},{key:'d0',label:'常数家族',deg:0}],
+     tiles:[
+       {t:'-5x⁵y⁴',coef:-5,var:'x⁵y⁴',fam:'d9',deg:9,exp:'5+4=9'},
+       {t:'3xy²',coef:3,var:'xy²',fam:'d3',deg:3,exp:'1+2=3'},
+       {t:'-4x³y',coef:-4,var:'x³y',fam:'d4',deg:4,exp:'3+1=4'},
+       {t:'2x⁴y³',coef:2,var:'x⁴y³',fam:'d7',deg:7,exp:'4+3=7'},
+       {t:'-5x⁵y²',coef:-5,var:'x⁵y²',fam:'d7',deg:7,exp:'5+2=7'},
+       {t:'-6',coef:-6,var:'',fam:'d0',deg:0,exp:'不含字母=0'}
+     ],
+     doneNote:'次数最高的项是 -5x⁵y⁴（9次），系数是 <b>-5</b>；四次项是 <b>-4x³y</b>；常数项是 <b>-6</b>。'}
+  ],
+  reveal:{ans:'最高次项的系数是 -5；四次项是 -4x³y；常数项是 -6。',
+    exp:'单项式的次数=所有字母指数之和：-5x⁵y⁴ 是 5+4=9 次（系数 -5）；2x⁴y³ 与 -5x⁵y² 都是 7 次；-4x³y 是 3+1=4 次；3xy² 是 1+2=3 次；-6 不含字母，是常数项。'}
+});
+/* 初级-2 次数分拣变式 */
+ROUNDS.easy.push({
+  id:'E2',title:'次数分拣台·变式',src:'同型自创变式',
+  q:'变式训练：把多项式 4x³y²-x⁴y+2x²y²-5xy²+7x²-3 的卡片按"次数"送进正确的家族箱。',
+  stages:[
+    {type:'sort',flavor:'degree',intro:'第1步：数一数每张卡片的次数，拖进对应家族箱。',
+     bins:[{key:'d5',label:'5次家族',deg:5},{key:'d4',label:'4次家族',deg:4},{key:'d3',label:'3次家族',deg:3},{key:'d2',label:'2次家族',deg:2},{key:'d0',label:'常数家族',deg:0}],
+     tiles:[
+       {t:'4x³y²',coef:4,var:'x³y²',fam:'d5',deg:5,exp:'3+2=5'},
+       {t:'-x⁴y',coef:-1,var:'x⁴y',fam:'d5',deg:5,exp:'4+1=5'},
+       {t:'2x²y²',coef:2,var:'x²y²',fam:'d4',deg:4,exp:'2+2=4'},
+       {t:'-5xy²',coef:-5,var:'xy²',fam:'d3',deg:3,exp:'1+2=3'},
+       {t:'7x²',coef:7,var:'x²',fam:'d2',deg:2,exp:'2'},
+       {t:'-3',coef:-3,var:'',fam:'d0',deg:0,exp:'不含字母=0'}
+     ],
+     doneNote:'4x³y² 与 -x⁴y 都是 5 次项；-3 是常数项。'}
+  ],
+  reveal:{ans:'5次：4x³y²、-x⁴y；4次：2x²y²；3次：-5xy²；2次：7x²；常数项：-3。',
+    exp:'按各字母指数之和分类：3+2=5、4+1=5、2+2=4、1+2=3、x² 是 2 次、-3 不含字母是常数项。'}
+});
+/* 初级-3 同类项大家族（原题第2题） */
+ROUNDS.easy.push({
+  id:'E3',title:'同类项大家族',src:'改编自过关检测 第2题',
+  q:'8 张代数式卡片：2、-5、-0.5xy²、3x²y、-3t、200t、ab²、-b²a。请把互为同类项的卡片送进同一个家族箱（所含字母相同，且相同字母的指数也相同；常数与常数也是同类项）。落单的卡片独占一箱——它们正是"不是同类项"的那组。',
+  stages:[
+    {type:'sort',flavor:'like',intro:'第1步：观察字母与指数，把同类项卡片拖进同一个家族箱。',
+     bins:[
+       {key:'c0',label:'常数家族',lets:''},
+       {key:'xy2',label:'xy²家族',lets:'x:1,y:2'},
+       {key:'x2y',label:'x²y家族',lets:'x:2,y:1'},
+       {key:'t',label:'t家族',lets:'t:1'},
+       {key:'ab2',label:'ab²家族',lets:'a:1,b:2'}
+     ],
+     tiles:[
+       {t:'2',coef:2,var:'',fam:'c0',lets:''},
+       {t:'-5',coef:-5,var:'',fam:'c0',lets:''},
+       {t:'-0.5xy²',coef:-0.5,var:'xy²',fam:'xy2',lets:'x:1,y:2'},
+       {t:'3x²y',coef:3,var:'x²y',fam:'x2y',lets:'x:2,y:1'},
+       {t:'-3t',coef:-3,var:'t',fam:'t',lets:'t:1'},
+       {t:'200t',coef:200,var:'t',fam:'t',lets:'t:1'},
+       {t:'ab²',coef:1,var:'ab²',fam:'ab2',lets:'a:1,b:2'},
+       {t:'-b²a',coef:-1,var:'ab²',fam:'ab2',lets:'a:1,b:2'}
+     ],
+     doneNote:'-0.5xy² 与 3x²y 各自落单：字母虽然都是 x、y，但相同字母的指数不同，<b>不是同类项</b>——正呼应了原题"不是同类项"的那一组。'}
+  ],
+  reveal:{ans:'-0.5xy² 与 3x²y 不是同类项（其余各组都是同类项）。',
+    exp:'2 与 -5 都是常数，是同类项；-3t 与 200t 字母相同、指数相同；ab² 与 -b²a 只是字母顺序不同，所含字母及相同字母的指数都相同，是同类项；而 -0.5xy² 中 y 的指数是 2、3x²y 中 y 的指数是 1，相同字母的指数不同，不是同类项。'}
+});
+/* 初级-4 同类项变式 */
+ROUNDS.easy.push({
+  id:'E4',title:'同类项大家族·变式',src:'同型自创变式',
+  q:'变式训练：卡片 5m²n、-2nm²、4mn²、-mn²、m²n³、8，把互为同类项的卡片送进同一个家族箱。',
+  stages:[
+    {type:'sort',flavor:'like',intro:'第1步：注意字母顺序不同的卡片也可能是同类项。',
+     bins:[
+       {key:'m2n',label:'m²n家族',lets:'m:2,n:1'},
+       {key:'mn2',label:'mn²家族',lets:'m:1,n:2'},
+       {key:'m2n3',label:'m²n³家族',lets:'m:2,n:3'},
+       {key:'c0',label:'常数家族',lets:''}
+     ],
+     tiles:[
+       {t:'5m²n',coef:5,var:'m²n',fam:'m2n',lets:'m:2,n:1'},
+       {t:'-2nm²',coef:-2,var:'m²n',fam:'m2n',lets:'m:2,n:1'},
+       {t:'4mn²',coef:4,var:'mn²',fam:'mn2',lets:'m:1,n:2'},
+       {t:'-mn²',coef:-1,var:'mn²',fam:'mn2',lets:'m:1,n:2'},
+       {t:'m²n³',coef:1,var:'m²n³',fam:'m2n3',lets:'m:2,n:3'},
+       {t:'8',coef:8,var:'',fam:'c0',lets:''}
+     ],
+     doneNote:'5m²n 与 -2nm² 是同类项（字母顺序不影响）；m²n³ 单独一组；8 是常数。'}
+  ],
+  reveal:{ans:'5m²n 与 -2nm² 是同类项；4mn² 与 -mn² 是同类项；m²n³、8 各自一组。',
+    exp:'判断同类项只看所含字母及相同字母的指数，与字母书写顺序无关：-2nm² 就是 -2m²n。'}
+});
+/* 初级-5 合并工坊（原题第3题） */
+ROUNDS.easy.push({
+  id:'E5',title:'合并工坊',src:'改编自过关检测 第3题',
+  q:'合并工坊里散落着 8 张卡片：-a³、-a³、4a²、a、4a、-2a、2a²、-a。把同类项送进同一个家族箱完成合并；如果送错箱子会被弹回并说明原因——这就是"不是同类项不能合并"。',
+  stages:[
+    {type:'sort',flavor:'like',intro:'第1步：只有同类项才能进同一个箱子，合并时系数相加、字母部分不变。',
+     bins:[
+       {key:'a3',label:'a³家族',lets:'a:3'},
+       {key:'a2',label:'a²家族',lets:'a:2'},
+       {key:'a1',label:'a家族',lets:'a:1'}
+     ],
+     tiles:[
+       {t:'-a³',coef:-1,var:'a³',fam:'a3',lets:'a:3'},
+       {t:'-a³',coef:-1,var:'a³',fam:'a3',lets:'a:3'},
+       {t:'4a²',coef:4,var:'a²',fam:'a2',lets:'a:2'},
+       {t:'a',coef:1,var:'a',fam:'a1',lets:'a:1'},
+       {t:'4a',coef:4,var:'a',fam:'a1',lets:'a:1'},
+       {t:'-2a',coef:-2,var:'a',fam:'a1',lets:'a:1'},
+       {t:'2a²',coef:2,var:'a²',fam:'a2',lets:'a:2'},
+       {t:'-a',coef:-1,var:'a',fam:'a1',lets:'a:1'}
+     ],
+     doneNote:'-a³-a³=<b>-2a³</b>（同类项可以合并）；4a²+2a²=<b>6a²</b>；a+4a-2a-a=<b>2a</b>；而 4a² 与 a 不是同类项，永远不能合并。'}
+  ],
+  reveal:{ans:'a³箱：-2a³；a²箱：6a²；a箱：2a。对应原题：-a³-a³=-2a³ 是正确的计算。',
+    exp:'合并同类项时，系数相加，字母和指数不变：-a³-a³=(-1-1)a³=-2a³；4a²+2a²=6a²；a+4a-2a-a=2a。4a² 与 a 字母指数不同、2a² 与 a 也不是同类项，均不能合并。'}
+});
+/* 初级-6 化简（原题第10题(1)） */
+ROUNDS.easy.push({
+  id:'E6',title:'传送门初体验',src:'改编自过关检测 第10题(1)',
+  q:'化简：(2x+3y)+(3x-y)。括号前是"+"号：把括号里的卡片搬过"+1"传送门（每项都不变号），再用数字能量块填对系数，最后与括号外的卡片合并。',
+  stages:[
+    {type:'gate',intro:'第1步：把括号里的两张卡片拖过"+1"传送门。',
+     exprHTML:'(2x + 3y) <span style="color:var(--acc);">+ (3x - y)</span>',
+     groups:[{id:'g1',label:'(3x - y)',mult:'+1',cards:[
+       {t:'3x',need:3,blankVar:'x',out:'3x',hint:'(+1)×3x = 3x，系数不变'},
+       {t:'-y',need:-1,blankVar:'y',out:'-y',hint:'(+1)×(-y) = -y，符号不变'}
+     ]}],
+     outside:['2x','3y'],chips:[3,-1,-3,1],
+     doneNote:'括号前是"+"号，去括号后各项都不变号。'},
+    {type:'sort',flavor:'like',intro:'第2步：把 4 张卡片合并。',
+     bins:[{key:'x',label:'x家族',lets:'x:1'},{key:'y',label:'y家族',lets:'y:1'}],
+     tiles:[
+       {t:'2x',coef:2,var:'x',fam:'x',lets:'x:1'},
+       {t:'3y',coef:3,var:'y',fam:'y',lets:'y:1'},
+       {t:'3x',coef:3,var:'x',fam:'x',lets:'x:1'},
+       {t:'-y',coef:-1,var:'y',fam:'y',lets:'y:1'}
+     ],
+     doneNote:'2x+3x=5x，3y-y=2y，所以 (2x+3y)+(3x-y) = <b>5x+2y</b>。'}
+  ],
+  reveal:{ans:'(2x+3y)+(3x-y)=5x+2y。',
+    exp:'括号前是"+"号，去括号时各项都不变号：原式=2x+3y+3x-y=(2x+3x)+(3y-y)=5x+2y。'}
+});
+/* 初级-7 化简变式 */
+ROUNDS.easy.push({
+  id:'E7',title:'传送门初体验·变式',src:'同型自创变式',
+  q:'变式训练：化简 (4m-5n)+(6m+2n)。',
+  stages:[
+    {type:'gate',intro:'第1步：把括号里的卡片搬过"+1"传送门并填对系数。',
+     exprHTML:'(4m - 5n) <span style="color:var(--acc);">+ (6m + 2n)</span>',
+     groups:[{id:'g1',label:'(6m + 2n)',mult:'+1',cards:[
+       {t:'6m',need:6,blankVar:'m',out:'6m',hint:'(+1)×6m = 6m'},
+       {t:'2n',need:2,blankVar:'n',out:'2n',hint:'(+1)×2n = 2n'}
+     ]}],
+     outside:['4m','-5n'],chips:[6,2,-6,-2],
+     doneNote:'"+"号开门，卡片原样通过。'},
+    {type:'sort',flavor:'like',intro:'第2步：合并同类项。',
+     bins:[{key:'m',label:'m家族',lets:'m:1'},{key:'n',label:'n家族',lets:'n:1'}],
+     tiles:[
+       {t:'4m',coef:4,var:'m',fam:'m',lets:'m:1'},
+       {t:'-5n',coef:-5,var:'n',fam:'n',lets:'n:1'},
+       {t:'6m',coef:6,var:'m',fam:'m',lets:'m:1'},
+       {t:'2n',coef:2,var:'n',fam:'n',lets:'n:1'}
+     ],
+     doneNote:'4m+6m=10m，-5n+2n=-3n，结果为 <b>10m-3n</b>。'}
+  ],
+  reveal:{ans:'(4m-5n)+(6m+2n)=10m-3n。',
+    exp:'原式=4m-5n+6m+2n=(4m+6m)+(-5n+2n)=10m-3n。'}
+});
+
+/* ---------- 中级：括号传送门 ---------- */
+/* 中级-1 去括号（原题第4题A） */
+ROUNDS.mid.push({
+  id:'M1',title:'括号传送门·符号翻转',src:'改编自过关检测 第4题',
+  q:'去括号挑战：5x-(x-2y+5z)。括号前是"-"号，"-1"传送门会把搬过它的每张卡片乘 -1（符号翻转）。请把括号里的卡片搬过门，用数字能量块填对新系数，最后合并。',
+  stages:[
+    {type:'gate',intro:'第1步：把 3 张卡片逐一拖过"-1"传送门，再给空白卡填上正确的系数。',
+     exprHTML:'5x <span style="color:var(--acc);">- (x - 2y + 5z)</span>',
+     groups:[{id:'g1',label:'(x - 2y + 5z)',mult:'-1',cards:[
+       {t:'x',need:-1,blankVar:'x',out:'-x',hint:'(-1)×x = -x，正变负'},
+       {t:'-2y',need:2,blankVar:'y',out:'2y',hint:'(-1)×(-2y) = +2y，负变正'},
+       {t:'5z',need:-5,blankVar:'z',out:'-5z',hint:'(-1)×5z = -5z，正变负'}
+     ]}],
+     outside:['5x'],chips:[-1,2,-5,1,-2,5],
+     doneNote:'去掉括号得 5x-x+2y-5z。'},
+    {type:'sort',flavor:'like',intro:'第2步：合并同类项。',
+     bins:[{key:'x',label:'x家族',lets:'x:1'},{key:'y',label:'y家族',lets:'y:1'},{key:'z',label:'z家族',lets:'z:1'}],
+     tiles:[
+       {t:'5x',coef:5,var:'x',fam:'x',lets:'x:1'},
+       {t:'-x',coef:-1,var:'x',fam:'x',lets:'x:1'},
+       {t:'2y',coef:2,var:'y',fam:'y',lets:'y:1'},
+       {t:'-5z',coef:-5,var:'z',fam:'z',lets:'z:1'}
+     ],
+     doneNote:'5x-x=4x，所以 5x-(x-2y+5z) = <b>4x+2y-5z</b>。'}
+  ],
+  reveal:{ans:'5x-(x-2y+5z)=5x-x+2y-5z=4x+2y-5z。',
+    exp:'括号前是"-"号，去括号时括号里各项都变号：-(x-2y+5z)=-x+2y-5z，再合并 5x-x=4x。'}
+});
+/* 中级-2 去括号（原题第4题C，易错：漏乘） */
+ROUNDS.mid.push({
+  id:'M2',title:'括号传送门·分配律',src:'改编自过关检测 第4题',
+  q:'去括号挑战：3x²-3(x+6)。"-3"传送门会把每张卡片都乘 -3（注意：括号里的两项都要乘到！）。填对新系数并完成合并。',
+  stages:[
+    {type:'gate',intro:'第1步：把 2 张卡片拖过"-3"传送门，填对系数（小心：6 也要乘 -3）。',
+     exprHTML:'3x² <span style="color:var(--acc);">- 3(x + 6)</span>',
+     groups:[{id:'g1',label:'(x + 6)',mult:'-3',cards:[
+       {t:'x',need:-3,blankVar:'x',out:'-3x',hint:'(-3)×x = -3x'},
+       {t:'6',need:-18,blankVar:'',out:'-18',hint:'(-3)×6 = -18，别忘乘常数！'}
+     ]}],
+     outside:['3x²'],chips:[-3,-18,3,18,-6,6],
+     doneNote:'-3 要乘到括号里的每一项：-3x 和 -18。'},
+    {type:'sort',flavor:'like',intro:'第2步：把 3 张卡片归类（本关没有可合并的同类项，各归各箱即可）。',
+     bins:[{key:'x2',label:'x²家族',lets:'x:2'},{key:'x',label:'x家族',lets:'x:1'},{key:'c0',label:'常数家族',lets:''}],
+     tiles:[
+       {t:'3x²',coef:3,var:'x²',fam:'x2',lets:'x:2'},
+       {t:'-3x',coef:-3,var:'x',fam:'x',lets:'x:1'},
+       {t:'-18',coef:-18,var:'',fam:'c0',lets:''}
+     ],
+     doneNote:'3x²-3(x+6) = <b>3x²-3x-18</b>。常见失误是只乘 x 得到 -6，记住分配律要乘每一项！'}
+  ],
+  reveal:{ans:'3x²-3(x+6)=3x²-3x-18。',
+    exp:'括号前是 -3，去括号时 -3 要与括号里每一项相乘：-3×x=-3x，-3×6=-18。只乘一项而漏乘另一项是最常见的失误。'}
+});
+/* 中级-3 化简求值（原题第11题） */
+ROUNDS.mid.push({
+  id:'M3',title:'化简求值·消失的项',src:'改编自过关检测 第11题',
+  q:'先化简，再求值：-a²b+(3ab²-a²b)-2(2ab²-a²b)，其中 a=1，b=-2。场上有两个传送门："+1"门不改变卡片，"-2"门给每张卡片乘 -2。合并后系数为 0 的项会自动消失哦。',
+  stages:[
+    {type:'gate',intro:'第1步：两个括号各有一个传送门，把 4 张卡片搬过各自的门并填对系数。',
+     exprHTML:'-a²b <span style="color:var(--acc);">+ (3ab² - a²b)</span> <span style="color:#dc2626;">- 2(2ab² - a²b)</span>',
+     groups:[
+       {id:'g1',label:'(3ab² - a²b)',mult:'+1',cards:[
+         {t:'3ab²',need:3,blankVar:'ab²',out:'3ab²',hint:'(+1)×3ab² = 3ab²'},
+         {t:'-a²b',need:-1,blankVar:'a²b',out:'-a²b',hint:'(+1)×(-a²b) = -a²b'}
+       ]},
+       {id:'g2',label:'(2ab² - a²b)',mult:'-2',cards:[
+         {t:'2ab²',need:-4,blankVar:'ab²',out:'-4ab²',hint:'(-2)×2ab² = -4ab²'},
+         {t:'-a²b',need:2,blankVar:'a²b',out:'2a²b',hint:'(-2)×(-a²b) = +2a²b'}
+       ]}
+     ],
+     outside:['-a²b'],chips:[3,-1,-4,2,4,-2,-3,1],
+     doneNote:'去括号完成：-a²b+3ab²-a²b-4ab²+2a²b。'},
+    {type:'sort',flavor:'like',intro:'第2步：合并同类项（注意观察哪一项消失了）。',
+     bins:[{key:'a2b',label:'a²b家族',lets:'a:2,b:1'},{key:'ab2',label:'ab²家族',lets:'a:1,b:2'}],
+     tiles:[
+       {t:'-a²b',coef:-1,var:'a²b',fam:'a2b',lets:'a:2,b:1'},
+       {t:'3ab²',coef:3,var:'ab²',fam:'ab2',lets:'a:1,b:2'},
+       {t:'-a²b',coef:-1,var:'a²b',fam:'a2b',lets:'a:2,b:1'},
+       {t:'-4ab²',coef:-4,var:'ab²',fam:'ab2',lets:'a:1,b:2'},
+       {t:'2a²b',coef:2,var:'a²b',fam:'a2b',lets:'a:2,b:1'}
+     ],
+     doneNote:'a²b 项：-1-1+2=0，整项消失！ab² 项：3-4=-1。化简结果为 <b>-ab²</b>。'},
+    {type:'value',intro:'第3步：代入 a=1，b=-2 求值。',
+     qHTML:'当 a=1，b=-2 时： -ab² = -1×(-2)² =',chips:[-4,4,-1,1],ans:-4,
+     doneNote:'-1×(-2)²=-1×4=-4，答案为 <b>-4</b>。'}
+  ],
+  reveal:{ans:'化简结果 -ab²；当 a=1，b=-2 时，值为 -4。',
+    exp:'原式=-a²b+3ab²-a²b-4ab²+2a²b=(-1-1+2)a²b+(3-4)ab²=0·a²b-1·ab²=-ab²。系数为 0 的 a²b 项消失。当 a=1，b=-2 时，原式=-1×(-2)²=-1×4=-4。'}
+});
+/* 中级-4 化简（原题第10题(2)，两层括号） */
+ROUNDS.mid.push({
+  id:'M4',title:'双层传送门',src:'改编自过关检测 第10题(2)',
+  q:'化简：3x²-[7x-2(4x-3)+(2x²-x)]。这里有内外两层门：先过内层"-2"门，产生的卡片再过外层"-1"门，最后合并。',
+  stages:[
+    {type:'gate',intro:'第1步：先处理内层小括号 -2(4x-3)，把 2 张卡片拖过"-2"门。',
+     exprHTML:'3x² - [ 7x <span style="color:#dc2626;">- 2(4x - 3)</span> + (2x² - x) ]',
+     groups:[{id:'g1',label:'(4x - 3)',mult:'-2',cards:[
+       {t:'4x',need:-8,blankVar:'x',out:'-8x',hint:'(-2)×4x = -8x'},
+       {t:'-3',need:6,blankVar:'',out:'+6',hint:'(-2)×(-3) = +6'}
+     ]}],
+     outside:[],chips:[-8,6,8,-6],
+     doneNote:'内层去括号：-8x+6。'},
+    {type:'gate',intro:'第2步：中括号前是"-"号，把里面 5 张卡片（含上一步的新卡片）拖过外层"-1"门。',
+     exprHTML:'3x² - [ 7x - 8x + 6 + 2x² - x ]',
+     groups:[{id:'g2',label:'[ 7x - 8x + 6 + 2x² - x ]',mult:'-1',cards:[
+       {t:'7x',need:-7,blankVar:'x',out:'-7x',hint:'(-1)×7x = -7x'},
+       {t:'-8x',need:8,blankVar:'x',out:'+8x',hint:'(-1)×(-8x) = +8x'},
+       {t:'6',need:-6,blankVar:'',out:'-6',hint:'(-1)×6 = -6'},
+       {t:'2x²',need:-2,blankVar:'x²',out:'-2x²',hint:'(-1)×2x² = -2x²'},
+       {t:'-x',need:1,blankVar:'x',out:'+x',hint:'(-1)×(-x) = +x'}
+     ]}],
+     outside:['3x²'],chips:[-7,8,-6,-2,1,7,-8,6,2,-1],
+     doneNote:'外层去括号：3x²-7x+8x-6-2x²+x。'},
+    {type:'sort',flavor:'like',intro:'第3步：合并同类项。',
+     bins:[{key:'x2',label:'x²家族',lets:'x:2'},{key:'x',label:'x家族',lets:'x:1'},{key:'c0',label:'常数家族',lets:''}],
+     tiles:[
+       {t:'3x²',coef:3,var:'x²',fam:'x2',lets:'x:2'},
+       {t:'-7x',coef:-7,var:'x',fam:'x',lets:'x:1'},
+       {t:'8x',coef:8,var:'x',fam:'x',lets:'x:1'},
+       {t:'-6',coef:-6,var:'',fam:'c0',lets:''},
+       {t:'-2x²',coef:-2,var:'x²',fam:'x2',lets:'x:2'},
+       {t:'x',coef:1,var:'x',fam:'x',lets:'x:1'}
+     ],
+     doneNote:'3x²-2x²=x²；-7x+8x+x=2x；结果为 <b>x²+2x-6</b>。'}
+  ],
+  reveal:{ans:'3x²-[7x-2(4x-3)+(2x²-x)]=x²+2x-6。',
+    exp:'先去小括号：-2(4x-3)=-8x+6，得 3x²-(7x-8x+6+2x²-x)；再去中括号（各项变号）：3x²-7x+8x-6-2x²+x；合并：3x²-2x²=x²，-7x+8x+x=2x，所以原式=x²+2x-6。'}
+});
+/* 中级-5 变式 */
+ROUNDS.mid.push({
+  id:'M5',title:'括号传送门·变式',src:'同型自创变式',
+  q:'变式训练：化简 5m-2n-(3m-4n)+mn。',
+  stages:[
+    {type:'gate',intro:'第1步：把括号里的 2 张卡片拖过"-1"传送门并填对系数。',
+     exprHTML:'5m - 2n <span style="color:var(--acc);">- (3m - 4n)</span> + mn',
+     groups:[{id:'g1',label:'(3m - 4n)',mult:'-1',cards:[
+       {t:'3m',need:-3,blankVar:'m',out:'-3m',hint:'(-1)×3m = -3m'},
+       {t:'-4n',need:4,blankVar:'n',out:'4n',hint:'(-1)×(-4n) = +4n'}
+     ]}],
+     outside:['5m','-2n','mn'],chips:[-3,4,3,-4],
+     doneNote:'去括号得 5m-2n-3m+4n+mn。'},
+    {type:'sort',flavor:'like',intro:'第2步：合并同类项。',
+     bins:[{key:'m',label:'m家族',lets:'m:1'},{key:'n',label:'n家族',lets:'n:1'},{key:'mn',label:'mn家族',lets:'m:1,n:1'}],
+     tiles:[
+       {t:'5m',coef:5,var:'m',fam:'m',lets:'m:1'},
+       {t:'-2n',coef:-2,var:'n',fam:'n',lets:'n:1'},
+       {t:'mn',coef:1,var:'mn',fam:'mn',lets:'m:1,n:1'},
+       {t:'-3m',coef:-3,var:'m',fam:'m',lets:'m:1'},
+       {t:'4n',coef:4,var:'n',fam:'n',lets:'n:1'}
+     ],
+     doneNote:'5m-3m=2m；-2n+4n=2n；mn 不动。结果为 <b>2m+2n+mn</b>。'}
+  ],
+  reveal:{ans:'5m-2n-(3m-4n)+mn=2m+2n+mn。',
+    exp:'原式=5m-2n-3m+4n+mn=(5m-3m)+(-2n+4n)+mn=2m+2n+mn。'}
+});
+
+/* ---------- 高级：大师试炼 ---------- */
+/* 高级-1 整体代入（原题第8题） */
+ROUNDS.hard.push({
+  id:'H1',title:'配方圣殿·整体代入',src:'改编自过关检测 第8题',
+  q:'已知 a-b=2，ab=-1，求整式 4a-5b-ab-(2a-3b+5ab) 的值。三步走：过门去括号 → 合并同类项 → 在配方圣殿把整式拆成 (a-b) 与 ab 的组合，代入求值。',
+  stages:[
+    {type:'gate',intro:'第1步：把括号里的 3 张卡片拖过"-1"传送门并填对系数。',
+     exprHTML:'4a - 5b - ab <span style="color:var(--acc);">- (2a - 3b + 5ab)</span>',
+     groups:[{id:'g1',label:'(2a - 3b + 5ab)',mult:'-1',cards:[
+       {t:'2a',need:-2,blankVar:'a',out:'-2a',hint:'(-1)×2a = -2a'},
+       {t:'-3b',need:3,blankVar:'b',out:'3b',hint:'(-1)×(-3b) = +3b'},
+       {t:'5ab',need:-5,blankVar:'ab',out:'-5ab',hint:'(-1)×5ab = -5ab'}
+     ]}],
+     outside:['4a','-5b','-ab'],chips:[-2,3,-5,2,-3,5],
+     doneNote:'去括号得 4a-5b-ab-2a+3b-5ab。'},
+    {type:'sort',flavor:'like',intro:'第2步：合并同类项。',
+     bins:[{key:'a',label:'a家族',lets:'a:1'},{key:'b',label:'b家族',lets:'b:1'},{key:'ab',label:'ab家族',lets:'a:1,b:1'}],
+     tiles:[
+       {t:'4a',coef:4,var:'a',fam:'a',lets:'a:1'},
+       {t:'-5b',coef:-5,var:'b',fam:'b',lets:'b:1'},
+       {t:'-ab',coef:-1,var:'ab',fam:'ab',lets:'a:1,b:1'},
+       {t:'-2a',coef:-2,var:'a',fam:'a',lets:'a:1'},
+       {t:'3b',coef:3,var:'b',fam:'b',lets:'b:1'},
+       {t:'-5ab',coef:-5,var:'ab',fam:'ab',lets:'a:1,b:1'}
+     ],
+     doneNote:'4a-2a=2a；-5b+3b=-2b；-ab-5ab=-6ab。化简得 <b>2a-2b-6ab</b>。'},
+    {type:'recipe',intro:'第3步：配方圣殿——给 (a-b) 和 ab 各拖入一个乘数，让展开式恰好凑成 2a-2b-6ab。',
+     targetHTML:'目标整式：2a - 2b - 6ab',
+     slots:[
+       {label:'(a - b)',val:2,need:2,expand:'2(a-b) = 2a-2b'},
+       {label:'(ab)',val:-1,need:-6,expand:'(-6)·ab = -6ab'}
+     ],
+     chips:[2,-6,-2,6,1,-1],
+     valueHTML:'2×2 + (-6)×(-1) = 4 + 6 = <b>10</b>',
+     doneNote:'把 a-b 和 ab 各看成整体代入：2(a-b)-6ab = 2×2-6×(-1) = <b>10</b>。'}
+  ],
+  reveal:{ans:'值为 10。',
+    exp:'原式=4a-5b-ab-2a+3b-5ab=2a-2b-6ab=2(a-b)-6ab。当 a-b=2，ab=-1 时，原式=2×2-6×(-1)=4+6=10。这就是"整体代入"：不求 a、b，直接把 a-b 和 ab 当作整体。'}
+});
+/* 高级-2 配方凑整（原题第9题） */
+ROUNDS.hard.push({
+  id:'H2',title:'配方圣殿·凑系数',src:'改编自过关检测 第9题',
+  q:'已知 m²+2mn=384，3mn+2n²=560，求 2m²+13mn+6n²-444 的值。在配方圣殿：给两个"配方"各拖入一个乘数，让展开后恰好凑成 2m²+13mn+6n²（提示：13mn=4mn+9mn），再代入求值。',
+  stages:[
+    {type:'recipe',intro:'第1步：给每个配方拖入乘数，使展开式恰好等于目标整式（拖错会被弹回）。',
+     targetHTML:'目标整式：2m² + 13mn + 6n² - 444',
+     slots:[
+       {label:'(m² + 2mn)',val:384,need:2,expand:'2(m²+2mn) = 2m²+4mn'},
+       {label:'(3mn + 2n²)',val:560,need:3,expand:'3(3mn+2n²) = 9mn+6n²'}
+     ],
+     tail:'- 444',
+     chips:[2,3,1,4,5,6],
+     valueHTML:'2×384 + 3×560 - 444 = 768 + 1680 - 444 = <b>2004</b>',
+     doneNote:'2(m²+2mn)+3(3mn+2n²)-444 = 768+1680-444 = <b>2004</b>。'}
+  ],
+  reveal:{ans:'值为 2004。',
+    exp:'把 13mn 拆成 4mn+9mn：2m²+13mn+6n²-444=2(m²+2mn)+3(2n²+3mn)-444。代入 m²+2mn=384，3mn+2n²=560：原式=2×384+3×560-444=768+1680-444=2004。'}
+});
+/* 高级-3 滑块调参（原题第6题） */
+ROUNDS.hard.push({
+  id:'H3',title:'调音台·四次三项式',src:'改编自过关检测 第6题',
+  q:'若 (n-3)x⁵-5x'+supHtml('m')+'+x-4 是四次三项式，求 m、n 的值。调节两个旋钮 m、n，观察式子的项数与最高次数实时变化，让它恰好变成"四次三项式"。',
+  stages:[
+    {type:'slider',intro:'第1步：拖动滑块，让式子恰好变成"四次三项式"（项数为 3，最高次数为 4）。',
+     goalText:'目标：项数 = 3，最高次数 = 4',
+     params:[{name:'m',min:1,max:5,init:2},{name:'n',min:0,max:6,init:5}],
+     render:function(p){
+       var c=p.n-3;
+       var t1=(c===0)?'<span class="ghost">(n-3)x⁵ 项消失</span>':('('+c+')x⁵');
+       return '(n-3)x⁵ → '+t1+' ，-5x'+supHtml(p.m)+' ，+x ，-4';
+     },
+     staticLine:'原式模板：(n-3)x⁵ - 5x'+supHtml('m')+' + x - 4',
+     meters:[
+       {label:'项数（目标 3）',max:5,val:function(p){return (p.n-3===0?0:1)+3;},good:function(p){return (p.n-3===0?0:1)+3===3;}},
+       {label:'最高次数（目标 4）',max:5,val:function(p){return Math.max(p.n-3!==0?5:0,p.m,1);},good:function(p){return Math.max(p.n-3!==0?5:0,p.m,1)===4;}}
+     ],
+     isOk:function(p){return p.n===3&&p.m===4;},
+     successNote:'m=4，n=3！(n-3)=0，x⁵ 项消失；-5x⁴+x-4 恰好是四次三项式。'}
+  ],
+  reveal:{ans:'m=4，n=3。',
+    exp:'因为是四次三项式：若 n≠3，式子含 x⁵ 项，次数是 5，不合题意，所以 n-3=0，即 n=3；此时式子为 -5x的m次方+x-4，共三项，要使最高次数是 4，需 m=4。'}
+});
+/* 高级-4 滑块调参（原题第12题） */
+ROUNDS.hard.push({
+  id:'H4',title:'调音台·噪声归零',src:'改编自过关检测 第12题',
+  q:'若关于 a、b 的多项式 a²-2ab-b²+2(a²+mab+2b²) 不含 ab 项，求 m 的值。调节旋钮 m，观察展开式中 ab 项的"噪声"，把它降到 0。',
+  stages:[
+    {type:'slider',intro:'第1步：拖动滑块 m，让 ab 项的噪声降为 0（多项式不含 ab 项）。',
+     goalText:'目标：ab 项噪声 = 0',
+     params:[{name:'m',min:-2,max:4,init:0}],
+     render:function(p){
+       var k=2*p.m-2;
+       var ab=(k===0)?'<span class="ghost">(2m-2)ab 项消失</span>':('(' + k + ')ab');
+       return '3a² + '+ab+' + 3b²';
+     },
+     staticLine:'展开：a²-2ab-b²+2(a²+mab+2b²) = 3a² + (2m-2)ab + 3b²',
+     meters:[
+       {label:'ab 项噪声 |2m-2|（目标 0）',max:10,val:function(p){return Math.abs(2*p.m-2);},good:function(p){return 2*p.m-2===0;}}
+     ],
+     isOk:function(p){return 2*p.m-2===0;},
+     successNote:'m=1！此时 2m-2=0，ab 项系数为 0，多项式不含 ab 项。'}
+  ],
+  reveal:{ans:'m=1。',
+    exp:'原式=a²-2ab-b²+2a²+2mab+4b²=3a²+(2m-2)ab+3b²。不含 ab 项，即 ab 项系数为 0：2m-2=0，解得 m=1。'}
+});
+/* 高级-5 滑块+求值（原题第7题） */
+ROUNDS.hard.push({
+  id:'H5',title:'水晶对对碰',src:'改编自过关检测 第7题',
+  q:'若 -5x²y'+supHtml('m')+' 与 x'+supHtml('n')+'y 是同类项，求 m+n 的值。调节旋钮 m、n，让两张水晶卡的 x 指数、y 指数完全一致（变成同类项），再算出 m+n。',
+  stages:[
+    {type:'slider',intro:'第1步：拖动滑块 m、n，让两张水晶卡的两个指数都匹配（都是同类项的时刻）。',
+     goalText:'目标：x 指数一致 且 y 指数一致',
+     params:[{name:'m',min:1,max:4,init:3},{name:'n',min:1,max:4,init:3}],
+     render:function(p){
+       return '水晶A：-5x²y'+supHtml(p.m)+' &nbsp;&nbsp; 水晶B：x'+supHtml(p.n)+'y';
+     },
+     staticLine:'匹配标准：x 的指数 2 = n；y 的指数 m = 1',
+     meters:[
+       {label:'x 指数：2 与 n（需 n=2）',max:4,val:function(p){return p.n;},good:function(p){return p.n===2;}},
+       {label:'y 指数：m 与 1（需 m=1）',max:4,val:function(p){return p.m;},good:function(p){return p.m===1;}}
+     ],
+     isOk:function(p){return p.m===1&&p.n===2;},
+     successNote:'m=1，n=2：-5x²y 与 x²y 所含字母相同、相同字母的指数也相同，是同类项！'},
+    {type:'value',intro:'第2步：算出 m+n。',
+     qHTML:'m + n = 1 + 2 =',chips:[3,2,4,1],ans:3,
+     doneNote:'m+n = <b>3</b>。'}
+  ],
+  reveal:{ans:'m=1，n=2，m+n=3。',
+    exp:'同类项要求所含字母相同、相同字母的指数也相同：x 的指数满足 n=2；y 的指数满足 m=1。所以 m+n=1+2=3。注意系数 -5 与 1 不同不影响同类项的判断。'}
+});
+/* 高级-6 含参+求值（原题第13题） */
+ROUNDS.hard.push({
+  id:'H6',title:'与x无关的秘密',src:'改编自过关检测 第13题',
+  q:'已知 (2x²+ax-y+b)-(2bx²-3x+5y-1) 的值与字母 x 的取值无关，求 3(a²-ab-b²)-(4a²+ab+b²) 的值。第一步：调节 a、b 两个旋钮，让 x² 项、x 项的系数同时归零；第二步合并卡片；第三步代入求值。',
+  stages:[
+    {type:'slider',intro:'第1步：拖动 a、b 两个滑块，让 x² 项与 x 项的系数同时归零（这样式子就与 x 无关）。',
+     goalText:'目标：x² 项系数 = 0 且 x 项系数 = 0',
+     params:[{name:'a',min:-6,max:2,init:0},{name:'b',min:-2,max:3,init:0}],
+     render:function(p){
+       var c2=2-2*p.b,c1=p.a+3;
+       var t2=(c2===0)?'<span class="ghost">(2-2b)x² 消失</span>':('('+c2+')x²');
+       var t1=(c1===0)?'<span class="ghost">(a+3)x 消失</span>':('('+c1+')x');
+       return t2+' + '+t1+' - 6y + ('+(p.b+1)+')';
+     },
+     staticLine:'展开：(2-2b)x² + (a+3)x - 6y + (b+1)',
+     meters:[
+       {label:'x² 项系数 2-2b（目标 0）',max:8,val:function(p){return 2-2*p.b;},good:function(p){return 2-2*p.b===0;}},
+       {label:'x 项系数 a+3（目标 0）',max:9,val:function(p){return p.a+3;},good:function(p){return p.a+3===0;}}
+     ],
+     isOk:function(p){return (2-2*p.b===0)&&(p.a+3===0);},
+     successNote:'b=1，a=-3！x² 项与 x 项都消失，式子 = -6y+2，与 x 无关。'},
+    {type:'sort',flavor:'like',intro:'第2步：把 3(a²-ab-b²)-(4a²+ab+b²) 展开后的 6 张卡片合并。',
+     bins:[{key:'a2',label:'a²家族',lets:'a:2'},{key:'ab',label:'ab家族',lets:'a:1,b:1'},{key:'b2',label:'b²家族',lets:'b:2'}],
+     tiles:[
+       {t:'3a²',coef:3,var:'a²',fam:'a2',lets:'a:2'},
+       {t:'-3ab',coef:-3,var:'ab',fam:'ab',lets:'a:1,b:1'},
+       {t:'-3b²',coef:-3,var:'b²',fam:'b2',lets:'b:2'},
+       {t:'-4a²',coef:-4,var:'a²',fam:'a2',lets:'a:2'},
+       {t:'-ab',coef:-1,var:'ab',fam:'ab',lets:'a:1,b:1'},
+       {t:'-b²',coef:-1,var:'b²',fam:'b2',lets:'b:2'}
+     ],
+     doneNote:'3a²-4a²=-a²；-3ab-ab=-4ab；-3b²-b²=-4b²。化简得 <b>-a²-4ab-4b²</b>。'},
+    {type:'value',intro:'第3步：代入 a=-3，b=1 求值。',
+     qHTML:'当 a=-3，b=1 时： -a²-4ab-4b² = -9+12-4 =',chips:[-1,1,-11,11],ans:-1,
+     doneNote:'-(-3)²-4×(-3)×1-4×1² = -9+12-4 = <b>-1</b>。'}
+  ],
+  reveal:{ans:'值为 -1。',
+    exp:'(2x²+ax-y+b)-(2bx²-3x+5y-1)=(2-2b)x²+(a+3)x-6y+b+1。值与 x 无关，则 x² 项、x 项系数均为 0：2-2b=0 得 b=1；a+3=0 得 a=-3。而 3(a²-ab-b²)-(4a²+ab+b²)=-a²-4ab-4b²，当 a=-3，b=1 时，原式=-9+12-4=-1。'}
+});
+/* 高级-7 找回多项式（原题第14题） */
+ROUNDS.hard.push({
+  id:'H7',title:'找回丢失的多项式',src:'改编自过关检测 第14题',
+  q:'已知两个多项式 A 和 B，其中 B=-3x²+6x+2。粗心的师兄计算 A+B 时把"+"看成了"-"，算出的结果是 x²+7x-6（这其实是 A-B 的结果）。请先找回多项式 A，再求出真正的 A+B。',
+  stages:[
+    {type:'gate',intro:'第1步：因为 A = (A-B) + B，把 B 的 3 张卡片拖过"+1"传送门，与 A-B 的卡片汇合。',
+     exprHTML:'A = (x² + 7x - 6) <span style="color:var(--acc);">+ (-3x² + 6x + 2)</span> ，其中 B = -3x²+6x+2',
+     groups:[{id:'g1',label:'B：(-3x² + 6x + 2)',mult:'+1',cards:[
+       {t:'-3x²',need:-3,blankVar:'x²',out:'-3x²',hint:'(+1)×(-3x²) = -3x²'},
+       {t:'6x',need:6,blankVar:'x',out:'6x',hint:'(+1)×6x = 6x'},
+       {t:'2',need:2,blankVar:'',out:'+2',hint:'(+1)×2 = 2'}
+     ]}],
+     outside:['x²','7x','-6'],chips:[-3,6,2,3,-6,-2],
+     doneNote:'A = x²+7x-6-3x²+6x+2。'},
+    {type:'sort',flavor:'like',intro:'第2步：合并 6 张卡片，得到多项式 A。',
+     bins:[{key:'x2',label:'x²家族',lets:'x:2'},{key:'x',label:'x家族',lets:'x:1'},{key:'c0',label:'常数家族',lets:''}],
+     tiles:[
+       {t:'x²',coef:1,var:'x²',fam:'x2',lets:'x:2'},
+       {t:'7x',coef:7,var:'x',fam:'x',lets:'x:1'},
+       {t:'-6',coef:-6,var:'',fam:'c0',lets:''},
+       {t:'-3x²',coef:-3,var:'x²',fam:'x2',lets:'x:2'},
+       {t:'6x',coef:6,var:'x',fam:'x',lets:'x:1'},
+       {t:'2',coef:2,var:'',fam:'c0',lets:''}
+     ],
+     doneNote:'x²-3x²=-2x²；7x+6x=13x；-6+2=-4。找回了 <b>A = -2x²+13x-4</b>！'},
+    {type:'sort',flavor:'like',intro:'第3步：把 A 的卡片与 B 的卡片一起合并，求出真正的 A+B。',
+     bins:[{key:'x2',label:'x²家族',lets:'x:2'},{key:'x',label:'x家族',lets:'x:1'},{key:'c0',label:'常数家族',lets:''}],
+     tiles:[
+       {t:'-2x²',coef:-2,var:'x²',fam:'x2',lets:'x:2'},
+       {t:'13x',coef:13,var:'x',fam:'x',lets:'x:1'},
+       {t:'-4',coef:-4,var:'',fam:'c0',lets:''},
+       {t:'-3x²',coef:-3,var:'x²',fam:'x2',lets:'x:2'},
+       {t:'6x',coef:6,var:'x',fam:'x',lets:'x:1'},
+       {t:'2',coef:2,var:'',fam:'c0',lets:''}
+     ],
+     doneNote:'-2x²-3x²=-5x²；13x+6x=19x；-4+2=-2。所以 <b>A+B = -5x²+19x-2</b>。'}
+  ],
+  reveal:{ans:'A=-2x²+13x-4，A+B=-5x²+19x-2。',
+    exp:'因为 A-B=x²+7x-6，所以 A=(A-B)+B=x²+7x-6+(-3x²+6x+2)=-2x²+13x-4；于是 A+B=-2x²+13x-4+(-3x²+6x+2)=-5x²+19x-2。师兄的失误反而把 A-B 告诉了我们。'}
+});
+
+/* ---------------- 全局状态 ---------------- */
+var G={
+  diff:null, rounds:[], ri:0, stageIdx:0,
+  steps:0, wrong:0, startTs:0, timerInt:null,
+  roundWrong:0, totalStars:0, locked:false, debug:false, stageFinishing:false
+};
+var rulesShown=false;
+
+/* ---------------- 特效：纯 CSS 彩纸与星星（无 Canvas / 无 rAF，稳定不卡顿） ---------------- */
+function fxColors(){var cs=[getColor('--p'),getColor('--acc'),getColor('--ok'),'#f43f5e','#facc15','#38bdf8'];return cs;}
+function getColor(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#2563eb';}
+var FX_LAYER=null;
+function fxLayer(){
+  if(!FX_LAYER){FX_LAYER=$('#fxlayer');}
+  return FX_LAYER;
+}
+/* 单片彩纸 */
+function confettiBit(x,y,color,size){
+  var b=document.createElement('i');b.className='cbit';
+  b.style.background=color;
+  b.style.left=x+'px';b.style.top=y+'px';
+  b.style.width=size+'px';b.style.height=Math.round(size*1.4)+'px';
+  var ang=Math.random()*Math.PI*2,dist=110+Math.random()*230;
+  b.style.setProperty('--tx',Math.round(Math.cos(ang)*dist)+'px');
+  b.style.setProperty('--ty',Math.round(Math.sin(ang)*dist*0.7+170+Math.random()*190)+'px');
+  b.style.setProperty('--rot',(Math.random()<0.5?-1:1)*Math.round(360+Math.random()*540)+'deg');
+  b.style.setProperty('--dur',(0.9+Math.random()*0.7).toFixed(2)+'s');
+  return b;
+}
+/* 单颗星星 */
+function starBit(x,y,color){
+  var b=document.createElement('i');b.className='cbit star';
+  b.textContent='★';b.style.color=color;
+  b.style.left=x+'px';b.style.top=y+'px';
+  b.style.fontSize=(20+Math.random()*16)+'px';
+  var ang=Math.random()*Math.PI*2,dist=100+Math.random()*200;
+  b.style.setProperty('--tx',Math.round(Math.cos(ang)*dist)+'px');
+  b.style.setProperty('--ty',Math.round(Math.sin(ang)*dist*0.7+150+Math.random()*180)+'px');
+  b.style.setProperty('--rot',Math.round((Math.random()-0.5)*720)+'deg');
+  b.style.setProperty('--dur',(1+Math.random()*0.6).toFixed(2)+'s');
+  return b;
+}
+/* 在 (x,y) 处炸开一波彩纸（含少量星星），结束后自动清理 DOM */
+function fxBurst(x,y,n,withStars){
+  if(G.debug)return;
+  var layer=fxLayer();if(!layer)return;
+  var box=document.createElement('div');
+  var cols=fxColors();
+  var frag=document.createDocumentFragment();
+  for(var i=0;i<n;i++){
+    if(withStars&&i%5===0)frag.appendChild(starBit(x,y,cols[1]||'#f59e0b'));
+    else frag.appendChild(confettiBit(x,y,cols[i%cols.length],6+Math.random()*7));
+  }
+  box.appendChild(frag);
+  layer.appendChild(box);
+  setTimeout(function(){if(box.parentNode)box.parentNode.removeChild(box);},2100);
+}
+/* 在某元素中心炸开星星彩纸 */
+function starBurst(el){
+  var r=el.getBoundingClientRect();
+  fxBurst(r.left+r.width/2,r.top+r.height/2,46,true);
+}
+/* 大庆祝：连续四波 */
+function bigConfetti(){
+  var w=window.innerWidth,h=window.innerHeight;
+  fxBurst(w*0.5,h*0.3,80,true);
+  setTimeout(function(){fxBurst(w*0.2,h*0.35,60,true);},450);
+  setTimeout(function(){fxBurst(w*0.8,h*0.35,60,true);},900);
+  setTimeout(function(){fxBurst(w*0.5,h*0.25,80,true);},1400);
+}
+
+/* ---------------- 消息条 ---------------- */
+var msgTimer=null;
+function setMsg(text,kind){
+  var bar=$('#msgbar');
+  bar.innerHTML='<span class="msg-'+(kind||'info')+'">'+text+'</span>';
+  if(msgTimer)clearTimeout(msgTimer);
+  msgTimer=setTimeout(function(){bar.innerHTML='';},2600);
+}
+
+/* ---------------- 拖拽系统（鼠标 + 触摸统一 Pointer 事件） ---------------- */
+var dragCtx=null;
+/* 几何命中检测：返回包含指针点、面积最小的投放目标（不依赖 elementsFromPoint，
+   避免拖拽元素遮挡目标时命中栈缺失的兼容性问题） */
+function findDropTarget(x,y,dragEl){
+  var list=$$('.droptarget'),best=null,bestA=Infinity;
+  for(var i=0;i<list.length;i++){
+    var n=list[i];
+    if(n===dragEl||(dragEl&&dragEl.contains(n)))continue;
+    var r=n.getBoundingClientRect();
+    if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom){
+      var a=r.width*r.height;
+      if(a<bestA){bestA=a;best=n;}
+    }
+  }
+  return best;
+}
+function clearHover(){$$('.hover').forEach(function(e){e.classList.remove('hover');});}
+/* 恢复元素拖拽前的原始布局样式 */
+function restoreStyles(el,home){
+  el.style.position=home.pos;el.style.left=home.l;el.style.top=home.t;
+  el.style.width=home.w;el.style.height=home.h;
+  el.style.margin=home.m;el.style.zIndex=home.z;
+}
+function makeDraggable(el,handlers){
+  el.style.touchAction='none';
+  el.addEventListener('pointerdown',function(ev){
+    if(el.classList.contains('locked')||G.locked||dragCtx)return;
+    ev.preventDefault();
+    var r=el.getBoundingClientRect();
+    dragCtx={el:el,handlers:handlers,dx:ev.clientX-r.left,dy:ev.clientY-r.top,
+      homeX:r.left,homeY:r.top,ph:null,
+      home:{pos:el.style.position,l:el.style.left,t:el.style.top,w:el.style.width,h:el.style.height,m:el.style.margin,z:el.style.zIndex}};
+    /* flow 布局的元素（传送门卡片、能量块）脱离文档流会引起兄弟元素移位，
+       插入等尺寸的隐形撑板保持布局稳定；绝对定位的托盘卡片无需撑板 */
+    if(el.style.position!=='absolute'&&el.parentNode){
+      var ph=document.createElement('div');
+      ph.style.width=r.width+'px';ph.style.height=r.height+'px';
+      ph.style.display='inline-block';
+      el.parentNode.insertBefore(ph,el);
+      dragCtx.ph=ph;
+    }
+    try{el.setPointerCapture(ev.pointerId);}catch(e){}
+    el.classList.add('dragging');
+    el.style.position='fixed';el.style.width=r.width+'px';el.style.height=r.height+'px';
+    el.style.margin='0';el.style.zIndex=1000;
+    el.style.left=r.left+'px';el.style.top=r.top+'px';
+  });
+  el.addEventListener('pointermove',function(ev){
+    if(!dragCtx||dragCtx.el!==el)return;
+    el.style.left=(ev.clientX-dragCtx.dx)+'px';
+    el.style.top=(ev.clientY-dragCtx.dy)+'px';
+    clearHover();
+    var t=findDropTarget(ev.clientX,ev.clientY,el);
+    if(t)t.classList.add('hover');
+  });
+  function up(ev){
+    if(!dragCtx||dragCtx.el!==el)return;
+    clearHover();
+    var ctx=dragCtx;dragCtx=null;
+    var tgt=null;
+    if(typeof ev.clientX==='number')tgt=findDropTarget(ev.clientX,ev.clientY,el);
+    var accepted=false;
+    try{accepted=!!ctx.handlers.onDrop(tgt,el,ev);}catch(err){console.error(err);}
+    el.classList.remove('dragging');
+    function dropPh(){if(ctx.ph&&ctx.ph.parentNode)ctx.ph.parentNode.removeChild(ctx.ph);}
+    if(accepted){
+      /* 若处理函数已用 adoptInto 安置（static），则无需归位；
+         否则（如传送门卡片变为 used）恢复原位并移除隐形撑板 */
+      if(el.style.position==='fixed'){dropPh();restoreStyles(el,ctx.home);}
+      else dropPh();
+    }else{ // 弹回原位
+      el.style.transition='left .25s ease, top .25s ease';
+      el.style.left=ctx.homeX+'px';el.style.top=ctx.homeY+'px';
+      setTimeout(function(){
+        el.style.transition='';
+        dropPh();
+        restoreStyles(el,ctx.home);
+      },260);
+    }
+  }
+  el.addEventListener('pointerup',up);
+  el.addEventListener('pointercancel',up);
+}
+/* 把被接受的卡片安置进容器 */
+function adoptInto(el,parent,cls){
+  el.classList.remove('dragging');
+  el.style.transition='';el.style.position='static';
+  el.style.left='';el.style.top='';el.style.width='';el.style.height='';
+  el.style.margin='';el.style.zIndex='';
+  if(cls){cls.split(/\s+/).forEach(function(c){if(c)el.classList.add(c);});} /* 逐个添加类名 */
+  parent.appendChild(el);
+}
+
+/* ---------------- 计步 ---------------- */
+function addStep(){G.steps++;$('#tb-steps').textContent=G.steps;}
+function addWrong(){G.wrong++;G.roundWrong++;}
+
+/* ---------------- 屏幕与流程 ---------------- */
+function fmtTime(sec){
+  var m=Math.floor(sec/60),s=sec%60;
+  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+}
+function startTimer(){
+  G.startTs=Date.now();
+  if(G.timerInt)clearInterval(G.timerInt);
+  G.timerInt=setInterval(function(){
+    $('#tb-time').textContent=fmtTime(Math.floor((Date.now()-G.startTs)/1000));
+  },1000);
+  $('#tb-time').textContent='00:00';
+}
+function showScreen(id){
+  $('#scr-diff').classList.add('hidden');
+  $('#scr-game').classList.add('hidden');
+  $(id).classList.remove('hidden');
+}
+function startRun(diff){
+  G.diff=diff;G.steps=0;G.wrong=0;G.totalStars=0;
+  var pool=ROUNDS[diff];
+  G.rounds=shuffle(pool).slice(0,Math.min(3,pool.length));
+  G.ri=0;
+  applyPalette();
+  showScreen('#scr-game');
+  var names={easy:'初级',mid:'中级',hard:'高级'};
+  $('#tb-diff').textContent=names[diff];
+  $('#tb-steps').textContent='0';
+  startTimer();
+  if(!rulesShown){rulesShown=true;$('#ov-rules').classList.remove('hidden');}
+  renderRound();
+}
+function renderRound(){
+  var round=G.rounds[G.ri];
+  G.stageIdx=0;G.roundWrong=0;G.locked=false;G.stageFinishing=false;
+  $('#tb-round').textContent='第'+(G.ri+1)+'/'+G.rounds.length+'关';
+  $('#qtitle').innerHTML='【'+round.title+'】<span class="src">'+round.src+'</span>';
+  $('#qtext').innerHTML=round.q;
+  renderStage();
+}
+function renderStage(){
+  G.stageFinishing=false;
+  var round=G.rounds[G.ri];
+  var stage=round.stages[G.stageIdx];
+  $('#stage-prog').textContent='阶段 '+(G.stageIdx+1)+'/'+round.stages.length+'：';
+  $('#stage-intro').innerHTML=stage.intro||'';
+  var area=$('#stage-area');area.innerHTML='';
+  if(stage.type==='sort')renderSort(stage,area);
+  else if(stage.type==='gate')renderGate(stage,area);
+  else if(stage.type==='slider')renderSlider(stage,area);
+  else if(stage.type==='recipe')renderRecipe(stage,area);
+  else if(stage.type==='value')renderValue(stage,area);
+}
+/* 阶段完成：横幅 + 星星 + 进入下一阶段 */
+function finishStage(sumHTML){
+  if(G.stageFinishing)return;
+  G.stageFinishing=true;
+  var round=G.rounds[G.ri];
+  var banner=document.createElement('div');
+  banner.className='stage-done';
+  banner.innerHTML=(round.stages[G.stageIdx].doneNote||'本阶段完成！')+
+    (sumHTML?'<div class="sum">'+sumHTML+'</div>':'');
+  $('#stage-area').appendChild(banner);
+  starBurst(banner);
+  setMsg(PRAISE[Math.floor(Math.random()*PRAISE.length)],'ok');
+  if(G.debug)return;
+  setTimeout(function(){
+    G.stageIdx++;
+    if(G.stageIdx<round.stages.length){renderStage();}
+    else{roundClear();}
+  },1500);
+}
+/* 单关完成 */
+function roundClear(){
+  var stars=G.roundWrong===0?3:(G.roundWrong<=4?2:1);
+  G.totalStars+=stars;
+  $('#round-ov-title').textContent='第'+(G.ri+1)+'关完成！';
+  $('#round-ov-stars').innerHTML='★★★'.slice(0,stars)+'<span style="color:#e2e8f0;">'+'★★★'.slice(0,3-stars)+'</span>';
+  $('#round-ov-note').innerHTML=G.roundWrong===0?'零失误，完美通关！':('本关失误 '+G.roundWrong+' 次，再来一关稳一点！');
+  var isLast=G.ri>=G.rounds.length-1;
+  $('#btn-next-round').textContent=isLast?'查看成绩':'下一关';
+  $('#ov-round').classList.remove('hidden');
+  if(!G.debug)bigConfetti();
+}
+function runWin(){
+  if(G.timerInt){clearInterval(G.timerInt);G.timerInt=null;}
+  var sec=Math.floor((Date.now()-G.startTs)/1000);
+  $('#win-time').textContent=fmtTime(sec);
+  $('#win-steps').textContent=G.steps;
+  $('#win-wrong').textContent=G.wrong;
+  $('#win-stars').innerHTML='★★★';
+  var n=G.totalStars;
+  $('#win-stars').innerHTML='★'.repeat(n)+'<span style="color:#e2e8f0;">'+'★'.repeat(Math.max(0,9-n))+'</span>';
+  $('#ov-win').classList.remove('hidden');
+  bigConfetti();
+}
+
+/* =====================================================================
+   阶段一：分拣合并台（拖卡片进家族箱 → 合并同类项）
+   ===================================================================== */
+function parseLets(s){ // 'x:1,y:2' → {x:1,y:2}
+  var o={};if(!s)return o;
+  s.split(',').forEach(function(p){var kv=p.split(':');o[kv[0]]=Number(kv[1]);});
+  return o;
+}
+function renderSort(stage,area){
+  var wrap=document.createElement('div');wrap.className='panelbox';
+  /* 家族箱（顺序打乱） */
+  var binsWrap=document.createElement('div');binsWrap.id='bins';
+  var bins=shuffle(stage.bins);
+  var binData={};
+  bins.forEach(function(b){
+    var el=document.createElement('div');
+    el.className='bin droptarget';
+    el.setAttribute('data-key',b.key);
+    el.innerHTML='<div class="bin-label">'+b.label+'</div>'+
+      '<div class="bin-sub">'+(stage.flavor==='degree'?(b.deg===0?'不含字母':b.deg+'次'):('&nbsp;'))+'</div>'+
+      '<div class="bin-slot"></div><div class="bin-math"></div>';
+    binsWrap.appendChild(el);
+    binData[b.key]={def:b,el:el,items:[],coefs:[]};
+  });
+  wrap.appendChild(binsWrap);
+  /* 卡片托盘（网格布点，避免重叠） */
+  var tray=document.createElement('div');tray.id='tray';
+  wrap.appendChild(tray);
+  area.appendChild(wrap);
+  var tiles=shuffle(stage.tiles);
+  var total=tiles.length,placed=0;
+  var vanishNote=[];
+  /* 先创建卡片并测量尺寸 */
+  var els=tiles.map(function(t){
+    var el=document.createElement('div');el.className='tile';el.textContent=t.t;
+    el.style.left='0px';el.style.top='0px';el.style.visibility='hidden';
+    tray.appendChild(el);
+    return el;
+  });
+  var maxW=0,maxH=0;
+  els.forEach(function(el){maxW=Math.max(maxW,el.offsetWidth);maxH=Math.max(maxH,el.offsetHeight);});
+  var cellW=maxW+18,cellH=maxH+16;
+  var cols=Math.max(1,Math.floor((tray.clientWidth-16)/cellW));
+  var rows=Math.ceil(total/cols);
+  tray.style.height=(rows*cellH+18)+'px';
+  var slots=[];
+  for(var r=0;r<rows;r++)for(var c=0;c<cols;c++)slots.push({x:10+c*cellW,y:10+r*cellH});
+  slots=shuffle(slots);
+  els.forEach(function(el,i){
+    el.style.left=slots[i].x+'px';el.style.top=slots[i].y+'px';el.style.visibility='visible';
+  });
+  /* 拖拽逻辑 */
+  tiles.forEach(function(t,i){
+    var el=els[i];
+    makeDraggable(el,{onDrop:function(tgt){
+      if(!tgt||!tgt.classList.contains('bin')){setMsg('把卡片拖到家族箱里试试！','info');return false;}
+      var key=tgt.getAttribute('data-key');
+      addStep();
+      if(key===t.fam){ /* 放对了：进箱合并 */
+        el.classList.add('locked');
+        adoptInto(el,binData[key].el.querySelector('.bin-slot'),'inbin pop');
+        binData[key].items.push(t.t);binData[key].coefs.push(t.coef);
+        var sum=0;binData[key].coefs.forEach(function(c){sum+=c;});
+        var mathEl=binData[key].el.querySelector('.bin-math');
+        var sumTxt=sum===0?'0（合并后消失！）':(coefFmt(sum)+t.var);
+        mathEl.innerHTML=(binData[key].items.length>1?smartJoin(binData[key].items)+' = ':'')+ '<b>'+sumTxt+'</b>';
+        if(sum===0)vanishNote.push(t.var||'常数');
+        placed++;
+        setMsg(PRAISE[Math.floor(Math.random()*PRAISE.length)],'ok');
+        if(placed>=total){ /* 全部归位：展示合并结果并进入下一阶段 */
+          var expr=sortSummary(stage,binData);
+          var vanish=vanishNote.length?('注意：'+vanishNote.join('、')+' 的系数合并为 0，整项消失！'):'';
+          finishStage(vanish);
+          finishSum(expr);
+        }
+        return true;
+      }
+      /* 放错了：弹回并解释原因 */
+      addWrong();
+      var why=whyWrong(stage,t,key);
+      setMsg(why,'bad');
+      return false;
+    }});
+  });
+}
+/* 计算整关合并后的最终表达式 */
+function getVarOf(stage,binDef){
+  for(var i=0;i<stage.tiles.length;i++){if(stage.tiles[i].fam===binDef.key)return stage.tiles[i].var;}
+  return '';
+}
+function sortSummary(stage,binData){
+  var parts=[];
+  stage.bins.forEach(function(b){
+    var s=0;binData[b.key].coefs.forEach(function(c){s+=c;});
+    if(s!==0)parts.push(coefFmt(s)+getVarOf(stage,b));
+  });
+  return smartJoin(parts);
+}
+function finishSum(expr){
+  var sd=$('#stage-area .stage-done');
+  if(sd&&!sd.querySelector('.sum')&&expr){sd.insertAdjacentHTML('beforeend','<div class="sum">本关化简结果：'+expr+'</div>');}
+}
+/* 放错箱子的原因说明 */
+function whyWrong(stage,tile,key){
+  var bin=null;
+  stage.bins.forEach(function(b){if(b.key===key)bin=b;});
+  if(stage.flavor==='degree'){
+    return '「'+tile.t+'」的次数是 '+tile.deg+'（'+tile.exp+'），不属于「'+bin.label+'」。';
+  }
+  var a=parseLets(tile.lets),b=parseLets(bin.lets);
+  var ka=Object.keys(a).sort().join(''),kb=Object.keys(b).sort().join('');
+  if(ka!==kb)return '「'+tile.t+'」与「'+bin.label+'」所含字母不同，不是同类项。';
+  for(var k in a){if(a[k]!==(b[k]||0))return '「'+tile.t+'」与「'+bin.label+'」字母相同，但字母 '+k+' 的指数不同（'+a[k]+' 与 '+(b[k]||0)+'），不是同类项。';}
+  return '「'+tile.t+'」不属于「'+bin.label+'」。';
+}
+
+/* =====================================================================
+   阶段二：括号传送门（卡片过门去括号 + 数字能量块填系数）
+   ===================================================================== */
+function renderGate(stage,area){
+  var wrap=document.createElement('div');wrap.className='panelbox';
+  /* 原式展示 */
+  var expr=document.createElement('div');
+  expr.className='static-line';expr.style.fontSize='24px';expr.style.fontWeight='900';
+  expr.innerHTML=stage.exprHTML;
+  wrap.appendChild(expr);
+  /* 各括号传送门 */
+  var blanksTotal=0,blanksLeft=0,filledTexts=[];
+  var outs=stage.outside.slice();
+  stage.groups.forEach(function(g){
+    var row=document.createElement('div');row.className='gate-row';
+    var lbl=document.createElement('div');lbl.className='grp-label';lbl.innerHTML=g.label;
+    row.appendChild(lbl);
+    var cardsBox=document.createElement('div');cardsBox.className='grp-cards';
+    var gate=document.createElement('div');
+    gate.className='gate droptarget';gate.setAttribute('data-gid',g.id);
+    gate.innerHTML='×'+g.mult+'<small>传送门</small>';
+    row.appendChild(cardsBox);row.appendChild(gate);
+    wrap.appendChild(row);
+    g.cards.forEach(function(c){
+      blanksTotal++;
+      var card=document.createElement('div');card.className='gcard';card.textContent=c.t;
+      cardsBox.appendChild(card);
+      makeDraggable(card,{onDrop:function(tgt){
+        if(!tgt||!tgt.classList.contains('gate')||tgt.getAttribute('data-gid')!==g.id){
+          addStep();setMsg('把卡片拖到它自己括号的 ×'+g.mult+' 传送门上！','info');return false;
+        }
+        addStep();
+        card.classList.add('used');card.classList.add('locked');
+        addBlank(c);
+        setMsg('卡片过门！变成了一张待填系数的新卡片，快从下方拖数字能量块。','ok');
+        return true;
+      }});
+    });
+  });
+  /* 展开搁板（括号外卡片 + 空白新卡片） */
+  var shelfLabel=document.createElement('div');shelfLabel.className='section-label';
+  shelfLabel.textContent='展开搁板（括号外的卡片直接放这里）：';
+  var shelf=document.createElement('div');shelf.className='shelf';
+  if(outs.length===0)shelfLabel.textContent='展开搁板：';
+  outs.forEach(function(o){var d=document.createElement('div');d.className='outcard';d.textContent=o;shelf.appendChild(d);});
+  wrap.appendChild(shelfLabel);wrap.appendChild(shelf);
+  area.appendChild(wrap);
+  /* 能量块托盘 */
+  var tray=document.createElement('div');tray.className='panelbox';tray.style.marginTop='12px';
+  tray.innerHTML='<div class="section-label">数字能量块（拖到空白卡上填系数）：</div>';
+  var chipBox=document.createElement('div');chipBox.className='chip-tray';
+  tray.appendChild(chipBox);
+  area.appendChild(tray);
+  function addBlank(card){
+    blanksLeft++;
+    var bl=document.createElement('div');
+    bl.className='blankcard droptarget';
+    bl.innerHTML='▢'+(card.blankVar?('<span style="font-size:.85em;">·'+card.blankVar+'</span>'):'');
+    bl.setAttribute('data-need',card.need);
+    bl.setAttribute('data-out',card.out);
+    bl.setAttribute('data-hint',card.hint);
+    bl.setAttribute('data-idx',filledTexts.length+blanksLeft);
+    shelf.appendChild(bl);
+  }
+  /* 生成能量块（打乱） */
+  shuffle(stage.chips).forEach(function(v){
+    var chip=document.createElement('div');chip.className='chip';chip.textContent=v;
+    makeDraggable(chip,{onDrop:function(tgt){
+      if(!tgt||!tgt.classList.contains('blankcard')||tgt.classList.contains('filled')){
+        addStep();setMsg('把能量块拖到空白卡的 ▢ 上！','info');return false;
+      }
+      addStep();
+      if(Number(tgt.getAttribute('data-need'))===v){
+        var out=tgt.getAttribute('data-out');
+        tgt.textContent=out;tgt.classList.add('filled');tgt.classList.add('locked');
+        tgt.classList.remove('droptarget');
+        filledTexts.push({idx:Number(tgt.getAttribute('data-idx')),t:out});
+        adoptInto(chip,chipBox,'locked');chip.style.visibility='hidden';
+        blanksLeft--;
+        setMsg('系数正确：'+out,'ok');
+        if(blanksLeft<=0){
+          var arr=filledTexts.slice().sort(function(a,b){return a.idx-b.idx;}).map(function(x){return x.t;});
+          finishStage('去括号结果：'+smartJoin(outs.concat(arr)));
+        }
+        return true;
+      }
+      addWrong();
+      setMsg('再想想：'+tgt.getAttribute('data-hint'),'bad');
+      return false;
+    }});
+    chipBox.appendChild(chip);
+  });
+}
+
+/* =====================================================================
+   阶段三：调音台（滑块调参数，式子与仪表实时变化）
+   ===================================================================== */
+function renderSlider(stage,area){
+  var wrap=document.createElement('div');wrap.className='panelbox';
+  var goal=document.createElement('div');
+  goal.className='static-line';goal.style.color='var(--acc)';goal.style.fontSize='22px';
+  goal.innerHTML='<b>'+stage.goalText+'</b>';
+  wrap.appendChild(goal);
+  if(stage.staticLine){
+    var sl=document.createElement('div');sl.className='static-line';sl.innerHTML=stage.staticLine;wrap.appendChild(sl);
+  }
+  var disp=document.createElement('div');disp.className='disp-card';
+  wrap.appendChild(disp);
+  var metersBox=document.createElement('div');metersBox.className='meters';
+  wrap.appendChild(metersBox);
+  var slidersBox=document.createElement('div');slidersBox.className='slider-box';
+  wrap.appendChild(slidersBox);
+  area.appendChild(wrap);
+  /* 生成滑块 */
+  var inputs={};
+  stage.params.forEach(function(pa){
+    var box=document.createElement('div');box.className='sl';
+    box.innerHTML='<div class="sl-name">旋钮 '+pa.name+'</div><div class="sl-val">'+pa.init+'</div>';
+    var inp=document.createElement('input');
+    inp.type='range';inp.min=pa.min;inp.max=pa.max;inp.step=1;inp.value=pa.init;
+    inputs[pa.name]=inp;
+    box.appendChild(inp);
+    slidersBox.appendChild(box);
+    var valEl=box.querySelector('.sl-val');
+    inp.addEventListener('input',function(){valEl.textContent=inp.value;update();});
+    inp.addEventListener('change',function(){addStep();});
+  });
+  /* 生成仪表 */
+  var meters=[];
+  stage.meters.forEach(function(m){
+    var el=document.createElement('div');el.className='meter';
+    el.innerHTML='<div class="m-label">'+m.label+'</div><div class="m-val">-</div><div class="m-bar"><i style="width:0%"></i></div>';
+    metersBox.appendChild(el);
+    meters.push({def:m,el:el,val:el.querySelector('.m-val'),bar:el.querySelector('.m-bar i')});
+  });
+  var okTimer=null,doneFlag=false;
+  function params(){
+    var p={};
+    stage.params.forEach(function(pa){p[pa.name]=Number(inputs[pa.name].value);});
+    return p;
+  }
+  function update(){
+    var p=params();
+    disp.innerHTML=stage.render(p);
+    var allGood=true;
+    meters.forEach(function(m){
+      var v=m.def.val(p),gd=m.def.good(p);
+      if(!gd)allGood=false;
+      m.el.classList.toggle('good',gd);
+      m.val.textContent=v;
+      m.bar.style.width=Math.min(100,Math.abs(v)/m.def.max*100)+'%';
+    });
+    disp.classList.toggle('glow',allGood);
+    if(allGood&&!doneFlag){
+      if(!okTimer)okTimer=setTimeout(success,700);
+    }else if(okTimer){clearTimeout(okTimer);okTimer=null;}
+  }
+  function success(){
+    if(doneFlag)return;
+    if(!stage.isOk(params())){okTimer=null;return;}
+    doneFlag=true;
+    Object.keys(inputs).forEach(function(k){inputs[k].disabled=true;});
+    var note=document.createElement('div');
+    note.className='value-line';note.innerHTML='达成！ '+stage.successNote;
+    wrap.appendChild(note);
+    starBurst(disp);
+    finishStage('');
+  }
+  update();
+}
+
+/* =====================================================================
+   阶段四：配方圣殿（给配方拖入乘数，凑出目标整式并代入求值）
+   ===================================================================== */
+function renderRecipe(stage,area){
+  var wrap=document.createElement('div');wrap.className='panelbox';
+  var tgt=document.createElement('div');
+  tgt.className='static-line';tgt.style.fontSize='23px';tgt.style.color='var(--p)';
+  tgt.innerHTML='<b>'+stage.targetHTML+'</b>';
+  wrap.appendChild(tgt);
+  var slotsBox=document.createElement('div');slotsBox.className='recipe-slots';
+  wrap.appendChild(slotsBox);
+  if(stage.tail){
+    var tl=document.createElement('div');tl.className='static-line';
+    tl.innerHTML='别忘了式子末尾还有 <b>'+stage.tail+'</b>';wrap.appendChild(tl);
+  }
+  area.appendChild(wrap);
+  var tray=document.createElement('div');tray.className='panelbox';tray.style.marginTop='12px';
+  tray.innerHTML='<div class="section-label">乘数能量块（拖到配方的 ◯ 上）：</div>';
+  var chipBox=document.createElement('div');chipBox.className='chip-tray';
+  tray.appendChild(chipBox);area.appendChild(tray);
+  var left=stage.slots.length;
+  var slotEls=[];
+  stage.slots.forEach(function(s){
+    var el=document.createElement('div');el.className='slot';
+    el.innerHTML='<div class="s-label">'+s.label+'</div><div class="s-eq">= '+s.val+'</div>'+
+      '<div class="s-blank droptarget">▢</div><div class="s-expand"></div>';
+    slotsBox.appendChild(el);
+    var blank=el.querySelector('.s-blank');
+    blank.setAttribute('data-need',s.need);
+    blank.setAttribute('data-exp',s.expand);
+    slotEls.push(blank);
+  });
+  shuffle(stage.chips).forEach(function(v){
+    var chip=document.createElement('div');chip.className='chip';chip.textContent=v;
+    makeDraggable(chip,{onDrop:function(tgt){
+      if(!tgt||!tgt.classList.contains('s-blank')||tgt.classList.contains('filled')){
+        addStep();setMsg('把乘数能量块拖到配方的 ◯ 上！','info');return false;
+      }
+      addStep();
+      if(Number(tgt.getAttribute('data-need'))===v){
+        tgt.textContent=v;tgt.classList.add('filled');tgt.classList.remove('droptarget');
+        tgt.parentNode.querySelector('.s-expand').innerHTML=tgt.getAttribute('data-exp');
+        adoptInto(chip,chipBox,'locked');chip.style.visibility='hidden';
+        left--;
+        setMsg('配方展开成功！','ok');
+        if(left<=0){
+          var vl=document.createElement('div');vl.className='value-line';
+          vl.innerHTML='代入求值：'+stage.valueHTML;
+          wrap.appendChild(vl);
+          starBurst(vl);
+          finishStage('');
+        }
+        return true;
+      }
+      addWrong();
+      setMsg('这个乘数展开后凑不出目标整式，再想想拆项！','bad');
+      return false;
+    }});
+    chipBox.appendChild(chip);
+  });
+}
+
+/* =====================================================================
+   阶段五：数值封印（拖数字能量块完成最终答案）
+   ===================================================================== */
+function renderValue(stage,area){
+  var wrap=document.createElement('div');wrap.className='panelbox';
+  var q=document.createElement('div');q.className='value-q';
+  q.innerHTML=stage.qHTML+' <span class="value-blank droptarget" data-need="'+stage.ans+'">▢</span>';
+  wrap.appendChild(q);
+  area.appendChild(wrap);
+  var tray=document.createElement('div');tray.className='panelbox';tray.style.marginTop='12px';
+  tray.innerHTML='<div class="section-label">数字能量块：</div>';
+  var chipBox=document.createElement('div');chipBox.className='chip-tray';
+  tray.appendChild(chipBox);area.appendChild(tray);
+  var blank=q.querySelector('.value-blank');
+  shuffle(stage.chips).forEach(function(v){
+    var chip=document.createElement('div');chip.className='chip';chip.textContent=v;
+    makeDraggable(chip,{onDrop:function(tgt){
+      if(!tgt||!tgt.classList.contains('value-blank')||tgt.classList.contains('filled')){
+        addStep();setMsg('把能量块拖到答案的 ▢ 上！','info');return false;
+      }
+      addStep();
+      if(Number(tgt.getAttribute('data-need'))===v){
+        tgt.textContent=v;tgt.classList.add('filled');tgt.classList.remove('droptarget');
+        adoptInto(chip,chipBox,'locked');chip.style.visibility='hidden';
+        setMsg('答案正确！','ok');
+        finishStage('');
+        return true;
+      }
+      addWrong();
+      setMsg('再算一算，注意符号和乘方顺序！','bad');
+      return false;
+    }});
+    chipBox.appendChild(chip);
+  });
+}
+
+/* ---------------- 覆盖层与按钮 ---------------- */
+function bindUI(){
+  $$('.diff-card').forEach(function(c){
+    c.addEventListener('click',function(){startRun(c.getAttribute('data-diff'));});
+  });
+  $('#btn-rules').addEventListener('click',function(){$('#ov-rules').classList.remove('hidden');});
+  $('#btn-rules-close').addEventListener('click',function(){$('#ov-rules').classList.add('hidden');});
+  $('#btn-reveal').addEventListener('click',function(){
+    var round=G.rounds[G.ri];
+    if(!round)return;
+    $('#reveal-body').innerHTML=
+      '<b>【'+round.title+'】</b><br>'+round.q+
+      '<div class="reveal-ans">答案：'+round.reveal.ans+'</div>'+
+      '<div class="reveal-exp">解析：'+round.reveal.exp+'</div>';
+    $('#ov-reveal').classList.remove('hidden');
+  });
+  $('#btn-reveal-close').addEventListener('click',function(){$('#ov-reveal').classList.add('hidden');});
+  $('#btn-restart').addEventListener('click',function(){renderRound();setMsg('本关已重新开始','info');});
+  $('#btn-back').addEventListener('click',function(){
+    if(G.timerInt){clearInterval(G.timerInt);G.timerInt=null;}
+    showScreen('#scr-diff');
+  });
+  $('#btn-next-round').addEventListener('click',function(){
+    $('#ov-round').classList.add('hidden');
+    G.ri++;
+    if(G.ri<G.rounds.length){applyPalette();renderRound();}
+    else{runWin();}
+  });
+  $('#btn-again').addEventListener('click',function(){
+    $('#ov-win').classList.add('hidden');
+    startRun(G.diff);
+  });
+  $('#btn-win-back').addEventListener('click',function(){
+    $('#ov-win').classList.add('hidden');
+    showScreen('#scr-diff');
+  });
+}
+
+/* ---------------- 启动 ---------------- */
+applyPalette();
+bindUI();
+
+/* 调试钩子：供自动化检查使用，不影响正常游戏 */
+window.GAME={
+  G:G,ROUNDS:ROUNDS,startRun:startRun,renderRound:renderRound,renderStage:renderStage,
+  debugRenderAll:function(){
+    var errs=[];
+    ['easy','mid','hard'].forEach(function(k){
+      ROUNDS[k].forEach(function(rd){
+        G.rounds=[rd];G.ri=0;G.debug=true;G.timerInt=null;
+        try{
+          $('#scr-diff').classList.add('hidden');$('#scr-game').classList.remove('hidden');
+          var saveIdx=0;
+          for(var i=0;i<rd.stages.length;i++){
+            G.stageIdx=i;
+            try{
+              $('#stage-prog').textContent='阶段 '+(i+1)+'/'+rd.stages.length+'：';
+              $('#stage-intro').innerHTML=rd.stages[i].intro||'';
+              $('#qtitle').innerHTML='【'+rd.title+'】';
+              $('#qtext').innerHTML=rd.q;
+              var area=$('#stage-area');area.innerHTML='';
+              var st=rd.stages[i];
+              if(st.type==='sort')renderSort(st,area);
+              else if(st.type==='gate')renderGate(st,area);
+              else if(st.type==='slider')renderSlider(st,area);
+              else if(st.type==='recipe')renderRecipe(st,area);
+              else if(st.type==='value')renderValue(st,area);
+            }catch(e){errs.push(rd.id+' stage'+i+'('+st.type+'): '+e.message);}
+          }
+        }catch(e){errs.push(rd.id+': '+e.message);}
+      });
+    });
+    G.debug=false;
+    return errs;
+  }
+};
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-jc-d/g001", "name": "\u661f\u5c18\u5de5\u574a \u00b7 \u6574\u5f0f\u7684\u52a0\u51cf \u95ef\u5173\u6e38\u620f", "file": "g001.html", "jiaocan": "\u301010\u3011#\u8fc7\u5173\u68c0\u6d4b#\u7b2c\u4e8c\u7ae0 \u6574\u5f0f\u7684\u52a0\u51cf", "unit": "", "grade": "", "stage": "\u521d\u4e2d", "series": "D\uff1a\u521d\u4e2d\u8ba1\u7b97\u5168\u89e3", "kind": "\u6e38\u620f", "kinds": ["\u8fc7\u5173\u68c0\u6d4b"], "ver": "1.0.0", "hub": "\u521d\u4e2d\u8ba1\u7b97\u5168\u89e3\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-jc-d"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

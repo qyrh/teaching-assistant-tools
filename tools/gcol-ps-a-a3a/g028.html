@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>巧算魔法阵 · 除法变形记</title>
+<style>
+  /* ============ 全局变量与配色（每局随机抽取主色板） ============ */
+  :root{
+    --c:#3DA5FF;        /* 主色 */
+    --cd:#2b7fc4;       /* 深色 */
+    --cl:#ECF6FF;       /* 浅背景 */
+    --cx:#b9dcfb;       /* 中间色 */
+    --ink:#22303c;      /* 主文字 */
+    --paper:#ffffff;
+    --gold:#F5B800;
+    --green:#34C759;
+    --red:#FF5A5A;
+    --shadow:0 6px 20px rgba(40,60,90,.16);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+    background:linear-gradient(160deg,var(--cl),#ffffff 60%);
+    color:var(--ink);
+    overflow-x:hidden;
+    min-height:100vh;
+    user-select:none;
+  }
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:14px;}
+  /* ============ 顶部HUD ============ */
+  #hud{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;background:var(--c);color:#fff;
+    box-shadow:var(--shadow);position:sticky;top:0;z-index:30;flex-wrap:wrap;gap:8px;
+  }
+  #hud .title{font-size:20px;font-weight:800;letter-spacing:1px;}
+  #hud .stats{display:flex;gap:10px;flex-wrap:wrap;}
+  #hud .chip{background:rgba(255,255,255,.22);padding:6px 12px;border-radius:20px;font-weight:700;font-size:15px;}
+  /* ============ 主区 ============ */
+  .screen{display:none;padding:14px;max-width:980px;margin:0 auto;}
+  .screen.active{display:block;}
+  /* ============ 难度选择 ============ */
+  #diffScreen .wrap{text-align:center;padding:18px 6px;}
+  #diffScreen h2{font-size:26px;color:var(--cd);margin:6px 0 4px;}
+  #diffScreen p.sub{color:#5b6b7a;margin:0 0 18px;font-size:15px;}
+  .diff-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:8px;}
+  .diff-card{
+    background:var(--paper);border:3px solid var(--cx);border-radius:22px;padding:22px 16px;
+    box-shadow:var(--shadow);transition:transform .12s, box-shadow .12s;
+  }
+  .diff-card:active{transform:scale(.97);}
+  .diff-card .badge{font-size:40px;display:block;margin-bottom:6px;}
+  .diff-card h3{margin:6px 0;font-size:21px;color:var(--cd);}
+  .diff-card .desc{font-size:14px;color:#5b6b7a;line-height:1.6;}
+  .diff-card .go{margin-top:12px;background:var(--c);color:#fff;font-weight:800;font-size:16px;padding:10px 18px;width:100%;}
+  /* ============ 题目信息 ============ */
+  .panel{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:12px;}
+  .goal-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .goal-row .lvl{font-size:14px;color:#fff;background:var(--c);padding:5px 12px;border-radius:14px;font-weight:700;}
+  .goal-row .target{font-size:15px;color:#5b6b7a;}
+  .goal-row .target b{color:var(--cd);font-size:17px;}
+  .prompt{margin-top:8px;font-size:15px;line-height:1.7;color:#33424f;}
+  .prompt .hl{background:linear-gradient(transparent 60%, #ffe9a8 60%);font-weight:700;}
+  /* ============ 算式工作区 ============ */
+  #workspace{min-height:150px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;padding:18px 8px;}
+  .unit{
+    position:relative;background:var(--c);color:#fff;border-radius:14px;
+    display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:62px;padding:10px 8px;font-weight:800;font-size:22px;
+    box-shadow:var(--shadow);touch-action:none;transition:transform .08s, box-shadow .08s;
+    border:3px solid transparent;
+  }
+  .unit.first{background:var(--cd);}
+  .unit .op{font-size:18px;color:#fff;opacity:.95;line-height:1;}
+  .unit .num{font-size:24px;line-height:1.1;}
+  .unit .opTop{font-size:13px;height:14px;opacity:.9;}
+  .unit.sel{border-color:var(--gold);transform:translateY(-4px);}
+  .unit.dragging{opacity:.4;}
+  .unit .splitBtn{
+    position:absolute;top:-10px;right:-10px;width:26px;height:26px;border-radius:50%;
+    background:var(--gold);color:#5a3d00;font-size:13px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);
+    border:2px solid #fff;
+  }
+  /* 括号分组：用一个带圆角边框的容器包裹若干卡片 */
+  .group{
+    display:inline-flex;align-items:center;gap:6px;padding:8px 10px 8px 6px;
+    border:3px dashed var(--gold);border-radius:18px;margin:6px;position:relative;background:rgba(245,184,0,.06);
+  }
+  .group .rm{
+    position:absolute;top:-12px;right:-12px;width:24px;height:24px;border-radius:50%;
+    background:var(--red);color:#fff;font-size:14px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;border:2px solid #fff;
+  }
+  .ghost{
+    position:fixed;z-index:80;pointer-events:none;opacity:.85;transform:translate(-50%,-50%);
+  }
+  /* ============ 工具条 ============ */
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .toolbar .hint{flex:1;min-width:200px;font-size:13px;color:#5b6b7a;line-height:1.5;}
+  .tool-btn{background:var(--cl);color:var(--cd);font-weight:700;font-size:14px;padding:9px 14px;border:2px solid var(--cx);}
+  .tool-btn:active{transform:scale(.96);}
+  /* ============ 实时结果 ============ */
+  #resultBox{margin-top:12px;}
+  #liveExpr{font-size:20px;font-weight:800;color:var(--cd);word-break:break-all;line-height:1.5;}
+  #liveExpr .pv{color:var(--gold);}            /* 括号内凑整高亮 */
+  #liveExpr .flip{color:var(--red);text-decoration:underline;} /* 变号标记 */
+  #liveVal{font-size:28px;font-weight:800;margin-top:6px;}
+  #liveVal.ok{color:var(--green);}
+  #liveVal.bad{color:#9aa6b2;}
+  .nice-tag{display:inline-block;background:var(--gold);color:#5a3d00;font-weight:800;font-size:13px;padding:3px 10px;border-radius:10px;margin-left:8px;}
+  /* ============ 动作按钮 ============ */
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  .act{flex:1;min-width:120px;padding:13px;font-size:15px;font-weight:700;}
+  .act.gray{background:#eef2f6;color:#5b6b7a;}
+  .act.soft{background:var(--cl);color:var(--cd);border:2px solid var(--cx);}
+  .act.win{background:linear-gradient(90deg,var(--green),#2faa4a);color:#fff;font-size:17px;box-shadow:0 6px 16px rgba(52,199,89,.4);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}
+  /* ============ 弹层 ============ */
+  .overlay{
+    position:fixed;inset:0;background:rgba(20,30,45,.55);z-index:60;
+    display:none;align-items:center;justify-content:center;padding:18px;
+  }
+  .overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:22px;max-width:560px;width:100%;padding:22px;box-shadow:var(--shadow);max-height:88vh;overflow:auto;}
+  .modal h2{margin:0 0 10px;color:var(--cd);font-size:22px;}
+  .modal p,.modal li{font-size:15px;line-height:1.8;color:#33424f;}
+  .modal .close{background:var(--c);color:#fff;font-weight:800;padding:11px 22px;margin-top:14px;width:100%;font-size:16px;}
+  .modal .answer-block{background:var(--cl);border-radius:14px;padding:12px 14px;margin-top:8px;}
+  .modal .answer-block b{color:var(--cd);}
+  /* ============ 分解面板 ============ */
+  .decomp-info{text-align:center;margin:6px 0 12px;}
+  .decomp-info .big{font-size:30px;font-weight:800;color:var(--cd);}
+  .slots{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0;}
+  .slot{width:74px;height:64px;border:3px dashed var(--cx);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:var(--cd);background:var(--cl);}
+  .slot.filled{background:#fff;border-style:solid;border-color:var(--c);color:var(--ink);}
+  .op-stamp{width:46px;height:46px;border-radius:12px;font-size:24px;font-weight:800;background:#fff;border:2px solid var(--cx);color:var(--cd);}
+  .op-stamp.on{background:var(--c);color:#fff;border-color:var(--c);}
+  .tile-pool{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:14px 0;}
+  .tile{width:60px;height:60px;border-radius:14px;background:var(--gold);color:#5a3d00;font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);touch-action:none;}
+  .tile.used{opacity:.25;}
+  .decomp-actions{display:flex;gap:10px;margin-top:10px;}
+  .decomp-actions button{flex:1;padding:11px;font-weight:700;font-size:15px;}
+  /* ============ 通关庆祝 ============ */
+  #winOverlay .modal{text-align:center;}
+  #winOverlay .star{font-size:54px;}
+  #winOverlay h2{font-size:26px;}
+  /* ============ 庆祝彩纸canvas ============ */
+  #confetti{position:fixed;inset:0;z-index:70;pointer-events:none;display:none;}
+  /* ============ 响应式 ============ */
+  @media (max-width:560px){
+    #hud .title{font-size:17px;}
+    .unit{min-width:52px;padding:8px 6px;font-size:18px;}
+    .unit .num{font-size:20px;}
+    #liveExpr{font-size:17px;}
+    #liveVal{font-size:24px;}
+    .act{min-width:45%;font-size:14px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== 顶部HUD ========== -->
+<div id="hud">
+  <div class="title">巧算魔法阵 · 除法变形记</div>
+  <div class="stats">
+    <span class="chip" id="chipLevel">关卡</span>
+    <span class="chip">⏱ <span id="timer">0</span> 秒</span>
+    <span class="chip">👣 <span id="moves">0</span> 步</span>
+  </div>
+</div>
+
+<!-- ========== 难度选择屏 ========== -->
+<section id="diffScreen" class="screen active">
+  <div class="wrap">
+    <h2>欢迎来到巧算魔法阵</h2>
+    <p class="sub">在这里，除法算式会变成可拖动的魔法卡片。请你动起手来，把卡片重新排队、给它们套上魔法圆环（添括号）、或者把一个大数拆成小积木，让难算的除法变得又整又好算！先选一个难度开始吧。</p>
+    <div class="diff-grid">
+      <div class="diff-card">
+        <span class="badge">🌟</span>
+        <h3>星光试炼场（初级）</h3>
+        <div class="desc">练习“添括号、去括号、带符号搬家”，把连续的除法凑成整十整百。</div>
+        <button class="go" data-d="primary">进入初级</button>
+      </div>
+      <div class="diff-card">
+        <span class="badge">🌈</span>
+        <h3>彩虹进阶塔（中级）</h3>
+        <div class="desc">把除数或被除数“分解”成小积木，再凑整计算。</div>
+        <button class="go" data-d="middle">进入中级</button>
+      </div>
+      <div class="diff-card">
+        <span class="badge">👑</span>
+        <h3>智慧巅峰殿（高级）</h3>
+        <div class="desc">综合运用去括号、带符号搬家，巧算一连串乘除混排的算式。</div>
+        <button class="go" data-d="senior">进入高级</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 游戏屏 ========== -->
+<section id="gameScreen" class="screen">
+  <div class="panel">
+    <div class="goal-row">
+      <span class="lvl" id="lvlTag">初级</span>
+      <span class="target">本关目标：让算式的结果 = <b id="targetNum">?</b></span>
+    </div>
+    <div class="prompt" id="promptText"></div>
+  </div>
+
+  <div class="panel">
+    <div id="workspace"></div>
+    <div class="toolbar">
+      <div class="hint" id="toolHint">操作：① 点两个数字卡片 → 给它们套上魔法圆环（添括号，除号后面会自动变号）。② 长按拖动数字卡片 → 带符号搬家。③ 点卡片右上角“拆” → 把大数拆成小积木。</div>
+      <button class="tool-btn" id="btnClearParen">清空圆环</button>
+      <button class="tool-btn" id="btnUndo">撤销一步</button>
+    </div>
+    <div id="resultBox">
+      <div>当前算式：</div>
+      <div id="liveExpr">—</div>
+      <div id="liveVal" class="bad">—</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="act gray" id="btnReveal">揭示答案</button>
+    <button class="act gray" id="btnRestart">重新开始</button>
+    <button class="act gray" id="btnBack">返回选关</button>
+    <button class="act gray" id="btnRules">玩法说明</button>
+    <button class="act win" id="btnWin" style="display:none;">完成挑战</button>
+  </div>
+</section>
+
+<!-- ========== 规则弹层 ========== -->
+<div class="overlay" id="rulesOverlay">
+  <div class="modal">
+    <h2>玩法说明</h2>
+    <p>每一关，屏幕上会出现一道“不太整”的除法算式，每个数字都是一张可以动的魔法卡片。你的任务是动手把它<span class="hl">变形</span>，让计算变得又整又快。</p>
+    <p><b>三种魔法操作：</b></p>
+    <ul>
+      <li><b>添括号（魔法圆环）</b>：先点一个数字卡片，再点另一个数字卡片，它们之间的卡片会被一圈虚线圆环包起来。记住巧算口诀——<b>除号后面添括号，括号里的“÷”会变成“×”，“×”会变成“÷”</b>（减号同理）。圆环会自动帮你变好号，凑出整十整百。</li>
+      <li><b>带符号搬家</b>：长按一张数字卡片拖到别的位置，它会带着前面的运算符一起搬家，让好算的数凑到一起。</li>
+      <li><b>分解（拆积木）</b>：点卡片右上角的“拆”按钮，把一个大数拆成两个小积木（相乘、相加或相减），再凑整计算。</li>
+    </ul>
+    <p>右下角会实时显示你<b>当前算式和结果</b>。当结果等于目标数，且你至少用过一次魔法操作，<b>“完成挑战”</b>按钮就会亮起，点击它就能点亮星空！点圆环上的红叉可以拆除括号。</p>
+    <button class="close" id="rulesClose">明白啦，开始闯关</button>
+  </div>
+</div>
+
+<!-- ========== 揭示答案弹层 ========== -->
+<div class="overlay" id="revealOverlay">
+  <div class="modal">
+    <h2>本关答案与思路</h2>
+    <div id="revealBody"></div>
+    <button class="close" id="revealClose">我再看一看</button>
+  </div>
+</div>
+
+<!-- ========== 分解弹层 ========== -->
+<div class="overlay" id="decompOverlay">
+  <div class="modal">
+    <h2>拆积木工坊</h2>
+    <div class="decomp-info">把数字 <span class="big" id="dcTarget">?</span> 拆成两个小积木，让计算更整。</div>
+    <div class="slots">
+      <div class="slot" id="dcSlotA" data-slot="a">?</div>
+      <span id="dcOpStamp" class="op-stamp">×</span>
+      <div class="slot" id="dcSlotB" data-slot="b">?</div>
+    </div>
+    <div style="text-align:center;font-size:14px;color:#5b6b7a;margin-bottom:6px;">先选一个运算（点下方按钮），再拖两个积木进空槽，使结果等于原数。</div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:6px;">
+      <button class="op-stamp" data-op="×">×</button>
+      <button class="op-stamp" data-op="+">+</button>
+      <button class="op-stamp" data-op="-">−</button>
+    </div>
+    <div class="tile-pool" id="dcPool"></div>
+    <div class="decomp-actions">
+      <button class="act soft" id="dcCancel">取消</button>
+      <button class="act" id="dcConfirm" style="background:var(--c);color:#fff;">确认分解</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 通关弹层 ========== -->
+<div class="overlay" id="winOverlay">
+  <div class="modal">
+    <div class="star">🎉🌟🎉</div>
+    <h2>太棒了，巧算成功！</h2>
+    <p id="winText">你用魔法把算式变得又整又好算，结果正好等于目标数！</p>
+    <div class="actions">
+      <button class="act" id="winNext" style="background:var(--green);color:#fff;">再来一题</button>
+      <button class="act soft" id="winBack">返回选关</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+/* =================================================================
+   巧算魔法阵 · 除法变形记
+   核心机制（与“巧算除法”题型深度绑定）：
+   1. 算式以“带前导运算符的数字卡片”呈现，长按拖动 = 带符号搬家
+   2. 点两张卡片框定范围 = 添括号；÷/- 后添括号自动变号（巧算口诀可视化）
+   3. “拆”按钮 = 把除数/被除数分解为积或和差（拖积木构造）
+   操作过程即思考过程，非选择题。
+================================================================= */
+
+// ---------- 配色板：每局随机抽取一整套主色 ----------
+var PALETTES = [
+  {c:'#3DA5FF', cd:'#2b7fc4', cl:'#ECF6FF', cx:'#b9dcfb'},
+  {c:'#FF8A3D', cd:'#d96a1c', cl:'#FFF4EC', cx:'#fbcdab'},
+  {c:'#34C759', cd:'#249a3f', cl:'#ECFBF1', cx:'#aee5bb'},
+  {c:'#9B6BFF', cd:'#7048d6', cl:'#F3ECFF', cx:'#ceb4fb'},
+  {c:'#FF6B9D', cd:'#d63d76', cl:'#FFECF3', cx:'#f7b3cb'},
+  {c:'#1BA0A0', cd:'#0d7777', cl:'#E6F7F7', cx:'#a6dcdc'}
+];
+
+// ---------- 题库：每道题 = 带符号数字单元序列 + 答案 + 思路 +（可选）分解方案 ----------
+// 单元：{n:数字, op:'' | '÷' | '×' | '+' | '-'}，第一个单元 op 必为 ''
+var BANK = {
+  // 初级：添括号 / 去括号 / 带符号搬家，凑整
+  primary: [
+    {units:[{n:1120},{n:7,op:'÷'},{n:8,op:'÷'}], ans:20,
+     teach:'连续两个除号，把 7 和 8 套进圆环：1120÷(7×8)，除号后添括号，里面的 ÷ 变 ×，7×8=56，1120÷56=20。',
+     sol:'1120÷7÷8 = 1120÷(7×8) = 1120÷56 = 20'},
+    {units:[{n:408},{n:8,op:'÷'},{n:17,op:'÷'}], ans:3,
+     teach:'把 8 和 17 套进圆环：408÷(8×8变…)，除号后添括号变号，8×17=136，408÷136=3。',
+     sol:'408÷8÷17 = 408÷(8×17) = 408÷136 = 3'},
+    {units:[{n:1260},{n:7,op:'÷'},{n:9,op:'÷'}], ans:20,
+     teach:'7×9=63，1260÷63=20。把 7、9 套圆环即可。',
+     sol:'1260÷7÷9 = 1260÷(7×9) = 1260÷63 = 20'},
+    {units:[{n:4000},{n:125,op:'÷'},{n:8,op:'÷'}], ans:4,
+     teach:'125×8=1000 是经典凑整，套圆环后 4000÷1000=4。',
+     sol:'4000÷125÷8 = 4000÷(125×8) = 4000÷1000 = 4'},
+    {units:[{n:460},{n:500,op:'÷'},{n:250,op:'×'}], ans:230,
+     teach:'带符号搬家：把“×250”搬到“÷500”前面，得 460×250÷500=230；或添括号 460÷(500÷250)=460÷2=230。',
+     sol:'460÷500×250 = 460×250÷500 = 230'},
+    {units:[{n:525},{n:7,op:'÷'},{n:5,op:'÷'}], ans:15,
+     teach:'525 能被 5 整除，带符号搬家：525÷5÷7=105÷7=15。',
+     sol:'525÷7÷5 = 525÷5÷7 = 105÷7 = 15'},
+    {units:[{n:900},{n:25,op:'÷'},{n:4,op:'÷'}], ans:9,
+     teach:'25×4=100，套圆环：900÷100=9。',
+     sol:'900÷25÷4 = 900÷(25×4) = 900÷100 = 9'},
+    {units:[{n:720},{n:8,op:'÷'},{n:9,op:'÷'}], ans:10,
+     teach:'8×9=72，720÷72=10。套圆环即可。',
+     sol:'720÷8÷9 = 720÷(8×9) = 720÷72 = 10'}
+  ],
+  // 中级：把除数或被除数分解
+  middle: [
+    {units:[{n:2652},{n:39,op:'÷'}], ans:68,
+     teach:'39=3×13，把除数 39 拆成 3×13：2652÷(3×13)，2652÷13=204，204÷3=68。',
+     sol:'2652÷39 = 2652÷(3×13) = 2652÷13÷3 = 204÷3 = 68',
+     decomp:[{idx:1, tiles:[3,13,9,39], op:'×'}]},
+    {units:[{n:3468},{n:51,op:'÷'}], ans:68,
+     teach:'51=3×17，3468÷17=204，204÷3=68。',
+     sol:'3468÷51 = 3468÷(3×17) = 3468÷17÷3 = 204÷3 = 68',
+     decomp:[{idx:1, tiles:[3,17,9,51], op:'×'}]},
+    {units:[{n:1326},{n:39,op:'÷'}], ans:34,
+     teach:'39=3×13，1326÷13=102，102÷3=34。',
+     sol:'1326÷39 = 1326÷(3×13) = 1326÷13÷3 = 102÷3 = 34',
+     decomp:[{idx:1, tiles:[3,13,9,39], op:'×'}]},
+    {units:[{n:2700},{n:45,op:'÷'}], ans:60,
+     teach:'45=9×5，2700÷9=300，300÷5=60。',
+     sol:'2700÷45 = 2700÷(9×5) = 2700÷9÷5 = 300÷5 = 60',
+     decomp:[{idx:1, tiles:[9,5,15,45], op:'×'}]},
+    {units:[{n:1016},{n:8,op:'÷'}], ans:127,
+     teach:'把被除数 1016 拆成 1000+16：(1000+16)÷8=1000÷8+16÷8=125+2=127。',
+     sol:'1016÷8 = (1000+16)÷8 = 1000÷8 + 16÷8 = 125+2 = 127',
+     decomp:[{idx:0, tiles:[1000,16,800,8], op:'+'}]},
+    {units:[{n:8109},{n:9,op:'÷'}], ans:901,
+     teach:'把被除数 8109 拆成 8100+9：(8100+9)÷9=900+1=901。',
+     sol:'8109÷9 = (8100+9)÷9 = 8100÷9 + 9÷9 = 900+1 = 901',
+     decomp:[{idx:0, tiles:[8100,9,8000,100], op:'+'}]},
+    {units:[{n:5445},{n:55,op:'÷'}], ans:99,
+     teach:'把 5445 看成 5500−55：(5500−55)÷55=5500÷55−55÷55=100−1=99。',
+     sol:'5445÷55 = (5500−55)÷55 = 5500÷55 − 55÷55 = 100−1 = 99',
+     decomp:[{idx:0, tiles:[5500,55,5000,400], op:'-'}]}
+  ],
+  // 高级：综合 去括号 + 带符号搬家
+  senior: [
+    {units:[{n:1225},{n:8,op:'÷'},{n:8,op:'×'},{n:4,op:'÷'},{n:4,op:'×'},{n:1,op:'÷'}], ans:1225,
+     teach:'把“÷8”和“×8”套圆环：除号后添括号变号，(8÷8)=1；同理“÷4”“×4”抵消。原数 1225 不变。',
+     sol:'(1225÷8)×(8÷4)×(4÷1) = 1225÷8×8÷4×4÷1 = 1225÷(8÷8)÷(4÷4) = 1225'},
+    {units:[{n:30},{n:18,op:'×'},{n:18,op:'÷'},{n:8,op:'×'},{n:8,op:'÷'}], ans:30,
+     teach:'“×18”和“÷18”相消，“×8”和“÷8”相消，结果还是 30。',
+     sol:'(30×18)÷(18÷8)÷(8÷1) = 30×18÷18×8÷8 = 30'},
+    {units:[{n:426},{n:213,op:'÷'},{n:13,op:'×'},{n:26,op:'÷'}], ans:1,
+     teach:'426=2×213，先算 426÷213=2；再 2×13=26；26÷26=1。也可带符号搬家调整顺序。',
+     sol:'426÷(213÷13×26) = 426÷213×13÷26 = 2×13÷26 = 1'},
+    {units:[{n:205},{n:7,op:'×'},{n:5,op:'÷'}], ans:287,
+     teach:'带符号搬家：把“÷5”移到“×7”前，205÷5=41，41×7=287。',
+     sol:'205×7÷5 = 205÷5×7 = 41×7 = 287'},
+    {units:[{n:46},{n:18,op:'×'},{n:23,op:'÷'},{n:36,op:'÷'}], ans:1,
+     teach:'46÷23=2，带符号搬家让好算的凑一起：46÷23×18÷36=2×18÷36=1。',
+     sol:'46×18÷(23×36) = 46×18÷23÷36 = 46÷23×18÷36 = 2×18÷36 = 1'},
+    {units:[{n:945},{n:5,op:'÷'},{n:9,op:'÷'}], ans:21,
+     teach:'945÷9=105，带符号搬家：945÷9÷5=105÷5=21。',
+     sol:'945÷5÷9 = 945÷9÷5 = 105÷5 = 21'},
+    {units:[{n:126},{n:8,op:'×'},{n:6,op:'÷'}], ans:168,
+     teach:'126÷6=21，带符号搬家：126÷6×8=21×8=168。',
+     sol:'126×8÷6 = 126÷6×8 = 21×8 = 168'}
+  ]
+};
+
+var LEVEL_NAME = {primary:'初级 · 星光试炼场', middle:'中级 · 彩虹进阶塔', senior:'高级 · 智慧巅峰殿'};
+var LEVEL_TAG  = {primary:'初级', middle:'中级', senior:'高级'};
+
+// ---------- 全局状态 ----------
+var state = {
+  diff:null,        // 当前难度
+  puzzle:null,      // 当前题目原始对象
+  units:[],         // 当前单元数组（含 op）
+  parens:[],        // 括号范围 {a,b,id}
+  decomp:{},        // {idx:{a,b,op}}
+  opCount:0,        // 操作计数（添/删括号、搬家、分解都算）
+  history:[],       // 撤销栈（存 state 快照关键字段）
+  anchor:null,      // 添括号起点
+  startTime:0,
+  timerId:null,
+  done:false
+};
+var parenSeq = 0;  // 括号 id 生成
+
+// ---------- DOM ----------
+var $ = function(id){return document.getElementById(id);};
+var workspace = $('workspace');
+
+// ---------- 工具函数 ----------
+function flip(op){ return {'÷':'×','×':'÷','-':'+','+':'-'}[op] || op; }
+function stdOp(op){ return {'÷':'/','×':'*','+':'+','-':'-','':'','−':'-'}[op]; }
+// 把数字转成字符串（兼容全角减号）
+function n2s(n){ return String(n).replace('-','−'); }
+
+// 深拷贝单元
+function cloneUnits(us){ return us.map(function(u){return {n:u.n, op:u.op||''};}); }
+
+// ---------- 求值：把单元+括号+分解展开成标准表达式字符串 ----------
+// 变号规则：若某括号起点单元的 op ∈ {÷,-}，则括号内非起点单元的 op 取反
+function buildExpr(forDisplay){
+  var n = state.units.length;
+  // 每个单元的 lead 与 body
+  var exp = [];
+  for(var i=0;i<n;i++){
+    var u = state.units[i];
+    var lead = (i===0)? '' : (u.op||'');
+    var body;
+    if(state.decomp[i]){
+      var d = state.decomp[i];
+      body = '(' + d.a + stdOp(d.op) + d.b + ')';
+    }else{
+      body = String(u.n);
+    }
+    exp.push({lead:lead, body:body, raw:u.n});
+  }
+  // 计算每个单元的显示用 op（考虑变号）
+  var dispLead = exp.map(function(e){return e.lead;});
+  for(var pi=0; pi<state.parens.length; pi++){
+    var p = state.parens[pi];
+    var starterLead = exp[p.a].lead;
+    if(starterLead==='÷' || starterLead==='-'){
+      for(var k=p.a+1; k<=p.b; k++){
+        if(dispLead[k]) dispLead[k] = flip(dispLead[k]);
+      }
+    }
+  }
+  // 拼接（计算用标准符号）—— 必须使用变号后的 dispLead，否则添括号的变号不会进入计算
+  var s = '';
+  for(var i=0;i<n;i++){
+    var openP = null, closeP = null;
+    for(var j=0;j<state.parens.length;j++){
+      if(state.parens[j].a===i) openP = state.parens[j];
+      if(state.parens[j].b===i) closeP = state.parens[j];
+    }
+    s += stdOp(dispLead[i]);
+    if(openP) s += '(';
+    s += exp[i].body;
+    if(closeP) s += ')';
+  }
+  if(forDisplay){
+    // 返回显示串（用 ÷ ×，并标注变号）
+    var ds = '';
+    for(var i=0;i<n;i++){
+      var openP=null,closeP=null;
+      for(var j=0;j<state.parens.length;j++){
+        if(state.parens[j].a===i) openP=state.parens[j];
+        if(state.parens[j].b===i) closeP=state.parens[j];
+      }
+      var origLead = exp[i].lead;
+      var shownLead = dispLead[i];
+      var flipped = (origLead && shownLead!==origLead);
+      if(origLead){
+        ds += '<span class="'+(flipped?'flip':'')+'">'+shownLead+'</span>';
+      }
+      if(openP) ds += '<span class="pv">(</span>';
+      ds += exp[i].body.replace('*','×').replace('/','÷');
+      if(closeP) ds += '<span class="pv">)</span>';
+    }
+    return {calc:s, disp:ds, parens:state.parens, dispLead:dispLead, exp:exp};
+  }
+  return s;
+}
+
+// 计算结果（浮点）
+function evalExpr(s){
+  try{
+    // 仅允许数字、运算符、括号、空格
+    if(!/^[0-9+\-*/(). ]+$/.test(s)) return NaN;
+    var v = Function('"use strict";return ('+s+');')();
+    return v;
+  }catch(e){ return NaN; }
+}
+
+// 计算每个括号内的值（用于凑整提示）
+function parenInnerValues(){
+  var res = [];
+  for(var i=0;i<state.parens.length;i++){
+    var p = state.parens[i];
+    // 子表达式：units[a..b]，应用变号
+    var sub = '';
+    for(var k=p.a;k<=p.b;k++){
+      var u = state.units[k];
+      var lead = (k===p.a)? '' : (u.op||'');
+      // 变号判定
+      var starterLead = state.units[p.a].op||'';
+      if((starterLead==='÷'||starterLead==='-') && k!==p.a && lead){
+        lead = flip(lead);
+      }
+      var body;
+      if(state.decomp[k]){ body='('+state.decomp[k].a+stdOp(state.decomp[k].op)+state.decomp[k].b+')'; }
+      else { body = String(u.n); }
+      sub += stdOp(lead) + body;
+    }
+    res.push({id:p.id, val:evalExpr(sub)});
+  }
+  return res;
+}
+
+// 是否“好算的整数”：整数且末位0或个位数或≤4位整百整十
+function isNice(v){
+  if(!isFinite(v)) return false;
+  if(Math.abs(v-Math.round(v))>1e-9) return false;
+  var iv = Math.round(v);
+  if(Math.abs(iv)<=20) return true;
+  if(iv%1000===0) return true;
+  if(iv%100===0) return true;
+  if(iv%10===0) return true;
+  return false;
+}
+
+// ---------- 快照（撤销） ----------
+function snapshot(){
+  state.history.push({
+    units:cloneUnits(state.units),
+    parens:state.parens.map(function(p){return {a:p.a,b:p.b,id:p.id};}),
+    decomp:JSON.parse(JSON.stringify(state.decomp)),
+    opCount:state.opCount
+  });
+  if(state.history.length>40) state.history.shift();
+}
+function undo(){
+  if(state.history.length===0) return;
+  var s = state.history.pop();
+  state.units = s.units;
+  state.parens = s.parens;
+  state.decomp = s.decomp;
+  state.opCount = s.opCount;
+  state.anchor = null;
+  $('moves').textContent = state.opCount;
+  render();
+}
+
+// ---------- 渲染 ----------
+function render(){
+  workspace.innerHTML = '';
+  // 计算 opensAt / closesAt
+  var opensAt={}, closesAt={};
+  state.parens.forEach(function(p){ opensAt[p.a]=p; closesAt[p.b]=p; });
+  // 用容器嵌套实现单层圆环
+  var cursor = workspace;
+  for(var i=0;i<state.units.length;i++){
+    if(opensAt[i]){
+      var g = document.createElement('div');
+      g.className='group';
+      g.dataset.pid = opensAt[i].id;
+      var rm = document.createElement('div');
+      rm.className='rm';
+      rm.textContent='✕';
+      rm.dataset.rm = opensAt[i].id;
+      g.appendChild(rm);
+      workspace.appendChild(g);
+      cursor = g;
+    }
+    cursor.appendChild(makeUnit(i));
+    if(closesAt[i]){
+      cursor = workspace;
+    }
+  }
+  updateLive();
+}
+
+function makeUnit(i){
+  var u = state.units[i];
+  var el = document.createElement('div');
+  el.className = 'unit' + (i===0?' first':'') + (state.anchor===i?' sel':'');
+  el.dataset.idx = i;
+  // 顶部运算符（首单元留空）
+  var opTop = document.createElement('div');
+  opTop.className='opTop';
+  opTop.textContent = (i===0)? '' : u.op;
+  el.appendChild(opTop);
+  var num = document.createElement('div');
+  num.className='num';
+  if(state.decomp[i]){
+    var d = state.decomp[i];
+    num.textContent = '(' + d.a + d.op + d.b + ')';
+    num.style.fontSize='16px';
+  }else{
+    num.textContent = u.n;
+  }
+  el.appendChild(num);
+  // 分解按钮（仅在该难度支持分解、且该单元未被分解时显示）
+  if(state.puzzle && state.puzzle.decomp && !state.decomp[i]){
+    for(var k=0;k<state.puzzle.decomp.length;k++){
+      if(state.puzzle.decomp[k].idx===i){
+        var sp = document.createElement('div');
+        sp.className='splitBtn';
+        sp.textContent='拆';
+        sp.dataset.split = i;
+        el.appendChild(sp);
+        break;
+      }
+    }
+  }
+  return el;
+}
+
+function updateLive(){
+  var info = buildExpr(true);
+  var val = evalExpr(info.calc);
+  var expr = $('liveExpr');
+  var valEl = $('liveVal');
+  expr.innerHTML = info.disp || '—';
+  if(!isFinite(val)){
+    valEl.textContent = '当前算式有点不对，调整一下试试';
+    valEl.className='bad';
+    $('btnWin').style.display='none';
+    return;
+  }
+  var dispVal = (Math.abs(val-Math.round(val))<1e-9)? Math.round(val) : (Math.round(val*1000)/1000);
+  // 凑整提示
+  var inners = parenInnerValues();
+  var niceTag = '';
+  for(var i=0;i<inners.length;i++){
+    if(isNice(inners[i].val)){
+      niceTag += ' <span class="nice-tag">圆环内='+Math.round(inners[i].val)+'，好整！</span>';
+    }
+  }
+  valEl.innerHTML = '= ' + dispVal + niceTag;
+  var target = state.puzzle.ans;
+  var correct = Math.abs(val-target)<1e-9;
+  if(correct){
+    valEl.className='ok';
+    if(state.opCount>=1){
+      valEl.innerHTML = '= ' + dispVal + ' <span class="nice-tag">结果正确！</span>';
+    }else{
+      // 展开式直接算就等于答案，但要求学生至少展示一次巧算操作
+      valEl.innerHTML = '= ' + dispVal + ' <span class="nice-tag">先用一次魔法操作（添括号/搬家/分解）展示巧算，按钮才会亮起哦</span>';
+    }
+  }else{
+    valEl.className = isNice(val)? 'ok':'bad';
+  }
+  // 完成按钮：结果正确且至少一次操作
+  if(correct && state.opCount>=1 && !state.done){
+    $('btnWin').style.display='block';
+  }else{
+    $('btnWin').style.display='none';
+  }
+}
+
+// ---------- 操作：添括号 ----------
+function tryAddParen(a,b){
+  if(a===b) return;
+  var lo=Math.min(a,b), hi=Math.max(a,b);
+  // 不允许包含首单元（首单元是被除数，不进括号）
+  if(lo===0){ lo=1; if(lo>=hi) return; }
+  // 不允许与已有括号重叠/嵌套
+  for(var i=0;i<state.parens.length;i++){
+    var p=state.parens[i];
+    if(!(hi<p.a || lo>p.b)) return; // 重叠
+  }
+  snapshot();
+  state.parens.push({a:lo,b:hi,id:++parenSeq});
+  state.opCount++;
+  $('moves').textContent = state.opCount;
+  render();
+}
+
+// ---------- 操作：删括号 ----------
+function removeParen(id){
+  snapshot();
+  state.parens = state.parens.filter(function(p){return p.id!==id;});
+  state.opCount++;
+  $('moves').textContent = state.opCount;
+  render();
+}
+
+// ---------- 操作：带符号搬家（拖动重排，首单元固定） ----------
+function reorder(fromIdx, toIdx){
+  if(fromIdx===toIdx) return;
+  if(fromIdx===0 || toIdx===0) return; // 首单元固定
+  if(fromIdx<1 || toIdx<1) return;
+  snapshot();
+  var arr = state.units;
+  var moved = arr.splice(fromIdx,1)[0];
+  arr.splice(toIdx,0,moved);
+  // 重排后括号索引需同步移动：按映射重算
+  state.parens = reindexParensAfterReorder(state.parens, arr.length, fromIdx, toIdx);
+  state.opCount++;
+  $('moves').textContent = state.opCount;
+  state.anchor=null;
+  render();
+}
+// 重排后重算括号范围（基于原始位置→新位置映射）
+function reindexParensAfterReorder(parens, n, fromIdx, toIdx){
+  // 构造位置映射 oldPos->newPos
+  var map = {};
+  for(var i=0;i<n;i++){
+    if(i===toIdx) map[fromIdx]=i; // 被移动到 toIdx
+  }
+  // 直接重算：旧数组移除 fromIdx 后插入 toIdx
+  // 用模拟法得到 old->new
+  var oldArr=[]; for(var k=0;k<n;k++) oldArr.push(k);
+  // 移除 fromIdx
+  var removed = oldArr.splice(fromIdx,1)[0];
+  oldArr.splice(toIdx,0,removed);
+  // oldArr[newPos] = oldIndex
+  var old2new = {};
+  for(var nn=0;nn<oldArr.length;nn++) old2new[oldArr[nn]]=nn;
+  var out=[];
+  for(var j=0;j<parens.length;j++){
+    var p=parens[j];
+    // 仅保留重排后仍可定位的括号（用 hasOwnProperty 避免 undefined 字面量）
+    if(!old2new.hasOwnProperty(p.a) || !old2new.hasOwnProperty(p.b)) continue;
+    var na=old2new[p.a], nb=old2new[p.b];
+    out.push({a:Math.min(na,nb),b:Math.max(na,nb),id:p.id});
+  }
+  return out;
+}
+
+// ---------- 操作：分解 ----------
+var dcState = {idx:null, tiles:[], op:'×', slotA:null, slotB:null};
+function openDecomp(idx){
+  // 找该题该 idx 的分解配置
+  var cfg=null;
+  for(var i=0;i<state.puzzle.decomp.length;i++){
+    if(state.puzzle.decomp[i].idx===idx){ cfg=state.puzzle.decomp[i]; break; }
+  }
+  if(!cfg) return;
+  dcState = {idx:idx, tiles:cfg.tiles.slice(), op:cfg.op, slotA:null, slotB:null, cfg:cfg};
+  $('dcTarget').textContent = state.units[idx].n;
+  $('dcSlotA').textContent='?'; $('dcSlotA').className='slot';
+  $('dcSlotB').textContent='?'; $('dcSlotB').className='slot';
+  $('dcOpStamp').textContent = cfg.op==='-'?'−':cfg.op;
+  // 打乱 tiles
+  dcState.tiles = shuffle(cfg.tiles.slice());
+  renderPool();
+  // 高亮当前 op 按钮
+  var ops = document.querySelectorAll('.op-stamp[data-op]');
+  ops.forEach(function(b){ b.className = (b.dataset.op===cfg.op)?'op-stamp on':'op-stamp'; });
+  $('decompOverlay').classList.add('show');
+}
+function shuffle(a){ for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+function renderPool(){
+  var pool=$('dcPool'); pool.innerHTML='';
+  dcState.tiles.forEach(function(t,idx){
+    var el=document.createElement('div');
+    el.className='tile';
+    if(t===dcState.slotA || t===dcState.slotB) el.className+=' used';
+    el.textContent=t; el.dataset.t=t; el.dataset.pi=idx;
+    pool.appendChild(el);
+  });
+}
+function applyDecomp(){
+  if(dcState.slotA==null || dcState.slotB==null) return false;
+  var a=dcState.slotA, b=dcState.slotB, op=dcState.op;
+  var v = state.units[dcState.idx].n;
+  var ok=false;
+  if(op==='×' && a*b===v) ok=true;
+  if(op==='+' && a+b===v) ok=true;
+  if(op==='-' && Math.abs(a-b)===v && (a===v+b||b===v+a)) ok=true;
+  if(!ok) return false;
+  // 保证减法顺序正确（大数在前）
+  var aa=a, bb=b;
+  if(op==='-' && b>a){ aa=b; bb=a; }
+  snapshot();
+  state.decomp[dcState.idx] = {a:aa, b:bb, op:op};
+  state.opCount++;
+  $('moves').textContent = state.opCount;
+  render();
+  return true;
+}
+
+// ---------- 交互绑定（pointer：点击选范围 + 长按拖拽） ----------
+var dragInfo = null; // {fromIdx, startX, startY, ghost, moved}
+function onWorkspacePointerDown(e){
+  var target = e.target.closest('[data-idx]');
+  var splitBtn = e.target.closest('[data-split]');
+  var rmBtn = e.target.closest('[data-rm]');
+  if(rmBtn){
+    removeParen(parseInt(rmBtn.dataset.rm,10));
+    return;
+  }
+  if(splitBtn){
+    openDecomp(parseInt(splitBtn.dataset.split,10));
+    return;
+  }
+  if(!target) return;
+  var idx = parseInt(target.dataset.idx,10);
+  // 启动可能的拖拽
+  dragInfo = {fromIdx:idx, startX:e.clientX, startY:e.clientY, ghost:null, moved:false, cardEl:target};
+  target.setPointerCapture && target.setPointerCapture(e.pointerId);
+  e.preventDefault();
+}
+function onWorkspacePointerMove(e){
+  if(!dragInfo) return;
+  var dx=e.clientX-dragInfo.startX, dy=e.clientY-dragInfo.startY;
+  if(!dragInfo.moved && Math.hypot(dx,dy)>8){
+    dragInfo.moved=true;
+    if(dragInfo.fromIdx===0) return; // 首单元不可拖
+    dragInfo.cardEl.classList.add('dragging');
+    var g=document.createElement('div');
+    g.className='ghost unit';
+    var u=state.units[dragInfo.fromIdx];
+    g.innerHTML='<div class="opTop">'+u.op+'</div><div class="num">'+(state.decomp[dragInfo.fromIdx]?('('+state.decomp[dragInfo.fromIdx].a+state.decomp[dragInfo.fromIdx].op+state.decomp[dragInfo.fromIdx].b+')'):u.n)+'</div>';
+    document.body.appendChild(g);
+    dragInfo.ghost=g;
+  }
+  if(dragInfo.moved && dragInfo.ghost){
+    dragInfo.ghost.style.left=e.clientX+'px';
+    dragInfo.ghost.style.top=e.clientY+'px';
+  }
+}
+function onWorkspacePointerUp(e){
+  if(!dragInfo){ return; }
+  var di = dragInfo; dragInfo=null;
+  if(di.ghost){ di.ghost.parentNode && di.ghost.parentNode.removeChild(di.ghost); }
+  if(di.cardEl) di.cardEl.classList.remove('dragging');
+  if(di.moved){
+    // 拖拽落点：找最近的 unit
+    var dest = findUnitAt(e.clientX, e.clientY, di.fromIdx);
+    if(dest!=null && dest!==di.fromIdx){
+      reorder(di.fromIdx, dest);
+    }
+  }else{
+    // 单击：添括号范围选择（首单元可作起点但不能进括号内部，这里允许点选）
+    handleClickSelect(di.fromIdx);
+  }
+}
+function findUnitAt(x,y,excludeIdx){
+  var els = workspace.querySelectorAll('.unit[data-idx]');
+  var best=null, bestD=1e9;
+  els.forEach(function(el){
+    var idx=parseInt(el.dataset.idx,10);
+    if(idx===excludeIdx||idx===0) return; // 不落到首单元
+    var r=el.getBoundingClientRect();
+    var cx=r.left+r.width/2, cy=r.top+r.height/2;
+    var d=Math.hypot(x-cx,y-cy);
+    if(d<bestD){bestD=d;best=idx;}
+  });
+  return best;
+}
+function handleClickSelect(idx){
+  if(state.anchor===null){
+    state.anchor = idx;
+  }else{
+    if(state.anchor!==idx){
+      tryAddParen(state.anchor, idx);
+    }
+    state.anchor=null;
+  }
+  render();
+}
+
+// ---------- 计时器 ----------
+function startTimer(){
+  state.startTime = Date.now();
+  clearInterval(state.timerId);
+  state.timerId = setInterval(function(){
+    var s = Math.floor((Date.now()-state.startTime)/1000);
+    $('timer').textContent = s;
+  },500);
+}
+function stopTimer(){ clearInterval(state.timerId); }
+
+// ---------- 开始一题 ----------
+function startPuzzle(diff){
+  state.diff = diff;
+  // 随机抽一题
+  var pool = BANK[diff];
+  state.puzzle = pool[Math.floor(Math.random()*pool.length)];
+  state.units = cloneUnits(state.puzzle.units);
+  // 保证首单元 op 为空
+  state.units[0].op='';
+  state.parens=[];
+  state.decomp={};
+  state.opCount=0;
+  state.history=[];
+  state.anchor=null;
+  state.done=false;
+  $('moves').textContent='0';
+  $('btnWin').style.display='none';
+  // 随机主色
+  applyRandomPalette();
+  // UI
+  $('diffScreen').classList.remove('active');
+  $('gameScreen').classList.add('active');
+  $('lvlTag').textContent = LEVEL_TAG[diff];
+  $('chipLevel').textContent = LEVEL_TAG[diff];
+  $('targetNum').textContent = state.puzzle.ans;
+  $('promptText').innerHTML = makePrompt(diff);
+  render();
+  startTimer();
+}
+function makePrompt(diff){
+  if(diff==='primary') return '把卡片<span class="hl">重新排队</span>或<span class="hl">套上魔法圆环（添括号）</span>，让连续的除法凑成整十整百。';
+  if(diff==='middle') return '点卡片右上角<span class="hl">“拆”</span>，把除数或被除数分解成小积木，再让计算变整。';
+  return '综合运用<span class="hl">带符号搬家</span>和<span class="hl">添括号</span>，让成对的乘除互相抵消、把好算的凑一起。';
+}
+function applyRandomPalette(){
+  var p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  var r=document.documentElement.style;
+  r.setProperty('--c',p.c); r.setProperty('--cd',p.cd);
+  r.setProperty('--cl',p.cl); r.setProperty('--cx',p.cx);
+}
+
+// ---------- 揭示答案 ----------
+function revealAnswer(){
+  var p=state.puzzle;
+  $('revealBody').innerHTML =
+    '<div class="answer-block">正确答案：<b>'+p.ans+'</b></div>'+
+    '<div class="answer-block">巧算思路：<br>'+p.teach+'</div>'+
+    '<div class="answer-block">完整过程：<br>'+p.sol+'</div>';
+  $('revealOverlay').classList.add('show');
+}
+
+// ---------- 通关 ----------
+function winChallenge(){
+  if(state.done) return;
+  state.done=true;
+  stopTimer();
+  var sec = Math.floor((Date.now()-state.startTime)/1000);
+  $('winText').innerHTML = '用时 <b>'+sec+'</b> 秒，操作 <b>'+state.opCount+'</b> 步，结果正好等于 <b>'+state.puzzle.ans+'</b>！'+state.puzzle.teach;
+  $('winOverlay').classList.add('show');
+  launchConfetti();
+}
+
+// ---------- 庆祝彩纸 ----------
+var confettiCanvas=$('confetti'), cctx=confettiCanvas.getContext('2d'), confettiParticles=[], confettiRAF=null;
+function sizeCanvas(){ confettiCanvas.width=window.innerWidth; confettiCanvas.height=window.innerHeight; }
+window.addEventListener('resize', sizeCanvas); sizeCanvas();
+function launchConfetti(){
+  confettiCanvas.style.display='block';
+  confettiParticles=[];
+  var colors=['#FF8A3D','#3DA5FF','#34C759','#9B6BFF','#FF6B9D','#F5B800'];
+  for(var i=0;i<140;i++){
+    confettiParticles.push({
+      x:Math.random()*confettiCanvas.width,
+      y:-20-Math.random()*confettiCanvas.height*0.5,
+      vx:(Math.random()-0.5)*3,
+      vy:2+Math.random()*4,
+      size:6+Math.random()*8,
+      rot:Math.random()*Math.PI,
+      vr:(Math.random()-0.5)*0.3,
+      color:colors[Math.floor(Math.random()*colors.length)]
+    });
+  }
+  cancelAnimationFrame(confettiRAF);
+  animateConfetti();
+}
+function animateConfetti(){
+  cctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+  var alive=false;
+  for(var i=0;i<confettiParticles.length;i++){
+    var p=confettiParticles[i];
+    p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.vy+=0.05;
+    if(p.y<confettiCanvas.height+30) alive=true;
+    cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.rot);
+    cctx.fillStyle=p.color; cctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+    cctx.restore();
+  }
+  if(alive){ confettiRAF=requestAnimationFrame(animateConfetti); }
+  else { confettiCanvas.style.display='none'; }
+}
+
+// ---------- 事件绑定 ----------
+function bindEvents(){
+  // 难度
+  var gos=document.querySelectorAll('.diff-card .go');
+  gos.forEach(function(b){ b.addEventListener('click', function(){ startPuzzle(b.dataset.d); }); });
+  // workspace 指针
+  workspace.addEventListener('pointerdown', onWorkspacePointerDown);
+  workspace.addEventListener('pointermove', onWorkspacePointerMove);
+  workspace.addEventListener('pointerup', onWorkspacePointerUp);
+  workspace.addEventListener('pointercancel', onWorkspacePointerUp);
+  // 工具
+  $('btnClearParen').addEventListener('click', function(){
+    if(state.parens.length===0) return;
+    snapshot(); state.parens=[]; state.opCount++; $('moves').textContent=state.opCount; state.anchor=null; render();
+  });
+  $('btnUndo').addEventListener('click', undo);
+  $('btnReveal').addEventListener('click', revealAnswer);
+  $('revealClose').addEventListener('click', function(){ $('revealOverlay').classList.remove('show'); });
+  $('btnRestart').addEventListener('click', function(){ if(state.diff) startPuzzle(state.diff); });
+  $('btnBack').addEventListener('click', function(){
+    stopTimer();
+    $('gameScreen').classList.remove('active');
+    $('diffScreen').classList.add('active');
+  });
+  $('btnRules').addEventListener('click', function(){ $('rulesOverlay').classList.add('show'); });
+  $('rulesClose').addEventListener('click', function(){ $('rulesOverlay').classList.remove('show'); });
+  $('btnWin').addEventListener('click', winChallenge);
+  // 通关弹层
+  $('winNext').addEventListener('click', function(){
+    $('winOverlay').classList.remove('show');
+    if(state.diff) startPuzzle(state.diff);
+  });
+  $('winBack').addEventListener('click', function(){
+    $('winOverlay').classList.remove('show');
+    stopTimer();
+    $('gameScreen').classList.remove('active');
+    $('diffScreen').classList.add('active');
+  });
+  // 分解弹层
+  $('dcCancel').addEventListener('click', function(){ $('decompOverlay').classList.remove('show'); });
+  $('dcConfirm').addEventListener('click', function(){
+    if(dcState.slotA==null||dcState.slotB==null){ return; }
+    var ok = applyDecomp();
+    if(!ok){
+      var t=$('dcConfirm'); t.textContent='积木拼得不对，再试试'; t.style.background='var(--red)';
+      setTimeout(function(){ t.textContent='确认分解'; t.style.background='var(--c)'; },1200);
+    }else{
+      $('decompOverlay').classList.remove('show');
+    }
+  });
+  // op 选择
+  var opBtns=document.querySelectorAll('.op-stamp[data-op]');
+  opBtns.forEach(function(b){
+    b.addEventListener('click', function(){
+      dcState.op=b.dataset.op;
+      opBtns.forEach(function(x){ x.className=(x.dataset.op===dcState.op)?'op-stamp on':'op-stamp'; });
+      $('dcOpStamp').textContent = dcState.op==='-'?'−':dcState.op;
+    });
+  });
+  // 积木拖入槽（点击积木→放入第一个空槽；点槽→取出）
+  $('dcPool').addEventListener('click', function(e){
+    var t=e.target.closest('.tile'); if(!t) return;
+    var v=parseInt(t.dataset.t,10);
+    if(v===dcState.slotA||v===dcState.slotB) return;
+    if(dcState.slotA==null) dcState.slotA=v;
+    else if(dcState.slotB==null) dcState.slotB=v;
+    else { dcState.slotA=v; dcState.slotB=null; } // 两个都有，重置
+    refreshSlots();
+  });
+  $('dcSlotA').addEventListener('click', function(){ dcState.slotA=null; refreshSlots(); });
+  $('dcSlotB').addEventListener('click', function(){ dcState.slotB=null; refreshSlots(); });
+}
+function refreshSlots(){
+  $('dcSlotA').textContent = dcState.slotA==null?'?':dcState.slotA;
+  $('dcSlotA').className = 'slot'+(dcState.slotA!=null?' filled':'');
+  $('dcSlotB').textContent = dcState.slotB==null?'?':dcState.slotB;
+  $('dcSlotB').className = 'slot'+(dcState.slotB!=null?' filled':'');
+  renderPool();
+}
+
+// ---------- 启动 ----------
+bindEvents();
+// 首次进入弹出规则说明
+$('rulesOverlay').classList.add('show');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3a/g028", "name": "\u5de7\u7b97\u9b54\u6cd5\u9635 \u00b7 \u9664\u6cd5\u53d8\u5f62\u8bb0", "file": "g028.html", "jiaocan": "\u301028\u3011\u7b2c14\u8bb2 \u5de7\u7b97\u9664\u6cd5\uff08\u4e0b\uff09", "unit": "\u7b2c14\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

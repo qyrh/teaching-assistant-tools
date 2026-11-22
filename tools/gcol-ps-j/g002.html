@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>巧求周长 · 平移魔法工坊</title>
+<style>
+/* ================= 全局样式（配色由 JS 每局随机注入） ================= */
+:root{
+  --c1:#e8734a; --c2:#2e86ab; --bg1:#fdf6ec; --bg2:#f5e6d3;
+  --ink:#3d3730; --card:#ffffff; --ok:#2f9e63; --warn:#d9822b;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  color:var(--ink); font-size:18px; overflow:hidden; height:100dvh;
+}
+.hidden{display:none !important;}
+#app{display:flex;flex-direction:column;height:100%;}
+/* ---------- 顶部信息条 ---------- */
+#hud{
+  display:flex;align-items:center;gap:10px;padding:8px 14px;flex-wrap:wrap;
+  background:linear-gradient(90deg,var(--c1),var(--c2));color:#fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.18); z-index:5;
+}
+.hudStat{background:rgba(255,255,255,.22);padding:4px 14px;border-radius:16px;font-size:18px;font-weight:700;white-space:nowrap;}
+.btn{
+  border:none;border-radius:14px;padding:8px 16px;font-size:18px;font-weight:700;cursor:pointer;
+  background:rgba(255,255,255,.92);color:var(--c1);box-shadow:0 2px 6px rgba(0,0,0,.18);
+}
+.btn:active{transform:scale(.96);}
+.btn.main{background:#fff;color:var(--c1);}
+.btn.ghost{background:rgba(255,255,255,.2);color:#fff;border:2px solid rgba(255,255,255,.8);}
+.spacer{flex:1;}
+/* ---------- 主舞台 ---------- */
+#screenGame{flex:1;display:flex;flex-direction:column;min-height:0;}
+#stage{flex:1;display:flex;gap:12px;padding:12px;min-height:0;}
+#taskPanel{
+  width:330px;flex:none;background:var(--card);border-radius:18px;padding:14px;
+  box-shadow:0 4px 14px rgba(0,0,0,.10);overflow:auto;border-top:8px solid var(--c1);
+}
+#taskTitle{font-size:22px;font-weight:900;color:var(--c1);margin:2px 0 8px;}
+#taskStory{font-size:18px;line-height:1.65;margin-bottom:10px;}
+#taskGoal{background:rgba(46,134,171,.10);border-left:6px solid var(--c2);padding:8px 10px;border-radius:8px;font-size:17px;margin-bottom:10px;line-height:1.5;}
+#taskProg{font-size:19px;font-weight:800;color:var(--c2);margin-bottom:8px;}
+#taskFormula{
+  display:none;background:rgba(47,158,99,.13);
+  border:3px dashed var(--ok);border-radius:12px;padding:10px;font-size:20px;font-weight:900;color:#1c6b43;
+  line-height:1.6;margin-bottom:8px;
+}
+#taskReveal{
+  display:none;background:#fff7e0;border-left:6px solid var(--warn);border-radius:8px;
+  padding:8px 10px;font-size:16px;line-height:1.6;margin-bottom:8px;
+}
+#btnNext{display:none;width:100%;padding:14px;font-size:22px;background:var(--ok);color:#fff;}
+#rightCol{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0;}
+#canvasWrap{flex:1;position:relative;background:var(--card);border-radius:18px;box-shadow:0 4px 14px rgba(0,0,0,.10);min-height:280px;overflow:hidden;}
+/* 画布尺寸安全上限：实测本机 Chromium 软件光栅对“大画布 + 连续重绘”存在崩溃缺陷
+   （显示尺寸 600×420 及以上必崩，520×360 及以下稳定）。画布限制在安全框内并居中，
+   版面其余空间留给大字号的题目面板，课堂可读性更好。 */
+#cv{position:absolute;inset:0;margin:auto;width:100%;height:100%;max-width:500px;max-height:360px;touch-action:none;display:block;}
+/* ---------- 底部交互区（皮尺/筐/卡片） ---------- */
+#deck{
+  min-height:96px;flex:none;background:var(--card);border-radius:18px;padding:10px;
+  display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;justify-content:center;
+  box-shadow:0 4px 14px rgba(0,0,0,.10);
+}
+.tipCard{align-self:center;font-size:17px;color:#7a6f63;padding:6px 10px;max-width:520px;line-height:1.5;}
+.chip{
+  min-width:56px;padding:8px 12px;border-radius:12px;font-size:19px;font-weight:900;color:#fff;
+  background:var(--c1);box-shadow:0 3px 8px rgba(0,0,0,.2);cursor:grab;touch-action:none;
+  text-align:center;user-select:none;position:relative;line-height:1.25;
+}
+.chip small{display:block;font-size:12px;font-weight:700;opacity:.9;}
+.chip.used{display:none;}
+.ghostChip{position:fixed;z-index:99;pointer-events:none;opacity:.9;transform:rotate(-4deg) scale(1.08);}
+.binCard{
+  flex:1;min-width:220px;max-width:340px;border:3px dashed var(--c2);border-radius:14px;
+  padding:8px 10px;text-align:center;background:rgba(46,134,171,.07);
+}
+.binCard.hot{background:rgba(46,134,171,.24);transform:scale(1.03);}
+.binCard h4{margin:0 0 4px;font-size:19px;color:var(--c2);}
+.binCard .cnt{font-size:17px;font-weight:800;}
+.discCard{
+  flex:1;min-width:190px;max-width:300px;border-radius:14px;padding:8px 10px;text-align:center;
+  background:#f2ede4;border:3px solid #cfc6b6;color:#9a9082;
+}
+.discCard.got{background:rgba(47,158,99,.12);border-color:var(--ok);color:#1c6b43;}
+.discCard h4{margin:0 0 4px;font-size:18px;}
+.discCard .big{font-size:22px;font-weight:900;}
+.discCard .expl{font-size:14px;line-height:1.45;}
+#forge{border:3px dashed var(--c1);border-radius:14px;padding:8px 14px;text-align:center;min-width:200px;background:rgba(232,115,74,.08);align-self:center;}
+#forge.hot{background:rgba(232,115,74,.26);transform:scale(1.04);}
+#forge .sum{font-size:20px;font-weight:900;color:var(--c1);}
+/* ---------- 首页 ---------- */
+#screenHome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;text-align:center;overflow:auto;}
+#homeTitle{font-size:44px;font-weight:900;color:var(--c1);text-shadow:2px 2px 0 #fff,4px 4px 0 rgba(0,0,0,.08);margin:0;}
+#homeSub{font-size:20px;color:#8a7c6c;margin:0 0 6px;max-width:720px;line-height:1.6;}
+.diffRow{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;}
+.diffCard{
+  width:250px;border:none;border-radius:20px;padding:18px 14px;cursor:pointer;color:#fff;
+  box-shadow:0 6px 16px rgba(0,0,0,.2);transition:transform .15s;text-align:center;
+}
+.diffCard:hover{transform:translateY(-6px) scale(1.03);}
+.diffCard h3{margin:0 0 8px;font-size:26px;}
+.diffCard p{margin:0;font-size:16px;line-height:1.55;opacity:.95;}
+.dj{background:linear-gradient(150deg,#f2994a,#f8c471);} .dz{background:linear-gradient(150deg,#2e86ab,#7ec8e3);} .dg{background:linear-gradient(150deg,#8e44ad,#c39bd3);}
+#homeTip{font-size:16px;color:#a3968a;}
+/* ---------- 弹层 ---------- */
+.modal{position:fixed;inset:0;background:rgba(40,30,20,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;}
+.modalBox{
+  background:var(--card);border-radius:20px;max-width:680px;width:100%;max-height:86vh;overflow:auto;
+  padding:22px 26px;border-top:10px solid var(--c1);box-shadow:0 10px 40px rgba(0,0,0,.35);
+}
+.modalBox h2{margin:0 0 10px;font-size:28px;color:var(--c1);}
+.modalBox .ruleItem{margin:8px 0;line-height:1.7;font-size:17px;}
+.modalBox .ruleItem b{color:var(--c2);}
+#overlayEnd{position:fixed;inset:0;background:rgba(30,24,16,.72);z-index:70;display:flex;align-items:center;justify-content:center;}
+#endBox{background:var(--card);border-radius:24px;padding:30px 40px;text-align:center;box-shadow:0 12px 50px rgba(0,0,0,.4);border-top:10px solid var(--ok);}
+#endStars{font-size:64px;letter-spacing:8px;color:#f4b942;animation:pop .6s;}
+@keyframes pop{0%{transform:scale(.2);}70%{transform:scale(1.25);}100%{transform:scale(1);}}
+#endStats{font-size:20px;line-height:1.8;margin:10px 0 16px;}
+#endTitle{font-size:32px;font-weight:900;color:var(--ok);margin:0 0 6px;}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:80;}
+/* ---------- 通关彩纸（纯 DOM/CSS，避免高频 Canvas 粒子绘制） ---------- */
+#confettiLayer{position:fixed;inset:0;pointer-events:none;z-index:80;overflow:hidden;}
+.cf{position:absolute;width:13px;height:9px;border-radius:2px;opacity:1;
+    animation:cfFall var(--dur) cubic-bezier(.2,.6,.6,1) forwards;will-change:transform,opacity;}
+@keyframes cfFall{
+  0%{transform:translate3d(0,0,0) rotate(0deg);opacity:1;}
+  85%{opacity:1;}
+  100%{transform:translate3d(var(--dx),var(--dy),0) rotate(var(--rot));opacity:0;}
+}
+@media (max-width:900px){
+  #stage{flex-direction:column;overflow:auto;}
+  #taskPanel{width:auto;max-height:none;}
+  #canvasWrap{min-height:340px;}
+  #homeTitle{font-size:32px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= 首页（难度选择） ================= -->
+  <section id="screenHome">
+    <h1 id="homeTitle">巧求周长 · 平移魔法工坊</h1>
+    <p id="homeSub">台阶边的秘密：把凹凹凸凸的边<b>平移</b>到最外圈，图形就变成长方形，周长一点儿也没变！拖一拖、拼一拼、剪一剪，闯过 3 关就能点亮周长之星。每局关卡随机抽取，色彩也每局随机哦。</p>
+    <div class="diffRow">
+      <button class="diffCard dj" data-diff="j"><h3>初级 · 篱笆小院</h3><p>平移入门关：把台阶边拖成整齐的长方形，再用皮尺量出长和宽。</p></button>
+      <button class="diffCard dz" data-diff="m"><h3>中级 · 巧手工坊</h3><p>未知边配对 + 双侧台阶 + 大零件图，平移本领再升级。</p></button>
+      <button class="diffCard dg" data-diff="g"><h3>高级 · 剪拼大师</h3><p>剪一剪探秘、内部线分类、四块合一大挑战，全面思考我最棒！</p></button>
+    </div>
+    <button class="btn main" id="btnRules1" style="font-size:20px;padding:12px 28px;">玩法规则</button>
+    <p id="homeTip">右上角随时查看计时与步数 · 卡住了可以点「揭示答案」</p>
+  </section>
+
+  <!-- ================= 游戏页 ================= -->
+  <section id="screenGame" class="hidden">
+    <header id="hud">
+      <button class="btn" id="btnBack">← 返回难度选择</button>
+      <span class="hudStat" id="hudDiff">初级</span>
+      <span class="hudStat" id="hudLevel">第 1/3 关</span>
+      <span class="spacer"></span>
+      <span class="hudStat">⏱ <span id="hudTimer">00:00</span></span>
+      <span class="hudStat">👣 步数 <span id="hudSteps">0</span></span>
+      <span class="spacer"></span>
+      <button class="btn" id="btnRules2">规则</button>
+      <button class="btn" id="btnReveal">揭示答案</button>
+      <button class="btn" id="btnRestart">重新开始</button>
+    </header>
+    <div id="stage">
+      <aside id="taskPanel">
+        <div id="taskTitle">关卡</div>
+        <div id="taskStory"></div>
+        <div id="taskGoal"></div>
+        <div id="taskProg"></div>
+        <div id="taskFormula"></div>
+        <div id="taskReveal"></div>
+        <button class="btn" id="btnNext">下一关 »</button>
+      </aside>
+      <div id="rightCol">
+        <div id="canvasWrap"><svg id="cv" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <div id="deck"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= 规则弹层 ================= -->
+<div class="modal hidden" id="modalRules">
+  <div class="modalBox">
+    <h2>玩法规则</h2>
+    <div class="ruleItem"><b>大思路 · 平移转化：</b>台阶状图形的边平移到最外圈后，正好拼成一个长方形，周长不变！周长 =（横边 + 竖边）× 2。</div>
+    <div class="ruleItem"><b>平移关：</b>用手指把<b>发光的台阶边</b>拖到虚线长方形的边上，松手归位。全部归位后，把下方的<b>皮尺卷</b>拖到「横边 / 竖边」刻度条上，正好装满就锁定（可以拼多卷！点一下已放的皮尺可以取回）。两根刻度条都装满，周长自动算出！</div>
+    <div class="ruleItem"><b>配对关：</b>带 <b>?</b> 的边长度未知，但一定和某条已知边一样长（正方形的边都相等！）。把问号边<b>拖到一样长的边上</b>碰一碰，全部配对成功就会逐段算出周长。</div>
+    <div class="ruleItem"><b>剪拼关：</b>拖动剪下的小纸片，放到大图形的<b>角上、边上</b>等不同位置，看完动画就会收获一张「发现卡」，把所有发现集齐就通关！</div>
+    <div class="ruleItem"><b>分类关：</b>把图上的线拖进正确的筐——<b>边框线只算 1 次，内部线要算 2 次</b>（它是两个小长方形的公共边）。</div>
+    <div class="ruleItem"><b>合成关：</b>把四张周长卡拖进合成器，看看动画：四个小长方形的周长和，正好把大长方形的边走了<b>两圈</b>！</div>
+    <div class="ruleItem">右上角显示<b>计时</b>和<b>步数</b>；点「揭示答案」可看完整讲解；「重新开始」重玩本关。</div>
+    <div style="text-align:center;margin-top:14px;"><button class="btn main" id="btnCloseRules" style="font-size:20px;padding:10px 34px;">知道啦，出发！</button></div>
+  </div>
+</div>
+
+<!-- ================= 结算弹层 ================= -->
+<div id="overlayEnd" class="hidden">
+  <div id="endBox">
+    <p id="endTitle">全部通关，太棒啦！</p>
+    <div id="endStars">★★★</div>
+    <div id="endStats"></div>
+    <button class="btn main" id="btnAgain" style="font-size:20px;">再玩一次（新关卡）</button>
+    <button class="btn" id="btnHome2" style="font-size:20px;">换难度</button>
+  </div>
+</div>
+
+<div id="confettiLayer"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   巧求周长 · 平移魔法工坊
+   核心数学方法：平移转化法（把台阶边平移成长方形，周长不变）
+   五种操作机制：m1 平移+皮尺  m2 未知边配对  m3 剪拼探秘
+                m4 内外线分类  m5 四块合成
+   ============================================================ */
+
+/* ---------------- 基础工具 ---------------- */
+function $(s){ return document.querySelector(s); }
+function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function segLen(a,b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
+function distToSeg(p,a,b){ /* 点到线段的最短距离（世界坐标） */
+  var abx=b[0]-a[0], aby=b[1]-a[1], l2=abx*abx+aby*aby, t=0;
+  if(l2>0) t=((p[0]-a[0])*abx+(p[1]-a[1])*aby)/l2;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p[0]-(a[0]+t*abx), p[1]-(a[1]+t*aby));
+}
+function fmtNum(n){ var v=Math.round(n*10)/10; return (v%1===0)? String(v) : v.toFixed(1); }
+function fmtTime(s){ var m=Math.floor(s/60), r=s%60; return (m<10?'0':'')+m+':'+(r<10?'0':'')+r; }
+
+/* ---------------- 色板（每局随机，G8） ---------------- */
+var PALETTES=[
+ {c1:'#e8734a',c2:'#2e86ab',bg1:'#fdf3e7',bg2:'#f7e0c8',ink:'#4a3527'},
+ {c1:'#2e86ab',c2:'#e8734a',bg1:'#eef7fb',bg2:'#d7ebf6',ink:'#20414f'},
+ {c1:'#4c9f70',c2:'#e07a5f',bg1:'#eff9f0',bg2:'#d5efdc',ink:'#2a4a35'},
+ {c1:'#7d6bb5',c2:'#f2994a',bg1:'#f3f0fb',bg2:'#e2daf5',ink:'#3a3352'},
+ {c1:'#d9668c',c2:'#4c9f70',bg1:'#fdf0f4',bg2:'#f8dce7',ink:'#52323f'},
+ {c1:'#d98e04',c2:'#2e86ab',bg1:'#fdf8e9',bg2:'#f8ecc8',ink:'#4d3d1a'}
+];
+var PAL=PALETTES[0];
+function applyPalette(){
+  PAL=PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  var r=document.documentElement.style;
+  r.setProperty('--c1',PAL.c1); r.setProperty('--c2',PAL.c2);
+  r.setProperty('--bg1',PAL.bg1); r.setProperty('--bg2',PAL.bg2); r.setProperty('--ink',PAL.ink);
+}
+
+/* ---------------- 轻音效（WebAudio，无外部依赖） ---------------- */
+var AC=null;
+function beep(freq,dur,type,vol){
+  try{
+    if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)();
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type=type||'sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol||0.07, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+(dur||0.12));
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime+(dur||0.12)+0.02);
+  }catch(e){}
+}
+function beepOK(){ beep(660,.1); setTimeout(function(){beep(880,.14);},90); }
+function beepBad(){ beep(220,.16,'square',.05); }
+
+/* ============================================================
+   关卡数据（源自教参《第2讲 巧求周长》13 道练习及其变式）
+   坐标单位与世界坐标：y 向下增长，单位=题中厘米/米
+   ============================================================ */
+
+/* ---------- 初级 · 平移关（练习3 / 练习9 / 练习13(1)角 / 练习3变式） ---------- */
+var JUNIOR=[
+{ /* 关卡：篱笆小院（练习3 原题：西17 南23 → 80米） */
+  mech:'m1', name:'篱笆小院', unit:'米', world:{w:23,h:17},
+  story:'农场的小菜地四周都围上了篱笆，转弯处都是直角。已经量得：西边篱笆长 17 米，南边篱笆长 23 米（台阶在东边和北边）。',
+  goal:'把发光的台阶边平移到虚线长方形上，再把皮尺拖到刻度条上量出横边和竖边，算出四周篱笆的总长！',
+  poly:[[0,17],[23,17],[23,12],[16,12],[16,8],[10,8],[10,3],[3,3],[3,0],[0,0]],
+  rect:{x:0,y:0,w:23,h:17},
+  fixed:[{a:[0,17],b:[23,17],t:'23',big:true},{a:[0,0],b:[0,17],t:'17',big:true},
+         {a:[23,17],b:[23,12],t:'5'},{a:[3,0],b:[0,0],t:'3'}],
+  drag:[{a:[23,12],b:[16,12],t:'7',axis:'y',to:0},{a:[16,12],b:[16,8],t:'4',axis:'x',to:23},
+        {a:[16,8],b:[10,8],t:'6',axis:'y',to:0},{a:[10,8],b:[10,3],t:'5',axis:'x',to:23},
+        {a:[10,3],b:[3,3],t:'7',axis:'y',to:0},{a:[3,3],b:[3,0],t:'3',axis:'x',to:23}],
+  slots:[{side:'bottom',len:23,label:'横边',correct:[23]},{side:'left',len:17,label:'竖边',correct:[17]}],
+  chips:[{v:23,tag:'南边量得'},{v:17,tag:'西边量得'},{v:7,tag:'台阶小尺'}],
+  ans:80, formula:'篱笆总长 =（23＋17）×2 = 80（米）',
+  reveal:'把台阶边全部平移到最外圈：东西方向总长 = 南边 = 23 米，南北方向总长 = 西边 = 17 米，所以四周篱笆总长 =（23＋17）×2 = 80 米。'
+},
+{ /* 关卡：叶子舞台（练习9 型：长=6+5 宽=3+1 → 30厘米） */
+  mech:'m1', name:'叶子舞台', unit:'厘米', world:{w:11,h:4},
+  story:'小蜗牛的叶子舞台是台阶形的，每段边的长度都标在图上（单位：厘米）。',
+  goal:'平移台阶边拼成长方形，然后把皮尺一卷一卷拼进刻度条：横边要拼满、竖边也要拼满哦！',
+  poly:[[0,0],[6,0],[6,1],[11,1],[11,4],[5,4],[5,3],[0,3]],
+  rect:{x:0,y:0,w:11,h:4},
+  fixed:[{a:[0,0],b:[6,0],t:'6'},{a:[11,1],b:[11,4],t:'3'},{a:[11,4],b:[5,4],t:'6'},{a:[0,3],b:[0,0],t:'3'}],
+  drag:[{a:[6,0],b:[6,1],t:'1',axis:'x',to:11},{a:[6,1],b:[11,1],t:'5',axis:'y',to:0},
+        {a:[5,4],b:[5,3],t:'1',axis:'x',to:0},{a:[5,3],b:[0,3],t:'5',axis:'y',to:4}],
+  slots:[{side:'bottom',len:11,label:'横边',correct:[6,5]},{side:'left',len:4,label:'竖边',correct:[3,1]}],
+  chips:[{v:6,tag:'下边一段'},{v:5,tag:'台阶横边'},{v:3,tag:'侧边一段'},{v:1,tag:'台阶竖边'}],
+  ans:30, formula:'横边 = 6＋5 = 11，竖边 = 3＋1 = 4，周长 =（11＋4）×2 = 30（厘米）',
+  reveal:'横着的台阶拼起来：6＋5 = 11；竖着的台阶拼起来：3＋1 = 4。周长 =（11＋4）×2 = 30 厘米。'
+},
+{ /* 关卡：手帕角角（练习13(1) 角上剪：20×4=80） */
+  mech:'m1', name:'手帕角角', unit:'厘米', world:{w:20,h:20}, tapePhase:false,
+  story:'一块边长 20 厘米的正方形手帕，剪掉了右上角一个边长 6 厘米的小正方形。',
+  goal:'把两条缺口边平移回原位，手帕又变回完整的正方形啦！看看剩下的图形周长是多少？',
+  poly:[[0,0],[20,0],[20,14],[14,14],[14,20],[0,20]],
+  rect:{x:0,y:0,w:20,h:20},
+  fixed:[{a:[0,0],b:[20,0],t:'20',big:true},{a:[20,0],b:[20,14],t:'14'},
+         {a:[14,20],b:[0,20],t:'14'},{a:[0,20],b:[0,0],t:'20',big:true}],
+  drag:[{a:[20,14],b:[14,14],t:'6',axis:'y',to:20},{a:[14,14],b:[14,20],t:'6',axis:'x',to:20}],
+  slots:[], chips:[],
+  ans:80, formula:'剪掉角后周长不变！周长 = 20×4 = 80（厘米）',
+  reveal:'在角上剪去小正方形：少了两条 6 厘米的边，又补回两条 6 厘米的边，周长不变，仍是 20×4 = 80 厘米。'
+},
+{ /* 关卡：公园围栏（练习3 变式：西19 南26 → 90米） */
+  mech:'m1', name:'公园围栏', unit:'米', world:{w:26,h:19},
+  story:'公园的草坪四周砌了围栏，转弯处都是直角。已经量得：西边围栏长 19 米，南边围栏长 26 米（台阶在东边和北边）。',
+  goal:'平移台阶边，量出横边和竖边，算出四周围栏总长！',
+  poly:[[0,19],[26,19],[26,13],[18,13],[18,8],[10,8],[10,4],[4,4],[4,0],[0,0]],
+  rect:{x:0,y:0,w:26,h:19},
+  fixed:[{a:[0,19],b:[26,19],t:'26',big:true},{a:[26,19],b:[26,13],t:'6'},
+         {a:[4,0],b:[0,0],t:'4'},{a:[0,0],b:[0,19],t:'19',big:true}],
+  drag:[{a:[26,13],b:[18,13],t:'8',axis:'y',to:0},{a:[18,13],b:[18,8],t:'5',axis:'x',to:26},
+        {a:[18,8],b:[10,8],t:'8',axis:'y',to:0},{a:[10,8],b:[10,4],t:'4',axis:'x',to:26},
+        {a:[10,4],b:[4,4],t:'6',axis:'y',to:0},{a:[4,4],b:[4,0],t:'4',axis:'x',to:26}],
+  slots:[{side:'bottom',len:26,label:'横边',correct:[26]},{side:'left',len:19,label:'竖边',correct:[19]}],
+  chips:[{v:26,tag:'南边量得'},{v:19,tag:'西边量得'},{v:8,tag:'台阶小尺'}],
+  ans:90, formula:'围栏总长 =（26＋19）×2 = 90（米）',
+  reveal:'平移后横边总长 = 南边 = 26 米，竖边总长 = 西边 = 19 米，周长 =（26＋19）×2 = 90 米。'
+}
+];
+
+/* ---------- 中级（练习1 / 练习4 / 练习9综合 / 练习7 变式） ---------- */
+var MIDDLE=[
+{ /* 关卡：方方塔（练习1 型：2正方形+1三角形，未知边配对 → 47厘米） */
+  mech:'m2', name:'方方小塔', unit:'厘米', world:{w:13,h:12.4},
+  story:'这个图形由 2 个正方形和 1 个三角形拼成（单位：厘米）。带 ? 的边长度未知，但它们一定和某条已知边一样长！',
+  goal:'把每条问号边拖到和它一样长的已知边上配对（提示：正方形的每条边都相等，三角形两条斜边相等）。全部配对成功，就会逐段算出周长！',
+  shapes:[[[0,0],[8,0],[8,8],[0,8]],[[8,3],[13,3],[13,8],[8,8]],[[8,8],[13,8],[10.5,12.33]]],
+  outline:[
+    {a:[0,0],b:[8,0],t:'8',known:true},
+    {a:[8,0],b:[8,3],t:'3',known:true},
+    {a:[8,3],b:[13,3],t:'5',known:false},
+    {a:[13,3],b:[13,8],t:'5',known:true},
+    {a:[13,8],b:[10.5,12.33],t:'5',known:true},
+    {a:[10.5,12.33],b:[8,8],t:'5',known:false},
+    {a:[8,8],b:[0,8],t:'8',known:false},
+    {a:[0,8],b:[0,0],t:'8',known:true}],
+  centroid:[5.2,5.4],
+  ans:47, formula:'周长 = 8＋3＋5＋5＋5＋5＋8＋8 = 47（厘米）',
+  reveal:'问号边都能找到一样长的伙伴：正方形的四条边都相等，所以小正方形的上、下边都是 5；大正方形的上边是 8；三角形两条斜边相等，都是 5。逐段相加：8＋3＋5＋5＋5＋5＋8＋8 = 47 厘米。'
+},
+{ /* 关卡：机器零件（练习4 型：高30、短线5 → 100厘米） */
+  mech:'m1', name:'机器零件', unit:'厘米', world:{w:20,h:30},
+  story:'这是机器零件的侧面图（单位：厘米）。零件高 30 厘米，每条最短的线段长 5 厘米。',
+  goal:'上下两面都是台阶！把 12 条台阶边全部平移到最外圈，零件就变成长方形，再拼皮尺量出横边和竖边！',
+  poly:[[0,0],[5,0],[5,5],[10,5],[10,10],[15,10],[15,15],[20,15],[20,30],[15,30],[15,25],[10,25],[10,20],[5,20],[5,15],[0,15]],
+  rect:{x:0,y:0,w:20,h:30},
+  fixed:[{a:[0,0],b:[5,0],t:'5'},{a:[20,15],b:[20,30],t:'15'},
+         {a:[20,30],b:[15,30],t:'5'},{a:[0,15],b:[0,0],t:'15'}],
+  drag:[{a:[5,5],b:[10,5],t:'5',axis:'y',to:0},{a:[5,0],b:[5,5],t:'5',axis:'x',to:20},
+        {a:[10,5],b:[10,10],t:'5',axis:'x',to:20},{a:[10,10],b:[15,10],t:'5',axis:'y',to:0},
+        {a:[15,10],b:[15,15],t:'5',axis:'x',to:20},{a:[15,15],b:[20,15],t:'5',axis:'y',to:0},
+        {a:[15,30],b:[15,25],t:'5',axis:'x',to:0},{a:[15,25],b:[10,25],t:'5',axis:'y',to:30},
+        {a:[10,25],b:[10,20],t:'5',axis:'x',to:0},{a:[10,20],b:[5,20],t:'5',axis:'y',to:30},
+        {a:[5,20],b:[5,15],t:'5',axis:'x',to:0},{a:[5,15],b:[0,15],t:'5',axis:'y',to:30}],
+  slots:[{side:'bottom',len:20,label:'横边',correct:[5,5,5,5]},{side:'left',len:30,label:'竖边',correct:[30]}],
+  chips:[{v:30,tag:'零件高度'},{v:15,tag:'左边一段'},{v:15,tag:'右边一段'},
+         {v:5,tag:'台阶小尺'},{v:5,tag:'台阶小尺'},{v:5,tag:'台阶小尺'},
+         {v:5,tag:'台阶小尺'},{v:5,tag:'台阶小尺'},{v:5,tag:'台阶小尺'}],
+  ans:100, formula:'横边 = 5×4 = 20，竖边 = 30，周长 =（20＋30）×2 = 100（厘米）',
+  reveal:'12 条台阶边全部平移到最外圈：上边的 4 条台阶横边拼成完整的上边，横边 = 5×4 = 20 厘米；题里告诉我们零件高 30 厘米，竖边就是 30。周长 =（20＋30）×2 = 100 厘米。'
+},
+{ /* 关卡：双向台阶（练习9 综合变式：长=7+6 宽=5+3 → 42厘米） */
+  mech:'m1', name:'双向台阶', unit:'厘米', world:{w:13,h:8},
+  story:'台阶形图形（单位：厘米），上下都有小台阶，每段长度已标在图上。',
+  goal:'平移 4 条台阶边，再用 4 卷皮尺把横边、竖边刻度条各拼满（每根都要两卷才行）！',
+  poly:[[0,0],[7,0],[7,3],[13,3],[13,8],[6,8],[6,5],[0,5]],
+  rect:{x:0,y:0,w:13,h:8},
+  fixed:[{a:[0,0],b:[7,0],t:'7'},{a:[13,3],b:[13,8],t:'5'},{a:[13,8],b:[6,8],t:'7'},{a:[0,5],b:[0,0],t:'5'}],
+  drag:[{a:[7,0],b:[7,3],t:'3',axis:'x',to:13},{a:[7,3],b:[13,3],t:'6',axis:'y',to:0},
+        {a:[6,8],b:[6,5],t:'3',axis:'x',to:0},{a:[6,5],b:[0,5],t:'6',axis:'y',to:8}],
+  slots:[{side:'bottom',len:13,label:'横边',correct:[7,6]},{side:'left',len:8,label:'竖边',correct:[5,3]}],
+  chips:[{v:7,tag:'下边一段'},{v:6,tag:'台阶横边'},{v:5,tag:'侧边一段'},{v:3,tag:'台阶竖边'}],
+  ans:42, formula:'长 = 7＋6 = 13，宽 = 5＋3 = 8，周长 =（13＋8）×2 = 42（厘米）',
+  reveal:'横边 = 7＋6 = 13 厘米，竖边 = 5＋3 = 8 厘米，周长 =（13＋8）×2 = 42 厘米。'
+},
+{ /* 关卡：小旗飘飘（练习7 型变式：2长方形+3三角形 配对 → 56厘米） */
+  mech:'m2', name:'小旗飘飘', unit:'厘米', world:{w:19,h:8},
+  story:'这个图形由 2 个长方形和 2 个三角形拼成（单位：厘米）。两条带 ? 的边长度未知。',
+  goal:'把问号边拖到和它一样长的已知边上配对，然后沿边界逐段相加，算出整个图形的周长！',
+  shapes:[[[0,0],[12,0],[12,5],[0,5]],[[12,0],[19,0],[19,3],[12,3]],[[0,5],[4,5],[4,8]],[[8,5],[12,5],[12,8]]],
+  outline:[
+    {a:[0,0],b:[12,0],t:'12',known:true},
+    {a:[12,0],b:[19,0],t:'7',known:true},
+    {a:[19,0],b:[19,3],t:'3',known:true},
+    {a:[19,3],b:[12,3],t:'7',known:true},
+    {a:[12,3],b:[12,5],t:'2',known:true},
+    {a:[12,5],b:[12,8],t:'3',known:true},
+    {a:[12,8],b:[8,5],t:'5',known:true},
+    {a:[8,5],b:[4,5],t:'4',known:true},
+    {a:[4,5],b:[4,8],t:'3',known:true},
+    {a:[4,8],b:[0,5],t:'5',known:false},
+    {a:[0,5],b:[0,0],t:'5',known:false}],
+  centroid:[8.5,3],
+  ans:56, formula:'周长 = 12＋7＋3＋7＋2＋3＋5＋4＋3＋5＋5 = 56（厘米）',
+  reveal:'两个三角形的斜边相等、都和 5 号边一样长；左边竖边也一样能找到 5 的伙伴。沿边界逐段相加：12＋7＋3＋7＋2＋3＋5＋4＋3＋5＋5 = 56 厘米。'
+}
+];
+
+/* ---------- 高级（练习13 / 练习2 / 练习12 变式） ---------- */
+var SENIOR=[
+{ /* 关卡：剪正方形（练习13(1)：角上80 / 边上92） */
+  mech:'m3', name:'剪正方形探秘', unit:'厘米', world:{w:20,h:20},
+  story:'把一张边长 20 厘米的正方形纸，剪去一个边长 6 厘米的小正方形。剪的位置不同，剩下的周长也不同！',
+  goal:'拖动小纸片放到不同位置（角上 / 边上），收集 2 张发现卡！看完动画，发现卡就会亮起来。',
+  board:{x:0,y:0,w:20,h:20}, piece:{w:6,h:6,label:'剪下的\n6×6 小方块'},
+  zones:[
+    {x:14,y:0,card:'corner',path:[[0,0],[14,0],[14,6],[20,6],[20,20],[0,20],[0,0]]},
+    {x:0,y:0,card:'corner',path:[[6,0],[20,0],[20,20],[0,20],[0,6],[6,6],[6,0]]},
+    {x:0,y:14,card:'corner',path:[[0,0],[20,0],[20,20],[6,20],[6,14],[0,14],[0,0]]},
+    {x:14,y:14,card:'corner',path:[[0,0],[20,0],[20,14],[14,14],[14,20],[0,20],[0,0]]},
+    {x:7,y:0,card:'edge',path:[[0,0],[7,0],[7,6],[13,6],[13,0],[20,0],[20,20],[0,20],[0,0]]},
+    {x:7,y:14,card:'edge',path:[[0,0],[20,0],[20,20],[13,20],[13,14],[7,14],[7,20],[0,20],[0,0]]},
+    {x:0,y:7,card:'edge',path:[[0,0],[20,0],[20,20],[0,20],[0,13],[6,13],[6,7],[0,7],[0,0]]},
+    {x:14,y:7,card:'edge',path:[[0,0],[20,0],[20,7],[14,7],[14,13],[20,13],[20,20],[0,20],[0,0]]}
+  ],
+  zoneTag:{corner:'角上',edge:'边上'},
+  cards:[
+    {key:'corner',name:'剪在角上',peri:80,expl:'少 2 条 6、又补 2 条 6，周长不变：20×4 = 80'},
+    {key:'edge',name:'剪在边上',peri:92,expl:'开口 6 被里面的 6 补上，多 2 条墙：80＋6×2 = 92'}
+  ],
+  ans:92, formula:'角上剪：20×4 = 80；边上剪：80＋6×2 = 92（厘米）',
+  reveal:'剪在角上：少了两条 6，又补回两条 6，周长不变 = 80 厘米；剪在边中间：开口的 6 被里面的 6 补上，多出两堵 6 的墙 = 80＋6×2 = 92 厘米。位置不同，结果不同！'
+},
+{ /* 关卡：剪长方形（练习13(2)：70 / 76 / 80） */
+  mech:'m3', name:'剪长方形探秘', unit:'厘米', world:{w:20,h:15},
+  story:'把一张长 20 厘米、宽 15 厘米的长方形纸，剪去一个长 5 厘米、宽 3 厘米的小长方形。',
+  goal:'试试剪在角上、长边上、短边上——三种位置的周长都不一样，把 3 张发现卡全部找出来！',
+  board:{x:0,y:0,w:20,h:15}, piece:{w:5,h:3,label:'剪下的\n5×3 小纸片'},
+  zones:[
+    {x:15,y:0,card:'corner',path:[[0,0],[15,0],[15,3],[20,3],[20,15],[0,15],[0,0]]},
+    {x:0,y:0,card:'corner',path:[[5,0],[20,0],[20,15],[0,15],[0,3],[5,3],[5,0]]},
+    {x:0,y:12,card:'corner',path:[[0,0],[20,0],[20,15],[5,15],[5,12],[0,12],[0,0]]},
+    {x:15,y:12,card:'corner',path:[[0,0],[20,0],[20,12],[15,12],[15,15],[0,15],[0,0]]},
+    {x:7.5,y:0,card:'long',path:[[0,0],[7.5,0],[7.5,3],[12.5,3],[12.5,0],[20,0],[20,15],[0,15],[0,0]]},
+    {x:7.5,y:12,card:'long',path:[[0,0],[20,0],[20,15],[12.5,15],[12.5,12],[7.5,12],[7.5,15],[0,15],[0,0]]},
+    {x:0,y:6,card:'short',path:[[0,0],[20,0],[20,15],[0,15],[0,9],[5,9],[5,6],[0,6],[0,0]]},
+    {x:15,y:6,card:'short',path:[[0,0],[20,0],[20,6],[15,6],[15,9],[20,9],[20,15],[0,15],[0,0]]}
+  ],
+  zoneTag:{corner:'角上',long:'长边',short:'短边'},
+  cards:[
+    {key:'corner',name:'剪在角上',peri:70,expl:'周长不变：（20＋15）×2 = 70'},
+    {key:'long',name:'剪在长边上',peri:76,expl:'多出 2 条宽：70＋3×2 = 76'},
+    {key:'short',name:'剪在短边上',peri:80,expl:'多出 2 条长：70＋5×2 = 80'}
+  ],
+  ans:80, formula:'角上 70；长边上 70＋3×2 = 76；短边上 70＋5×2 = 80（厘米）',
+  reveal:'剪在角上周长不变：（20＋15）×2 = 70；剪在 20 厘米的长边上，多出 2 条宽：70＋3×2 = 76；剪在 15 厘米的短边上，多出 2 条长：70＋5×2 = 80（厘米）。'
+},
+{ /* 关卡：九格分家（练习2：9个小长方形周长和 → 72厘米） */
+  mech:'m4', name:'九格分家', unit:'厘米', world:{w:6,h:6},
+  story:'过正方形内的两点画直线（横竖各 2 条），把边长 6 厘米的正方形分成 9 个小长方形。',
+  goal:'求 9 个小长方形的周长之和：把图上的 8 条线拖进正确的筐——边框线只算 1 次，内部线要算 2 次（它是相邻两个长方形的公共边）！',
+  board:{x:0,y:0,w:6,h:6},
+  lines:[
+    {a:[0,0],b:[6,0],type:'edge'},{a:[6,0],b:[6,6],type:'edge'},
+    {a:[6,6],b:[0,6],type:'edge'},{a:[0,6],b:[0,0],type:'edge'},
+    {a:[2,0],b:[2,6],type:'inner'},{a:[4,0],b:[4,6],type:'inner'},
+    {a:[0,2],b:[6,2],type:'inner'},{a:[0,4],b:[6,4],type:'inner'}
+  ],
+  edgeLen:6, innerLen:6,
+  ans:72, formula:'边框：6×4×1 = 24；内部：6×4×2 = 48；共 24＋48 = 72（厘米）',
+  reveal:'4 条边框线各算 1 次：6×4 = 24；4 条内部线是相邻长方形的公共边，各算 2 次：6×4×2 = 48；周长之和 = 24＋48 = 72 厘米。'
+},
+{ /* 关卡：四块合一（练习12 型：四块周长和=大长方形×2 → 30厘米） */
+  mech:'m5', name:'四块合一', unit:'厘米', world:{w:10,h:5},
+  story:'大长方形被分成 4 个小长方形，周长分别是 16、12、18、14 厘米。',
+  goal:'把四张周长卡拖进合成器，再看看动画：四个小长方形的周长和，正好把大长方形的边走了两圈！那么大长方形的周长是多少呢？',
+  cells:[
+    {x:0,y:0,w:6,h:2,peri:16},{x:6,y:0,w:4,h:2,peri:12},
+    {x:0,y:2,w:6,h:3,peri:18},{x:6,y:2,w:4,h:3,peri:14}
+  ],
+  outer:{x:0,y:0,w:10,h:5},
+  chipsV:[16,12,18,14],
+  ans:30, formula:'16＋12＋18＋14 = 60，60÷2 = 30（厘米）',
+  reveal:'四个小长方形的周长和 = 大长方形周长的 2 倍：16＋12＋18＋14 = 60，60÷2 = 30 厘米。'
+}
+];
+
+/* ============================================================
+   全局状态
+   ============================================================ */
+var G={diff:'j', levels:[], idx:0, steps:0, revealed:0, seconds:0, timerId:null, playing:false};
+var L=null, R=null;
+var ANIMS=[];        // 补间动画列表 {t0,dur,step,done}
+var needRulesShown=false;
+
+function addAnim(dur,step,done){ ANIMS.push({t0:performance.now(),dur:dur,step:step,done:done}); }
+function tickAnims(now){
+  for(var i=ANIMS.length-1;i>=0;i--){
+    var a=ANIMS[i], p=Math.min(1,(now-a.t0)/a.dur);
+    if(a.step) a.step(p);
+    if(p>=1){ ANIMS.splice(i,1); if(a.done) a.done(); }
+  }
+}
+
+/* ---------------- 屏幕切换 ---------------- */
+function showScreen(id){
+  $('#screenHome').classList.toggle('hidden', id!=='home');
+  $('#screenGame').classList.toggle('hidden', id!=='game');
+}
+function openRules(){ $('#modalRules').classList.remove('hidden'); }
+function closeRules(){ $('#modalRules').classList.add('hidden'); }
+
+/* ---------------- 计时与步数（G7） ---------------- */
+function startTimer(){
+  G.seconds=0; G.steps=0; G.revealed=0;
+  if(G.timerId) clearInterval(G.timerId);
+  $('#hudTimer').textContent='00:00'; $('#hudSteps').textContent='0';
+  G.timerId=setInterval(function(){
+    if(G.playing){ G.seconds++; $('#hudTimer').textContent=fmtTime(G.seconds); }
+  },1000);
+}
+function addStep(){ G.steps++; $('#hudSteps').textContent=String(G.steps); }
+
+/* ============================================================
+   场景画布（SVG 渲染）与坐标
+   说明：本机 Chromium 软件光栅对“大尺寸 2D 画布 + 连续重绘”存在渲染器崩溃缺陷
+   （已实测复现），故场景一律用 SVG（DOM 合成路径）绘制，稳定且任意尺寸安全。
+   ============================================================ */
+var cv=$('#cv');
+var CW=600, CH=420;
+var VIEW={ux:20,ox:0,oy:0};
+function resizeCanvas(){
+  /* 画布 CSS 尺寸已被 #cv 的 max-width/max-height 限制在安全范围（见上方注释）。
+     若设备像素比 DPR>1，合成光栅面积会按 DPR² 放大，故按比例进一步收紧上限，
+     确保任何环境下实际光栅面积都在安全界内。 */
+  var dpr=window.devicePixelRatio||1;
+  if(dpr>1){
+    cv.style.maxWidth=Math.floor(500/dpr)+'px';
+    cv.style.maxHeight=Math.floor(360/dpr)+'px';
+  }
+  var r=cv.getBoundingClientRect();
+  CW=Math.max(300, Math.round(r.width)); CH=Math.max(260, Math.round(r.height));
+  cv.setAttribute('viewBox','0 0 '+CW+' '+CH);
+  cv.setAttribute('width',CW);
+  cv.setAttribute('height',CH);
+  if(L) fitView();
+}
+window.addEventListener('resize', function(){ resizeCanvas(); });
+function fitView(){
+  var w=L.world.w, h=L.world.h, mL=92, mR=42, mT=46, mB=66;
+  var ux=Math.min((CW-mL-mR)/w, (CH-mT-mB)/h, 46);
+  VIEW.ux=ux;
+  VIEW.ox=mL+((CW-mL-mR)-ux*w)/2;
+  VIEW.oy=mT+((CH-mT-mB)-ux*h)/2;
+}
+function SX(x){ return Math.round(VIEW.ox+x*VIEW.ux); }
+function SY(y){ return Math.round(VIEW.oy+y*VIEW.ux); }
+function WX(x){ return (x-VIEW.ox)/VIEW.ux; }
+function WY(y){ return (y-VIEW.oy)/VIEW.ux; }
+function segScr(a){ return [SX(a[0]),SY(a[1])]; }
+
+/* ---------------- SVG 绘制小工具 ----------------
+   场景每帧重建为一段 SVG 标记（元素数量少，性能完全足够）。
+   发光效果用“宽淡描边 + 实线”双层模拟，不使用 SVG 滤镜。 */
+var SV=[]; // 当前帧的 SVG 片段集合
+function svgFlush(){ cv.innerHTML=SV.join(''); SV.length=0; }
+function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function sLine(x1,y1,x2,y2,color,width,dash,alpha){
+  SV.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+color+'" stroke-width="'+width+'" stroke-linecap="round"'+
+    (dash?(' stroke-dasharray="'+dash.join(',')+'"'):'')+((alpha!==undefined&&alpha<1)?(' opacity="'+alpha+'"'):'')+'/>');
+}
+function sGlowLine(x1,y1,x2,y2,color,width,pulseAmt){
+  // 双层描边模拟发光：底层更宽更透明
+  SV.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+color+'" stroke-width="'+(width+8)+'" stroke-linecap="round" opacity="'+(0.22+0.16*pulseAmt)+'"/>');
+  SV.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+color+'" stroke-width="'+width+'" stroke-linecap="round"/>');
+}
+function sPtsStr(pts){
+  var a=[];
+  for(var i=0;i<pts.length;i++){ a.push(SX(pts[i][0])+','+SY(pts[i][1])); }
+  return a.join(' ');
+}
+function sPoly(pts,fill,fillAlpha,stroke,width,dash){
+  if(pts.length<3) return;
+  SV.push('<polygon points="'+sPtsStr(pts)+'"'+(fill?(' fill="'+fill+'" fill-opacity="'+(fillAlpha===undefined?1:fillAlpha)+'"'):' fill="none"')+
+    (stroke?(' stroke="'+stroke+'" stroke-width="'+(width||2)+'"'+(dash?(' stroke-dasharray="'+dash.join(',')+'"'):'')):' stroke="none"')+'/>');
+}
+function sRect(x,y,w,h,fill,fillAlpha,stroke,width,dash,rx){
+  SV.push('<rect x="'+x+'" y="'+y+'" width="'+Math.max(1,Math.round(w))+'" height="'+Math.max(1,Math.round(h))+'"'+(rx?(' rx="'+rx+'"'):'')+
+    (fill?(' fill="'+fill+'"'+((fillAlpha!==undefined&&fillAlpha<1)?(' fill-opacity="'+fillAlpha+'"'):'')):' fill="none"')+
+    (stroke?(' stroke="'+stroke+'" stroke-width="'+(width||2)+'"'+(dash?(' stroke-dasharray="'+dash.join(',')+'"'):'')):' stroke="none"')+'/>');
+}
+function sCircle(cx,cy,r,fill,stroke,width){
+  SV.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+(fill||'#fff')+'"'+(stroke?(' stroke="'+stroke+'" stroke-width="'+(width||2)+'"'):'')+'/>');
+}
+function sText(t,x,y,opt){
+  opt=opt||{};
+  var anchor='middle';
+  if(opt.align==='left') anchor='start'; else if(opt.align==='right') anchor='end';
+  SV.push('<text x="'+Math.round(x)+'" y="'+Math.round(y)+'" font-family="\'Microsoft YaHei\',sans-serif" font-weight="700" font-size="'+(opt.size||18)+'"'+
+    ' fill="'+(opt.color||PAL.ink)+'" text-anchor="'+anchor+'" dominant-baseline="middle"'+
+    ' stroke="#ffffff" stroke-width="4" paint-order="stroke" stroke-linejoin="round">'+esc(t)+'</text>');
+}
+function dirLabelPos(a,b,centroid){
+  // 求线段中点向外(远离图形中心)的标签位置
+  var mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+  var dx=mx-centroid[0], dy=my-centroid[1];
+  var d=Math.hypot(dx,dy)||1;
+  return [SX(mx+dx/d*0.55), SY(my+dy/d*0.55)];
+}
+
+/* ============================================================
+   游戏流程
+   ============================================================ */
+function startGame(diff){
+  G.diff=diff;
+  var pool=(diff==='j')?JUNIOR:(diff==='m')?MIDDLE:SENIOR;
+  G.levels=shuffle(pool.slice()).slice(0,3);   // 反重复：随机抽 3 关
+  G.idx=0; G.playing=true;
+  applyPalette();                               // 每局随机配色
+  var dn=(diff==='j')?'初级 · 篱笆小院':(diff==='m')?'中级 · 巧手工坊':'高级 · 剪拼大师';
+  $('#hudDiff').textContent=dn;
+  showScreen('game');
+  resizeCanvas(); startTimer();
+  openRules();                                  // 进入时弹出规则（G6）
+  loadLevel();
+}
+function loadLevel(){
+  NEEDDRAW=true;
+  L=G.levels[G.idx];
+  $('#hudLevel').textContent='第 '+(G.idx+1)+'/3 关';
+  $('#taskTitle').textContent='第 '+(G.idx+1)+' 关 · '+L.name;
+  $('#taskStory').textContent=L.story;
+  $('#taskGoal').innerHTML='🎯 '+L.goal;
+  $('#taskFormula').style.display='none';
+  $('#taskReveal').style.display='none';
+  $('#btnNext').style.display='none';
+  R=buildR(L);
+  resizeCanvas(); applyDeck(); updateTask();
+}
+function buildR(lv){
+  if(lv.mech==='m1'){
+    return {phase:'drag',
+      pieces:lv.drag.map(function(d){ return {d:d, off:0, locked:false}; }),
+      slots:(lv.slots||[]).map(function(s){ return {s:s, tapes:[], locked:false, shakeT:0}; }),
+      chips:(lv.chips||[]).map(function(c){ return {v:c.v, tag:c.tag, used:false}; }),
+      dragI:-1, hoverSlot:null, done:false, busy:false};
+  }
+  if(lv.mech==='m2'){
+    var uks=[];
+    lv.outline.forEach(function(o,i){ if(!o.known) uks.push({i:i, dx:0, dy:0, matched:false, partner:-1}); });
+    return {uks:uks, dragI:-1, walk:null, done:false, busy:false, flashI:-1};
+  }
+  if(lv.mech==='m3'){
+    return {px:lv.board.w/2-lv.piece.w/2, py:lv.board.h/2-lv.piece.h/2,
+      dragging:false, grab:[0,0], zones:lv.zones, snapTo:-1,
+      cards:lv.cards.map(function(c){ return {c:c, got:false}; }),
+      walk:null, done:false, busy:false, zoneGotMark:{}};
+  }
+  if(lv.mech==='m4'){
+    return {lines:lv.lines.map(function(l){ return {l:l, done:false}; }),
+      dragI:-1, dragPos:null, edgeN:0, innerN:0, done:false, busy:false};
+  }
+  if(lv.mech==='m5'){
+    return {chips:lv.chipsV.map(function(v){ return {v:v, used:false}; }),
+      sum:0, n:0, walk:null, done:false, busy:false};
+  }
+  return {};
+}
+function completeLevel(){
+  if(R.done) return;
+  R.done=true; NEEDDRAW=true;
+  $('#taskFormula').style.display='block';
+  $('#taskFormula').textContent='✅ '+L.formula;
+  $('#btnNext').textContent=(G.idx<2)?'下一关 »':'查看成绩';
+  $('#btnNext').style.display='block';
+  $('#btnReveal').disabled=false;
+  spawnConfetti(window.innerWidth/2, window.innerHeight*0.35, 90);  // 通关庆祝（G5）
+  beep(660,.12); setTimeout(function(){beep(880,.12);},120); setTimeout(function(){beep(1100,.2);},260);
+  applyDeck(); updateTask();
+}
+function nextLevel(){
+  if(G.idx<2){ G.idx++; loadLevel(); }
+  else finishGame();
+}
+function finishGame(){
+  G.playing=false;
+  var stars=Math.max(1, 3-G.revealed);
+  $('#endStars').textContent=new Array(stars+1).join('★');
+  $('#endStats').innerHTML='难度：'+$('#hudDiff').textContent+'<br>用时 '+fmtTime(G.seconds)+' · 共 '+G.steps+' 步'
+    +(G.revealed>0?('（揭示答案 '+G.revealed+' 次）'):'（全部独立完成，太厉害了！）');
+  $('#overlayEnd').classList.remove('hidden');
+  spawnConfetti(window.innerWidth/2, window.innerHeight/3, 160);
+}
+function revealLevel(){
+  if(!L || !R || R.busy) return;
+  NEEDDRAW=true;
+  G.revealed++;
+  $('#taskReveal').style.display='block';
+  $('#taskReveal').innerHTML='💡 讲解：'+L.reveal;
+  if(L.mech==='m1'){
+    R.pieces.forEach(function(p){ p.locked=true; p.off=(p.d.axis==='y')?(p.d.to-p.d.a[1]):(p.d.to-p.d.a[0]); });
+    if(L.tapePhase!==false && R.slots.length){
+      R.phase='tape';
+      R.slots.forEach(function(sl){
+        sl.tapes=sl.s.correct.slice(); sl.locked=true;
+        sl.s.correct.forEach(function(v){
+          var ch=R.chips.find(function(c){ return !c.used && c.v===v; });
+          if(ch) ch.used=true;
+        });
+      });
+    }
+  }else if(L.mech==='m2'){
+    R.uks.forEach(function(u){
+      var len=segLen(L.outline[u.i].a, L.outline[u.i].b);
+      for(var k=0;k<L.outline.length;k++){
+        if(L.outline[k].known && Math.abs(segLen(L.outline[k].a,L.outline[k].b)-len)<1e-6){ u.matched=true; u.partner=k; u.dx=0; u.dy=0; break; }
+      }
+    });
+  }else if(L.mech==='m3'){
+    R.cards.forEach(function(c){ c.got=true; });
+    var z0=L.zones[0]; R.px=z0.x; R.py=z0.y;
+  }else if(L.mech==='m4'){
+    R.lines.forEach(function(ln){ ln.done=true; if(ln.l.type==='edge') R.edgeN++; else R.innerN++; });
+  }else if(L.mech==='m5'){
+    R.chips.forEach(function(c){ c.used=true; });
+    R.sum=16+12+18+14; R.n=4;
+  }
+  completeLevel();
+}
+
+/* ============================================================
+   任务面板 / 底部交互区
+   ============================================================ */
+function updateTask(){ NEEDDRAW=true;
+  var p='';
+  if(L.mech==='m1'){
+    if(R.phase==='drag'){
+      var lk=R.pieces.filter(function(x){return x.locked;}).length;
+      p='已归位 '+lk+' / '+R.pieces.length+' 条台阶边';
+    }else if(!R.done){
+      p=R.slots.map(function(sl){
+        var sum=sl.tapes.reduce(function(a,b){return a+b;},0);
+        return sl.s.label+' '+sum+'/'+sl.s.len+(sl.locked?' ✔':'');
+      }).join('　');
+    }else p='本关完成！';
+  }else if(L.mech==='m2'){
+    var m=R.uks.filter(function(u){return u.matched;}).length;
+    p='已配对 '+m+' / '+R.uks.length+' 条问号边';
+  }else if(L.mech==='m3'){
+    var g=R.cards.filter(function(c){return c.got;}).length;
+    p='发现卡 '+g+' / '+R.cards.length;
+  }else if(L.mech==='m4'){
+    var d=R.lines.filter(function(x){return x.done;}).length;
+    p='已分类 '+d+' / '+R.lines.length+' 条线（边框 '+R.edgeN+'，内部 '+R.innerN+'）';
+  }else if(L.mech==='m5'){
+    p='已合成 '+R.n+' / 4 张周长卡，当前总和 '+R.sum;
+  }
+  $('#taskProg').textContent=p;
+}
+function applyDeck(){
+  var d=$('#deck'); d.innerHTML='';
+  if(!L) return;
+  if(L.mech==='m1'){
+    if(R.phase==='drag'){
+      var t=document.createElement('div'); t.className='tipCard';
+      t.innerHTML='🖐 用手指或鼠标把<b>发光的台阶边</b>拖到虚线长方形的边框上，松手就会“咔哒”归位！';
+      d.appendChild(t);
+    }else{
+      var box=document.createElement('div'); box.className='tipCard';
+      box.innerHTML='📏 把皮尺卷拖到「横边 / 竖边」刻度条上，<b>正好装满</b>才锁定；点一下已放的皮尺可取回。';
+      d.appendChild(box);
+      R.chips.forEach(function(c,i){
+        if(c.used) return;
+        var el=document.createElement('div'); el.className='chip';
+        el.innerHTML=fmtNum(c.v)+L.unit+'<small>'+c.tag+'</small>';
+        el.style.width=Math.min(150, 56+c.v*3)+'px';
+        el.style.background='linear-gradient(145deg,'+PAL.c1+','+PAL.c2+')';
+        makeChipDraggable(el,c);
+        d.appendChild(el);
+      });
+    }
+  }else if(L.mech==='m2'){
+    var t2=document.createElement('div'); t2.className='tipCard';
+    t2.innerHTML='🔍 问号边和哪条边一样长？<b>正方形的四条边都相等</b>，三角形的斜边也有伙伴！把它拖过去碰一碰。';
+    d.appendChild(t2);
+  }else if(L.mech==='m3'){
+    R.cards.forEach(function(cd){
+      var el=document.createElement('div'); el.className='discCard'+(cd.got?' got':'');
+      el.innerHTML='<h4>'+cd.c.name+'</h4>'+(cd.got
+        ?('<div class="big">'+cd.c.peri+L.unit+'</div><div class="expl">'+cd.c.expl+'</div>')
+        :'<div class="big">？</div><div class="expl">去这个位置剪一剪试试！</div>');
+      d.appendChild(el);
+    });
+    var tip=document.createElement('div'); tip.className='tipCard';
+    tip.innerHTML='✂ 拖动彩色小纸片，放到虚线框（角上 / 边上）里松手。';
+    d.appendChild(tip);
+  }else if(L.mech==='m4'){
+    var b1=document.createElement('div'); b1.className='binCard'; b1.id='binEdge';
+    b1.innerHTML='<h4>边框线（算 1 次）</h4><div class="cnt">已收 '+R.edgeN+' 条</div>';
+    var b2=document.createElement('div'); b2.className='binCard'; b2.id='binInner';
+    b2.innerHTML='<h4>内部线（算 2 次）</h4><div class="cnt">已收 '+R.innerN+' 条</div>';
+    d.appendChild(b1); d.appendChild(b2);
+  }else if(L.mech==='m5'){
+    var f=document.createElement('div'); f.id='forge';
+    f.innerHTML='⚗️ 周长合成器<div class="sum">'+R.sum+'（'+R.n+'/4）</div>';
+    d.appendChild(f);
+    R.chips.forEach(function(c){
+      if(c.used) return;
+      var el=document.createElement('div'); el.className='chip';
+      el.innerHTML=c.v+L.unit+'<small>周长卡</small>';
+      el.style.background='linear-gradient(145deg,'+PAL.c1+','+PAL.c2+')';
+      makeChipDraggable(el,c);
+      d.appendChild(el);
+    });
+  }
+}
+/* ---- DOM 小卡拖拽（皮尺 / 周长卡），拖到画布刻度条或合成器上 ---- */
+function makeChipDraggable(el,chip){
+  el.addEventListener('pointerdown',function(e){
+    e.preventDefault();
+    if(R.done) return;
+    var ghost=el.cloneNode(true);
+    ghost.className='chip ghostChip';
+    ghost.style.width=el.offsetWidth+'px';
+    document.body.appendChild(ghost);
+    el.style.opacity='0.35';
+    function mv(ev){
+      ghost.style.left=(ev.clientX-ghost.offsetWidth/2)+'px';
+      ghost.style.top=(ev.clientY-ghost.offsetHeight/2)+'px';
+      if(L.mech==='m5'){
+        var fg=$('#forge'); if(!fg) return;
+        var fr=fg.getBoundingClientRect();
+        fg.classList.toggle('hot', ev.clientX>fr.left&&ev.clientX<fr.right&&ev.clientY>fr.top&&ev.clientY<fr.bottom);
+      }else{
+        var r=cv.getBoundingClientRect();
+        var px=ev.clientX-r.left, py=ev.clientY-r.top;
+        R.hoverSlot=null; NEEDDRAW=true;
+        R.slots.forEach(function(sl){
+          if(sl.locked) return;
+          var rc=slotRect(sl);
+          if(px>rc.x-10&&px<rc.x+rc.w+10&&py>rc.y-10&&py<rc.y+rc.h+10){
+            var sum=sl.tapes.reduce(function(a,b){return a+b;},0);
+            if(sum+chip.v<=sl.s.len+1e-9) R.hoverSlot=sl;
+          }
+        });
+      }
+    }
+    function up(ev){
+      window.removeEventListener('pointermove',mv);
+      window.removeEventListener('pointerup',up);
+      ghost.remove(); el.style.opacity='1';
+      var fg=$('#forge'); if(fg) fg.classList.remove('hot');
+      R.hoverSlot=null;
+      if(L.mech==='m5'){
+        /* 只有松手落在合成器里才消耗卡片，拖在外面则退回 */
+        var onForge=false;
+        if(fg){
+          var fr=fg.getBoundingClientRect();
+          onForge=(ev.clientX>=fr.left&&ev.clientX<=fr.right&&ev.clientY>=fr.top&&ev.clientY<=fr.bottom);
+        }
+        if(onForge) dropForge(chip);
+      }
+      else dropTape(chip, ev.clientX, ev.clientY);
+    }
+    window.addEventListener('pointermove',mv);
+    window.addEventListener('pointerup',up);
+    mv(e);
+  });
+}
+function dropTape(chip,cx,cy){
+  var r=cv.getBoundingClientRect();
+  var px=cx-r.left, py=cy-r.top;
+  for(var i=0;i<R.slots.length;i++){
+    var sl=R.slots[i];
+    if(sl.locked) continue;
+    var rc=slotRect(sl);
+    if(px>rc.x-10&&px<rc.x+rc.w+10&&py>rc.y-10&&py<rc.y+rc.h+10){
+      var sum=sl.tapes.reduce(function(a,b){return a+b;},0);
+      if(sum+chip.v>sl.s.len+1e-9){
+        sl.shakeT=performance.now(); beepBad();
+        applyDeck(); return;
+      }
+      sl.tapes.push(chip.v); chip.used=true; addStep(); beep(700,.09);
+      if(Math.abs(sum+chip.v-sl.s.len)<1e-9){
+        sl.locked=true; beep(950,.14);
+        spawnConfetti(rc.x+rc.w/2, rc.y+rc.h/2, 26);
+      }
+      if(R.slots.every(function(s){return s.locked;})) setTimeout(completeLevel,420);
+      applyDeck(); updateTask(); return;
+    }
+  }
+}
+function dropForge(chip){
+  chip.used=true; R.sum+=chip.v; R.n++;
+  addStep(); beep(700,.09);
+  if(R.n>=4){
+    R.busy=true;
+    startTrace(function(){ R.busy=false; completeLevel(); });
+  }
+  applyDeck(); updateTask();
+}
+
+/* ============================================================
+   m1：刻度条（横边/竖边）几何
+   ============================================================ */
+function slotRect(sl){
+  var rc=L.rect;
+  if(sl.s.side==='bottom'){
+    var x0=SX(rc.x), y0=SY(rc.y+rc.h)+20, w=rc.w*VIEW.ux, h=26;
+    return {x:x0,y:y0,w:w,h:h};
+  }else{
+    var x2=SX(rc.x)-20-26, y2=SY(rc.y), w=26, h=rc.h*VIEW.ux;
+    return {x:x2,y:y2,w:w,h:h};
+  }
+}
+function slotBlocks(sl,rc){
+  var arr=[], acc=0;
+  for(var i=0;i<sl.tapes.length;i++){
+    var v=sl.tapes[i], len=Math.round(v*VIEW.ux);
+    arr.push({v:v, x:Math.round(rc.x+(sl.s.side==='bottom'?acc:0)), y:Math.round(rc.y+(sl.s.side==='bottom'?0:acc)),
+              w:(sl.s.side==='bottom'?len:rc.w), h:(sl.s.side==='bottom'?rc.h:len)});
+    acc+=len;
+  }
+  return arr;
+}
+
+/* ============================================================
+   各机制指针交互（画布内）
+   ============================================================ */
+function evtPt(e){ var r=cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+var DRG=null; // 当前画布拖拽对象
+cv.addEventListener('pointerdown',function(e){
+  if(!L||!R||R.done||R.busy) return;
+  e.preventDefault();
+  NEEDDRAW=true;
+  var pt=evtPt(e);
+  var wp=[WX(pt.x),WY(pt.y)];
+  if(L.mech==='m1'){
+    if(R.phase==='tape'){ tryRemoveTape(pt); return; }
+    var best=-1,bd=1e9;
+    R.pieces.forEach(function(p,i){
+      if(p.locked) return;
+      var a=[p.d.a[0]+(p.d.axis==='x'?p.off:0), p.d.a[1]+(p.d.axis==='y'?p.off:0)];
+      var b=[p.d.b[0]+(p.d.axis==='x'?p.off:0), p.d.b[1]+(p.d.axis==='y'?p.off:0)];
+      var d=distToSeg(wp,a,b)*VIEW.ux;
+      if(d<bd){ bd=d; best=i; }
+    });
+    if(best>=0 && bd<22){
+      DRG={kind:'p', i:best, off0:R.pieces[best].off,
+        p0:(L.drag[best].axis==='y')?wp[1]:wp[0]};
+    }
+  }else if(L.mech==='m2'){
+    if(R.walk) return;
+    var bi=-1, b2=1e9;
+    R.uks.forEach(function(u,i){
+      if(u.matched) return;
+      var o=L.outline[u.i];
+      var d=distToSeg(wp,[o.a[0]+u.dx,o.a[1]+u.dy],[o.b[0]+u.dx,o.b[1]+u.dy])*VIEW.ux;
+      if(d<b2){ b2=d; bi=i; }
+    });
+    if(bi>=0 && b2<24) DRG={kind:'u', i:bi, g:[wp[0]-R.uks[bi].dx, wp[1]-R.uks[bi].dy]};
+  }else if(L.mech==='m3'){
+    if(R.walk) return;
+    var inP = wp[0]>=R.px && wp[0]<=R.px+L.piece.w && wp[1]>=R.py && wp[1]<=R.py+L.piece.h;
+    if(inP) DRG={kind:'c', g:[wp[0]-R.px, wp[1]-R.py]};
+  }else if(L.mech==='m4'){
+    var b3=-1, d3=1e9;
+    R.lines.forEach(function(ln,i){
+      if(ln.done) return;
+      var d=distToSeg(wp,ln.l.a,ln.l.b)*VIEW.ux;
+      if(d<d3){ d3=d; b3=i; }
+    });
+    if(b3>=0 && d3<24) DRG={kind:'l', i:b3, off:[pt.x-SX(R.lines[b3].l.a[0]), pt.y-SY(R.lines[b3].l.a[1])]};
+  }
+});
+/* 拖拽的移动/抬起挂在 window 上：指针拖出画布也能继续跟踪，且不依赖 setPointerCapture */
+window.addEventListener('pointermove',function(e){
+  if(!DRG||!L||!R) return;
+  var pt=evtPt(e), wp=[WX(pt.x),WY(pt.y)];
+  var movedKind=DRG.kind;
+  if(DRG.kind==='p'){
+    var pc=R.pieces[DRG.i], d=pc.d;
+    var targetOff=(d.axis==='y')?(d.to-d.a[1]):(d.to-d.a[0]);
+    var cur=(d.axis==='y')?wp[1]:wp[0];
+    var off=DRG.off0+(cur-DRG.p0);
+    var lo=Math.min(0,targetOff)-1.5, hi=Math.max(0,targetOff)+1.5;
+    pc.off=Math.max(lo,Math.min(hi,off));
+  }else if(DRG.kind==='u'){
+    var u=R.uks[DRG.i];
+    u.dx=wp[0]-DRG.g[0]; u.dy=wp[1]-DRG.g[1];
+  }else if(DRG.kind==='c'){
+    R.px=Math.max(-1,Math.min(L.world.w-L.piece.w+1, wp[0]-DRG.g[0]));
+    R.py=Math.max(-1,Math.min(L.world.h-L.piece.h+1, wp[1]-DRG.g[1]));
+    R.snapTo=zoneUnder();
+  }else if(DRG.kind==='l'){
+    R.dragPos={x:pt.x,y:pt.y};
+    highlightBins(pt);
+    NEEDDRAW=true;   /* m4 拖线需重建幽灵线（低频） */
+    return;
+  }
+  /* 拖拽位移只做属性级增量更新，不重建场景 */
+  if(movedKind==='p'&&L.mech==='m1') updatePiecesM1();
+  else if(movedKind==='u'&&L.mech==='m2') updateUnksM2();
+  else if(movedKind==='c'&&L.mech==='m3') updateCutM3();
+});
+window.addEventListener('pointerup',function(e){
+  NEEDDRAW=true;
+  if(!DRG){ return; }
+  var kind=DRG.kind, idx=DRG.i;
+  var pt=evtPt(e), wp=[WX(pt.x),WY(pt.y)];
+  DRG=null;
+  if(R.done) return;
+  if(kind==='p'){
+    var pc=R.pieces[idx], d=pc.d;
+    var targetOff=(d.axis==='y')?(d.to-d.a[1]):(d.to-d.a[0]);
+    if(Math.abs(pc.off-targetOff)*VIEW.ux<15){
+      var from=pc.off; pc.locked=true;
+      addAnim(160,function(p){ pc.off=from+(targetOff-from)*p; },function(){
+        pc.off=targetOff; beepOK();
+        if(R.pieces.every(function(x){return x.locked;})){
+          if(L.tapePhase===false || R.slots.length===0){
+            setTimeout(completeLevel,450);
+          }else{
+            setTimeout(function(){ R.phase='tape'; applyDeck(); updateTask(); beep(880,.15); },520);
+          }
+        }
+      });
+    }else{
+      var f0=pc.off;
+      addAnim(220,function(p){ pc.off=f0*(1-p); },function(){ pc.off=0; });
+    }
+    addStep();
+  }else if(kind==='u'){
+    var u=R.uks[idx], o=L.outline[u.i];
+    var ul=segLen(o.a,o.b), hit=-1, hd=1e9;
+    L.outline.forEach(function(seg,k){
+      if(!seg.known||k===u.i) return;
+      if(Math.abs(segLen(seg.a,seg.b)-ul)>1e-6) return;
+      var d=distToSeg(wp,seg.a,seg.b)*VIEW.ux;
+      if(d<hd){ hd=d; hit=k; }
+    });
+    if(hit>=0 && hd<30){
+      u.matched=true; u.partner=hit; u.dx=0; u.dy=0; beepOK();
+      if(R.uks.every(function(x){return x.matched;})){
+        R.busy=true;
+        setTimeout(function(){ startSumWalk(function(){ R.busy=false; completeLevel(); }); },350);
+      }
+    }else{
+      var fx=u.dx, fy=u.dy;
+      addAnim(240,function(p){ u.dx=fx*(1-p); u.dy=fy*(1-p); },function(){ u.dx=0; u.dy=0; });
+      if(hd<60) beepBad();
+    }
+    addStep();
+  }else if(kind==='c'){
+    var zi=zoneUnder();
+    if(zi>=0){
+      var z=L.zones[zi];
+      R.px=z.x; R.py=z.y; beep(760,.1);
+      var cd=R.cards.find(function(c){ return c.c.key===z.card; });
+      if(cd && !cd.got){
+        R.busy=true;
+        startZoneWalk(z,function(){
+          cd.got=true; R.busy=false; beepOK(); applyDeck(); updateTask();
+          if(R.cards.every(function(c){return c.got;})) setTimeout(completeLevel,420);
+        });
+      }
+    }
+    addStep();
+  }else if(kind==='l'){
+    var ln=R.lines[idx];
+    R.dragPos=null;
+    var be=$('#binEdge'), bi=$('#binInner');
+    if(be) be.classList.remove('hot');
+    if(bi) bi.classList.remove('hot');
+    var dropped=null;
+    if(be){
+      var r1=be.getBoundingClientRect();
+      if(e.clientX>=r1.left-8&&e.clientX<=r1.right+8&&e.clientY>=r1.top-8&&e.clientY<=r1.bottom+8) dropped='edge';
+    }
+    if(!dropped&&bi){
+      var r2=bi.getBoundingClientRect();
+      if(e.clientX>=r2.left-8&&e.clientX<=r2.right+8&&e.clientY>=r2.top-8&&e.clientY<=r2.bottom+8) dropped='inner';
+    }
+    if(dropped){
+      if(dropped===ln.l.type){
+        ln.done=true; if(ln.l.type==='edge') R.edgeN++; else R.innerN++;
+        beepOK(); applyDeck(); updateTask();
+        if(R.lines.every(function(x){return x.done;})){
+          R.busy=true;
+          setTimeout(function(){ R.busy=false; completeLevel(); },500);
+        }
+      }else{
+        beepBad();
+        if(dropped==='edge'&&be) shakeEl(be);
+        if(dropped==='inner'&&bi) shakeEl(bi);
+      }
+    }
+    addStep();
+  }
+});
+window.addEventListener('pointercancel',function(){ DRG=null; if(R) R.dragPos=null; });
+function tryRemoveTape(pt){
+  for(var i=0;i<R.slots.length;i++){
+    var sl=R.slots[i]; if(sl.locked) continue;
+    var rc=slotRect(sl), blocks=slotBlocks(sl,rc);
+    for(var k=0;k<blocks.length;k++){
+      var b=blocks[k];
+      if(pt.x>=b.x&&pt.x<=b.x+b.w&&pt.y>=b.y&&pt.y<=b.y+b.h){
+        var v=sl.tapes.splice(k,1)[0];
+        var ch=R.chips.find(function(c){ return c.used&&c.v===v; });
+        if(ch) ch.used=false;
+        beep(420,.08); addStep(); applyDeck(); updateTask();
+        return;
+      }
+    }
+  }
+}
+function zoneUnder(){
+  var best=-1, bd=1e9;
+  R.zones&&L.zones.forEach(function(z,i){
+    var d=Math.hypot(R.px-z.x, R.py-z.y);
+    if(d<bd){ bd=d; best=i; }
+  });
+  return (bd<1.6)?best:-1;
+}
+function highlightBins(e){
+  // 拖线经过哪个筐，哪个筐就亮起来（两个筐外观相同，不提示答案）
+  var be=$('#binEdge'), bi=$('#binInner');
+  if(be){ var r1=be.getBoundingClientRect(); be.classList.toggle('hot', e.clientX>=r1.left&&e.clientX<=r1.right&&e.clientY>=r1.top&&e.clientY<=r1.bottom); }
+  if(bi){ var r2=bi.getBoundingClientRect(); bi.classList.toggle('hot', e.clientX>=r2.left&&e.clientX<=r2.right&&e.clientY>=r2.top&&e.clientY<=r2.bottom); }
+}
+function shakeEl(el){
+  el.style.transition='transform .08s';
+  var n=0, id=setInterval(function(){
+    el.style.transform=(n%2?'translateX(-5px)':'translateX(5px)');
+    if(++n>5){ clearInterval(id); el.style.transform=''; }
+  },70);
+}
+function shakeSlotDraw(sl,now){ return (now-sl.shakeT)<300; }
+
+/* ============================================================
+   漫游动画（逐段求和 / 剪拼走边 / 双圈描边）
+   ============================================================ */
+function makeWalk(pts,speed,color){
+  var cum=[0];
+  for(var i=1;i<pts.length;i++) cum.push(cum[i-1]+segLen(pts[i-1],pts[i]));
+  var total=cum[cum.length-1];
+  return {pts:pts, cum:cum, total:total, len:0, speed:speed, color:color};
+}
+function tickWalk(w,dt){
+  if(!w||w.len>=w.total) return false;
+  w.len=Math.min(w.total, w.len+w.speed*dt);
+  return true;
+}
+function walkPoint(w){
+  var i=1; while(i<w.cum.length && w.cum[i]<w.len) i++;
+  if(i>=w.pts.length) return w.pts[w.pts.length-1];
+  var a=w.pts[i-1], b=w.pts[i];
+  var seg=w.cum[i]-w.cum[i-1];
+  var t=seg>0?(w.len-w.cum[i-1])/seg:0;
+  return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+}
+function drawWalk(w,opt){
+  if(!w) return;
+  var lw=opt.width||6;
+  var endP=walkPoint(w);
+  var ex=SX(endP[0]), ey=SY(endP[1]);
+  var pts=[[w.pts[0][0],w.pts[0][1]]];
+  var i=1;
+  while(i<w.pts.length && w.cum[i]<=w.len){
+    pts.push([w.pts[i][0],w.pts[i][1]]);
+    i++;
+  }
+  pts.push([endP[0],endP[1]]);
+  SV.push('<polyline id="walkLine" points="'+sPtsStr(pts)+'" fill="none" stroke="'+w.color+'" stroke-width="'+lw+'" stroke-linejoin="round" stroke-linecap="round"/>');
+  // 移动小圆点 + 累计长度
+  SV.push('<circle id="walkDot" cx="'+ex+'" cy="'+ey+'" r="8" fill="#fff" stroke="'+w.color+'" stroke-width="3"/>');
+  SV.push('<text id="walkTxt" x="'+ex+'" y="'+(ey-20)+'" font-weight="700" font-size="20" fill="'+w.color+'" text-anchor="middle" dominant-baseline="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">'+fmtNum(w.len)+'</text>');
+}
+function startSumWalk(cb){ // m2：沿轮廓逐段点亮求和
+  var pts=[], vals=[];
+  L.outline.forEach(function(o){ pts.push(o.a); vals.push(o.t); });
+  pts.push(L.outline[0].a);
+  R.walk=makeWalk(pts, 34, PAL.c1);
+  R.walk.vals=vals; R.walk.idx=0;
+  R.walk.cb=cb;
+}
+function startZoneWalk(z,cb){
+  R.walk=makeWalk(z.path, 40, PAL.c1);
+  R.walk.cb=cb;
+}
+function startTrace(cb){ // m5：大长方形描两圈
+  var o=L.outer;
+  var loop=[[o.x,o.y],[o.x+o.w,o.y],[o.x+o.w,o.y+o.h],[o.x,o.y+o.h],[o.x,o.y]];
+  R.walk=makeWalk(loop.concat(loop.slice(1)), 42, PAL.c1);
+  R.walk.secondColor=PAL.c2; R.walk.cb=cb;
+}
+
+/* ============================================================
+   绘制主循环
+   ============================================================ */
+var lastT=performance.now();
+var NEEDDRAW=true;   // 脏标记：仅在状态变化时重绘（交互事件/补间/漫游都会置位）
+function markDraw(){ NEEDDRAW=true; }
+function loop(now){
+  var dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+  tickAnims(now);
+  if(ANIMS.length>0) updateDynForMech();   // 补间只做属性级更新
+  var gameVisible=!$('#screenGame').classList.contains('hidden');
+  if(L&&R&&gameVisible){
+    if(R.walk){
+      var alive=tickWalk(R.walk,dt);
+      updateWalkNodes();                    // 漫游增量更新
+      if(!alive){
+        var cb=R.walk.cb; R.walk.cb=null; R.walk=null;   // 漫游结束即清空，避免阻塞后续操作
+        if(cb) setTimeout(cb,300);
+      }
+    }
+    if(NEEDDRAW){ drawScene(now); NEEDDRAW=false; }
+  }
+  requestAnimationFrame(loop);
+}
+function drawScene(now){
+  SV.length=0;
+  if(L.mech==='m1') drawM1(now);
+  else if(L.mech==='m2') drawM2(now);
+  else if(L.mech==='m3') drawM3(now);
+  else if(L.mech==='m4') drawM4(now);
+  else if(L.mech==='m5') drawM5(now);
+  sText('单位：'+L.unit, CW-14, 18, {size:16,color:'#a0968a',align:'right'});
+  svgFlush();
+}
+
+/* ============================================================
+   增量更新：拖拽/补间/漫游只改节点属性，不重建整个场景
+   （大幅降低光栅压力，规避特定环境软件渲染缺陷）
+   ============================================================ */
+function setLineAttrs(el,x1,y1,x2,y2){
+  if(!el) return;
+  el.setAttribute('x1',x1); el.setAttribute('y1',y1);
+  el.setAttribute('x2',x2); el.setAttribute('y2',y2);
+}
+function setTxtPos(el,x,y){ if(!el) return; el.setAttribute('x',Math.round(x)); el.setAttribute('y',Math.round(y)); }
+function updatePiecesM1(){
+  var gs=cv.querySelectorAll('g[data-piece]');
+  if(!gs||gs.length!==R.pieces.length) return;
+  R.pieces.forEach(function(p,i){
+    var g=gs[i];
+    var d=p.d;
+    var ox=(d.axis==='x')?p.off:0, oy=(d.axis==='y')?p.off:0;
+    var x1=SX(d.a[0]+ox), y1=SY(d.a[1]+oy), x2=SX(d.b[0]+ox), y2=SY(d.b[1]+oy);
+    var lines=g.querySelectorAll('line');
+    for(var k=0;k<lines.length;k++){ setLineAttrs(lines[k],x1,y1,x2,y2); }
+    var t=g.querySelector('text');
+    if(t){ setTxtPos(t,(x1+x2)/2,(y1+y2)/2+(p.locked?-18:18)); }
+  });
+}
+function updateUnksM2(){
+  var gs=cv.querySelectorAll('g[data-unk]');
+  for(var gi=0;gi<gs.length;gi++){
+    var g=gs[gi];
+    var i=parseInt(g.getAttribute('data-unk'),10);
+    var u=R.uks[i];
+    if(!u||u.matched) continue;
+    var o=L.outline[u.i];
+    var x1=SX(o.a[0]+u.dx), y1=SY(o.a[1]+u.dy), x2=SX(o.b[0]+u.dx), y2=SY(o.b[1]+u.dy);
+    var lines=g.querySelectorAll('line');
+    for(var k=0;k<lines.length;k++){ setLineAttrs(lines[k],x1,y1,x2,y2); }
+    var t=g.querySelector('text');
+    if(t){ setTxtPos(t,(x1+x2)/2,(y1+y2)/2-16); }
+  }
+}
+function updateCutM3(){
+  var g=document.getElementById('cutPieceG');
+  if(!g) return;
+  g.setAttribute('transform','translate('+SX(R.px)+','+SY(R.py)+')');
+}
+function updateWalkNodes(){
+  var w=R.walk;
+  if(!w) return;
+  var pl=document.getElementById('walkLine');
+  if(!pl){ NEEDDRAW=true; return; }   // 节点尚未建出，退回整帧重建
+  var dot=document.getElementById('walkDot');
+  var txt=document.getElementById('walkTxt');
+  var endP=walkPoint(w);
+  var ex=SX(endP[0]), ey=SY(endP[1]);
+  var pts=[[w.pts[0][0],w.pts[0][1]]];
+  var i=1;
+  while(i<w.pts.length && w.cum[i]<=w.len){ pts.push([w.pts[i][0],w.pts[i][1]]); i++; }
+  pts.push([endP[0],endP[1]]);
+  pl.setAttribute('points',sPtsStr(pts));
+  if(dot){ dot.setAttribute('cx',ex); dot.setAttribute('cy',ey); }
+  if(txt){ setTxtPos(txt,ex,ey-20); txt.textContent=fmtNum(w.len); }
+}
+function updateDynForMech(){
+  if(!L||!R) return;
+  if(L.mech==='m1') updatePiecesM1();
+  else if(L.mech==='m2') updateUnksM2();
+  else if(L.mech==='m3') updateCutM3();
+}
+
+/* ---------------- m1 绘制 ---------------- */
+function drawM1(now){
+  var rc=L.rect;
+  var pulse=0.5; // 静态光晕（避免逐帧动画带来的持续重绘）
+  // 淡网格
+  if(VIEW.ux>=15){
+    for(var gx=0;gx<=rc.w;gx++){ sLine(SX(gx),SY(0),SX(gx),SY(rc.h),'rgba(0,0,0,.06)',1); }
+    for(var gy=0;gy<=rc.h;gy++){ sLine(SX(0),SY(gy),SX(rc.w),SY(gy),'rgba(0,0,0,.06)',1); }
+  }
+  // 原图形
+  sPoly(L.poly,PAL.c2,(R.phase==='drag')?0.18:0.08,'#8b8378',2,[6,5]);
+  // 虚线目标长方形
+  sRect(SX(rc.x),SY(rc.y),rc.w*VIEW.ux,rc.h*VIEW.ux,null,1,PAL.c1,3,[12,9]);
+  // 已固定的已知边
+  L.fixed.forEach(function(f){
+    var x1=SX(f.a[0]), y1=SY(f.a[1]), x2=SX(f.b[0]), y2=SY(f.b[1]);
+    sLine(x1,y1,x2,y2,f.big?PAL.ink:'#6f675c',f.big?9:6);
+    sText(f.t,(x1+x2)/2,(y1+y2)/2-(f.big?16:14),{size:f.big?22:18,color:f.big?PAL.ink:'#555049'});
+  });
+  // 台阶边（可拖=主色发光；已锁定=绿色归位）——包进命名组，便于拖拽时增量更新
+  R.pieces.forEach(function(p,i){
+    var d=p.d;
+    var ox=(d.axis==='x')?p.off:0, oy=(d.axis==='y')?p.off:0;
+    var x1=SX(d.a[0]+ox), y1=SY(d.a[1]+oy), x2=SX(d.b[0]+ox), y2=SY(d.b[1]+oy);
+    SV.push('<g data-piece="'+i+'">');
+    if(p.locked){
+      sLine(x1,y1,x2,y2,PAL.ok,7);
+    }else{
+      sGlowLine(x1,y1,x2,y2,PAL.c1,8,pulse);
+    }
+    /* 锁定后的标签放在边的内侧（-18），避免贴到底边时压住下方刻度条 */
+    var labOff=p.locked?-18:18;
+    sText(d.t,(x1+x2)/2,(y1+y2)/2+labOff,{size:19,color:p.locked?'#1c6b43':PAL.c1});
+    SV.push('</g>');
+  });
+  // 第二阶段：刻度条与皮尺
+  if(R.phase==='tape'){
+    R.slots.forEach(function(sl){
+      var s=slotRect(sl);
+      var shaking=shakeSlotDraw(sl,now);
+      var sk=(shaking)?Math.round(Math.sin(now/25)*6):0;
+      var x0=s.x+sk, y0=s.y;
+      var hot=(R.hoverSlot===sl);
+      sRect(x0,y0,s.w,s.h,null,1,(hot?PAL.c1:(sl.locked?PAL.ok:PAL.c2)),(hot?5:3),(sl.locked?null:[8,6]));
+      var blocks=slotBlocks(sl,{x:x0,y:y0,w:s.w,h:s.h});
+      for(var i=0;i<blocks.length;i++){
+        var b=blocks[i];
+        sRect(b.x+1,b.y+1,b.w-2,b.h-2,(sl.locked)?PAL.ok:((i%2)?PAL.c2:PAL.c1),0.88);
+        sText(fmtNum(b.v), b.x+b.w/2, b.y+b.h/2, {size:17,color:'#fff'});
+      }
+      // 刻度条标题
+      var sum=sl.tapes.reduce(function(x,y){return x+y;},0);
+      var txt=sl.s.label+(sl.locked?(' = '+sl.tapes.join('＋')+' = '+fmtNum(sl.s.len)):(sum>0?(' 已拼 '+fmtNum(sum)):' 用皮尺拼满'));
+      sText(txt, x0+s.w/2, y0-16, {size:18,color:sl.locked?'#1c6b43':PAL.c2});
+    });
+    if(R.slots.every(function(x){return x.locked;}) && !R.done){
+      sText('长方形拼好啦！周长 =（横边＋竖边）×2', CW/2, 26, {size:20,color:PAL.c1});
+    }
+  }
+  if(R.done){
+    sText('平移成功，周长不变！', CW/2, 26, {size:22,color:'#1c6b43'});
+  }
+}
+function polyCentroid(pts){
+  var x=0,y=0; pts.forEach(function(p){x+=p[0];y+=p[1];});
+  return [x/pts.length,y/pts.length];
+}
+
+/* ---------------- m2 绘制 ---------------- */
+function drawM2(now){
+  var pulse=0.5; // 静态光晕（避免逐帧动画带来的持续重绘）
+  L.shapes.forEach(function(s,i){
+    sPoly(s,(i%2?PAL.c1:PAL.c2),0.13,'#9a9184',2);
+  });
+  var allMatched=R.uks.length>0&&R.uks.every(function(u){return u.matched;});
+  // 逐段绘制轮廓
+  L.outline.forEach(function(o,i){
+    var isUnk=false, uk=null;
+    R.uks.forEach(function(u){ if(u.i===i){isUnk=true;uk=u;} });
+    var ax=o.a[0], ay=o.a[1], bx=o.b[0], by=o.b[1];
+    if(isUnk && !uk.matched){ ax+=uk.dx; ay+=uk.dy; bx+=uk.dx; by+=uk.dy; }
+    var x1=SX(ax), y1=SY(ay), x2=SX(bx), y2=SY(by);
+    if(isUnk){
+      if(uk.matched){
+        sLine(x1,y1,x2,y2,PAL.ok,7);
+      }else{
+        sGlowLine(x1,y1,x2,y2,PAL.c1,8,pulse);
+        // 虚线问号边
+        SV.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#ffffff" stroke-width="2" stroke-dasharray="'+(10+8)+','+(7+8)+'" opacity="0.9"/>');
+      }
+    }else{
+      sLine(x1,y1,x2,y2,'#5c554b',6);
+    }
+    var mx=(x1+x2)/2, my=(y1+y2)/2;
+    if(isUnk && !uk.matched){
+      SV.push('<g data-unk="'+R.uks.indexOf(uk)+'">');
+    }
+    if(isUnk){
+      if(uk.matched){
+        sText(o.t,mx,my-15,{size:19,color:'#1c6b43'});
+        // 相等连线
+        var pa=L.outline[uk.partner];
+        var qx=(SX(pa.a[0])+SX(pa.b[0]))/2, qy=(SY(pa.a[1])+SY(pa.b[1]))/2;
+        sLine(Math.round(mx),Math.round(my),Math.round(qx),Math.round(qy),PAL.ok,2.5,[5,5],0.75);
+        sText('一样长',(mx+qx)/2,(my+qy)/2-14,{size:16,color:'#1c6b43'});
+      }else{
+        sText('?',mx,my-16,{size:26,color:PAL.c1});
+      }
+    }else{
+      sText(o.t,mx,my-14,{size:18,color:'#4c463e'});
+    }
+    if(isUnk && !uk.matched){ SV.push('</g>'); }
+  });
+  // 求和漫游
+  if(R.walk) drawWalk(R.walk,{width:7});
+  if(allMatched&&!R.done&&!R.walk){
+    sText('全部配对成功！看看周长是多少…', CW/2, 26, {size:19,color:PAL.c1});
+  }
+  if(R.walk&&R.walk.len>=R.walk.total-0.01){
+    sText('合计 '+fmtNum(R.walk.total)+' '+L.unit, CW/2, SY(L.world.h)+34, {size:22,color:'#1c6b43'});
+  }
+}
+
+/* ---------------- m3 绘制 ---------------- */
+function drawM3(now){
+  var b=L.board, pulse=0.5+0.5*Math.sin(now/300);
+  // 底板
+  sRect(SX(b.x),SY(b.y),b.w*VIEW.ux,b.h*VIEW.ux,PAL.c2,0.10,PAL.ink,4);
+  // 位置虚线框提示
+  var seen={};
+  L.zones.forEach(function(z,i){
+    if(seen[z.card]) return; seen[z.card]=true;
+    sRect(SX(z.x),SY(z.y),L.piece.w*VIEW.ux,L.piece.h*VIEW.ux,null,1,PAL.c1,2.5,[7,6]);
+    sText(L.zoneTag[z.card], SX(z.x+L.piece.w/2), SY(z.y+L.piece.h/2), {size:16,color:PAL.c1});
+  });
+  // 吸附高亮
+  var zi=zoneUnder();
+  if(zi>=0){
+    var zz=L.zones[zi];
+    sRect(SX(zz.x)-3,SY(zz.y)-3,Math.round(L.piece.w*VIEW.ux)+6,Math.round(L.piece.h*VIEW.ux)+6,null,1,PAL.c1,5);
+  }
+  // 已完成卡片的结果徽章
+  R.cards.forEach(function(cd){
+    if(!cd.got) return;
+    var z=L.zones.find(function(zz){ return zz.card===cd.c.key; });
+    if(z && !(R.px===z.x&&R.py===z.y)){
+      sText(cd.c.peri+L.unit, SX(z.x+L.piece.w/2), SY(z.y-0.35), {size:16,color:'#1c6b43'});
+    }
+  });
+  // 小纸片（命名组，组内相对坐标，拖拽时只改组平移量）
+  var px=SX(R.px), py=SY(R.py), pw=Math.round(L.piece.w*VIEW.ux), ph=Math.round(L.piece.h*VIEW.ux);
+  // 剪后走边动画时把纸片位置画成“剪掉”效果：底板挖洞
+  if(R.walk){
+    sRect(px-2,py-2,pw+8,ph+8,PAL.bg2,1,null,0);
+  }
+  SV.push('<g id="cutPieceG" transform="translate('+px+','+py+')">');
+  sRect(2,2,pw,ph,PAL.c1,0.88,'#fff',2.5,null,8);
+  var lines=L.piece.label.split('\n');
+  sText(lines[0], pw/2+2, ph/2-9, {size:16,color:'#fff'});
+  sText(lines[1], pw/2+2, ph/2+10, {size:16,color:'#fff'});
+  if(!R.walk&&!R.done){
+    sText('拖我去不同位置！', pw/2+2, -16, {size:17,color:PAL.c1});
+  }
+  SV.push('</g>');
+  // 剪后走边动画
+  if(R.walk){
+    drawWalk(R.walk,{width:6});
+    if(R.walk.len>=R.walk.total-0.01){
+      sText('剩下图形的周长 = '+fmtNum(R.walk.total)+' '+L.unit, CW/2, 28, {size:22,color:'#1c6b43'});
+    }
+  }
+}
+
+/* ---------------- m4 绘制 ---------------- */
+function drawM4(now){
+  var b=L.board, pulse=0.5+0.5*Math.sin(now/300);
+  // 9 个小长方形淡显
+  var xs=[0,2,4,6], ys=[0,2,4,6];
+  for(var i=0;i<3;i++)for(var j=0;j<3;j++){
+    sRect(SX(xs[i]),SY(ys[j]),2*VIEW.ux,2*VIEW.ux,((i+j)%2?PAL.c1:PAL.c2),0.10);
+  }
+  sRect(SX(0),SY(0),6*VIEW.ux,6*VIEW.ux,null,1,PAL.ink,3);
+  // 尚未分类的线（同样式，不泄露类型）
+  R.lines.forEach(function(ln){
+    if(ln.done) return;
+    var isDrag=(DRG&&DRG.kind==='l'&&R.lines[DRG.i]===ln);
+    if(isDrag&&R.dragPos){
+      SV.push('<g id="dragLineG">');
+      var A=segScr(ln.l.a), B=segScr(ln.l.b);
+      var ox=R.dragPos.x-A[0]-(B[0]-A[0])/2, oy=R.dragPos.y-A[1]-(B[1]-A[1])/2;
+      sGlowLine(Math.round(A[0]+ox),Math.round(A[1]+oy),Math.round(B[0]+ox),Math.round(B[1]+oy),PAL.c1,7,1);
+      // 原位置残影
+      sLine(SX(ln.l.a[0]),SY(ln.l.a[1]),SX(ln.l.b[0]),SY(ln.l.b[1]),PAL.c1,4,null,0.18);
+      SV.push('</g>');
+    }else{
+      sGlowLine(SX(ln.l.a[0]),SY(ln.l.a[1]),SX(ln.l.b[0]),SY(ln.l.b[1]),PAL.c1,6,pulse);
+    }
+  });
+  if(R.lines.every(function(x){return x.done;})&&!R.done){
+    sText('边框 6×4×1 = 24　内部 6×4×2 = 48', CW/2, 28, {size:20,color:'#1c6b43'});
+  }
+}
+
+/* ---------------- m5 绘制 ---------------- */
+function drawM5(now){
+  var o=L.outer;
+  sRect(SX(o.x),SY(o.y),o.w*VIEW.ux,o.h*VIEW.ux,null,1,PAL.ink,5);
+  L.cells.forEach(function(c,i){
+    sRect(SX(c.x),SY(c.y),c.w*VIEW.ux,c.h*VIEW.ux,((i%2)?PAL.c1:PAL.c2),0.14,'#b7ad9e',2,[5,4]);
+    var lit=R.chips.some(function(ch){ return ch.used&&ch.v===c.peri; });
+    if(lit){
+      sRect(SX(c.x)+2,SY(c.y)+2,Math.round(c.w*VIEW.ux)-4,Math.round(c.h*VIEW.ux)-4,null,1,PAL.ok,4);
+    }
+    sText(c.peri+L.unit, SX(c.x+c.w/2), SY(c.y+c.h/2), {size:19,color:lit?'#1c6b43':PAL.ink});
+  });
+  if(R.n>=4&&!R.done&&!R.walk){
+    sText('总和 = 60，正好走了两圈！60÷2 = 30 '+L.unit, CW/2, 26, {size:20,color:PAL.c1});
+  }
+  if(R.walk){
+    drawWalk(R.walk,{width:8});
+    if(R.walk.len>=R.walk.total-0.01){
+      sText('两圈 = 60 '+L.unit+'，一圈 = 30 '+L.unit, CW/2, SY(L.world.h)+36, {size:21,color:'#1c6b43'});
+    }
+  }
+}
+
+/* ============================================================
+   彩纸庆祝（G5）—— 纯 DOM/CSS 实现：合成器动画，稳定流畅
+   ============================================================ */
+function spawnConfetti(x, y, n){
+  var layer=document.getElementById('confettiLayer');
+  if(!layer) return;
+  var colors=[PAL.c1,PAL.c2,'#f4b942','#06d6a0','#ef476f','#ffffff'];
+  for(var i=0;i<n;i++){
+    var el=document.createElement('div');
+    el.className='cf';
+    var dur=1.3+Math.random()*1.1;
+    el.style.left=x+'px'; el.style.top=y+'px';
+    el.style.background=colors[Math.floor(Math.random()*colors.length)];
+    el.style.setProperty('--dx',((Math.random()-0.5)*520)+'px');
+    el.style.setProperty('--dy',(260+Math.random()*460)+'px');
+    el.style.setProperty('--rot',(Math.random()*720-360)+'deg');
+    el.style.setProperty('--dur',dur+'s');
+    layer.appendChild(el);
+    (function(node,ms){ setTimeout(function(){ node.remove(); }, ms); })(el, dur*1000+120);
+  }
+}
+
+/* ============================================================
+   界面事件绑定
+   ============================================================ */
+document.querySelectorAll('.diffCard').forEach(function(b){
+  b.addEventListener('click',function(){ startGame(b.getAttribute('data-diff')); });
+});
+$('#btnRules1').addEventListener('click',openRules);
+$('#btnRules2').addEventListener('click',openRules);
+$('#btnCloseRules').addEventListener('click',closeRules);
+$('#btnBack').addEventListener('click',function(){
+  G.playing=false; if(G.timerId) clearInterval(G.timerId);
+  L=null; R=null; showScreen('home');
+});
+$('#btnRestart').addEventListener('click',function(){ if(L) loadLevel(); });          // 重新开始
+$('#btnReveal').addEventListener('click',revealLevel);                                 // 揭示答案
+$('#btnNext').addEventListener('click',function(){
+  $('#overlayEnd').classList.add('hidden');
+  nextLevel();
+});
+$('#btnAgain').addEventListener('click',function(){
+  $('#overlayEnd').classList.add('hidden');
+  startGame(G.diff);
+});
+$('#btnHome2').addEventListener('click',function(){
+  $('#overlayEnd').classList.add('hidden');
+  G.playing=false; if(G.timerId) clearInterval(G.timerId);
+  L=null; R=null; showScreen('home');
+});
+cv.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+
+/* 启动 */
+applyPalette();
+showScreen('home');
+requestAnimationFrame(loop);
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-j/g002", "name": "\u5de7\u6c42\u5468\u957f \u00b7 \u5e73\u79fb\u9b54\u6cd5\u5de5\u574a", "file": "g002.html", "jiaocan": "\u30108\u3011#\u7efc\u5408\u7ec3\u4e60#\u7b2c2\u8bb2 \u5de7\u6c42\u5468\u957f", "unit": "\u7b2c2\u8bb2", "grade": "\u56db\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "J\uff1a\u51e0\u4f55\u4e13\u9879", "kind": "\u6e38\u620f", "kinds": ["\u7efc\u5408\u7ec3\u4e60"], "ver": "1.0.0", "hub": "\u51e0\u4f55\u4e13\u9879\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-j"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

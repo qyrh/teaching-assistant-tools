@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>测绘探险队 · 余弦定理寻宝（11.1 余弦定理）</title>
+<style>
+/* ============ 全局样式（主色由 JS 从预设色板随机注入 CSS 变量） ============ */
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { width:100%; min-height:100%; }
+body {
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;
+  background:var(--bg,#e8f4fd); color:#1e293b; font-size:17px; line-height:1.6;
+  transition:background .6s;
+}
+#app { max-width:1080px; margin:0 auto; padding:10px 14px 40px; }
+
+/* ---------- 顶栏（G7：计时器与步数实时显示） ---------- */
+.topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  padding:10px 16px; border-radius:16px; background:var(--p,#0e7490); color:#fff; box-shadow:0 4px 14px rgba(0,0,0,.15); }
+.topbar h1 { font-size:22px; letter-spacing:1px; }
+.topbar .sub { font-size:14px; opacity:.92; }
+.hud { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.hud .chip { background:rgba(255,255,255,.18); border:2px solid rgba(255,255,255,.45);
+  border-radius:12px; padding:3px 12px; font-size:17px; font-weight:700; min-width:86px; text-align:center; }
+.toolrow { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+
+/* ---------- 通用按钮 ---------- */
+.btn { border:none; cursor:pointer; border-radius:14px; padding:10px 18px; font-size:17px; font-weight:700;
+  background:var(--p,#0e7490); color:#fff; box-shadow:0 3px 0 rgba(0,0,0,.22); transition:transform .08s; }
+.btn:active { transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.22); }
+.btn.ghost { background:#fff; color:var(--pd,#155e75); border:2px solid var(--p,#0e7490); box-shadow:0 3px 0 rgba(0,0,0,.12); }
+.btn.warn { background:var(--ac,#f59e0b); }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+
+/* ---------- 菜单（G3：三档难度） ---------- */
+.menu { text-align:center; padding:26px 10px 10px; }
+.menu h2 { font-size:34px; color:var(--pd,#155e75); margin-bottom:6px; }
+.menu .tagline { font-size:18px; color:#475569; margin-bottom:18px; }
+.tiers { display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin:16px 0; }
+.tier { width:260px; border-radius:20px; padding:20px 16px; cursor:pointer; background:#fff;
+  border:3px solid var(--p,#0e7490); box-shadow:0 6px 16px rgba(0,0,0,.12); transition:transform .15s; }
+.tier:hover { transform:translateY(-6px); }
+.tier h3 { font-size:24px; color:var(--pd,#155e75); }
+.tier .lv { display:inline-block; margin:6px 0; padding:2px 12px; border-radius:10px; background:var(--bg,#e0f2fe); color:var(--pd,#155e75); font-weight:700; }
+.tier p { font-size:15px; color:#475569; }
+.menu .palinfo { font-size:15px; color:#64748b; margin-top:10px; }
+
+/* ---------- 站台 ---------- */
+.station { background:#fff; border-radius:20px; padding:18px; box-shadow:0 6px 18px rgba(0,0,0,.10); margin-top:12px; }
+.st-head h2 { font-size:26px; color:var(--pd,#155e75); }
+.st-head .goal { font-size:17px; color:#334155; background:var(--bg,#e0f2fe); border-radius:12px; padding:8px 14px; margin:8px 0; }
+.st-body { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; margin-top:10px; }
+.st-col { flex:1 1 380px; min-width:320px; }
+.st-col h4 { font-size:19px; color:var(--pd,#155e75); margin-bottom:6px; }
+svg.fig { width:100%; height:auto; display:block; background:var(--bg,#e0f2fe); border-radius:14px; }
+.figcap { font-size:15px; color:#64748b; text-align:center; margin-top:4px; }
+.readout { font-size:20px; font-weight:700; text-align:center; margin:8px 0; color:var(--pd,#155e75); }
+.readout .big { font-size:26px; color:var(--p,#0e7490); }
+.explbox { margin-top:12px; border-radius:14px; padding:12px 16px; background:#fffbeb; border:2px dashed var(--ac,#f59e0b); font-size:17px; }
+.explbox b { color:#b45309; }
+.qtext { background:#f8fafc; border-left:6px solid var(--p,#0e7490); border-radius:10px; padding:10px 14px; font-size:17px; margin-bottom:10px; }
+
+/* ---------- 装置一：平方天平 ---------- */
+.scalewrap { position:relative; height:244px; margin-top:6px; }
+.beam { position:absolute; left:6%; right:6%; top:34px; height:14px; border-radius:8px;
+  transform:rotate(var(--tilt,0deg)); transform-origin:50% 50%; transition:transform .5s, background .3s; }
+.pivot { position:absolute; left:50%; top:28px; transform:translateX(-50%); width:22px; height:56px; border-radius:8px 8px 0 0; }
+.base { position:absolute; left:50%; top:78px; transform:translateX(-50%); width:130px; height:12px; border-radius:8px; }
+.pan { position:absolute; top:64px; width:44%; min-height:122px; border-radius:14px; border:3px dashed var(--p,#0e7490); background:#f8fafc; padding:6px; }
+.pan.hot { background:#fef3c7; border-color:var(--ac,#f59e0b); }
+.pan-l { left:0; } .pan-r { right:0; }
+.pan .panname { font-size:16px; font-weight:700; color:var(--pd,#155e75); text-align:center; }
+.pan .paninner { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; min-height:48px; margin-top:4px; align-items:flex-start; }
+.bin { margin-top:10px; border:3px dashed #94a3b8; border-radius:14px; padding:8px; min-height:60px; background:#f1f5f9; }
+.bin .panname { color:#475569; font-weight:700; text-align:center; }
+.bin .paninner { display:flex; gap:6px; flex-wrap: wrap; justify-content:center; }
+.blocklist { display:flex; flex-wrap:wrap; gap:12px; margin:8px 0 4px; min-height:64px; }
+.block { user-select:none; touch-action:none; cursor:grab; width:108px; border-radius:12px; padding:8px 6px; text-align:center;
+  background:linear-gradient(180deg,#fff,var(--bg,#e0f2fe)); border:3px solid var(--p,#0e7490); box-shadow:0 4px 10px rgba(0,0,0,.14); }
+.block .bt { font-size:17px; font-weight:800; color:var(--pd,#155e75); }
+.block .bv { font-size:15px; color:#334155; }
+.block.dragging { z-index:500; box-shadow:0 10px 24px rgba(0,0,0,.28); }
+.block.placed { cursor:default; }
+.block.decoy { border-color:#94a3b8; }
+/* 已放入盘中/回收站的原料块使用紧凑样式，避免撑大托盘、遮挡其它区域 */
+.paninner .block { width:74px; padding:4px 2px; }
+.paninner .block .bt { font-size:14px; }
+.paninner .block .bv { font-size:12px; }
+.egg { margin:4px auto; width:100px; border-radius:50% 50% 46% 46%; background:radial-gradient(circle at 35% 30%, #fde68a, var(--ac,#f59e0b));
+  color:#7c2d12; font-weight:800; text-align:center; padding:12px 4px; font-size:17px; box-shadow:0 4px 10px rgba(0,0,0,.2); }
+.egg.open { animation:pop .5s; background:radial-gradient(circle at 35% 30%, #bbf7d0, #22c55e); color:#14532d; }
+.formula { text-align:center; font-size:20px; font-weight:800; color:var(--pd,#155e75); background:var(--bg,#e0f2fe);
+  border-radius:12px; padding:8px; margin-bottom:8px; letter-spacing:1px; }
+.tipmsg { min-height:30px; font-size:16px; color:#92400e; font-weight:700; text-align:center; margin-top:6px; }
+
+/* ---------- 装置二：角度罗盘 ---------- */
+.compass-hint { font-size:16px; color:#475569; text-align:center; margin-top:4px; }
+.closeness { height:18px; border-radius:9px; background:#e2e8f0; overflow:hidden; margin:8px auto; max-width:420px; }
+.closeness .fill { height:100%; width:0%; background:linear-gradient(90deg,#f87171,#fbbf24,#22c55e); transition:width .12s; }
+
+/* ---------- 装置三：形状分拣码头 ---------- */
+.cardtray { display:flex; flex-wrap:wrap; gap:14px; min-height:150px; margin-top:6px; }
+.tcard { user-select:none; touch-action:none; cursor:grab; width:172px; background:#fff; border:3px solid var(--p,#0e7490);
+  border-radius:14px; padding:6px; box-shadow:0 4px 10px rgba(0,0,0,.14); text-align:center; }
+.tcard .tt { font-size:16px; font-weight:800; color:var(--pd,#155e75); }
+.tcard svg { width:100%; height:auto; }
+.tcard.dragging { z-index:500; box-shadow:0 10px 24px rgba(0,0,0,.28); }
+.docks { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; }
+.dock { flex:1 1 180px; min-height:132px; border-radius:16px; border:3px dashed var(--p,#0e7490); background:var(--bg,#e0f2fe);
+  padding:8px; text-align:center; }
+.dock.hot { background:#fef3c7; border-color:var(--ac,#f59e0b); }
+.dock h5 { font-size:19px; color:var(--pd,#155e75); }
+.dock .dinner { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:6px; min-height:40px; }
+.dinner .tcard { width:104px; padding:2px; transform:scale(.92); }
+.dinner .tcard .tt { font-size:13px; }
+.doneshake { animation:shake .45s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+@keyframes pop { 0%{transform:scale(.6)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+
+/* ---------- 数轴（装置四 / 五） ---------- */
+.axiswrap { margin:14px 0 6px; }
+.axistitle { font-size:17px; font-weight:700; color:var(--pd,#155e75); margin-bottom:6px; }
+.track { position:relative; height:92px; margin:0 10px; touch-action:none; cursor:crosshair; }
+.track .bar { position:absolute; left:0; right:0; top:54px; height:8px; border-radius:4px; background:#334155; }
+.tick { position:absolute; top:58px; width:2px; background:#64748b; }
+.tick.major { height:20px; top:50px; background:#1e293b; }
+.tick.minor { height:10px; }
+.tlabel { position:absolute; top:74px; transform:translateX(-50%); font-size:15px; color:#334155; }
+.flag { position:absolute; top:-4px; width:26px; height:64px; transform:translateX(-50%); }
+.flag .pole { position:absolute; left:11px; top:12px; width:4px; height:50px; background:var(--pd,#155e75); border-radius:2px; }
+.flag .cloth { position:absolute; left:14px; top:12px; width:0; height:0; border-top:11px solid transparent;
+  border-bottom:11px solid transparent; border-left:30px solid var(--ac,#f59e0b); }
+.flag .knob { position:absolute; left:3px; top:6px; width:20px; height:20px; border-radius:50%; background:var(--p,#0e7490); border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+.flag.ok .knob { background:#22c55e; }
+.hnd { position:absolute; top:36px; width:34px; height:34px; border-radius:50%; transform:translateX(-50%);
+  background:#fff; border:5px solid var(--p,#0e7490); }
+.hnd.ok { border-color:#22c55e; }
+
+/* ---------- 弹窗（G6：规则说明等） ---------- */
+.modal { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; z-index:900; padding:16px; }
+.modal[hidden] { display:none; }
+.modal .box { background:#fff; border-radius:20px; max-width:660px; width:100%; max-height:88vh; overflow:auto; padding:22px 24px; box-shadow:0 10px 40px rgba(0,0,0,.35); }
+.modal h3 { font-size:24px; color:var(--pd,#155e75); margin-bottom:10px; }
+.modal .box p, .modal .box li { font-size:17px; color:#334155; }
+.modal ol, .modal ul { padding-left:24px; margin:8px 0; }
+.modal .stars { font-size:34px; color:var(--ac,#f59e0b); letter-spacing:6px; text-align:center; margin:6px 0; }
+.modal .btnrow { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+.knowledge { background:var(--bg,#e0f2fe); border-radius:12px; padding:10px 14px; margin:10px 0; font-size:17px; }
+.knowledge b { color:var(--pd,#155e75); }
+
+/* ---------- 结算 ---------- */
+.final { text-align:center; padding:30px 10px; }
+.final h2 { font-size:36px; color:var(--pd,#155e75); }
+.final .stats { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin:16px 0; }
+.final .stat { background:#fff; border:3px solid var(--p,#0e7490); border-radius:16px; padding:10px 22px; font-size:18px; }
+.final .stat b { font-size:26px; color:var(--p,#0e7490); }
+.roundlist { max-width:560px; margin:0 auto 12px; text-align:left; }
+.roundlist .ri { display:flex; justify-content:space-between; gap:8px; background:#fff; border-radius:12px; padding:8px 14px; margin:6px 0; font-size:16px; border:2px solid var(--bg,#e0f2fe); }
+.roundlist .st { color:var(--ac,#f59e0b); font-weight:800; letter-spacing:3px; white-space:nowrap; }
+
+#confetti { position:fixed; inset:0; pointer-events:none; z-index:950; display:none; }
+
+/* ---------- 响应式（G11：移动端可玩） ---------- */
+@media (max-width:720px) {
+  body { font-size:16px; }
+  .topbar h1 { font-size:19px; }
+  .tier { width:100%; }
+  .st-col { flex:1 1 100%; min-width:0; }
+  .block { width:96px; }
+  .tcard { width:46%; }
+  .menu h2 { font-size:28px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 顶栏：标题 + 计时/步数 -->
+  <div class="topbar">
+    <div>
+      <h1>测绘探险队 · 余弦定理寻宝</h1>
+      <div class="sub">高中数学 · 第11章 解三角形 · 11.1 余弦定理</div>
+    </div>
+    <div class="hud">
+      <div class="chip" id="hud-round">第 -/3 关</div>
+      <div class="chip" id="hud-timer">00:00</div>
+      <div class="chip" id="hud-steps">步数 0</div>
+    </div>
+  </div>
+
+  <!-- 工具按钮行（G4） -->
+  <div class="toolrow" id="toolrow" hidden>
+    <button class="btn ghost" id="btn-rules2">规则说明</button>
+    <button class="btn warn" id="btn-reveal">揭示答案</button>
+    <button class="btn ghost" id="btn-restart">重新开始</button>
+    <button class="btn ghost" id="btn-back">返回难度选择</button>
+  </div>
+
+  <!-- 难度选择菜单 -->
+  <section class="menu" id="screen-menu">
+    <h2>出发吧，测绘探险队！</h2>
+    <div class="tagline">用余弦定理测距离、找角度、辨形状，收集满星寻宝成果！</div>
+    <div class="tiers">
+      <div class="tier" data-tier="easy">
+        <h3>初级 · 训练海湾</h3>
+        <span class="lv">例题级</span>
+        <p>特殊角（60°/90°/120°）的平方天平与角度罗盘，整数边数据分拣，热身刚刚好。</p>
+      </div>
+      <div class="tier" data-tier="mid">
+        <h3>中级 · 航线工坊</h3>
+        <span class="lv">练习级</span>
+        <p>钝角夹角、带根号的结果、非特殊角的罗盘微调，还有含根号的边长分拣。</p>
+      </div>
+      <div class="tier" data-tier="hard">
+        <h3>高级 · 深海秘境</h3>
+        <span class="lv">变式综合级</span>
+        <p>隧道、灯塔、航船的真实测绘任务，加上取值范围探测器，综合运用余弦定理。</p>
+      </div>
+    </div>
+    <button class="btn" id="btn-rules1">规则说明</button>
+    <div class="palinfo" id="palinfo"></div>
+  </section>
+
+  <!-- 游戏区（每关装置由 JS 注入） -->
+  <section id="screen-game" hidden>
+    <div class="station" id="station"></div>
+  </section>
+
+  <!-- 结算区 -->
+  <section class="final" id="screen-final" hidden>
+    <h2 id="final-title">全部通关，寻宝成功！</h2>
+    <div class="stats">
+      <div class="stat">用时 <b id="f-time">--</b></div>
+      <div class="stat">总步数 <b id="f-steps">--</b></div>
+      <div class="stat">星级 <b id="f-stars">--</b></div>
+    </div>
+    <div class="roundlist" id="f-rounds"></div>
+    <div class="btnrow">
+      <button class="btn" id="btn-again">再玩一次（重新抽题）</button>
+      <button class="btn ghost" id="btn-back2">返回难度选择</button>
+    </div>
+  </section>
+</div>
+
+<!-- 庆祝彩带画布（G5） -->
+<canvas id="confetti"></canvas>
+
+<!-- 规则说明弹窗（G6：进入时弹出，可随时再看） -->
+<div class="modal" id="modal-rules" hidden>
+  <div class="box">
+    <h3>规则说明 · 知识锦囊</h3>
+    <p>你是<strong>测绘探险队</strong>的领队。每局共 <strong>3 关</strong>，每关一种测绘装置，全部通关即寻宝成功！右上角实时显示<strong>计时</strong>与<strong>步数</strong>，步数越少，星星越多。</p>
+    <div class="knowledge">
+      <b>余弦定理：</b>三角形任何一边的平方，等于其他两边平方的和，减去这两边与它们夹角的余弦的积的两倍：<br>
+      a² = b² + c² − 2bc·cosA<br>
+      <b>推论（已知三边求角）：</b>cosA = (b² + c² − a²) / (2bc)<br>
+      <b>勾股特例：</b>夹角为 90° 时 cosA = 0，余弦定理变成勾股定理；<br>
+      <b>判形方法：</b>最大边² ＜ 其余两边平方和 → 锐角；相等 → 直角；大于 → 钝角。<b>大边对大角</b>。
+    </div>
+    <ul>
+      <li><b>平方天平：</b>把 b²、c² 原料块拖上右盘；判断 cosA 的正负，把「余弦修正块 2bc·cosA」放到正确的盘子（值为 0 时送回收站），天平平衡即开启金蛋，得到第三边 a。</li>
+      <li><b>角度罗盘：</b>拖动亮色手柄改变夹角∠C，对边 AB 随之伸缩，让它精确等于目标长度即可锁定（先用推论算出 cosC 会又快又准）。</li>
+      <li><b>形状分拣码头：</b>把三角形卡片拖进「锐角 / 直角 / 钝角」三个码头，依据是比较最大边的平方与其余两边的平方和。</li>
+      <li><b>实景测绘图：</b>通读测绘任务（条件都在文字和图中），算出答案后把旗帜拖到数轴上的正确位置。</li>
+      <li><b>范围探测器：</b>拖动两个空心手柄，框出满足条件的开区间范围。</li>
+    </ul>
+    <p>每局主色从预设色板随机抽取，关卡数据随机抽样，每次玩都有新鲜感。遇到困难可以点<strong>「揭示答案」</strong>（本关按 1 星记录）。</p>
+    <div class="btnrow"><button class="btn" id="btn-rules-ok">我知道了，出发！</button></div>
+  </div>
+</div>
+
+<!-- 关卡介绍弹窗 -->
+<div class="modal" id="modal-round" hidden>
+  <div class="box">
+    <h3 id="mr-title">第 1 关</h3>
+    <p id="mr-text"></p>
+    <div class="btnrow"><button class="btn" id="btn-round-go">开始挑战</button></div>
+  </div>
+</div>
+
+<!-- 单关结算弹窗 -->
+<div class="modal" id="modal-result" hidden>
+  <div class="box">
+    <h3 id="res-title">本关完成！</h3>
+    <div class="stars" id="res-stars">★★★</div>
+    <div class="explbox" id="res-expl"></div>
+    <div class="btnrow"><button class="btn" id="btn-next">下一关</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   测绘探险队 · 余弦定理寻宝（单文件自包含，零外部依赖）
+   关卡数据全部来自教参《11.1 余弦定理》的例题、练习与变式，
+   按反重复机制随机抽样、随机配色（每局不同）。
+   ===================================================================== */
+
+/* ---------------- 调色板（G8：每局随机抽取主色） ---------------- */
+var PALETTES = [
+  { name:'碧海蓝', p:'#0e7490', pd:'#155e75', bg:'#e0f2fe', ac:'#f59e0b' },
+  { name:'珊瑚橙', p:'#ea580c', pd:'#9a3412', bg:'#ffedd5', ac:'#0d9488' },
+  { name:'森野绿', p:'#15803d', pd:'#166534', bg:'#dcfce7', ac:'#d97706' },
+  { name:'紫罗兰', p:'#7c3aed', pd:'#5b21b6', bg:'#ede9fe', ac:'#db2777' },
+  { name:'日落金', p:'#b45309', pd:'#92400e', bg:'#fef3c7', ac:'#0369a1' },
+  { name:'青碧潮', p:'#0f766e', pd:'#115e59', bg:'#ccfbf1', ac:'#c2410c' }
+];
+var PAL = PALETTES[0]; /* 当前局使用的色板（JS 内直接引用） */
+
+/* ---------------- 题目数据池（数值均已人工核算） ---------------- */
+
+/* 平方天平池：已知 b、c 与夹角 A，求 a。
+   dest 为修正块正确去向：L=左盘（与金蛋同侧，相当于从 b²+c² 中减去）
+   R=右盘（负余弦变加项）、Z=回收站（值为 0）。 */
+var BALANCE_POOL = {
+  easy: [
+    { b:5, c:8, A:60, b2:'25', c2:'64', w:'40', a2:'49', a:'7', dest:'L',
+      decoys:[['2bc','80'],['bc·sinA','20√3≈34.6']],
+      expl:'a² = b²+c²−2bc·cosA = 25+64−2×5×8×cos60° = 89−40 = 49，a = √49 = <b>7</b>。cos60°=1/2＞0，修正块 40 与金蛋同放左盘，相当于从 89 中减去 40。' },
+    { b:3, c:4, A:90, b2:'9', c2:'16', w:'0', a2:'25', a:'5', dest:'Z',
+      decoys:[['2bc','24'],['bc·sinA','12']],
+      expl:'∠A=90°，cosA=0，修正块 2bc·cosA=0，送进回收站；a² = b²+c² = 9+16 = 25，a = <b>5</b>。勾股定理正是余弦定理在夹角 90° 时的特例！' },
+    { b:2, c:3, A:60, b2:'4', c2:'9', w:'6', a2:'7', a:'√7≈2.65', dest:'L',
+      decoys:[['2bc','12'],['bc·sinA','3√3≈5.2']],
+      expl:'a² = 4+9−2×2×3×cos60° = 13−6 = 7，a = <b>√7≈2.65</b>。cos60°＞0，修正块 6 放左盘。' }
+  ],
+  mid: [
+    { b:6, c:10, A:120, b2:'36', c2:'100', w:'60', a2:'196', a:'14', dest:'R',
+      decoys:[['2bc','120'],['bc·sinA','30√3≈52.0']],
+      expl:'cos120°=−1/2＜0：a² = 36+100−2×6×10×(−1/2) = 136+60 = 196，a = <b>14</b>。负余弦让 −2bc·cosA 变成加项，修正块 60 放右盘。' },
+    { b:5, c:3, A:120, b2:'25', c2:'9', w:'15', a2:'49', a:'7', dest:'R',
+      decoys:[['2bc','30'],['bc·sinA','15√3/2≈13.0']],
+      expl:'a² = 25+9−2×5×3×cos120° = 34+15 = 49，a = <b>7</b>。cos120°＜0，修正块 15 放右盘（加项）。' },
+    { b:3, c:2, A:120, b2:'9', c2:'4', w:'6', a2:'19', a:'√19≈4.36', dest:'R',
+      decoys:[['2bc','12'],['bc·sinA','3√3≈5.2']],
+      expl:'a² = 9+4−2×3×2×cos120° = 13+6 = 19，a = <b>√19≈4.36</b>。钝角的余弦为负，右盘要加上修正块 6。' },
+    { b:2, c:5, A:120, b2:'4', c2:'25', w:'10', a2:'39', a:'√39≈6.24', dest:'R',
+      decoys:[['2bc','20'],['bc·sinA','5√3≈8.7']],
+      expl:'a² = 4+25−2×2×5×cos120° = 29+10 = 39，a = <b>√39≈6.24</b>。' },
+    { b:4, c:6, A:60, b2:'16', c2:'36', w:'24', a2:'28', a:'2√7≈5.29', dest:'L',
+      decoys:[['2bc','48'],['bc·sinA','12√3≈20.8']],
+      expl:'a² = 16+36−2×4×6×cos60° = 52−24 = 28，a = <b>2√7≈5.29</b>。cos60°＞0，修正块 24 放左盘（减项）。' }
+  ]
+};
+
+/* 角度罗盘池：两根测杆 a=CB、b=CA，目标对边 AB=X，学生拖出夹角∠C */
+var COMPASS_POOL = {
+  easy: [
+    { a:5, b:8, X:7, Xd:'7', cosEx:'(25+64−49)/(2×5×8) = 40/80 = 1/2', angEx:'60°' },
+    { a:6, b:10, X:14, Xd:'14', cosEx:'(36+100−196)/(2×6×10) = −60/120 = −1/2', angEx:'120°' },
+    { a:3, b:8, X:7, Xd:'7', cosEx:'(9+64−49)/(2×3×8) = 24/48 = 1/2', angEx:'60°' },
+    { a:3, b:5, X:7, Xd:'7', cosEx:'(9+25−49)/(2×3×5) = −15/30 = −1/2', angEx:'120°' }
+  ],
+  mid: [
+    { a:1, b:1, X:Math.SQRT2, Xd:'√2', cosEx:'(1+1−2)/(2×1×1) = 0', angEx:'90°' },
+    { a:5, b:6, X:4, Xd:'4', cosEx:'(25+36−16)/(2×5×6) = 45/60 = 3/4', angEx:'≈41.4°' },
+    { a:4, b:5, X:6, Xd:'6', cosEx:'(16+25−36)/(2×4×5) = 5/40 = 1/8', angEx:'≈82.8°' }
+  ],
+  hard: [
+    { a:2, b:3, X:4, Xd:'4', cosEx:'(4+9−16)/(2×2×3) = −3/12 = −1/4', angEx:'≈104.5°' },
+    { a:5, b:6, X:4, Xd:'4', cosEx:'(25+36−16)/(2×5×6) = 45/60 = 3/4', angEx:'≈41.4°' },
+    { a:4, b:5, X:6, Xd:'6', cosEx:'(16+25−36)/(2×4×5) = 5/40 = 1/8', angEx:'≈82.8°' }
+  ]
+};
+
+/* 形状分拣池（v 为画图用长度，lb 为三边标注） */
+var SORT_POOL = {
+  easy: {
+    acute: [
+      { lb:['4','5','6'], v:[4,5,6], face:'三边 4、5、6', type:'acute', chk:'最大边6：6²=36 ＜ 4²+5²=41 → 锐角三角形' },
+      { lb:['5','6','7'], v:[5,6,7], face:'三边 5、6、7', type:'acute', chk:'最大边7：7²=49 ＜ 5²+6²=61 → 锐角三角形' }
+    ],
+    right: [
+      { lb:['5','12','13'], v:[5,12,13], face:'三边 5、12、13', type:'right', chk:'最大边13：13²=169 ＝ 5²+12²=169 → 直角三角形' },
+      { lb:['6','8','10'], v:[6,8,10], face:'三边 6、8、10', type:'right', chk:'最大边10：10²=100 ＝ 6²+8²=100 → 直角三角形' }
+    ],
+    obtuse: [
+      { lb:['2','3','4'], v:[2,3,4], face:'三边 2、3、4', type:'obtuse', chk:'最大边4：4²=16 ＞ 2²+3²=13 → 钝角三角形' },
+      { lb:['3','4','6'], v:[3,4,6], face:'三边 3、4、6', type:'obtuse', chk:'最大边6：6²=36 ＞ 3²+4²=25 → 钝角三角形' }
+    ]
+  },
+  mid: {
+    acute: [
+      { lb:['6','7','8'], v:[6,7,8], face:'三边 6、7、8', type:'acute', chk:'最大边8：8²=64 ＜ 6²+7²=85 → 锐角三角形' },
+      { lb:['4k','5k','6k'], v:[4,5,6], face:'三边之比 4:5:6', type:'acute', chk:'设三边 4k、5k、6k（k＞0）：(6k)²=36k² ＜ 16k²+25k²=41k² → 锐角三角形' }
+    ],
+    right: [
+      { lb:['2','√5','3'], v:[2,Math.sqrt(5),3], face:'三边 2、√5、3', type:'right', chk:'最大边3：3²=9 ＝ 2²+(√5)²=4+5=9 → 直角三角形' }
+    ],
+    obtuse: [
+      { lb:['1','√7','3'], v:[1,Math.sqrt(7),3], face:'三边 1、√7、3', type:'obtuse', chk:'最大边3：3²=9 ＞ 1²+(√7)²=1+7=8 → 钝角三角形' },
+      { lb:['2k','3k','4k'], v:[2,3,4], face:'三边之比 2:3:4', type:'obtuse', chk:'设三边 2k、3k、4k（k＞0）：(4k)²=16k² ＞ 4k²+9k²=13k² → 钝角三角形' }
+    ]
+  }
+};
+
+/* 实景测绘池（数轴定位，题面条件完整呈现，配图见 buildAppFig） */
+var AXIS_POOL = [
+  { id:'A1', name:'隧道测绘', unit:'km', max:3, minor:0.25, major:0.5, tol:0.12, target:Math.sqrt(3), tdisp:'√3 ≈ 1.73 km',
+    q:'高速公路建设中需要确定隧道的长度。工程技术人'+'员已测得隧道两端点 A、B 到山口测点 C 的距离 AC = BC = 1 km，且 ∠ACB = 120°。求 A、B 两点间的距离 AB。',
+    expl:'在△ABC 中，由余弦定理：AB² = AC²+BC²−2·AC·BC·cos120° = 1+1−2×1×1×(−1/2) = 3，所以 AB = <b>√3 ≈ 1.73 km</b>。' },
+  { id:'A2', name:'海上支援', unit:'海里', max:50, minor:2.5, major:10, tol:1.5, target:10*Math.sqrt(17), tdisp:'10√17 ≈ 41.2 海里',
+    q:'位于灯塔 A 正西方向、相距 30 海里的 B 处，一艘甲船需要海上加油；位于灯塔 A 北偏东 45° 方向、与灯塔 A 相距 10√2 海里的 C 处，有一艘乙船。乙船沿直线前往支援 B 处的甲船，求乙船需要航行的最短距离 BC。',
+    expl:'以灯塔 A 为顶点：正西方向与北偏东 45° 方向的夹角 ∠BAC = 135°。由余弦定理：BC² = 30²+(10√2)²−2×30×10√2×cos135° = 900+200+600 = 1700，BC = <b>10√17 ≈ 41.2 海里</b>。' },
+  { id:'A3', name:'灯塔与航船', unit:'海里', max:20, minor:1, major:5, tol:0.6, target:14, tdisp:'14 海里',
+    q:'一艘轮船以 18 海里/时的速度沿北偏东 40° 方向直线航行。行驶到 A 处时，测得它的南偏东 20° 方向上、10 海里处有一座灯塔 B。轮船继续行驶 20 分钟后到达 C 处，求此时轮船与灯塔 B 的距离 BC。',
+    expl:'20 分钟 = 1/3 小时，AC = 18×1/3 = 6 海里；航向（北偏东 40°，方位 40°）与灯塔方向（南偏东 20°，方位 160°）的夹角 ∠BAC = 160°−40° = 120°。由余弦定理：BC² = 10²+6²−2×10×6×cos120° = 100+36+60 = 196，BC = <b>14 海里</b>。' }
+];
+
+/* 范围探测池（双柄开区间） */
+var INTERVAL_POOL = [
+  { id:'I1', name:'安全范围探测', unit:'', max:8, minor:0.5, major:1, tol:0.3, lo:2, hi:6, adisp:'(2, 6)',
+    q:'在钝角三角形 ABC 中，AB = 3m，BC = 5m，AC = m+6（m＞0）。钝角所对的边是最大边。请拖动两个空心手柄，框出 m 的取值范围（开区间，端点取不到）。',
+    expl:'钝角对最大边，故 BC=5m 应为最大边：cosA = [(3m)²+(m+6)²−(5m)²]/(2×3m×(m+6)) ＜ 0，化简得 5m²−4m−12＞0，解得 m＞2；再由构成三角形的条件 3m+(m+6)＞5m 得 m＜6。故 m ∈ <b>(2, 6)</b>（开区间，端点取不到）。' },
+  { id:'I2', name:'最大角的区间', unit:'°', max:180, minor:10, major:30, tol:4, lo:60, hi:90, adisp:'(60°, 90°)',
+    q:'在不等边三角形 ABC 中，内角 A、B、C 的对边分别为 a、b、c，a 为最大边，且 a² ＜ b²+c²。请拖动两个空心手柄，在角度数轴上框出最大角 A 的取值范围（开区间）。',
+    expl:'a²＜b²+c² ⇒ b²+c²−a²＞0 ⇒ cosA＞0 ⇒ A＜90°；又 a 为最大边 ⇒ A 为最大角，内角和 180° ⇒ A＞60°（不等边三角形取不到等号）。故 A ∈ <b>(60°, 90°)</b>。' }
+];
+
+/* ---------------- 全局状态 ---------------- */
+var S = { tier:null, rounds:[], idx:0, steps:0, roundSteps:0, stars:[], revealed:false, sec:0, tick:null, ctrl:null };
+
+/* ---------------- 小工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(arr){ var a=arr.slice(),i,j,t; for(i=a.length-1;i>0;i--){ j=Math.floor(Math.random()*(i+1)); t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function fmt2(x){ return (Math.round(x*100)/100).toFixed(2); }
+function fmt1(x){ return (Math.round(x*10)/10).toFixed(1); }
+function mmss(s){ var m=Math.floor(s/60), r=s%60; return (m<10?'0':'')+m+':'+(r<10?'0':'')+r; }
+var TAU = Math.PI/180;
+function pt(cx,cy,r,aDeg){ var a=aDeg*TAU; return [cx+r*Math.cos(a), cy-r*Math.sin(a)]; }
+function arcPts(cx,cy,r,a1,a2,n){ var i,a,out=[]; n=n||16; for(i=0;i<=n;i++){ a=a1+(a2-a1)*i/n; out.push(pt(cx,cy,r,a).map(function(v){ return v.toFixed(1); }).join(',')); } return out.join(' '); }
+function svgEl(t,attrs){ var e=document.createElementNS('http://www.w3.org/2000/svg',t),k; for(k in attrs){ e.setAttribute(k,attrs[k]); } return e; }
+function svgText(x,y,str,size,fill,anchor){ var t=svgEl('text',{x:x,y:y,'font-size':size||17,fill:fill||'#1e293b','text-anchor':anchor||'middle','font-weight':'700'}); t.textContent=str; return t; }
+function hitRect(elm,x,y){ if(!elm){ return false; } var r=elm.getBoundingClientRect(); return x>=r.left-6 && x<=r.right+6 && y>=r.top-6 && y<=r.bottom+6; }
+function addStep(){ S.steps++; S.roundSteps++; $('hud-steps').textContent='步数 '+S.steps; }
+
+/* 通用指针拖拽（鼠标 + 触摸，G11） */
+function makeDrag(node, handlers){
+  node.addEventListener('pointerdown', function(e){
+    if(node.disabledDrag){ return; }
+    e.preventDefault();
+    e.stopPropagation(); /* 防止拖拽事件冒泡到父级可拖拽元素造成重复处理 */
+    try{ node.setPointerCapture(e.pointerId); }catch(err){}
+    if(handlers.start){ handlers.start(e); }
+    function mv(ev){ if(handlers.move){ handlers.move(ev); } }
+    function up(ev){
+      node.removeEventListener('pointermove', mv);
+      node.removeEventListener('pointerup', up);
+      node.removeEventListener('pointercancel', up);
+      if(handlers.end){ handlers.end(ev); }
+    }
+    node.addEventListener('pointermove', mv);
+    node.addEventListener('pointerup', up);
+    node.addEventListener('pointercancel', up);
+  });
+}
+
+/* ---------------- 调色板应用（G8） ---------------- */
+function applyPalette(){
+  PAL = pick(PALETTES);
+  var b = document.body.style;
+  b.setProperty('--p', PAL.p); b.setProperty('--pd', PAL.pd);
+  b.setProperty('--bg', PAL.bg); b.setProperty('--ac', PAL.ac);
+  $('palinfo').textContent = '本局主色：' + PAL.name + '（每次开局随机换装）';
+}
+
+/* ---------------- 关卡装配（反重复：随机抽样/打乱） ---------------- */
+function buildRounds(tier){
+  if(tier==='easy'){
+    return [
+      { type:'balance', item:pick(BALANCE_POOL.easy) },
+      { type:'compass', item:pick(COMPASS_POOL.easy) },
+      { type:'sort', cards:sampleSort(SORT_POOL.easy, 3) }
+    ];
+  }
+  if(tier==='mid'){
+    return [
+      { type:'balance', item:pick(BALANCE_POOL.mid) },
+      { type:'compass', item:pick(COMPASS_POOL.mid) },
+      { type:'sort', cards:sampleSort(SORT_POOL.mid, 4) }
+    ];
+  }
+  return [
+    { type:'axis', item:pick(AXIS_POOL) },
+    { type:'compass', item:pick(COMPASS_POOL.hard) },
+    { type:'interval', item:pick(INTERVAL_POOL) }
+  ];
+}
+/* 分拣卡片抽样：每类至少一张，剩余从余量补齐，再打乱顺序 */
+function sampleSort(pool, n){
+  var out=[ pick(pool.acute), pick(pool.right), pick(pool.obtuse) ], rest=[];
+  pool.acute.forEach(function(c){ if(out.indexOf(c)<0){ rest.push(c); } });
+  pool.right.forEach(function(c){ if(out.indexOf(c)<0){ rest.push(c); } });
+  pool.obtuse.forEach(function(c){ if(out.indexOf(c)<0){ rest.push(c); } });
+  while(out.length<n && rest.length){ out.push(rest.splice(Math.floor(Math.random()*rest.length),1)[0]); }
+  return shuffle(out);
+}
+
+/* ---------------- 游戏流程 ---------------- */
+var STATION_META = {
+  balance: { name:'平方天平', ideal:4,
+    tip:'把正确的原料块拖上天平：b²、c² 放右盘；再判断 cosA 的正负，把「余弦修正块 2bc·cosA」放到正确的盘子（值为 0 时送回收站）。天平平衡，金蛋开启，第三边 a 现身！' },
+  compass: { name:'角度罗盘', ideal:5,
+    tip:'拖动亮色手柄改变夹角∠C，对边 AB 随之伸缩。先用推论 cosC=(a²+b²−c²)/(2ab) 算出应到的角度，再微调到对边 AB 精确等于目标值，罗盘即锁定！' },
+  sort: { name:'形状分拣码头', ideal:3,
+    tip:'把每张三角形卡片拖进正确的码头（锐角 / 直角 / 钝角）。判断依据：最大边的平方与其余两边平方和比大小。' },
+  axis: { name:'实景测绘图', ideal:3,
+    tip:'认真通读测绘任务，条件都在文字与图中。算出答案后，把旗帜拖到数轴上的正确位置（允许小误差）。' },
+  interval: { name:'范围探测器', ideal:3,
+    tip:'拖动两个空心手柄，框出满足条件的取值范围——注意这是开区间，端点是取不到的。' }
+};
+
+function startGame(tier){
+  S.tier=tier; S.rounds=buildRounds(tier); S.idx=0; S.steps=0; S.stars=[]; S.sec=0;
+  applyPalette();
+  $('screen-menu').hidden=true; $('screen-final').hidden=true; $('screen-game').hidden=false; $('toolrow').hidden=false;
+  $('hud-steps').textContent='步数 0'; $('hud-timer').textContent='00:00';
+  if(S.tick){ clearInterval(S.tick); }
+  S.tick=setInterval(function(){ S.sec++; $('hud-timer').textContent=mmss(S.sec); },1000);
+  showRoundIntro();
+}
+function showRoundIntro(){
+  var rd=S.rounds[S.idx], meta=STATION_META[rd.type];
+  $('hud-round').textContent='第 '+(S.idx+1)+'/'+S.rounds.length+' 关';
+  $('mr-title').textContent='第 '+(S.idx+1)+' 关 · '+meta.name;
+  $('mr-text').innerHTML=meta.tip;
+  $('modal-round').hidden=false;
+}
+$('btn-round-go').addEventListener('click', function(){
+  $('modal-round').hidden=true;
+  S.roundSteps=0; S.revealed=false; S.ctrl=null;
+  $('btn-reveal').disabled=false;
+  mountStation(S.rounds[S.idx]);
+});
+function mountStation(rd){
+  var host=$('station'); host.innerHTML='';
+  if(rd.type==='balance'){ S.ctrl=stBalance(rd.item, host); }
+  else if(rd.type==='compass'){ S.ctrl=stCompass(rd.item, host); }
+  else if(rd.type==='sort'){ S.ctrl=stSort(rd.cards, host); }
+  else if(rd.type==='axis'){ S.ctrl=stAxis(rd.item, host); }
+  else { S.ctrl=stInterval(rd.item, host); }
+}
+/* 单关完成：结算星级并弹窗 */
+function finishRound(){
+  if(!S.ctrl || S.ctrl.done){ return; }
+  S.ctrl.done=true;
+  var ideal=STATION_META[S.rounds[S.idx].type].ideal, star;
+  if(S.revealed){ star=1; }
+  else if(S.roundSteps<=ideal){ star=3; }
+  else if(S.roundSteps<=ideal*2){ star=2; }
+  else { star=1; }
+  S.stars.push({ name:STATION_META[S.rounds[S.idx].type].name, star:star, revealed:S.revealed });
+  $('btn-reveal').disabled=true;
+  $('res-title').textContent = S.revealed ? '已揭示答案 · 本关通过' : '本关完成！';
+  $('res-stars').textContent = '★★★'.slice(0,star) + '☆☆☆'.slice(0,3-star);
+  $('res-expl').innerHTML='<b>解析：</b>'+S.ctrl.expl;
+  $('btn-next').textContent = (S.idx < S.rounds.length-1) ? '下一关' : '查看探险成果';
+  $('modal-result').hidden=false;
+}
+$('btn-next').addEventListener('click', function(){
+  $('modal-result').hidden=true;
+  if(S.idx < S.rounds.length-1){ S.idx++; showRoundIntro(); }
+  else { finishGame(); }
+});
+function finishGame(){
+  clearInterval(S.tick);
+  $('screen-game').hidden=true; $('toolrow').hidden=true; $('screen-final').hidden=false;
+  var total=0; S.stars.forEach(function(r){ total+=r.star; });
+  $('f-time').textContent=mmss(S.sec);
+  $('f-steps').textContent=S.steps;
+  $('f-stars').textContent=total+'/'+(S.rounds.length*3);
+  $('final-title').textContent = (total>=S.rounds.length*3-1) ? '完美通关，寻宝成功！' : '全部通关，寻宝成功！';
+  var html=''; S.stars.forEach(function(r,i){
+    html+='<div class="ri"><span>第'+(i+1)+'关 · '+r.name+(r.revealed?'（已揭示）':'')+'</span><span class="st">'+'★★★'.slice(0,r.star)+'☆☆☆'.slice(0,3-r.star)+'</span></div>';
+  });
+  $('f-rounds').innerHTML=html;
+  runConfetti();
+}
+function backToMenu(){
+  if(S.tick){ clearInterval(S.tick); }
+  $('screen-game').hidden=true; $('toolrow').hidden=true;
+  $('screen-final').hidden=true; $('screen-menu').hidden=false;
+}
+
+/* =====================================================================
+   装置一：平方天平（已知两边及夹角，拼装公式求第三边）
+   交互：自由拖拽原料块到 左盘/右盘/回收站（G1 真操作交互）
+   ===================================================================== */
+function stBalance(item, host){
+  var api={ done:false, expl:item.expl };
+  var head=document.createElement('div'); head.className='st-head';
+  head.innerHTML='<h2>装置 · 平方天平</h2><div class="goal">在△ABC 中，已知 b = '+item.b+'，c = '+item.c+'，夹角 ∠A = '+item.A+
+    '°。金蛋里锁着第三边 a。请把正确的原料块拖上天平（错误放法会被弹回并提示），两盘平衡即开启金蛋！</div>'+
+    '<div class="formula">a² = b² + c² − 2bc·cosA</div>';
+  host.appendChild(head);
+  var body=document.createElement('div'); body.className='st-body'; host.appendChild(body);
+
+  /* 左列：三角形示意图（完整标注 b、c、∠A，G14.1） */
+  var colL=document.createElement('div'); colL.className='st-col';
+  colL.appendChild(buildSASTriangle(item));
+  var cap=document.createElement('div'); cap.className='figcap';
+  cap.textContent='已知两边 b、c 与夹角 A，求第三边 a（虚线为待求边 BC）';
+  colL.appendChild(cap); body.appendChild(colL);
+
+  /* 右列：托盘 + 天平 + 回收站 */
+  var colR=document.createElement('div'); colR.className='st-col'; body.appendChild(colR);
+  var trayTitle=document.createElement('h4'); trayTitle.textContent='原料托盘（拖动原料块到天平或回收站）';
+  colR.appendChild(trayTitle);
+  var tray=document.createElement('div'); tray.className='blocklist'; colR.appendChild(tray);
+  var scaleWrap=document.createElement('div'); scaleWrap.className='scalewrap';
+  scaleWrap.innerHTML=
+    '<div class="base"></div><div class="pivot"></div><div class="beam" style="background:'+PAL.pd+'"></div>'+
+    '<div class="pan pan-l" id="bm-panL"><div class="panname">左盘（金蛋 a² 一侧）</div><div class="paninner" id="bm-inL"></div></div>'+
+    '<div class="pan pan-r" id="bm-panR"><div class="panname">右盘</div><div class="paninner" id="bm-inR"></div></div>';
+  colR.appendChild(scaleWrap);
+  var bin=document.createElement('div'); bin.className='bin';
+  bin.innerHTML='<div class="panname">回收站（无用的原料放这里）</div><div class="paninner" id="bm-bin"></div>';
+  colR.appendChild(bin);
+  var tip=document.createElement('div'); tip.className='tipmsg'; tip.textContent='想一想：b²、c² 该放哪盘？修正块的正负又由什么决定？';
+  colR.appendChild(tip);
+
+  /* 金蛋放进左盘 */
+  var egg=document.createElement('div'); egg.className='egg'; egg.textContent='a² ？';
+  $('bm-inL').appendChild(egg);
+
+  var beam=scaleWrap.querySelector('.beam');
+  function setTilt(deg,bad){ beam.style.setProperty('--tilt',deg+'deg'); beam.style.background = bad ? '#dc2626' : PAL.pd; }
+  function say(msg){ tip.textContent=msg; }
+
+  /* 原料块定义与生成（顺序打乱，G14.3：各块面值互不相同） */
+  var blocks=[
+    { key:'b2', label:'b²', val:item.b2, cls:'', dest:'R' },
+    { key:'c2', label:'c²', val:item.c2, cls:'', dest:'R' },
+    { key:'w',  label:'2bc·cosA', val:item.w, cls:'', dest:item.dest },
+    { key:'d1', label:item.decoys[0][0], val:item.decoys[0][1], cls:'decoy', dest:'B' },
+    { key:'d2', label:item.decoys[1][0], val:item.decoys[1][1], cls:'decoy', dest:'B' }
+  ];
+  shuffle(blocks).forEach(function(bk){ tray.appendChild(makeBlock(bk)); });
+
+  function makeBlock(bk){
+    var d=document.createElement('div'); d.className='block '+bk.cls; d.dataset.key=bk.key;
+    d.innerHTML='<div class="bt">'+bk.label+'</div><div class="bv">'+bk.val+'</div>';
+    var home=null, offX=0, offY=0;
+    makeDrag(d,{
+      start:function(e){
+        if(api.done){ return; }
+        var r=d.getBoundingClientRect();
+        /* 在原位留一个等尺寸的占位框，保证拖动时布局不回流、天平不位移 */
+        var ph=document.createElement('div');
+        ph.style.width=r.width+'px'; ph.style.height=r.height+'px';
+        home={ p:d.parentNode, next:d.nextSibling, ph:ph };
+        home.p.insertBefore(ph, d);
+        offX=e.clientX-r.left; offY=e.clientY-r.top;
+        d.classList.add('dragging');
+        d.style.position='fixed'; d.style.width=r.width+'px'; d.style.left=r.left+'px'; d.style.top=r.top+'px'; d.style.margin='0';
+      },
+      move:function(e){
+        if(!home){ return; }
+        d.style.left=(e.clientX-offX)+'px'; d.style.top=(e.clientY-offY)+'px';
+        $('bm-panR').classList.toggle('hot', hitRect($('bm-panR'),e.clientX,e.clientY));
+        $('bm-panL').classList.toggle('hot', hitRect($('bm-panL'),e.clientX,e.clientY));
+      },
+      end:function(e){
+        if(!home){ return; }
+        $('bm-panR').classList.remove('hot'); $('bm-panL').classList.remove('hot');
+        d.classList.remove('dragging');
+        var over = hitRect($('bm-panR'),e.clientX,e.clientY)?'R':(hitRect($('bm-panL'),e.clientX,e.clientY)?'L':(hitRect($('bm-bin'),e.clientX,e.clientY)?'B':''));
+        d.style.position=''; d.style.left=''; d.style.top=''; d.style.width=''; d.style.margin='';
+        if(!over){
+          if(home.ph && home.ph.parentNode){ home.ph.parentNode.removeChild(home.ph); }
+          home.p.insertBefore(d, home.next); home=null; return;
+        }
+        /* 放置成功：占位框留在托盘作固定槽位，托盘高度全程不变，天平与回收站不位移 */
+        addStep();
+        judge(bk, over, d, home);
+        home=null;
+      }
+    });
+    return d;
+  }
+
+  /* 判定一次放置是否正确（错误给学习型提示并弹回） */
+  function judge(bk, over, node, home){
+    var ok=false, msg='';
+    if(bk.key==='b2' || bk.key==='c2'){
+      if(over==='R'){ ok=true; }
+      else { msg='b² 和 c² 在公式 a²=b²+c²−2bc·cosA 中是加项，应放右盘。'; }
+    } else if(bk.key==='w'){
+      if(item.dest==='Z'){
+        ok=(over==='B');
+        msg = ok ? '正确！cos'+item.A+'°=0，修正块重量为 0，去回收站。' : 'cos'+item.A+'°=0，这块的重量是 0，应该送进回收站。';
+      } else if(over===item.dest){ ok=true; }
+      else if(item.dest==='L'){ msg='cos'+item.A+'°＞0，修正项要从 b²+c² 中减去：放到左盘，与金蛋 a² 同侧。'; }
+      else { msg='cos'+item.A+'°＜0，−2bc·cosA 实际是加项：放到右盘，把 b²+c² 撑大。'; }
+    } else {
+      if(over==='B'){ ok=true; msg='「'+bk.label+'」不是余弦定理的原料，回收利用，好眼力！'; }
+      else { msg='「'+bk.label+'」不是余弦定理的原料，对照公式看看每一项是什么。'; }
+    }
+    if(ok){
+      var inner = over==='R'?$('bm-inR'):(over==='L'?$('bm-inL'):$('bm-bin'));
+      node.disabledDrag=true; node.classList.add('placed');
+      inner.appendChild(node);
+      node.style.animation='pop .4s';
+      say(msg || '放置正确！');
+      checkBalance();
+    } else {
+      setTilt(9,true); say(msg);
+      node.classList.add('doneshake');
+      if(home.ph && home.ph.parentNode){ home.ph.parentNode.removeChild(home.ph); }
+      home.p.insertBefore(node, home.next);
+      setTimeout(function(){ node.classList.remove('doneshake'); setTilt(0,false); }, 520);
+    }
+  }
+
+  function placedOk(innerId,key){
+    var nodes=$(innerId).querySelectorAll('.block'), i;
+    for(i=0;i<nodes.length;i++){ if(nodes[i].dataset.key===key){ return true; } }
+    return false;
+  }
+  /* 平衡判定：b²、c² 在右盘，且修正块在正确位置 */
+  function checkBalance(){
+    var rOk = placedOk('bm-inR','b2') && placedOk('bm-inR','c2');
+    var wOk = (item.dest==='R' && placedOk('bm-inR','w')) ||
+              (item.dest==='L' && placedOk('bm-inL','w')) ||
+              (item.dest==='Z' && placedOk('bm-bin','w'));
+    if(rOk && wOk){
+      setTilt(0,false);
+      egg.classList.add('open'); egg.innerHTML='a² = '+item.a2+'<br>a = '+item.a;
+      say('天平平衡！金蛋开启：a² = '+item.a2+'，a = '+item.a+'。');
+      tray.querySelectorAll('.block').forEach(function(b){ b.disabledDrag=true; });
+      setTimeout(finishRound, 900);
+    }
+  }
+
+  api.reveal=function(){
+    S.revealed=true;
+    tray.querySelectorAll('.block').forEach(function(b){
+      var k=b.dataset.key;
+      var dest=(k==='b2'||k==='c2')?'R':(k==='w'?item.dest:'B');
+      var inner = dest==='R'?$('bm-inR'):(dest==='L'?$('bm-inL'):$('bm-bin'));
+      b.disabledDrag=true; b.classList.add('placed'); inner.appendChild(b); b.style.animation='pop .4s';
+    });
+    setTilt(0,false);
+    egg.classList.add('open'); egg.innerHTML='a² = '+item.a2+'<br>a = '+item.a;
+    finishRound();
+  };
+  return api;
+}
+
+/* SAS 三角形示意图（图内数字、字母、角度标注齐全，G14.1） */
+function buildSASTriangle(item){
+  var svg=svgEl('svg',{viewBox:'0 0 400 340','class':'fig'});
+  var s=150/Math.max(item.b,item.c);
+  var ax=200, ay=290;
+  var B=[ax+item.c*s, ay];              /* AB 沿水平方向 */
+  var C=pt(ax,ay,item.b*s, item.A);     /* AC 与 AB 成 A 度角 */
+  /* 夹角弧与度数 */
+  svg.appendChild(svgEl('polyline',{points:arcPts(ax,ay,42,0,item.A),'fill':'none',stroke:'#b45309','stroke-width':3}));
+  var am=pt(ax,ay,66,item.A/2);
+  svg.appendChild(svgText(am[0],am[1],item.A+'°',19,'#b45309'));
+  /* 三条边（BC 为待求边，虚线） */
+  svg.appendChild(svgEl('line',{x1:B[0],y1:B[1],x2:C[0],y2:C[1],stroke:'#b45309','stroke-width':5,'stroke-dasharray':'10 7'}));
+  svg.appendChild(svgEl('line',{x1:ax,y1:ay,x2:B[0],y2:B[1],stroke:'#1e293b','stroke-width':6}));
+  svg.appendChild(svgEl('line',{x1:ax,y1:ay,x2:C[0],y2:C[1],stroke:'#1e293b','stroke-width':6}));
+  /* 顶点字母 */
+  svg.appendChild(svgText(ax-18,ay+26,'A',20,'#1e293b'));
+  svg.appendChild(svgText(B[0]+6,B[1]+28,'B',20,'#1e293b'));
+  svg.appendChild(svgText(C[0],C[1]-12,'C',20,'#1e293b'));
+  /* 边长标注 */
+  svg.appendChild(svgText((ax+B[0])/2,B[1]+32,'c = '+item.c,19,'#0e7490'));
+  svg.appendChild(svgText((ax+C[0])/2-26,(ay+C[1])/2-6,'b = '+item.b,19,'#0e7490'));
+  svg.appendChild(svgText((B[0]+C[0])/2+10,(B[1]+C[1])/2,'a = ？',19,'#b45309'));
+  return svg;
+}
+
+/* =====================================================================
+   装置二：角度罗盘（已知三边，拖动夹角让对边精确命中 → 逆用余弦定理）
+   交互：拖动手柄/画布，三角形实时变形（G1/G2）
+   ===================================================================== */
+function stCompass(item, host){
+  var expl='已知 a=CB='+item.a+'，b=CA='+item.b+'，对边 c=AB='+item.Xd+
+    '。逆用余弦定理：cosC = (a²+b²−c²)/(2ab) = '+item.cosEx+'，所以 ∠C = '+item.angEx+'。';
+  var api={ done:false, expl:expl };
+  var head=document.createElement('div'); head.className='st-head';
+  head.innerHTML='<h2>装置 · 角度罗盘</h2><div class="goal">两根测杆已固定：CB = a = '+item.a+'，CA = b = '+item.b+
+    '。拖动亮色手柄（或直接在图上拖动）改变夹角 ∠C，让对边 AB 精确等于 <b>'+item.Xd+'</b>，罗盘即刻锁定！</div>';
+  host.appendChild(head);
+  var body=document.createElement('div'); body.className='st-body'; host.appendChild(body);
+  var colL=document.createElement('div'); colL.className='st-col'; body.appendChild(colL);
+  var colR=document.createElement('div'); colR.className='st-col'; body.appendChild(colR);
+
+  var CX=280, CY=392, BASE=-25;                 /* 画布几何常量 */
+  var s=205/Math.max(item.a,item.b,item.X);
+  var svg=svgEl('svg',{viewBox:'0 0 560 480','class':'fig'}); colL.appendChild(svg);
+  var cap=document.createElement('div'); cap.className='figcap';
+  cap.textContent='虚线圆是 A 的轨道（半径 b）；拖动亮色圆点即可转动测杆 CA'; colL.appendChild(cap);
+
+  svg.appendChild(svgEl('circle',{cx:CX,cy:CY,r:(item.b*s).toFixed(1),fill:'none',stroke:'#94a3b8','stroke-width':2,'stroke-dasharray':'6 6',opacity:.55}));
+  var rodB=svgEl('line',{stroke:'#1e293b','stroke-width':7});
+  var rodA=svgEl('line',{stroke:PAL.p,'stroke-width':7});
+  var sideC=svgEl('line',{stroke:'#dc2626','stroke-width':5,'stroke-dasharray':'10 7'});
+  var arcP=svgEl('polyline',{fill:'none',stroke:'#b45309','stroke-width':3});
+  var ptC=svgEl('circle',{r:8,fill:'#1e293b'});
+  var ptB=svgEl('circle',{r:8,fill:'#1e293b'});
+  var handle=svgEl('circle',{r:18,fill:'#f59e0b',stroke:'#fff','stroke-width':4});
+  handle.style.cursor='grab'; handle.style.touchAction='none';
+  var arcT=svgText(0,0,'',19,'#b45309');
+  var lbB=svgText(0,0,'a = '+item.a,19,'#1e293b');
+  var lbA=svgText(0,0,'b = '+item.b,19,'#0e7490');
+  var lbC=svgText(0,0,'',18,'#b45309');
+  [rodB,rodA,sideC,arcP,ptC,ptB,handle,arcT,lbB,lbA,lbC].forEach(function(n){ svg.appendChild(n); });
+  svg.appendChild(svgText(CX,CY+32,'C',20,'#1e293b'));
+
+  var ro1=document.createElement('div'); ro1.className='readout'; colR.appendChild(ro1);
+  var ro2=document.createElement('div'); ro2.className='readout'; colR.appendChild(ro2);
+  var clWrap=document.createElement('div'); clWrap.className='closeness';
+  var clFill=document.createElement('div'); clFill.className='fill'; clWrap.appendChild(clFill); colR.appendChild(clWrap);
+  var hint=document.createElement('div'); hint.className='compass-hint';
+  hint.textContent='提示：先算 cosC = (a²+b²−c²)/(2ab)，再把夹角转到对应度数。松手时若已足够接近，会自动吸附锁定。';
+  colR.appendChild(hint);
+  var tip=document.createElement('div'); tip.className='tipmsg'; colR.appendChild(tip);
+  var pnl=document.createElement('div'); pnl.className='explbox'; pnl.hidden=true; colR.appendChild(pnl);
+
+  var theta=95, curC=0, moved=false, locked=false;
+  var tol=Math.max(0.06, item.X*0.018);
+  var exactCos=(item.a*item.a+item.b*item.b-item.X*item.X)/(2*item.a*item.b);
+  var exactAng=Math.acos(Math.max(-1,Math.min(1,exactCos)))/TAU;
+
+  function render(){
+    var B=pt(CX,CY,item.a*s,BASE);
+    var A=pt(CX,CY,item.b*s,BASE+theta);
+    var c=Math.sqrt(item.a*item.a+item.b*item.b-2*item.a*item.b*Math.cos(theta*TAU));
+    curC=c;
+    rodB.setAttribute('x1',CX); rodB.setAttribute('y1',CY); rodB.setAttribute('x2',B[0]); rodB.setAttribute('y2',B[1]);
+    rodA.setAttribute('x1',CX); rodA.setAttribute('y1',CY); rodA.setAttribute('x2',A[0]); rodA.setAttribute('y2',A[1]);
+    sideC.setAttribute('x1',B[0]); sideC.setAttribute('y1',B[1]); sideC.setAttribute('x2',A[0]); sideC.setAttribute('y2',A[1]);
+    arcP.setAttribute('points', arcPts(CX,CY,40,BASE,BASE+theta,20));
+    var am2=pt(CX,CY,68,BASE+theta/2);
+    arcT.setAttribute('x',am2[0]); arcT.setAttribute('y',am2[1]); arcT.textContent='∠C='+fmt1(theta)+'°';
+    lbB.setAttribute('x',(CX+B[0])/2+10); lbB.setAttribute('y',(CY+B[1])/2+24);
+    lbA.setAttribute('x',(CX+A[0])/2+16); lbA.setAttribute('y',(CY+A[1])/2-6);
+    lbC.setAttribute('x',(A[0]+B[0])/2+8); lbC.setAttribute('y',(A[1]+B[1])/2);
+    lbC.textContent='AB='+fmt2(c);
+    ptC.setAttribute('cx',CX); ptC.setAttribute('cy',CY);
+    ptB.setAttribute('cx',B[0]); ptB.setAttribute('cy',B[1]);
+    handle.setAttribute('cx',A[0]); handle.setAttribute('cy',A[1]);
+    ro1.innerHTML='当前对边 <span class="big">AB = '+fmt2(c)+'</span>';
+    ro2.innerHTML='目标对边 <span class="big">'+item.Xd+'</span>　夹角 <span class="big">'+fmt1(theta)+'°</span>';
+    var closeness=Math.max(0,1-Math.abs(c-item.X)/(item.X*0.35));
+    clFill.style.width=(closeness*100).toFixed(0)+'%';
+    var g=Math.round(120+135*Math.min(1,closeness)), r2=Math.round(220-170*Math.min(1,closeness));
+    sideC.setAttribute('stroke','rgb('+r2+','+g+',60)');
+  }
+  render();
+
+  function angleFromEvent(e){
+    var r=svg.getBoundingClientRect();
+    var mx=(e.clientX-r.left)*(560/r.width), my=(e.clientY-r.top)*(480/r.height);
+    var ang=Math.atan2(CY-my, mx-CX)/TAU;
+    var t=ang-BASE;
+    t=((t%360)+360)%360;
+    if(t>180){ t=360-t; }                    /* 对称到上半平面，保证夹角唯一 */
+    return Math.max(3,Math.min(177,t));
+  }
+  function tryLock(){
+    addStep();
+    if(Math.abs(curC-item.X)<=tol){
+      locked=true; theta=exactAng; render();
+      handle.setAttribute('fill','#22c55e');
+      tip.textContent='锁定成功！∠C = '+item.angEx+'，对边 AB 恰为 '+item.Xd+'。';
+      pnl.hidden=false; pnl.innerHTML='<b>推理：</b>cosC = (a²+b²−c²)/(2ab) = '+item.cosEx+'，∠C = '+item.angEx+'。';
+      setTimeout(finishRound, 800);
+      return true;
+    }
+    tip.textContent='还差一点：当前 AB = '+fmt2(curC)+'，目标 '+item.Xd+'，继续微调夹角。';
+    return false;
+  }
+  makeDrag(handle,{
+    start:function(){ moved=false; },
+    move:function(e){ if(locked){ return; } moved=true; theta=angleFromEvent(e); render(); },
+    end:function(){ if(locked || !moved){ return; } tryLock(); }
+  });
+  makeDrag(svg,{
+    start:function(){ moved=false; },
+    move:function(e){ if(locked){ return; } moved=true; theta=angleFromEvent(e); render(); },
+    end:function(){ if(locked || !moved){ return; } tryLock(); }
+  });
+
+  api.reveal=function(){
+    S.revealed=true; locked=true;
+    var from=theta, t0=null;
+    function stepFn(ts){
+      if(t0===null){ t0=ts; }
+      var k=Math.min(1,(ts-t0)/900);
+      theta=from+(exactAng-from)*k; render();
+      if(k<1){ requestAnimationFrame(stepFn); }
+      else {
+        handle.setAttribute('fill','#22c55e');
+        pnl.hidden=false; pnl.innerHTML='<b>推理：</b>cosC = (a²+b²−c²)/(2ab) = '+item.cosEx+'，∠C = '+item.angEx+'。';
+        finishRound();
+      }
+    }
+    requestAnimationFrame(stepFn);
+  };
+  return api;
+}
+
+/* =====================================================================
+   装置三：形状分拣码头（已知三边 → 判断三角形形状）
+   交互：拖拽卡片分类到三个码头（G1）
+   ===================================================================== */
+function stSort(cards, host){
+  var head=document.createElement('div'); head.className='st-head';
+  head.innerHTML='<h2>装置 · 形状分拣码头</h2><div class="goal">把 '+cards.length+
+    ' 张三角形卡片全部拖进正确的码头。判断方法：让<b>最大边的平方</b>与<b>其余两边的平方和</b>比大小。</div>';
+  host.appendChild(head);
+  var body=document.createElement('div'); body.className='st-body'; host.appendChild(body);
+  var colT=document.createElement('div'); colT.className='st-col'; body.appendChild(colT);
+  var t4=document.createElement('h4'); t4.textContent='待检卡片'; colT.appendChild(t4);
+  var tray=document.createElement('div'); tray.className='cardtray'; colT.appendChild(tray);
+  var colD=document.createElement('div'); colD.className='st-col'; body.appendChild(colD);
+  var d4=document.createElement('h4'); d4.textContent='分拣码头'; colD.appendChild(d4);
+  var docks=document.createElement('div'); docks.className='docks'; colD.appendChild(docks);
+  var tip=document.createElement('div'); tip.className='tipmsg'; colD.appendChild(tip);
+
+  var dockMap={};
+  [['acute','锐角三角形港'],['right','直角三角形港'],['obtuse','钝角三角形湾']].forEach(function(d){
+    var dv=document.createElement('div'); dv.className='dock';
+    dv.innerHTML='<h5>'+d[1]+'</h5><div class="dinner"></div>';
+    docks.appendChild(dv); dockMap[d[0]]=dv;
+  });
+  var remaining=cards.length;
+  var api={ done:false,
+    expl: cards.map(function(c){ return '【'+c.face+'】'+c.chk; }).join('<br>') };
+
+  shuffle(cards).forEach(function(card){ tray.appendChild(makeCard(card)); });
+
+  function makeCard(card){
+    var d=document.createElement('div'); d.className='tcard';
+    d.innerHTML='<div class="tt">'+card.face+'</div>';
+    d.appendChild(buildMiniTriangle(card));
+    var home=null, offX=0, offY=0;
+    makeDrag(d,{
+      start:function(e){
+        if(d.disabledDrag){ return; }
+        var r=d.getBoundingClientRect();
+        /* 原位留等尺寸占位框，防止拖动时托盘回流导致码头位移 */
+        var ph=document.createElement('div');
+        ph.style.width=r.width+'px'; ph.style.height=r.height+'px';
+        home={p:d.parentNode,next:d.nextSibling,ph:ph};
+        home.p.insertBefore(ph,d);
+        offX=e.clientX-r.left; offY=e.clientY-r.top;
+        d.classList.add('dragging');
+        d.style.position='fixed'; d.style.width=r.width+'px'; d.style.left=r.left+'px'; d.style.top=r.top+'px'; d.style.margin='0';
+      },
+      move:function(e){
+        if(!home){ return; }
+        d.style.left=(e.clientX-offX)+'px'; d.style.top=(e.clientY-offY)+'px';
+        Object.keys(dockMap).forEach(function(k){ dockMap[k].classList.toggle('hot', hitRect(dockMap[k],e.clientX,e.clientY)); });
+      },
+      end:function(e){
+        if(!home){ return; }
+        Object.keys(dockMap).forEach(function(k){ dockMap[k].classList.remove('hot'); });
+        d.classList.remove('dragging');
+        var target=null;
+        Object.keys(dockMap).forEach(function(k){ if(hitRect(dockMap[k],e.clientX,e.clientY)){ target=k; } });
+        d.style.position=''; d.style.left=''; d.style.top=''; d.style.width=''; d.style.margin='';
+        if(home.ph && home.ph.parentNode){ home.ph.parentNode.removeChild(home.ph); }
+        if(!target){ home.p.insertBefore(d,home.next); home=null; return; }
+        addStep();
+        if(target===card.type){
+          d.disabledDrag=true;
+          dockMap[target].querySelector('.dinner').appendChild(d);
+          d.style.animation='pop .4s';
+          tip.textContent=card.chk;
+          remaining--;
+          if(remaining===0){
+            tip.textContent='全部分拣正确！最后一张：'+card.chk;
+            setTimeout(finishRound,700);
+          }
+        } else {
+          tip.textContent='再想想：比较最大边的平方与其余两边的平方和，这张卡该去哪个码头？';
+          d.classList.add('doneshake');
+          home.p.insertBefore(d,home.next);
+          setTimeout(function(){ d.classList.remove('doneshake'); },480);
+        }
+        home=null;
+      }
+    });
+    return d;
+  }
+
+  api.reveal=function(){
+    S.revealed=true;
+    tray.querySelectorAll('.tcard').forEach(function(node){
+      if(node.disabledDrag){ return; }
+      var face=node.querySelector('.tt').textContent, card=null;
+      cards.forEach(function(c){ if(c.face===face){ card=c; } });
+      if(!card){ return; }
+      node.disabledDrag=true;
+      dockMap[card.type].querySelector('.dinner').appendChild(node);
+      node.style.animation='pop .4s';
+    });
+    finishRound();
+  };
+  return api;
+}
+/* 卡片上的按比例小三角形（三边标注齐全，G14.1/G14.2） */
+function buildMiniTriangle(card){
+  var W=156, H=110;
+  var svg=svgEl('svg',{viewBox:'0 0 '+W+' '+H});
+  var v=card.v, lb=card.lb;
+  var m=Math.max(v[0],v[1],v[2]);
+  var mi=v.indexOf(m), others=[], i;
+  for(i=0;i<3;i++){ if(i!==mi){ others.push(i); } }
+  var x0=20, y0=H-16, w=W-40;
+  /* 底边放最大边 m（对应像素 w），其余两边按比例缩放 */
+  var p=v[others[0]]/m*w, q=v[others[1]]/m*w;
+  var dx=(p*p+w*w-q*q)/(2*w);
+  var hh=Math.sqrt(Math.max(64, p*p-dx*dx));
+  var cx=x0+dx, cy=y0-hh;
+  svg.appendChild(svgEl('polyline',{points:[[x0,y0],[x0+w,y0],[cx,cy]].map(function(P2){ return P2[0].toFixed(1)+','+P2[1].toFixed(1); }).join(' '),fill:'rgba(14,116,144,0.10)',stroke:PAL.p,'stroke-width':4,'stroke-linejoin':'round'}));
+  svg.appendChild(svgText((x0+x0+w)/2, y0+20, lb[mi], 16,'#b45309'));
+  svg.appendChild(svgText((x0+cx)/2-14,(y0+cy)/2, lb[others[0]], 16,'#0e7490'));
+  svg.appendChild(svgText((x0+w+cx)/2+14,(y0+cy)/2, lb[others[1]], 16,'#0e7490'));
+  return svg;
+}
+
+/* =====================================================================
+   装置四：实景测绘图（应用题 + 数轴定位旗帜，G1：数轴拖动定位）
+   ===================================================================== */
+function buildAxis(parent, title){
+  var wrap=document.createElement('div'); wrap.className='axiswrap';
+  var t=document.createElement('div'); t.className='axistitle'; t.textContent=title; wrap.appendChild(t);
+  var track=document.createElement('div'); track.className='track'; wrap.appendChild(track);
+  track.appendChild(svglessBar());
+  parent.appendChild(wrap);
+  return { track:track };
+}
+function svglessBar(){
+  var bar=document.createElement('div'); bar.className='bar'; return bar;
+}
+function axisTicks(track, cfg){
+  var steps=Math.round(cfg.max/cfg.minor), i;
+  for(i=0;i<=steps;i++){
+    var v=i*cfg.minor;
+    var isMajor=Math.abs(v/cfg.major-Math.round(v/cfg.major))<1e-6;
+    var tk=document.createElement('div');
+    tk.className='tick '+(isMajor?'major':'minor');
+    tk.style.left=(v/cfg.max*100)+'%';
+    track.appendChild(tk);
+    if(isMajor){
+      var lb=document.createElement('div'); lb.className='tlabel';
+      lb.style.left=(v/cfg.max*100)+'%';
+      lb.textContent=(Math.round(v*100)/100)+cfg.unit;
+      track.appendChild(lb);
+    }
+  }
+}
+function trackToVal(track, cfg, clientX){
+  var r=track.getBoundingClientRect();
+  var k=(clientX-r.left)/r.width;
+  k=Math.max(0,Math.min(1,k));
+  return k*cfg.max;
+}
+function valPct(cfg,v){ return (v/cfg.max*100)+'%'; }
+
+function stAxis(item, host){
+  var api={ done:false, expl:item.expl };
+  var head=document.createElement('div'); head.className='st-head';
+  head.innerHTML='<h2>装置 · 实景测绘图 · '+item.name+'</h2><div class="goal">通读测绘任务（条件都在文字与图中），用余弦定理算出答案，再把旗帜拖到数轴上的正确位置（允许小误差）。</div>';
+  host.appendChild(head);
+  var body=document.createElement('div'); body.className='st-body'; host.appendChild(body);
+
+  var colL=document.createElement('div'); colL.className='st-col'; body.appendChild(colL);
+  var q=document.createElement('div'); q.className='qtext'; q.textContent=item.q; colL.appendChild(q);
+  colL.appendChild(buildAppFig(item));
+  var cap=document.createElement('div'); cap.className='figcap'; cap.textContent='示意图（虚线为待求的量）'; colL.appendChild(cap);
+
+  var colR=document.createElement('div'); colR.className='st-col'; body.appendChild(colR);
+  var h4=document.createElement('h4'); h4.textContent='把旗帜拖到答案位置（也可直接在数轴上按住拖动）'; colR.appendChild(h4);
+  var cfg={ max:item.max, minor:item.minor, major:item.major, unit:item.unit };
+  var ax=buildAxis(colR, '答案数轴'+(item.unit?'（单位：'+item.unit+'）':''));
+  axisTicks(ax.track, cfg);
+  var flag=document.createElement('div'); flag.className='flag';
+  flag.innerHTML='<div class="knob"></div><div class="pole"></div><div class="cloth"></div>';
+  ax.track.appendChild(flag);
+  var readout=document.createElement('div'); readout.className='readout'; colR.appendChild(readout);
+  var tip=document.createElement('div'); tip.className='tipmsg'; tip.textContent='先算出精确值（可能带根号），再估计它在数轴上的位置。'; colR.appendChild(tip);
+
+  var cur=item.max*(0.08+Math.random()*0.5);
+  function setVal(v){
+    cur=v; flag.style.left=valPct(cfg,v);
+    readout.innerHTML='当前读数：<span class="big">'+fmt2(v)+'</span>'+(item.unit?' '+item.unit:'');
+  }
+  setVal(cur);
+
+  makeDrag(ax.track,{
+    start:function(e){ if(api.done){ return; } setVal(trackToVal(ax.track,cfg,e.clientX)); },
+    move:function(e){ if(api.done){ return; } setVal(trackToVal(ax.track,cfg,e.clientX)); },
+    end:function(){
+      if(api.done){ return; }
+      addStep();
+      if(Math.abs(cur-item.target)<=item.tol){
+        setVal(item.target); flag.classList.add('ok');
+        tip.textContent='定位成功！正确答案：'+item.tdisp;
+        setTimeout(finishRound,700);
+      } else {
+        tip.textContent='还没有到位：当前 '+fmt2(cur)+'，正确答案 '+item.tdisp+'，继续拖动旗帜。';
+      }
+    }
+  });
+  api.reveal=function(){
+    S.revealed=true;
+    setVal(item.target); flag.classList.add('ok');
+    tip.textContent='答案揭示：'+item.tdisp;
+    finishRound();
+  };
+  return api;
+}
+
+/* 应用题示意图（完整重绘图中的数字、字母、符号，G14.1） */
+function buildAppFig(item){
+  var svg;
+  if(item.id==='A1'){
+    /* 隧道：C 在顶部，∠ACB=120°，AC=BC=1km，AB 虚线待求 */
+    svg=svgEl('svg',{viewBox:'0 0 420 300','class':'fig'});
+    var c1=[210,64], A1=pt(210,64,150,210), B1=pt(210,64,150,330);
+    svg.appendChild(svgEl('polyline',{points:arcPts(210,64,34,210,330,18),fill:'none',stroke:'#b45309','stroke-width':3}));
+    svg.appendChild(svgText(210,22,'120°',19,'#b45309'));
+    svg.appendChild(svgEl('line',{x1:c1[0],y1:c1[1],x2:A1[0],y2:A1[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('line',{x1:c1[0],y1:c1[1],x2:B1[0],y2:B1[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('line',{x1:A1[0],y1:A1[1],x2:B1[0],y2:B1[1],stroke:'#b45309','stroke-width':5,'stroke-dasharray':'10 7'}));
+    svg.appendChild(svgText(210,48,'C（测点）',18,'#1e293b'));
+    svg.appendChild(svgText(A1[0]-8,A1[1]+30,'A 隧道口',18,'#1e293b'));
+    svg.appendChild(svgText(B1[0]+4,B1[1]+30,'B 隧道口',18,'#1e293b'));
+    svg.appendChild(svgText((c1[0]+A1[0])/2-28,(c1[1]+A1[1])/2+8,'1 km',18,'#0e7490'));
+    svg.appendChild(svgText((c1[0]+B1[0])/2+30,(c1[1]+B1[1])/2+8,'1 km',18,'#0e7490'));
+    svg.appendChild(svgText((A1[0]+B1[0])/2,(A1[1]+B1[1])/2-12,'AB = ？',19,'#b45309'));
+  } else if(item.id==='A2'){
+    /* 灯塔：A 灯塔，B 正西 30 海里，C 北偏东 45° 且 10√2 海里 */
+    svg=svgEl('svg',{viewBox:'0 0 480 340','class':'fig'});
+    var A2=[300,270], B2=[120,270], C2=[360,210];
+    svg.appendChild(svgEl('line',{x1:A2[0],y1:A2[1],x2:A2[0],y2:190,stroke:'#94a3b8','stroke-width':2,'stroke-dasharray':'5 5'}));
+    svg.appendChild(svgEl('path',{d:'M293 200 L300 188 L307 200 Z',fill:'#94a3b8'}));
+    svg.appendChild(svgText(A2[0],182,'北',16,'#64748b'));
+    svg.appendChild(svgEl('line',{x1:A2[0],y1:A2[1],x2:B2[0],y2:B2[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('line',{x1:A2[0],y1:A2[1],x2:C2[0],y2:C2[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('line',{x1:B2[0],y1:B2[1],x2:C2[0],y2:C2[1],stroke:'#b45309','stroke-width':5,'stroke-dasharray':'10 7'}));
+    svg.appendChild(svgEl('polyline',{points:arcPts(A2[0],A2[1],42,180,135,12),fill:'none',stroke:'#b45309','stroke-width':3}));
+    svg.appendChild(svgEl('polyline',{points:arcPts(A2[0],A2[1],58,90,45,8),fill:'none',stroke:'#0e7490','stroke-width':3}));
+    svg.appendChild(svgText(A2[0]-66,A2[1]-14,'135°',18,'#b45309'));
+    svg.appendChild(svgText(A2[0]+16,A2[1]-58,'45°',17,'#0e7490'));
+    svg.appendChild(svgText(A2[0]+6,A2[1]+28,'A 灯塔',18,'#1e293b'));
+    svg.appendChild(svgText(B2[0]-16,B2[1]+30,'B 甲船（正西）',17,'#1e293b'));
+    svg.appendChild(svgText(C2[0]-30,C2[1]-16,'C 乙船（北偏东45°）',17,'#1e293b'));
+    svg.appendChild(svgText((A2[0]+B2[0])/2,B2[1]-12,'30 海里',18,'#0e7490'));
+    svg.appendChild(svgText((A2[0]+C2[0])/2-40,(A2[1]+C2[1])/2+24,'10√2 海里',18,'#0e7490'));
+    svg.appendChild(svgText((B2[0]+C2[0])/2-30,(B2[1]+C2[1])/2,'BC = ？',19,'#b45309'));
+  } else {
+    /* 航船：A 起点，沿北偏东40°行驶6海里到C；灯塔B在南偏东20°方向10海里处 */
+    svg=svgEl('svg',{viewBox:'0 0 460 360','class':'fig'});
+    var A3=[170,300], C3=pt(170,300,95,40), B3=pt(170,300,150,160);
+    svg.appendChild(svgEl('line',{x1:A3[0],y1:A3[1],x2:A3[0],y2:220,stroke:'#94a3b8','stroke-width':2,'stroke-dasharray':'5 5'}));
+    svg.appendChild(svgEl('path',{d:'M163 230 L170 218 L177 230 Z',fill:'#94a3b8'}));
+    svg.appendChild(svgText(A3[0],212,'北',16,'#64748b'));
+    svg.appendChild(svgEl('line',{x1:A3[0],y1:A3[1],x2:C3[0],y2:C3[1],stroke:PAL.p,'stroke-width':6}));
+    svg.appendChild(svgEl('path',{d:'M'+(C3[0]-7)+' '+(C3[1]+9)+' L'+C3[0]+' '+C3[1]+' L'+(C3[0]+3)+' '+(C3[1]+12)+' Z',fill:PAL.p}));
+    svg.appendChild(svgEl('line',{x1:A3[0],y1:A3[1],x2:B3[0],y2:B3[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('line',{x1:B3[0],y1:B3[1],x2:C3[0],y2:C3[1],stroke:'#b45309','stroke-width':5,'stroke-dasharray':'10 7'}));
+    svg.appendChild(svgEl('polyline',{points:arcPts(A3[0],A3[1],34,40,160,20),fill:'none',stroke:'#b45309','stroke-width':3}));
+    svg.appendChild(svgText(A3[0]+14,A3[1]-40,'120°',18,'#b45309'));
+    svg.appendChild(svgText(A3[0]-30,A3[1]+30,'A（航船起点）',17,'#1e293b'));
+    svg.appendChild(svgText(C3[0]+10,C3[1]-8,'C（20分钟后）',17,'#1e293b'));
+    svg.appendChild(svgText(B3[0]-60,B3[1]-12,'B（灯塔）',17,'#1e293b'));
+    svg.appendChild(svgText((A3[0]+C3[0])/2+38,(A3[1]+C3[1])/2-8,'6 海里',18,'#0e7490'));
+    svg.appendChild(svgText((A3[0]+B3[0])/2+16,(A3[1]+B3[1])/2+10,'10 海里',18,'#0e7490'));
+    svg.appendChild(svgText((B3[0]+C3[0])/2-16,(B3[1]+C3[1])/2+20,'BC = ？',19,'#b45309'));
+    svg.appendChild(svgText(A3[0]+40,A3[1]-84,'航向：北偏东 40°',15,'#64748b'));
+    svg.appendChild(svgText(A3[0]-118,A3[1]-52,'灯塔方向：南偏东 20°',15,'#64748b'));
+  }
+  return svg;
+}
+
+/* =====================================================================
+   装置五：范围探测器（开区间双柄拖动）
+   ===================================================================== */
+function stInterval(item, host){
+  var api={ done:false, expl:item.expl };
+  var head=document.createElement('div'); head.className='st-head';
+  head.innerHTML='<h2>装置 · 范围探测器 · '+item.name+'</h2><div class="goal">读题并推理出取值范围，然后拖动两个<b>空心手柄</b>把它框出来（开区间：端点取不到，允许小误差）。</div>';
+  host.appendChild(head);
+  var body=document.createElement('div'); body.className='st-body'; host.appendChild(body);
+
+  var colL=document.createElement('div'); colL.className='st-col'; body.appendChild(colL);
+  var q=document.createElement('div'); q.className='qtext'; q.textContent=item.q; colL.appendChild(q);
+  colL.appendChild(buildIntervalFig(item));
+  var cap=document.createElement('div'); cap.className='figcap'; cap.textContent='示意图（标注齐全）'; colL.appendChild(cap);
+
+  var colR=document.createElement('div'); colR.className='st-col'; body.appendChild(colR);
+  var h4=document.createElement('h4'); h4.textContent='拖动两个手柄，框出开区间（拖谁谁动：靠近哪个手柄就动哪个）'; colR.appendChild(h4);
+  var cfg={ max:item.max, minor:item.minor, major:item.major, unit:item.unit };
+  var ax=buildAxis(colR, '范围数轴'+(item.unit?'（单位：'+item.unit+'）':''));
+  axisTicks(ax.track, cfg);
+  var hL=document.createElement('div'); hL.className='hnd';
+  var hR=document.createElement('div'); hR.className='hnd';
+  ax.track.appendChild(hL); ax.track.appendChild(hR);
+  var readout=document.createElement('div'); readout.className='readout'; colR.appendChild(readout);
+  var tip=document.createElement('div'); tip.className='tipmsg'; tip.textContent='先解出左、右端点各是多少，再框范围。'; colR.appendChild(tip);
+
+  var lo=item.max*0.1, hi=item.max*0.9;
+  function setRange(l,r){
+    lo=Math.min(l,r); hi=Math.max(l,r);
+    hL.style.left=valPct(cfg,lo); hR.style.left=valPct(cfg,hi);
+    readout.innerHTML='当前范围：<span class="big">( '+fmt1(lo)+', '+fmt1(hi)+' )</span>'+(item.unit?item.unit:'');
+  }
+  setRange(item.max*0.12, item.max*0.88);
+
+  /* 两个手柄各自可独立拖拽（直接抓住手柄拖动最顺手） */
+  makeDrag(hL,{
+    move:function(e){ if(api.done){ return; } setRange(trackToVal(ax.track,cfg,e.clientX), hi); },
+    end:function(){ intervalEnd(); }
+  });
+  makeDrag(hR,{
+    move:function(e){ if(api.done){ return; } setRange(lo, trackToVal(ax.track,cfg,e.clientX)); },
+    end:function(){ intervalEnd(); }
+  });
+  /* 数轴空白处：拖动/点按就近的手柄 */
+  makeDrag(ax.track,{
+    start:function(e){
+      if(api.done){ return; }
+      var v0=trackToVal(ax.track,cfg,e.clientX);
+      if(Math.abs(v0-lo)<=Math.abs(v0-hi)){ setRange(v0,hi); } else { setRange(lo,v0); }
+    },
+    move:function(e){
+      if(api.done){ return; }
+      var v=trackToVal(ax.track,cfg,e.clientX);
+      if(Math.abs(v-lo)<=Math.abs(v-hi)){ setRange(v,hi); } else { setRange(lo,v); }
+    },
+    end:function(){ intervalEnd(); }
+  });
+  function intervalEnd(){
+    if(api.done){ return; }
+    addStep();
+    if(Math.abs(lo-item.lo)<=item.tol && Math.abs(hi-item.hi)<=item.tol){
+      setRange(item.lo,item.hi);
+      hL.classList.add('ok'); hR.classList.add('ok');
+      tip.textContent='范围锁定成功！正确答案：'+item.adisp;
+      setTimeout(finishRound,700);
+    } else {
+      tip.textContent='还不到位：当前 ( '+fmt1(lo)+', '+fmt1(hi)+' )，目标 '+item.adisp+'。';
+    }
+  }
+  api.reveal=function(){
+    S.revealed=true;
+    setRange(item.lo,item.hi);
+    hL.classList.add('ok'); hR.classList.add('ok');
+    tip.textContent='答案揭示：'+item.adisp;
+    finishRound();
+  };
+  return api;
+}
+/* 范围题示意图 */
+function buildIntervalFig(item){
+  var svg;
+  if(item.id==='I1'){
+    svg=svgEl('svg',{viewBox:'0 0 420 280','class':'fig'});
+    var a=[210,40], b=[64,240], c=[356,240];
+    svg.appendChild(svgEl('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('line',{x1:b[0],y1:b[1],x2:c[0],y2:c[1],stroke:'#b45309','stroke-width':7}));
+    svg.appendChild(svgEl('line',{x1:a[0],y1:a[1],x2:c[0],y2:c[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('polyline',{points:arcPts(a[0],a[1],36,250,290,12),fill:'none',stroke:'#b45309','stroke-width':3}));
+    svg.appendChild(svgText(a[0],20,'A（钝角）',17,'#b45309'));
+    svg.appendChild(svgText(b[0]-30,b[1]+26,'B',19,'#1e293b'));
+    svg.appendChild(svgText(c[0]+10,c[1]+26,'C',19,'#1e293b'));
+    svg.appendChild(svgText((a[0]+b[0])/2-30,(a[1]+b[1])/2,'AB=3m',17,'#0e7490'));
+    svg.appendChild(svgText((b[0]+c[0])/2,b[1]+22,'BC=5m（最大边）',17,'#b45309'));
+    svg.appendChild(svgText((a[0]+c[0])/2+42,(a[1]+c[1])/2-6,'AC=m+6',17,'#0e7490'));
+  } else {
+    svg=svgEl('svg',{viewBox:'0 0 420 260','class':'fig'});
+    var A4=[60,220], B4=[360,220], C4=[150,50];
+    svg.appendChild(svgEl('line',{x1:A4[0],y1:A4[1],x2:B4[0],y2:B4[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('line',{x1:B4[0],y1:B4[1],x2:C4[0],y2:C4[1],stroke:'#b45309','stroke-width':7}));
+    svg.appendChild(svgEl('line',{x1:A4[0],y1:A4[1],x2:C4[0],y2:C4[1],stroke:'#1e293b','stroke-width':6}));
+    svg.appendChild(svgEl('polyline',{points:arcPts(A4[0],A4[1],40,0,58,10),fill:'none',stroke:'#b45309','stroke-width':3}));
+    svg.appendChild(svgText(A4[0]+56,A4[1]-14,'A（最大角）',17,'#b45309'));
+    svg.appendChild(svgText(A4[0]-8,A4[1]+28,'A',19,'#1e293b'));
+    svg.appendChild(svgText(B4[0]+6,B4[1]+28,'B',19,'#1e293b'));
+    svg.appendChild(svgText(C4[0]-6,C4[1]-12,'C',19,'#1e293b'));
+    svg.appendChild(svgText((A4[0]+B4[0])/2,B4[1]+22,'c',17,'#0e7490'));
+    svg.appendChild(svgText((B4[0]+C4[0])/2+24,(B4[1]+C4[1])/2,'a（最大边）',17,'#b45309'));
+    svg.appendChild(svgText((A4[0]+C4[0])/2-24,(A4[1]+C4[1])/2,'b',17,'#0e7490'));
+    svg.appendChild(svgText(210,250,'条件：a² ＜ b² + c²，且 a 为最大边',17,'#475569'));
+  }
+  return svg;
+}
+
+/* =====================================================================
+   庆祝动画：彩带 + 星星（G5，Canvas 实现）
+   ===================================================================== */
+function drawStarShape(ctx,R){
+  ctx.beginPath();
+  var i;
+  for(i=0;i<10;i++){
+    var r=(i%2===0)?R:R*0.45, a=Math.PI/5*i-Math.PI/2;
+    ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+  }
+  ctx.closePath(); ctx.fill();
+}
+function runConfetti(){
+  var cv=$('confetti'), ctx=cv.getContext('2d');
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  cv.style.display='block';
+  var cols=[PAL.p, PAL.ac, '#22c55e', '#e11d48', '#38bdf8', '#facc15', '#a78bfa'];
+  var parts=[], i;
+  for(i=0;i<170;i++){
+    parts.push({
+      x:Math.random()*cv.width, y:-20-Math.random()*cv.height*0.6,
+      w:6+Math.random()*8, h:10+Math.random()*10,
+      c:cols[i%cols.length], vx:(Math.random()-0.5)*2.4, vy:2+Math.random()*3.4,
+      r:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.22, star:Math.random()<0.3
+    });
+  }
+  var t0=Date.now();
+  function frame(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    parts.forEach(function(p){
+      p.x+=p.vx; p.y+=p.vy; p.r+=p.vr; p.vy+=0.02;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle=p.c;
+      if(p.star){ drawStarShape(ctx,p.w); } else { ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); }
+      ctx.restore();
+    });
+    if(Date.now()-t0<4200){ requestAnimationFrame(frame); }
+    else { cv.style.display='none'; ctx.clearRect(0,0,cv.width,cv.height); }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =====================================================================
+   界面事件绑定
+   ===================================================================== */
+document.querySelectorAll('.tier').forEach(function(t){
+  t.addEventListener('click', function(){ startGame(t.getAttribute('data-tier')); });
+});
+$('btn-rules1').addEventListener('click', function(){ $('modal-rules').hidden=false; });
+$('btn-rules2').addEventListener('click', function(){ $('modal-rules').hidden=false; });
+$('btn-rules-ok').addEventListener('click', function(){ $('modal-rules').hidden=true; });
+$('btn-reveal').addEventListener('click', function(){
+  if(S.ctrl && !S.ctrl.done && typeof S.ctrl.reveal==='function'){ S.ctrl.reveal(); }
+});
+$('btn-restart').addEventListener('click', function(){ if(S.tier){ startGame(S.tier); } });
+$('btn-back').addEventListener('click', backToMenu);
+$('btn-back2').addEventListener('click', backToMenu);
+$('btn-again').addEventListener('click', function(){ if(S.tier){ startGame(S.tier); } });
+
+/* 进入页面先弹出规则说明（G6），并随机预选一版配色展示 */
+applyPalette();
+$('modal-rules').hidden=false;
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-x/g001", "name": "\u6d4b\u7ed8\u63a2\u9669\u961f \u00b7 \u4f59\u5f26\u5b9a\u7406\u5bfb\u5b9d\uff0811.1 \u4f59\u5f26\u5b9a\u7406\uff09", "file": "g001.html", "jiaocan": "\u301023\u3011\u5341\u4e00 \u89e3\u4e09\u89d2\u5f62\uff1a11.1\u4f59\u5f26\u5b9a\u7406", "unit": "", "grade": "", "stage": "\u9ad8\u4e2d", "series": "X\uff1a\u62d4\u5c16\u63d0\u4f18\u8bad\u7ec3", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u62d4\u5c16\u63d0\u4f18\u8bad\u7ec3\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-x"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

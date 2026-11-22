@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>垂直灯塔·线面垂直探险工坊</title>
+<style>
+/* ============================================================
+   垂直灯塔·线面垂直探险工坊
+   —— 高中立体几何「直线与平面垂直」互动游戏（单文件自包含）
+   全部 CSS / JS 内联，零外部依赖，支持鼠标与触屏拖拽
+   ============================================================ */
+
+/* ---------- 色板系统：每局随机换装（G8） ---------- */
+body[data-pal="0"]{ --bg:#2b2118; --panel:#3a2c20; --main:#ff9f43; --accent:#ffd166; --ink:#fff7ec; --dim:#e8d5b5; --ok:#7bed9f; --no:#ff7b7b; }
+body[data-pal="1"]{ --bg:#0e2a2f; --panel:#14383f; --main:#2ec4b6; --accent:#9bf6ff; --ink:#f2ffff; --dim:#bfe9e4; --ok:#7bed9f; --no:#ff7b7b; }
+body[data-pal="2"]{ --bg:#241b3d; --panel:#31265a; --main:#a78bfa; --accent:#f0abfc; --ink:#f8f4ff; --dim:#d8ccff; --ok:#7bed9f; --no:#ff7b7b; }
+body[data-pal="3"]{ --bg:#12281c; --panel:#1b3a28; --main:#6ee7a0; --accent:#fef08a; --ink:#f4fff8; --dim:#c9ecd7; --ok:#7bed9f; --no:#ff7b7b; }
+body[data-pal="4"]{ --bg:#33141a; --panel:#47202a; --main:#ff6b81; --accent:#ffc9de; --ink:#fff4f7; --dim:#f3cdd9; --ok:#7bed9f; --no:#ff7b7b; }
+body[data-pal="5"]{ --bg:#0f2340; --panel:#17304f; --main:#60a5fa; --accent:#93c5fd; --ink:#f2f8ff; --dim:#c8ddf7; --ok:#7bed9f; --no:#ff7b7b; }
+
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; }
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  font-size:17px; line-height:1.55; overflow-x:hidden;
+  transition:background .5s;
+}
+
+/* ---------- 顶栏：标题 + 计时器 + 步数（G7） ---------- */
+#topbar{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  padding:10px 16px; background:var(--panel); border-bottom:3px solid var(--main);
+  position:sticky; top:0; z-index:50;
+}
+#topbar .brand{ font-size:22px; font-weight:900; color:var(--main); letter-spacing:1px; }
+#topbar .stats{ display:flex; gap:18px; align-items:center; font-weight:700; font-size:18px; }
+#topbar .stats b{ color:var(--accent); font-size:20px; }
+#topbar .btns{ display:flex; gap:8px; }
+
+/* ---------- 通用按钮 ---------- */
+.btn{
+  font-size:18px; font-weight:800; color:var(--bg); background:var(--accent);
+  border:none; border-radius:12px; padding:10px 18px; cursor:pointer;
+  box-shadow:0 3px 0 rgba(0,0,0,.35); touch-action:manipulation;
+}
+.btn:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.35); }
+.btn.mainbg{ background:var(--main); }
+.btn.ghost{ background:transparent; color:var(--accent); border:2px solid var(--accent); box-shadow:none; }
+
+/* ---------- 难度选择屏 ---------- */
+#scr-select{ max-width:980px; margin:0 auto; padding:34px 18px 60px; text-align:center; }
+#scr-select h1{ font-size:40px; font-weight:900; color:var(--main); text-shadow:0 0 24px color-mix(in srgb, var(--main) 40%, transparent); }
+#scr-select .sub{ margin:14px auto 30px; font-size:19px; color:var(--dim); max-width:760px; }
+.diff-cards{ display:flex; gap:22px; justify-content:center; flex-wrap:wrap; }
+.diff-card{
+  flex:1 1 240px; max-width:300px; background:var(--panel); border-radius:20px;
+  border:3px solid var(--main); padding:26px 18px; cursor:pointer;
+  transition:transform .18s, box-shadow .18s; text-align:center;
+}
+.diff-card:hover{ transform:translateY(-6px) scale(1.03); box-shadow:0 12px 30px rgba(0,0,0,.4); }
+.diff-card .ic{ font-size:44px; font-weight:900; color:var(--accent); line-height:1.1; }
+.diff-card h2{ font-size:24px; color:var(--main); margin:10px 0 6px; }
+.diff-card p{ font-size:16px; color:var(--dim); }
+#scr-select .foot{ margin-top:30px; font-size:16px; color:var(--dim); }
+
+/* ---------- 游戏屏 ---------- */
+#scr-play{ max-width:1180px; margin:0 auto; padding:16px 14px 40px; display:none; }
+.play-top{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+#diff-label{ font-size:20px; font-weight:900; color:var(--accent); }
+#level-name{ font-size:19px; font-weight:700; color:var(--ink); }
+#lamps{ display:flex; gap:10px; align-items:center; }
+.lamp{ width:26px; height:26px; border-radius:50%; background:#3a3a3a; border:3px solid #666; transition:all .3s; }
+.lamp.cur{ border-color:var(--accent); box-shadow:0 0 10px var(--accent); }
+.lamp.lit{ background:var(--ok); border-color:var(--ok); box-shadow:0 0 16px var(--ok); }
+
+.play-grid{ display:grid; grid-template-columns:minmax(320px,5fr) minmax(360px,7fr); gap:16px; }
+@media (max-width:920px){ .play-grid{ grid-template-columns:1fr; } }
+
+#info{ background:var(--panel); border-radius:16px; padding:16px; border:2px solid color-mix(in srgb, var(--main) 45%, transparent); }
+#qtext{ font-size:17.5px; }
+#qtext .qtag{ display:inline-block; background:var(--main); color:var(--bg); font-weight:900; border-radius:8px; padding:2px 10px; margin-bottom:8px; font-size:16px; }
+#readout{ margin-top:14px; background:color-mix(in srgb, var(--bg) 55%, var(--panel)); border-radius:12px; padding:12px 14px; font-size:18px; font-weight:700; }
+#readout .rl{ display:flex; justify-content:space-between; gap:10px; padding:3px 0; border-bottom:1px dashed color-mix(in srgb, var(--dim) 30%, transparent); }
+#readout .rl b{ color:var(--accent); font-size:19px; white-space:nowrap; }
+#readout .note{ font-size:15.5px; font-weight:400; color:var(--dim); margin-top:6px; }
+#readout .good{ color:var(--ok); font-weight:900; }
+
+#stagewrap{ position:relative; background:var(--panel); border-radius:16px; padding:14px; border:2px solid color-mix(in srgb, var(--main) 45%, transparent); }
+#stage{ width:100%; }
+#stage svg, #stage canvas{ width:100%; height:auto; max-height:64vh; touch-action:none; display:block; margin:0 auto; border-radius:10px; background:color-mix(in srgb, var(--bg) 40%, black); }
+#toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  background:var(--accent); color:#1a1a1a; font-weight:900; font-size:18px;
+  padding:12px 22px; border-radius:14px; opacity:0; pointer-events:none; transition:all .3s; z-index:200; max-width:92vw; text-align:center;
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+.btnrow{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:16px; }
+
+/* ---------- L1 自定义滑条（不使用 input，纯指针拖拽） ---------- */
+.sliders{ display:flex; flex-direction:column; gap:14px; margin-top:12px; }
+.srow{ display:flex; align-items:center; gap:12px; }
+.srow .slabel{ width:130px; font-size:17px; font-weight:800; color:var(--dim); }
+.slider{ position:relative; flex:1; height:38px; cursor:pointer; touch-action:none; }
+.slider .track{ position:absolute; left:0; right:0; top:15px; height:8px; border-radius:6px; background:color-mix(in srgb, var(--bg) 60%, #777); }
+.slider .fill{ position:absolute; left:0; top:15px; height:8px; border-radius:6px; background:var(--main); }
+.slider .knob{
+  position:absolute; top:4px; width:30px; height:30px; border-radius:50%;
+  background:var(--accent); border:3px solid var(--bg); box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:grab;
+}
+.srow .sval{ width:76px; text-align:right; font-size:18px; font-weight:900; color:var(--accent); }
+
+/* ---------- L2 候选三角形卡片 ---------- */
+.cands{ display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; justify-content:center; }
+.cand{
+  width:118px; background:color-mix(in srgb, var(--bg) 45%, var(--panel)); border-radius:12px;
+  border:3px solid color-mix(in srgb, var(--dim) 45%, transparent); padding:8px 6px 6px; cursor:pointer;
+  text-align:center; user-select:none; transition:transform .12s;
+}
+.cand:hover{ transform:scale(1.05); }
+.cand svg{ width:88px; height:64px; display:block; margin:0 auto; }
+.cand .cname{ font-size:18px; font-weight:900; margin-top:4px; }
+.cand.on{ border-color:var(--ok); background:color-mix(in srgb, var(--ok) 18%, var(--panel)); }
+.cand.on .cname{ color:var(--ok); }
+.cand.shake{ animation:shk .38s; border-color:var(--no); }
+@keyframes shk{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+
+/* ---------- L3 结论卡片拖放 ---------- */
+.cards{ display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; justify-content:center; }
+.card{
+  background:var(--accent); color:#1c1c1c; font-size:18px; font-weight:900;
+  border-radius:12px; padding:12px 18px; cursor:grab; user-select:none; touch-action:none;
+  box-shadow:0 4px 0 rgba(0,0,0,.35); z-index:5;
+}
+.card.dragging{ position:fixed; z-index:300; box-shadow:0 10px 24px rgba(0,0,0,.5); transform:scale(1.08); }
+.card.locked{ background:var(--ok); cursor:default; }
+.slot{
+  margin-top:14px; border:3px dashed var(--accent); border-radius:12px; min-height:54px;
+  display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:var(--dim);
+  padding:6px 10px; text-align:center;
+}
+
+/* ---------- 规则弹窗（G6） ---------- */
+.modal{
+  position:fixed; inset:0; background:rgba(0,0,0,.62); z-index:400;
+  display:none; align-items:center; justify-content:center; padding:18px;
+}
+.modal.show{ display:flex; }
+.mbox{
+  background:var(--panel); border:3px solid var(--main); border-radius:20px;
+  max-width:680px; width:100%; max-height:86vh; overflow:auto; padding:26px 26px 20px;
+}
+.mbox h2{ color:var(--main); font-size:26px; margin-bottom:12px; text-align:center; }
+.mbox h3{ color:var(--accent); font-size:19px; margin:14px 0 6px; }
+.mbox p, .mbox li{ font-size:16.5px; color:var(--ink); }
+.mbox ul{ padding-left:22px; }
+.mbox .tip{ background:color-mix(in srgb, var(--main) 14%, transparent); border-radius:10px; padding:10px 12px; margin-top:6px; }
+.mbox .mfoot{ text-align:center; margin-top:18px; }
+
+/* ---------- 通关庆祝（G5） ---------- */
+#celebrate{ position:fixed; inset:0; z-index:500; display:none; overflow:hidden; background:rgba(0,0,0,.55); }
+#celebrate.show{ display:block; }
+.cele-box{
+  position:absolute; left:50%; top:44%; transform:translate(-50%,-50%);
+  background:var(--panel); border:3px solid var(--accent); border-radius:22px;
+  padding:34px 40px; text-align:center; z-index:2; box-shadow:0 0 60px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.cele-box h2{ font-size:34px; color:var(--accent); }
+.cele-box .stars{ font-size:30px; color:#ffe066; letter-spacing:8px; margin:8px 0; }
+.cele-box p{ font-size:19px; margin:6px 0; }
+.cele-box p b{ color:var(--ok); }
+.cf{ position:absolute; top:-24px; width:12px; height:18px; z-index:1; animation:fall linear forwards; }
+@keyframes fall{ to{ transform:translateY(112vh) rotate(760deg); } }
+
+/* ---------- SVG 通用元素样式 ---------- */
+.slab{ font-size:20px; font-weight:900; fill:var(--ink); paint-order:stroke; stroke:rgba(0,0,0,.55); stroke-width:4px; stroke-linejoin:round; }
+.slab.sm{ font-size:17px; }
+.slab.acc{ fill:var(--accent); }
+.edge{ stroke:var(--ink); stroke-width:3.5; fill:none; }
+.edge.hid{ stroke-dasharray:9 7; opacity:.75; }
+.edge.thin{ stroke-width:2.2; }
+.edge.dash{ stroke-dasharray:7 6; opacity:.85; }
+.edge.hot{ stroke:var(--main); stroke-width:5; }
+.knob{ fill:var(--accent); stroke:var(--bg); stroke-width:3.5; cursor:grab; }
+.knob:hover{ filter:brightness(1.15); }
+.rmark{ stroke:var(--ok); stroke-width:3.5; fill:none; }
+.glowlamp{ filter:drop-shadow(0 0 8px var(--ok)); }
+</style>
+</head>
+<body data-pal="0">
+
+<!-- ===================== 顶栏 ===================== -->
+<header id="topbar">
+  <div class="brand">垂直灯塔 · 线面垂直探险工坊</div>
+  <div class="stats">
+    <span>用时 <b id="tm">00:00</b></span>
+    <span>步数 <b id="st">0</b></span>
+  </div>
+  <div class="btns">
+    <button class="btn ghost" id="btn-rules">游戏规则</button>
+  </div>
+</header>
+
+<!-- ===================== 难度选择屏 ===================== -->
+<section id="scr-select">
+  <h1>垂直灯塔 · 线面垂直探险工坊</h1>
+  <p class="sub">
+    小镇的夜航船需要灯塔指路！你要化身<b>灯塔建造师</b>，用「直线与平面垂直」的本领，
+    在九个关卡里<b>拖一拖、转一转、描一描</b>，把每一座灯塔点亮。<br>
+    判定锦囊：一条直线垂直于平面内的<b>两条相交直线</b>，它就垂直于这个平面。
+  </p>
+  <div class="diff-cards">
+    <div class="diff-card" data-d="easy">
+      <div class="ic">初</div>
+      <h2>初级 · 智慧之门</h2>
+      <p>判定定理实验室<br>直角三角形点灯<br>菱形里的秘密</p>
+    </div>
+    <div class="diff-card" data-d="mid">
+      <div class="ic">中</div>
+      <h2>中级 · 勇者试炼</h2>
+      <p>正方体上找线面角<br>中点距离双灯记<br>垂足找外心</p>
+    </div>
+    <div class="diff-card" data-d="hard">
+      <div class="ic">高</div>
+      <h2>高级 · 星空挑战</h2>
+      <p>阳马立柱（九章算术）<br>正方形上的垂足<br>描出点的轨迹</p>
+    </div>
+  </div>
+  <p class="foot">每次进入难度，色板与关卡数据都会随机换新，百玩不腻！</p>
+</section>
+
+<!-- ===================== 游戏屏 ===================== -->
+<section id="scr-play">
+  <div class="play-top">
+    <div>
+      <span id="diff-label">初级 · 智慧之门</span>
+      <span id="level-name">第1关</span>
+    </div>
+    <div id="lamps">
+      <div class="lamp" title="第1座灯塔"></div>
+      <div class="lamp" title="第2座灯塔"></div>
+      <div class="lamp" title="第3座灯塔"></div>
+    </div>
+  </div>
+
+  <div class="play-grid">
+    <aside id="info">
+      <div id="qtext"></div>
+      <div id="readout"></div>
+    </aside>
+    <div id="stagewrap">
+      <div id="stage"></div>
+    </div>
+  </div>
+
+  <div class="btnrow">
+    <button class="btn" id="btn-reveal">揭示答案</button>
+    <button class="btn" id="btn-restart">重新开始</button>
+    <button class="btn ghost" id="btn-back">返回难度选择</button>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<!-- ===================== 规则弹窗 ===================== -->
+<div class="modal" id="rules-modal">
+  <div class="mbox">
+    <h2>游戏规则 · 灯塔建造师手册</h2>
+    <h3>你的使命</h3>
+    <p>夜航的船队等着灯塔指路。每个难度有 <b>3 座灯塔</b>（3 个关卡），完成关卡里的操作任务，灯塔就会亮起——三座全亮即通关，有星光彩带庆祝！</p>
+    <h3>怎么玩（全程动手，不做选择题）</h3>
+    <ul>
+      <li><b>拖动</b>：立柱旋钮、点 E、点 F、点 P、垂足 O…… 都可以用手指或鼠标拖。</li>
+      <li><b>调节</b>：自制滑条可以连续微调立柱的倾斜角。</li>
+      <li><b>点亮</b>：在图上点击三角形给它们涂色标记；拖卡片入答案框下结论。</li>
+      <li><b>描轨迹</b>：高级关卡里，把符合条件的点全部点亮，连出一条轨迹。</li>
+    </ul>
+    <h3>界面按钮</h3>
+    <ul>
+      <li><b>揭示答案</b>：卡住了就看一眼正确操作与完整解析（看了也能继续通关）。</li>
+      <li><b>重新开始</b>：重置本关，重新探索。</li>
+      <li><b>返回难度选择</b>：随时换难度，色板随机换新。</li>
+      <li>右上角实时显示<b>用时</b>与<b>步数</b>。</li>
+    </ul>
+    <h3>数学锦囊（本讲核心）</h3>
+    <div class="tip">
+      线面垂直判定定理：如果一条直线与一个平面内的<b>两条相交直线</b>垂直，那么该直线与此平面垂直。<br>
+      线面垂直的性质：直线垂直于平面，则它垂直于平面内的<b>任意</b>直线。<br>
+      直线与平面所成的角：直线与其在平面内<b>射影</b>的夹角（0°～90°）。
+    </div>
+    <div class="mfoot"><button class="btn mainbg" id="btn-rules-ok">开始探险</button></div>
+  </div>
+</div>
+
+<!-- ===================== 通关庆祝 ===================== -->
+<div id="celebrate">
+  <div class="cele-box">
+    <h2 id="cele-title">三座灯塔全部点亮！</h2>
+    <div class="stars">★ ★ ★ ★ ★</div>
+    <p>用时 <b id="cele-tm">--:--</b> · 本组步数 <b id="cele-st">0</b></p>
+    <p id="cele-msg">航海家们为你欢呼！</p>
+    <div class="mfoot" style="margin-top:16px;"><button class="btn mainbg" id="btn-cele-ok">返回难度选择</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   工具函数区
+   ============================================================ */
+const $=s=>document.querySelector(s);
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const rint=(a,b)=>Math.floor(rnd(a,b+1));           // 含两端的整数随机
+const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+const shuffle=arr=>{ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const D2R=Math.PI/180, R2D=180/Math.PI;
+const fmt=(v,n=1)=>v.toFixed(n);
+
+/* ---------- 全局状态 ---------- */
+const G={
+  pal:0, steps:0, sec:0, diff:null,
+  levelIdx:0, order:[], passed:[false,false,false],
+  api:null, def:null, advanceToken:0, diffSteps:0
+};
+
+/* ---------- 顶栏：计时器 ---------- */
+setInterval(()=>{ G.sec++; const m=String(Math.floor(G.sec/60)).padStart(2,"0"), s=String(G.sec%60).padStart(2,"0"); $("#tm").textContent=m+":"+s; },1000);
+function bump(){ G.steps++; G.diffSteps++; $("#st").textContent=G.steps; }   // 步数统计
+
+/* ---------- 提示条 ---------- */
+let toastTimer=null;
+function toast(msg,ms=2400){
+  const t=$("#toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),ms);
+}
+
+/* ---------- SVG 辅助 ---------- */
+const NS="http://www.w3.org/2000/svg";
+function SV(w,h){ const s=document.createElementNS(NS,"svg"); s.setAttribute("viewBox",`0 0 ${w} ${h}`); return s; }
+function SE(parent,tag,attrs){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); parent.appendChild(e); return e; }
+function ST(parent,x,y,txt,cls="slab"){ const t=SE(parent,"text",{x,y,class:cls,"text-anchor":"middle"}); t.textContent=txt; return t; }
+/* 直角标记：在点 P 处，沿方向 u、v 画小方块 */
+function raMark(parent,px,py,ux,uy,vx,vy,len=13){
+  const un=Math.hypot(ux,uy)||1, vn=Math.hypot(vx,vy)||1;
+  const a={x:px+ux/un*len, y:py+uy/un*len}, b={x:px+(ux/un+vx/vn)*len, y:py+(uy/un+vy/vn)*len}, c={x:px+vx/vn*len, y:py+vy/vn*len};
+  return SE(parent,"polyline",{points:`${a.x},${a.y} ${b.x},${b.y} ${c.x},${c.y}`,class:"rmark"});
+}
+/* SVG 拖拽：把指针事件换算为 viewBox 坐标 */
+function svgPoint(svg,e){
+  const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY;
+  const m=svg.getScreenCTM(); return m? p.matrixTransform(m.inverse()) : {x:0,y:0};
+}
+function dragSVG(svg,elem,h){  // h:{start,move,end} 坐标为 svg 用户坐标
+  elem.addEventListener("pointerdown",e=>{
+    if(!svg.isConnected) return;                        // 关卡已切换时忽略残留事件
+    e.preventDefault(); try{ elem.setPointerCapture(e.pointerId); }catch(err){}
+    const p=svgPoint(svg,e); if(h.start) h.start(p);
+    const mv=ev=>{ if(h.move&&svg.isConnected) h.move(svgPoint(svg,ev)); };
+    const up=ev=>{ elem.removeEventListener("pointermove",mv); elem.removeEventListener("pointerup",up); elem.removeEventListener("pointercancel",up); if(h.end&&svg.isConnected) h.end(svgPoint(svg,ev)); };
+    elem.addEventListener("pointermove",mv); elem.addEventListener("pointerup",up); elem.addEventListener("pointercancel",up);
+  });
+}
+/* 自制滑条（无 input 标签，纯指针拖动） */
+function makeSlider(parent,{min,max,val,step=0.5,label,fmtF,onInput,onCommit}){
+  const row=document.createElement("div"); row.className="srow";
+  const lab=document.createElement("div"); lab.className="slabel"; lab.textContent=label;
+  const sl=document.createElement("div"); sl.className="slider";
+  sl.innerHTML='<div class="track"></div><div class="fill"></div><div class="knob"></div>';
+  const fill=sl.querySelector(".fill"), knob=sl.querySelector(".knob");
+  const valEl=document.createElement("div"); valEl.className="sval";
+  row.append(lab,sl,valEl); parent.appendChild(row);
+  let v=val;
+  function render(){
+    const t=(v-min)/(max-min);
+    knob.style.left=`calc(${(t*100).toFixed(2)}% - 15px)`;
+    fill.style.width=(t*100).toFixed(2)+"%";
+    valEl.textContent=fmtF(v);
+    if(onInput) onInput(v);
+  }
+  function setFromClientX(cx){
+    const r=sl.getBoundingClientRect();
+    let t=clamp((cx-r.left)/r.width,0,1);
+    v=clamp(min+t*(max-min),min,max);
+    v=Math.round(v/step)*step; render();
+  }
+  let dragging=false;
+  sl.addEventListener("pointerdown",e=>{ e.preventDefault(); dragging=true; sl.setPointerCapture(e.pointerId); setFromClientX(e.clientX); });
+  sl.addEventListener("pointermove",e=>{ if(dragging) setFromClientX(e.clientX); });
+  const done=()=>{ if(dragging){ dragging=false; bump(); if(onCommit) onCommit(v); } };
+  sl.addEventListener("pointerup",done); sl.addEventListener("pointercancel",done);
+  render();
+  return { get:()=>v, set:nv=>{ v=nv; render(); } };
+}
+
+/* ============================================================
+   关卡定义（每关：题干 q / 提示 tip / build(ctx) 返回 {reveal}）
+   ctx = { host(舞台容器), svg, ro(读数区DOM), pass(), bump() }
+   ============================================================ */
+
+/* ---------------- 关卡：判定定理实验室（初级1） ---------------- */
+function buildL1(ctx){
+  const svg=SV(660,560); ctx.host.appendChild(svg);
+  const OX=320, OY=408;                                  // 地面上 O 点屏幕坐标
+  const gp=(x,y)=>({x:OX+x*140+y*62, y:OY+y*54});        // 地面斜二测投影
+  const P3=(x,y,z)=>({x:OX+x*140+y*62, y:OY+y*54-z*150});// 空间投影（z 向上）
+  /* 地面平行四边形 */
+  const c1=gp(-1.72,-1.12),c2=gp(1.72,-1.12),c3=gp(1.72,1.12),c4=gp(-1.72,1.12);
+  SE(svg,"polygon",{points:`${c1.x},${c1.y} ${c2.x},${c2.y} ${c3.x},${c3.y} ${c4.x},${c4.y}`,
+    fill:"color-mix(in srgb, var(--main) 8%, transparent)",stroke:"var(--dim)","stroke-width":2,"stroke-dasharray":"6 5"});
+  const oP=gp(0,0); ST(svg,oP.x+16,oP.y+26,"O","slab sm");
+  /* 直线 a（固定 20°）与直线 b（可旋转） */
+  const PHI_A=20;
+  let phiB=115;
+  const lnA=SE(svg,"line",{class:"edge hot"}), lnB=SE(svg,"line",{class:"edge",stroke:"var(--accent)"});
+  const ta=ST(svg,0,0,"直线a","slab sm acc"), tb=ST(svg,0,0,"直线b","slab acc");
+  function drawLine(ln,tEl,phi,color){
+    const dx=Math.cos(phi*D2R), dy=Math.sin(phi*D2R);
+    const p1=gp(-1.55*dx,-1.55*dy), p2=gp(1.55*dx,1.55*dy);
+    ln.setAttribute("x1",p1.x); ln.setAttribute("y1",p1.y); ln.setAttribute("x2",p2.x); ln.setAttribute("y2",p2.y);
+    const lp=gp(1.72*dx,1.72*dy); tEl.setAttribute("x",lp.x); tEl.setAttribute("y",lp.y);
+  }
+  /* b 的旋转旋钮 */
+  const knob=SE(svg,"circle",{r:13,class:"knob"});
+  const knobRing=SE(svg,"circle",{r:19,fill:"none",stroke:"var(--accent)","stroke-width":2,opacity:.4});
+  /* 立柱 l 与灯 */
+  let alpha=28, beta=-18;                                // 两个倾斜角（度）
+  const pillar=SE(svg,"line",{class:"edge",stroke:"var(--ink)","stroke-width":7,"stroke-linecap":"round"});
+  const lamp=SE(svg,"circle",{r:13,fill:"#5a5a5a",stroke:"var(--bg)","stroke-width":3});
+  const beam=SE(svg,"circle",{r:26,fill:"var(--ok)",opacity:0});
+  const hintTxt=ST(svg,330,34,"","slab sm acc");
+
+  function dirL(){                                       // 立柱方向向量（单位化）
+    const x=Math.sin(alpha*D2R), y=Math.sin(beta*D2R);
+    const n=Math.hypot(x,y,1); return {x:x/n, y:y/n, z:1/n};
+  }
+  function angBetween(l,d){                              // l 与平面内方向 d 的夹角（度）
+    const dot=Math.abs(l.x*d.x+l.y*d.y);
+    return Math.acos(clamp(dot,0,1))*R2D;
+  }
+  function update(){
+    drawLine(lnA,ta,PHI_A); drawLine(lnB,tb,phiB);
+    const db={x:Math.cos(phiB*D2R),y:Math.sin(phiB*D2R),z:0};
+    const da={x:Math.cos(PHI_A*D2R),y:Math.sin(PHI_A*D2R),z:0};
+    const kb=gp(1.55*db.x,1.55*db.y); knob.setAttribute("cx",kb.x); knob.setAttribute("cy",kb.y);
+    knobRing.setAttribute("cx",kb.x); knobRing.setAttribute("cy",kb.y);
+    const l=dirL(), T=P3(l.x*1.5,l.y*1.5,l.z*1.5);
+    pillar.setAttribute("x1",OX); pillar.setAttribute("y1",OY);
+    pillar.setAttribute("x2",T.x); pillar.setAttribute("y2",T.y);
+    lamp.setAttribute("cx",T.x); lamp.setAttribute("cy",T.y);
+    beam.setAttribute("cx",T.x); beam.setAttribute("cy",T.y);
+    const aA=angBetween(l,da), aB=angBetween(l,db);
+    const planeAng=90-Math.acos(clamp(l.z,0,1))*R2D;      // 线面角
+    let dphi=Math.abs(PHI_A-phiB)%180; dphi=Math.min(dphi,180-dphi);   // a、b 所成角
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>立柱与直线 a 所成角</span><b>${fmt(aA)}°</b></div>`+
+      `<div class="rl"><span>立柱与直线 b 所成角</span><b>${fmt(aB)}°</b></div>`+
+      `<div class="rl"><span>立柱与平面所成角</span><b>${fmt(planeAng)}°</b></div>`+
+      `<div class="rl"><span>直线 a 与 b 所成角（是否相交）</span><b>${fmt(dphi)}°</b></div>`+
+      `<div class="note">拖动两个滑块调立柱倾斜，拖动 b 端旋钮转动直线 b。当 a、b 平行（所成角 0°）时，即使两个角都是 90°，判定定理也不成立哦！</div>`;
+    const okA=aA>=88.5, okB=aB>=88.5, cross=dphi>10;
+    if(okA&&okB&&cross){
+      lamp.setAttribute("fill","var(--ok)"); lamp.classList.add("glowlamp");
+      beam.setAttribute("opacity",.35); pillar.setAttribute("stroke","var(--ok)");
+      hintTxt.textContent="";
+      ctx.pass("判定定理验证成功：垂直于两条相交直线，立柱就垂直于平面，灯塔点亮！");
+    }else if(okA&&okB&&!cross){
+      lamp.setAttribute("fill","#5a5a5a"); lamp.classList.remove("glowlamp");
+      beam.setAttribute("opacity",0); pillar.setAttribute("stroke","var(--ink)");
+      hintTxt.textContent="a∥b 时都垂直也不能下结论——转动 b 让它们相交！";
+    }else{
+      lamp.setAttribute("fill","#5a5a5a"); lamp.classList.remove("glowlamp");
+      beam.setAttribute("opacity",0); pillar.setAttribute("stroke","var(--ink)");
+      hintTxt.textContent="";
+    }
+  }
+  /* b 旋钮拖拽：指针方向换算回地面坐标再求角度 */
+  dragSVG(svg,knob,{
+    move:p=>{
+      const dx=p.x-OX, dy=(p.y-OY)/54;
+      const gx=dx-62*dy;
+      let a=Math.atan2(dy,gx/140)*R2D; if(a<0)a+=180;    // 归一到 [0,180)
+      phiB=a; update();
+    },
+    end:()=>bump()
+  });
+  /* 两个倾斜滑条 */
+  const sl=document.createElement("div"); sl.className="sliders"; ctx.host.appendChild(sl);
+  makeSlider(sl,{min:-40,max:40,val:alpha,step:0.5,label:"立柱前后倾斜α",fmtF:v=>fmt(v)+"°",onInput:v=>{alpha=v;update();}});
+  makeSlider(sl,{min:-40,max:40,val:beta,step:0.5,label:"立柱左右倾斜β",fmtF:v=>fmt(v)+"°",onInput:v=>{beta=v;update();}});
+  update();
+  return {
+    reveal(){
+      alpha=0; beta=0; phiB=115; update();
+      const sls=sl.querySelectorAll(".slider .knob");
+      sls[0].style.left="calc(50% - 15px)"; sls[1].style.left="calc(50% - 15px)";
+      sl.querySelectorAll(".fill").forEach(f=>f.style.width="50%");
+      ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">解析：只有立柱竖直（α=β=0°）时，它才同时垂直于 a 和 b；此时若 a、b 相交，由判定定理得立柱⊥平面。</div>');
+      ctx.pass();
+    }
+  };
+}
+
+/* ---------------- 关卡：直角三角形点灯（初级2，双变式随机） ---------------- */
+function buildL2(ctx){
+  const variant=Math.random()<0.5?"A":"B";               // 变式随机
+  const svg=SV(660,540); ctx.host.appendChild(svg);
+  const A={x:130,y:330}, B={x:430,y:400}, C={x:390,y:150}, P={x:130,y:90};
+  const seg=(p,q,cls="edge")=>SE(svg,"line",{x1:p.x,y1:p.y,x2:q.x,y2:q.y,class:cls});
+  /* 底面三角形 + P + PA/PB/PC */
+  seg(A,B); seg(B,C); seg(C,A); seg(P,A); seg(P,B); seg(P,C);
+  raMark(svg,C.x,C.y, A.x-C.x,A.y-C.y, B.x-C.x,B.y-C.y,15);      // ∠ACB=90° 直角标记
+  let cands=[], marks=new Set();
+  if(variant==="A"){
+    const E={x:280,y:350}, F={x:280,y:110};
+    seg(E,F); seg(E,B); seg(E,C); seg(F,B); seg(F,C);
+    ST(svg,E.x-14,E.y+6,"E"); ST(svg,F.x-14,F.y,"F");
+    cands=[
+      {n:"△ABC",ok:true,v:["A","B","C"]},{n:"△PAB",ok:true,v:["P","A","B"]},
+      {n:"△PAC",ok:true,v:["P","A","C"]},{n:"△PBC",ok:true,v:["P","B","C"]},
+      {n:"△BEF",ok:true,v:["B","E","F"]},{n:"△EFC",ok:true,v:["E","F","C"]},
+      {n:"△EBC",ok:false,v:["E","B","C"]}
+    ];
+  }else{
+    const D={x:295,y:369};                                // D 在 AB 上
+    seg(C,D); seg(P,D);
+    ST(svg,D.x+16,D.y+10,"D");
+    cands=[
+      {n:"△ABC",ok:true,v:["A","B","C"]},{n:"△PAB",ok:true,v:["P","A","B"]},
+      {n:"△PAC",ok:true,v:["P","A","C"]},{n:"△PBC",ok:true,v:["P","B","C"]},
+      {n:"△ACD",ok:true,v:["A","C","D"]},{n:"△PAD",ok:true,v:["P","A","D"]},
+      {n:"△BCD",ok:false,v:["B","C","D"]},{n:"△PCD",ok:false,v:["P","C","D"]},
+      {n:"△PBD",ok:false,v:["P","B","D"]}
+    ];
+  }
+  ST(svg,A.x-20,A.y+8,"A"); ST(svg,B.x+18,B.y+8,"B"); ST(svg,C.x+16,C.y,"C"); ST(svg,P.x-18,P.y,"P");
+  SE(svg,"text",{x:340,y:512,"text-anchor":"middle",class:"slab sm"}).textContent=
+    variant==="A"?"已知：PA⊥平面ABC，∠ACB=90°，EF∥PA（E 在平面内，F 在平面外）":"已知：PA⊥平面ABC，∠ACB=90°，D 在棱 AB 上";
+
+  /* 候选卡片（随机顺序） */
+  const box=document.createElement("div"); box.className="cands"; ctx.host.appendChild(box);
+  const ctr=document.createElement("div"); ctr.style.cssText="text-align:center;font-weight:800;margin-top:12px;font-size:18px";
+  ctx.host.appendChild(ctr);
+  function counter(){ ctr.textContent=`已点亮直角三角形：${marks.size} 个（点亮图上所有直角三角形即通关）`; }
+  function check(){
+    if(cands.every(c=>c.ok===marks.has(c.n))){
+      ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">全对！图中每个直角三角形都被你点亮了。</div>');
+      ctx.pass();
+    }
+  }
+  shuffle(cands).forEach(c=>{
+    const d=document.createElement("div"); d.className="cand";
+    const ms=SV(100,66);
+    SE(ms,"polygon",{points:"50,6 8,58 92,58",fill:"color-mix(in srgb, var(--main) 16%, transparent)",stroke:"var(--main)","stroke-width":3});
+    ST(ms,50,4,c.v[0],"slab sm"); ST(ms,6,62,c.v[1],"slab sm"); ST(ms,94,62,c.v[2],"slab sm");
+    d.appendChild(ms);
+    const nm=document.createElement("div"); nm.className="cname"; nm.textContent=c.n; d.appendChild(nm);
+    d.addEventListener("click",()=>{
+      bump();
+      if(!c.ok){ d.classList.add("shake"); toast("这个不是直角三角形哦——用已知条件推理：哪两条边互相垂直？"); setTimeout(()=>d.classList.remove("shake"),400); return; }
+      if(marks.has(c.n)){ marks.delete(c.n); d.classList.remove("on"); }
+      else{ marks.add(c.n); d.classList.add("on"); }
+      counter(); ctx.ro.innerHTML=`<div class="rl"><span>已点亮</span><b>${marks.size} 个</b></div><div class="note">依据条件推理：PA⊥平面ABC ⇒ PA⊥AB、AC、BC；∠ACB=90°；${variant==="A"?"EF∥PA ⇒ EF⊥平面ABC":"AD 在 AB 上，AC⊥AB ⇒ AC⊥AD"}。</div>`;
+      check();
+    });
+    box.appendChild(d);
+  });
+  ctx.ro.innerHTML=`<div class="rl"><span>已点亮</span><b>0 个</b></div><div class="note">点击图下的三角形卡片给它点亮。先推理再点：线面垂直 ⇒ 线线垂直！</div>`;
+  counter();
+  return {
+    reveal(){
+      marks.clear(); box.querySelectorAll(".cand").forEach(el=>el.classList.remove("on"));
+      cands.forEach(c=>{ if(c.ok){ marks.add(c.n); } });
+      [...box.querySelectorAll(".cand")].forEach((el,i)=>{
+        const nm=el.querySelector(".cname").textContent;
+        el.classList.toggle("on",marks.has(nm));
+      });
+      counter();
+      ctx.ro.innerHTML=`<div class="rl"><span>已点亮</span><b>${marks.size} 个</b></div>`+
+        `<div class="note good">解析：△ABC(∠ACB=90°)；△PAB、△PAC(PA⊥平面)；△PBC(BC⊥平面PAC ⇒ BC⊥PC)；`+
+        (variant==="A"
+          ?`△BEF、△EFC(EF∥PA ⇒ EF⊥平面ABC ⇒ EF⊥EB、EC)。</div>`
+          :`△ACD(AC⊥AB ⇒ AC⊥AD)；△PAD(AP⊥AD)。△BCD、△PCD、△PBD 均无直角。</div>`);
+      ctx.pass();
+    }
+  };
+}
+
+/* ---------------- 关卡：菱形里的秘密（初级3） ---------------- */
+function buildL3(ctx){
+  const svg=SV(660,540); ctx.host.appendChild(svg);
+  const A={x:320,y:150},B={x:505,y:300},C={x:320,y:450},D={x:135,y:300};
+  SE(svg,"polygon",{points:`${A.x},${A.y} ${B.x},${B.y} ${C.x},${C.y} ${D.x},${D.y}`,
+    fill:"color-mix(in srgb, var(--main) 9%, transparent)",stroke:"var(--ink)","stroke-width":3.5});
+  SE(svg,"line",{x1:A.x,y1:A.y,x2:C.x,y2:C.y,class:"edge thin dash"});          // 对角线 AC
+  SE(svg,"line",{x1:B.x+34,y1:B.y,x2:D.x-34,y2:D.y,class:"edge thin dash",stroke:"var(--accent)"}); // BD 延长
+  raMark(svg,320,300, B.x-320,0, 0,C.y-300,13);                                  // 对角线垂直标记
+  ST(svg,A.x+18,A.y-8,"A"); ST(svg,B.x+20,B.y,"B"); ST(svg,C.x+18,C.y+16,"C"); ST(svg,D.x-20,D.y,"D");
+  ST(svg,B.x+72,B.y+28,"BD","slab sm acc");
+  let hz=150;                                            // MC 的高度（像素，作为空间竖直分量）
+  const lMC=SE(svg,"line",{class:"edge hot"});
+  const lMA=SE(svg,"line",{class:"edge",stroke:"var(--accent)","stroke-width":4});
+  const Mdot=SE(svg,"circle",{r:11,class:"knob"});
+  const Mlab=ST(svg,0,0,"M","slab acc");
+  function ptM(){ return {x:320,y:450-hz}; }
+  function update(){
+    const M=ptM();
+    lMC.setAttribute("x1",C.x); lMC.setAttribute("y1",C.y); lMC.setAttribute("x2",M.x); lMC.setAttribute("y2",M.y);
+    lMA.setAttribute("x1",M.x); lMA.setAttribute("y1",M.y); lMA.setAttribute("x2",A.x); lMA.setAttribute("y2",A.y);
+    Mdot.setAttribute("cx",M.x); Mdot.setAttribute("cy",M.y);
+    Mlab.setAttribute("x",M.x-22); Mlab.setAttribute("y",M.y-12);
+    /* 真实三维计算：菱形在 z=0 平面，M=(320,450,hz) */
+    const MA={x:A.x-M.x,y:A.y-M.y,z:0-hz}, BD={x:D.x-B.x,y:0,z:0};
+    const dot=MA.x*BD.x+MA.y*BD.y+MA.z*BD.z;
+    const ang=Math.acos(clamp(Math.abs(dot)/(Math.hypot(MA.x,MA.y,MA.z)*Math.hypot(BD.x)),0,1))*R2D;
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>MC（立柱高，可拖）</span><b>${fmt(hz/50,2)}</b></div>`+
+      `<div class="rl"><span>MA 与 BD 所成角</span><b>${fmt(ang)}°</b></div>`+
+      `<div class="rl"><span>MA 与 BD 是否相交</span><b>否（异面直线）</b></div>`+
+      `<div class="note">上下拖动点 M：无论 M 在哪里，∠都保持 90°，且两条直线始终不在同一平面内。推理：BD⊥AC，BD⊥MC ⇒ BD⊥平面AMC ⇒ BD⊥MA。</div>`;
+  }
+  dragSVG(svg,Mdot,{
+    start:()=>Mdot.setAttribute("cursor","grabbing"),
+    move:p=>{ hz=clamp(450-p.y,70,260); update(); },
+    end:()=>bump()
+  });
+  update();
+
+  /* 结论卡片拖放区 */
+  const cards=document.createElement("div"); cards.className="cards"; ctx.host.appendChild(cards);
+  const slot=document.createElement("div"); slot.className="slot"; slot.innerHTML="MA 与 BD 的位置关系是：<span style='color:var(--accent)'>（把结论卡片拖到这里）</span>";
+  ctx.host.appendChild(slot);
+  const opts=shuffle(["平行","垂直相交","垂直但不相交","相交但不垂直"]);
+  const GOOD="垂直但不相交";
+  let doneFlag=false;
+  opts.forEach(txt=>{
+    const c=document.createElement("div"); c.className="card"; c.textContent=txt;
+    c.addEventListener("pointerdown",e=>{
+      if(doneFlag||c.classList.contains("locked")) return;
+      e.preventDefault(); c.setPointerCapture(e.pointerId);
+      const r=c.getBoundingClientRect(), ox=e.clientX-r.left, oy=e.clientY-r.top;
+      c.classList.add("dragging"); c.style.left=r.left+"px"; c.style.top=r.top+"px";
+      const mv=ev=>{ c.style.left=(ev.clientX-ox)+"px"; c.style.top=(ev.clientY-oy)+"px"; };
+      const up=ev=>{
+        c.removeEventListener("pointermove",mv); c.removeEventListener("pointerup",up); c.removeEventListener("pointercancel",up);
+        c.classList.remove("dragging"); c.style.left=""; c.style.top="";
+        bump();
+        const sr=slot.getBoundingClientRect();
+        if(ev.clientX>=sr.left&&ev.clientX<=sr.right&&ev.clientY>=sr.top&&ev.clientY<=sr.bottom){
+          if(txt===GOOD){
+            doneFlag=true; c.classList.add("locked"); slot.innerHTML="MA 与 BD 的位置关系是："; slot.appendChild(c);
+            ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">结论正确：垂直但不相交（异面垂直）。</div>');
+            ctx.pass();
+          }else{
+            toast("再看读数：所成角 90°，但两条直线是异面直线——这个结论不对哦");
+          }
+        }
+      };
+      c.addEventListener("pointermove",mv); c.addEventListener("pointerup",up); c.addEventListener("pointercancel",up);
+    });
+    cards.appendChild(c);
+  });
+  return {
+    reveal(){
+      hz=150; update();
+      [...cards.children].forEach(c=>{ if(c.textContent===GOOD&&!doneFlag){ doneFlag=true; c.classList.add("locked"); slot.innerHTML="MA 与 BD 的位置关系是："; slot.appendChild(c);} });
+      ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">解析：菱形对角线 BD⊥AC；MC⊥平面 ⇒ BD⊥MC；AC∩MC=C ⇒ BD⊥平面AMC ⇒ BD⊥MA。M 不在菱形平面内，MA 与 BD 异面，故垂直但不相交。</div>');
+      ctx.pass();
+    }
+  };
+}
+
+/* ---------------- 关卡：正方体上找线面角（中级1） ---------------- */
+function buildM1(ctx){
+  const targetTan=pick([2,4]);                          // 目标正切值随机
+  const targetDeg=Math.atan(targetTan)*R2D;
+  const svg=SV(660,540); ctx.host.appendChild(svg);
+  const pr=(x,y,z)=>({x:150+x*95+y*57, y:430-z*95-y*42.75});   // 正方体投影（棱长2）
+  const V={A:pr(0,0,0),B:pr(2,0,0),C:pr(2,2,0),D:pr(0,2,0),A1:pr(0,0,2),B1:pr(2,0,2),C1:pr(2,2,2),D1:pr(0,2,2)};
+  const E0=V.A1, E1=V.D1;                               // E 在棱 A1D1 上滑动
+  const L=(p,q,cls="edge")=>SE(svg,"line",{x1:p.x,y1:p.y,x2:q.x,y2:q.y,class:cls});
+  L(V.A,V.B); L(V.B,V.C); L(V.A,V.A1); L(V.B,V.B1); L(V.C,V.C1); L(V.A1,V.B1); L(V.B1,V.C1);
+  L(V.D,V.C,"edge hid"); L(V.A,V.D,"edge hid"); L(V.D,V.D1,"edge hid"); L(V.C1,V.D1,"edge hid");
+  L(V.A1,V.D1,"edge dash"); L(V.D1,V.B,"edge thin dash");
+  ST(svg,V.A.x-18,V.A.y+14,"A"); ST(svg,V.B.x+14,V.B.y+14,"B"); ST(svg,V.C.x+16,V.C.y+8,"C"); ST(svg,V.D.x-16,V.D.y+4,"D");
+  ST(svg,V.A1.x-24,V.A1.y+2,"A₁"); ST(svg,V.B1.x+16,V.B1.y+2,"B₁"); ST(svg,V.C1.x+18,V.C1.y,"C₁"); ST(svg,V.D1.x-24,V.D1.y-8,"D₁");
+  const lAE=SE(svg,"line",{class:"edge hot"});
+  const lEE=SE(svg,"line",{x1:E0.x,y1:E0.y,x2:E1.x,y2:E1.y,class:"edge",stroke:"var(--accent)","stroke-width":4.5});
+  raMark(svg,E0.x,E0.y, V.A.x-E0.x,V.A.y-E0.y, E1.x-E0.x,E1.y-E0.y, 15);   // A₁ 处直角（AA₁⊥A₁E）
+  const eDot=SE(svg,"circle",{r:11,class:"knob"});
+  const eLab=ST(svg,0,0,"E","slab acc");
+  let xAE=0.8;                                           // A₁E 的长（0.2~2）
+  const passTxt=`<div class="good">对准！tan∠A₁EA=${targetTan===2?"2":"4"}，即 AA₁/A₁E=${targetTan}，解得 A₁E=${fmt(2/targetTan,2)}${targetTan===2?"（恰为 A₁D₁ 的中点）":""}。</div>`;
+  function update(){
+    /* 磁吸：接近目标时先吸附，再统一绘图与读数，保证图形与数值一致 */
+    const ang0=Math.atan(2/xAE)*R2D;
+    const near=Math.abs(ang0-targetDeg)<2.5;
+    if(near) xAE=2/targetTan;
+    const t=clamp(xAE/2,0,1);
+    const p={x:E0.x+(E1.x-E0.x)*t, y:E0.y+(E1.y-E0.y)*t};
+    lAE.setAttribute("x1",V.A.x); lAE.setAttribute("y1",V.A.y); lAE.setAttribute("x2",p.x); lAE.setAttribute("y2",p.y);
+    eDot.setAttribute("cx",p.x); eDot.setAttribute("cy",p.y);
+    eLab.setAttribute("x",p.x+22); eLab.setAttribute("y",p.y-10);
+    const tan=2/xAE, ang=Math.atan(tan)*R2D;
+    eDot.setAttribute("fill", near?"var(--ok)":"var(--accent)");
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>棱长 AA₁</span><b>2</b></div>`+
+      `<div class="rl"><span>A₁E（拖动点 E）</span><b>${fmt(xAE,2)}</b></div>`+
+      `<div class="rl"><span>线面角 ∠A₁EA</span><b>${fmt(ang)}°</b></div>`+
+      `<div class="rl"><span>tan∠A₁EA（目标 ${targetTan}）</span><b>${fmt(tan,2)}</b></div>`+
+      `<div class="note">AA₁⊥上底面 ⇒ A₁E 是 AE 在上底面内的射影，∠A₁EA 就是 AE 与平面 ABCD 所成的角。把正切值拖到目标值，灯亮！</div>`;
+    if(Math.abs(ang-targetDeg)<0.3){ ctx.ro.insertAdjacentHTML("beforeend",passTxt); ctx.pass(); }
+  }
+  dragSVG(svg,eDot,{
+    move:p=>{
+      const vx=E1.x-E0.x, vy=E1.y-E0.y, len2=vx*vx+vy*vy;
+      xAE=clamp(2*clamp(((p.x-E0.x)*vx+(p.y-E0.y)*vy)/len2,0,1),0.2,2); update();
+    },
+    end:()=>bump()
+  });
+  update();
+  return {
+    reveal(){ xAE=2/targetTan; update(); ctx.ro.insertAdjacentHTML("beforeend",passTxt); ctx.pass(); }
+  };
+}
+
+/* ---------------- 关卡：中点距离双灯记（中级2） ---------------- */
+function buildM2(ctx){
+  const dA=pick([2,3]), dB=pick([4,5,6]);                // 距离数值随机生成
+  const k=42, PY=300, XA=230, XB=440;                    // 比例尺与位置
+  const svg=SV(660,580); ctx.host.appendChild(svg);
+  SE(svg,"line",{x1:60,y1:PY,x2:590,y2:PY,stroke:"var(--ink)","stroke-width":5});
+  for(let hx=70;hx<590;hx+=26) SE(svg,"line",{x1:hx,y1:PY,x2:hx-14,y2:PY+14,stroke:"var(--dim)","stroke-width":2});
+  ST(svg,600,PY+8,"α","slab sm");
+  const yA=PY-dA*k;                                      // A 固定在上方
+  const dotA=SE(svg,"circle",{cx:XA,cy:yA,r:9,fill:"var(--accent)"});
+  const stA=ST(svg,XA-20,yA+6,"A");
+  const dAline=SE(svg,"line",{x1:XA,y1:yA,x2:XA,y2:PY,class:"edge thin dash"});
+  const dAlab=ST(svg,XA-26,(yA+PY)/2,String(dA),"slab sm acc");
+  let u=dB;                                              // B 到平面的有向距离（上正下负）
+  const dotB=SE(svg,"circle",{r:11,class:"knob"});
+  const stB=ST(svg,0,0,"B","slab acc");
+  const dBline=SE(svg,"line",{class:"edge thin dash"});
+  const dBlab=ST(svg,0,0,"","slab sm acc");
+  const lAB=SE(svg,"line",{class:"edge",stroke:"var(--main)","stroke-width":4});
+  const dotP=SE(svg,"circle",{r:8,fill:"var(--ok)"});
+  const stP=ST(svg,0,0,"P","slab acc");
+  const dPline=SE(svg,"line",{class:"edge thin dash"});
+  const dPlab=ST(svg,0,0,"","slab sm acc");
+  let lamp1=false, lamp2=false;
+  function update(){
+    const yB=PY-u*k, yM=(yA+yB)/2, xM=(XA+XB)/2;
+    dotB.setAttribute("cx",XB); dotB.setAttribute("cy",yB); stB.setAttribute("x",XB+20); stB.setAttribute("y",yB+6);
+    dBline.setAttribute("x1",XB); dBline.setAttribute("y1",yB); dBline.setAttribute("x2",XB); dBline.setAttribute("y2",PY);
+    dBlab.setAttribute("x",XB+34); dBlab.setAttribute("y",(yB+PY)/2); dBlab.textContent=fmt(Math.abs(u),2);
+    lAB.setAttribute("x1",XA); lAB.setAttribute("y1",yA); lAB.setAttribute("x2",XB); lAB.setAttribute("y2",yB);
+    dotP.setAttribute("cx",xM); dotP.setAttribute("cy",yM); stP.setAttribute("x",xM-18); stP.setAttribute("y",yM-10);
+    dPline.setAttribute("x1",xM); dPline.setAttribute("y1",yM); dPline.setAttribute("x2",xM); dPline.setAttribute("y2",PY);
+    const dp=Math.abs((dA+u)/2);
+    dPlab.setAttribute("x",xM-22); dPlab.setAttribute("y",(yM+PY)/2); dPlab.textContent=fmt(dp,2);
+    if(!lamp1&&Math.abs(u-dB)<0.12){ lamp1=true; toast("同侧探索完成！"); }
+    if(!lamp2&&Math.abs(u+dB)<0.12){ lamp2=true; toast("异侧探索完成！"); }
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>A 到 α 的距离</span><b>${dA}</b></div>`+
+      `<div class="rl"><span>B 到 α 的距离（拖到 ±${dB}）</span><b>${fmt(u,2)}</b></div>`+
+      `<div class="rl"><span>中点 P 到 α 的距离</span><b>${fmt(dp,2)}</b></div>`+
+      `<div class="rl"><span>同侧灯</span><b>${lamp1?"亮":"未亮"}</b></div>`+
+      `<div class="rl"><span>异侧灯</span><b>${lamp2?"亮":"未亮"}</b></div>`+
+      `<div class="note">${lamp1?`同侧：P距 =( ${dA}+${dB} )/2 = ${fmt((dA+dB)/2,2)}<br>`:""}${lamp2?`异侧：P距 =( ${dB}−${dA} )/2 = ${fmt((dB-dA)/2,2)}<br>`:""}拖动点 B 穿过平面 α：先停在上方距 α 为 ${dB} 处，再穿过平面停在下方距 α 为 ${dB} 处。</div>`;
+    if(lamp1&&lamp2){ ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">双灯全亮！中点距离要分同侧、异侧两种情况讨论。</div>'); ctx.pass(); }
+  }
+  dragSVG(svg,dotB,{
+    move:p=>{ let uu=(PY-p.y)/k; if(Math.abs(uu-dB)<0.3) uu=dB; if(Math.abs(uu+dB)<0.3) uu=-dB; u=clamp(uu,-6.2,6.2); update(); },
+    end:()=>bump()
+  });
+  update();
+  return {
+    reveal(){ u=dB; update(); u=-dB; update(); ctx.ro.insertAdjacentHTML("beforeend",`<div class="good">解析：同侧 (${dA}+${dB})/2=${fmt((dA+dB)/2,2)}，异侧 (${dB}−${dA})/2=${fmt((dB-dA)/2,2)}，答案两个都要！</div>`); ctx.pass(); }
+  };
+}
+
+/* ---------------- 关卡：垂足找外心（中级3） ---------------- */
+function buildM3(ctx){
+  const svg=SV(660,540); ctx.host.appendChild(svg);
+  const OX0=90, OY0=470, U=78;                           // 世界原点与比例尺
+  const WA={x:0,y:0}, WB={x:6,y:0}, WC={x:0,y:4.5};      // 直角三角形顶点（∠A=90°）
+  const wp=p=>({x:OX0+p.x*U, y:OY0-p.y*U});
+  const SA=wp(WA),SB=wp(WB),SC=wp(WC);
+  const h=3;                                             // 垂线 PO 的长（世界单位）
+  SE(svg,"polygon",{points:`${SA.x},${SA.y} ${SB.x},${SB.y} ${SC.x},${SC.y}`,
+    fill:"color-mix(in srgb, var(--main) 8%, transparent)",stroke:"var(--ink)","stroke-width":3});
+  raMark(svg,SA.x,SA.y, 1,0, 0,-1,13);
+  ST(svg,SA.x-18,SA.y+22,"A"); ST(svg,SB.x+16,SB.y+22,"B"); ST(svg,SC.x-18,SC.y-8,"C");
+  const star=SE(svg,"path",{d:"",fill:"var(--ok)",opacity:0});
+  let Ow={x:2.4,y:1.0};                                  // 垂足 O（可拖）
+  const lPO=SE(svg,"line",{class:"edge dash",stroke:"var(--dim)"});
+  const lPA=SE(svg,"line",{class:"edge thin"}), lPB=SE(svg,"line",{class:"edge thin"}), lPC=SE(svg,"line",{class:"edge thin"});
+  const oDot=SE(svg,"circle",{r:11,class:"knob"});
+  const oLab=ST(svg,0,0,"垂足O","slab acc");
+  const pDot=SE(svg,"circle",{r:9,fill:"var(--accent)",stroke:"var(--bg)","stroke-width":3});
+  const pLab=ST(svg,0,0,"P","slab acc");
+  function update(){
+    const SO=wp(Ow), SP={x:SO.x+26,y:SO.y-105};
+    lPO.setAttribute("x1",SP.x); lPO.setAttribute("y1",SP.y); lPO.setAttribute("x2",SO.x); lPO.setAttribute("y2",SO.y);
+    [[lPA,SA],[lPB,SB],[lPC,SC]].forEach(([ln,pt])=>{ ln.setAttribute("x1",SP.x); ln.setAttribute("y1",SP.y); ln.setAttribute("x2",pt.x); ln.setAttribute("y2",pt.y); });
+    oDot.setAttribute("cx",SO.x); oDot.setAttribute("cy",SO.y);
+    oLab.setAttribute("x",SO.x+4); oLab.setAttribute("y",SO.y+30);
+    pDot.setAttribute("cx",SP.x); pDot.setAttribute("cy",SP.y);
+    pLab.setAttribute("x",SP.x+20); pLab.setAttribute("y",SP.y-8);
+    const dA=Math.hypot(Ow.x-WA.x,Ow.y-WA.y), dB=Math.hypot(Ow.x-WB.x,Ow.y-WB.y), dC=Math.hypot(Ow.x-WC.x,Ow.y-WC.y);
+    const aA=Math.atan(h/dA)*R2D, aB=Math.atan(h/dB)*R2D, aC=Math.atan(h/dC)*R2D;
+    const eq=Math.max(aA,aB,aC)-Math.min(aA,aB,aC)<1.5;
+    if(eq){
+      const cw=wp({x:3,y:2.25});
+      star.setAttribute("d",starPath(cw.x,cw.y,13)); star.setAttribute("opacity",1);
+    } else star.setAttribute("opacity",0);
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>垂线 PO⊥平面，PO=3</span><b>固定</b></div>`+
+      `<div class="rl"><span>OA / OB / OC</span><b>${fmt(dA,2)} / ${fmt(dB,2)} / ${fmt(dC,2)}</b></div>`+
+      `<div class="rl"><span>斜线 PA 与平面所成角</span><b>${fmt(aA)}°</b></div>`+
+      `<div class="rl"><span>斜线 PB 与平面所成角</span><b>${fmt(aB)}°</b></div>`+
+      `<div class="rl"><span>斜线 PC 与平面所成角</span><b>${fmt(aC)}°</b></div>`+
+      `<div class="note">拖动垂足 O：斜线与平面所成的角 = arctan(PO/到斜足的距离)。三个角相等 ⇔ OA=OB=OC ⇔ O 是 △ABC 的外心（直角三角形的外心在斜边中点，图中已用星标出）。</div>`;
+    if(eq){ ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">三个角相等！垂足恰是 △ABC 的外心——原题答案：外心。</div>'); ctx.pass(); }
+  }
+  dragSVG(svg,oDot,{
+    move:p=>{ Ow.x=clamp((p.x-OX0)/U,0.2,6.8); Ow.y=clamp((OY0-p.y)/U,0.2,4.2); update(); },
+    end:()=>bump()
+  });
+  update();
+  return {
+    reveal(){ Ow={x:3,y:2.25}; update(); ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">解析：斜线与平面所成角相等 ⇒ 射影（垂足到斜足）相等 ⇒ OA=OB=OC ⇒ 垂足为外心。</div>'); ctx.pass(); }
+  };
+}
+function starPath(cx,cy,r){                               // 五角星路径
+  let d="";
+  for(let i=0;i<10;i++){
+    const rr=i%2===0?r:r*0.45, a=-Math.PI/2+i*Math.PI/5;
+    d+=(i===0?"M":"L")+(cx+rr*Math.cos(a)).toFixed(1)+","+(cy+rr*Math.sin(a)).toFixed(1);
+  }
+  return d+"Z";
+}
+
+/* ---------------- 关卡：阳马立柱（高级1，《九章算术》数学文化） ---------------- */
+function buildH1(ctx){
+  const theta=pick([15,22.5,30]);                        // 目标线面角随机
+  const svg=SV(672,560); ctx.host.appendChild(svg);
+  const pr=(x,y,z)=>({x:330+x*80-y*38, y:430-z*80-y*26});
+  const D=pr(0,0,0), Cc=pr(4,0,0), Bb=pr(4,4,0), Aa=pr(0,4,0);
+  const L=(p,q,cls="edge")=>SE(svg,"line",{x1:p.x,y1:p.y,x2:q.x,y2:q.y,class:cls});
+  SE(svg,"polygon",{points:`${D.x},${D.y} ${Cc.x},${Cc.y} ${Bb.x},${Bb.y} ${Aa.x},${Aa.y}`,
+    fill:"color-mix(in srgb, var(--main) 10%, transparent)",stroke:"var(--ink)","stroke-width":3});
+  L(D,Bb,"edge thin dash");                              // 对角线 DB（射影）
+  ST(svg,D.x-18,D.y+20,"D"); ST(svg,Cc.x+16,Cc.y+20,"C"); ST(svg,Bb.x+16,Bb.y,"B"); ST(svg,Aa.x-18,Aa.y-8,"A");
+  raMark(svg,D.x,D.y, Cc.x-D.x,Cc.y-D.y, Aa.x-D.x,Aa.y-D.y,14);
+  let hgt=2.6;                                           // 立柱 PD（米）
+  const lPD=SE(svg,"line",{class:"edge hot"});
+  const lPB=SE(svg,"line",{class:"edge",stroke:"var(--accent)","stroke-width":5});
+  const pDot=SE(svg,"circle",{r:11,class:"knob"});
+  const pLab=ST(svg,0,0,"P","slab acc");
+  const angArc=SE(svg,"path",{d:"",fill:"none",stroke:"var(--ok)","stroke-width":3});
+  const angLab=ST(svg,0,0,"","slab sm acc");
+  function update(){
+    /* 磁吸：接近目标角时先吸附，再统一绘图与读数，保证图形与数值一致 */
+    const ang0=Math.atan(hgt/(4*Math.SQRT2))*R2D;
+    if(Math.abs(ang0-theta)<1.2) hgt=4*Math.SQRT2*Math.tan(theta*D2R);
+    const P=pr(0,0,hgt);
+    lPD.setAttribute("x1",D.x); lPD.setAttribute("y1",D.y); lPD.setAttribute("x2",P.x); lPD.setAttribute("y2",P.y);
+    lPB.setAttribute("x1",P.x); lPB.setAttribute("y1",P.y); lPB.setAttribute("x2",Bb.x); lPB.setAttribute("y2",Bb.y);
+    pDot.setAttribute("cx",P.x); pDot.setAttribute("cy",P.y);
+    pLab.setAttribute("x",P.x-20); pLab.setAttribute("y",P.y-12);
+    const ang=Math.atan(hgt/(4*Math.SQRT2))*R2D;
+    const ok=Math.abs(ang-theta)<0.3;
+    pDot.setAttribute("fill", ok?"var(--ok)":"var(--accent)");
+    const r0=26, a0=Math.atan2(D.y-Bb.y,D.x-Bb.x), a1=Math.atan2(P.y-Bb.y,P.x-Bb.x);
+    angArc.setAttribute("d",arcPath(Bb.x,Bb.y,r0,a1,a0));
+    angLab.setAttribute("x",Bb.x-92); angLab.setAttribute("y",Bb.y-4);
+    angLab.textContent="∠PBD="+fmt(ang)+"°";
+    const noteTan=theta===15?"（注：tan15°≈0.268，√2≈1.414）":"";
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>底面边长 AD=CD</span><b>4 m</b></div>`+
+      `<div class="rl"><span>对角线 DB=4√2</span><b>≈5.66 m</b></div>`+
+      `<div class="rl"><span>∠PBD（目标 ${theta}°）</span><b>${fmt(ang)}°</b></div>`+
+      `<div class="rl"><span>立柱 PD</span><b>${fmt(hgt,2)} m</b></div>`+
+      `<div class="note">PD⊥底面 ⇒ PB 在底面内的射影是 DB，∠PBD 就是斜梁 PB 与底面所成的角${noteTan}。上下拖动 P，使 ∠PBD 恰为 ${theta}°，读出 PD！</div>`;
+    if(ok){
+      ctx.ro.insertAdjacentHTML("beforeend",`<div class="good">点亮！PD=DB·tan${theta}°≈${fmt(4*Math.SQRT2*Math.tan(theta*D2R),2)} m。这就是原题的答案。</div>`);
+      ctx.pass();
+    }
+  }
+  dragSVG(svg,pDot,{
+    move:p=>{ hgt=clamp((430-p.y)/80,0.5,4.8); update(); },
+    end:()=>bump()
+  });
+  update();
+  return {
+    reveal(){ hgt=4*Math.SQRT2*Math.tan(theta*D2R); update(); ctx.pass(); }
+  };
+}
+function arcPath(cx,cy,r,a1,a0){                          // 从角 a1 扫到 a0 的圆弧
+  const x0=cx+r*Math.cos(a1), y0=cy+r*Math.sin(a1), x1=cx+r*Math.cos(a0), y1=cy+r*Math.sin(a0);
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+
+/* ---------------- 关卡：正方形上的垂足（高级2，题15(2)） ---------------- */
+function buildH2(ctx){
+  const svg=SV(660,560); ctx.host.appendChild(svg);
+  const A={x:150,y:150},B={x:150,y:470},C={x:510,y:470},D={x:510,y:150},P={x:534,y:320},E={x:522,y:235};
+  const k=90;                                            // 比例尺：4 单位 = 360px
+  SE(svg,"polygon",{points:`${A.x},${A.y} ${B.x},${B.y} ${C.x},${C.y} ${D.x},${D.y}`,
+    fill:"color-mix(in srgb, var(--main) 8%, transparent)",stroke:"var(--ink)","stroke-width":3.5});
+  ST(svg,A.x-18,A.y,"A"); ST(svg,B.x-18,B.y+22,"B"); ST(svg,C.x+16,C.y+22,"C"); ST(svg,D.x+18,D.y,"D");
+  const lPC=SE(svg,"line",{class:"edge dash",stroke:"var(--dim)"});
+  const lPD=SE(svg,"line",{class:"edge thin dash"});
+  lPD.setAttribute("x1",P.x); lPD.setAttribute("y1",P.y); lPD.setAttribute("x2",D.x); lPD.setAttribute("y2",D.y);
+  raMark(svg,C.x,C.y, P.x-C.x,P.y-C.y, B.x-C.x,B.y-C.y,16);
+  ST(svg,P.x+20,P.y,"P","slab acc"); ST(svg,E.x+22,E.y+6,"E(中点)","slab sm acc");
+  const eDot=SE(svg,"circle",{cx:E.x,cy:E.y,r:6,fill:"var(--accent)"});
+  const lBE=SE(svg,"line",{class:"edge",stroke:"var(--accent)","stroke-width":4.5});
+  const lAF=SE(svg,"line",{class:"edge hot"});
+  const fDot=SE(svg,"circle",{r:11,class:"knob"});
+  const fLab=ST(svg,0,0,"F","slab acc");
+  let fx=250;                                            // F 的横坐标（屏幕）
+  function update(){
+    lPC.setAttribute("x1",P.x); lPC.setAttribute("y1",P.y); lPC.setAttribute("x2",C.x); lPC.setAttribute("y2",C.y);
+    const x=(fx-150)/k;                                  // BF 的长
+    if(Math.abs(x-2)<0.35) fx=150+2*k;                   // 磁吸：接近中点自动对准
+    const x2=(fx-150)/k;
+    const F={x:fx,y:470};
+    lAF.setAttribute("x1",A.x); lAF.setAttribute("y1",A.y); lAF.setAttribute("x2",F.x); lAF.setAttribute("y2",F.y);
+    lBE.setAttribute("x1",B.x); lBE.setAttribute("y1",B.y); lBE.setAttribute("x2",E.x); lBE.setAttribute("y2",E.y);
+    fDot.setAttribute("cx",F.x); fDot.setAttribute("cy",F.y);
+    fLab.setAttribute("x",F.x); fLab.setAttribute("y",F.y+30);
+    /* 三维计算：A(0,4,0) B(0,0,0) C(4,0,0) D(4,4,0) P(4,0,4) E(4,2,2) F(x,0,0) */
+    const AF={x:x2,y:-4,z:0}, BE={x:4,y:2,z:2};
+    const dot=AF.x*BE.x+AF.y*BE.y+AF.z*BE.z;
+    const ang=Math.acos(clamp(Math.abs(dot)/(Math.hypot(AF.x,AF.y,AF.z)*Math.hypot(BE.x,BE.y,BE.z)),0,1))*R2D;
+    const ok=ang>=89.5;
+    fDot.setAttribute("fill", ok?"var(--ok)":"var(--accent)");
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>底面正方形边长 / CP</span><b>4 / 4</b></div>`+
+      `<div class="rl"><span>BF（拖动点 F）</span><b>${fmt(x2,2)}</b></div>`+
+      `<div class="rl"><span>AF 与 BE 所成角</span><b>${fmt(ang)}°</b></div>`+
+      `<div class="note">沿棱 BC 左右拖动点 F，观察 AF 与 BE 所成角的变化。找到使 AF⊥BE（角=90°）的位置，灯亮后读出 BF！</div>`;
+    if(ok){
+      ctx.ro.insertAdjacentHTML("beforeend",`<div class="good">AF⊥BE 成立！BF=2，F 恰为 BC 的中点。解析：取 CD 中点 S，可证 △ABF≌△BCS ⇒ BS⊥AF；又 ES⊥底面 ⇒ ES⊥AF ⇒ AF⊥平面BES ⇒ AF⊥BE。</div>`);
+      ctx.pass();
+    }
+  }
+  dragSVG(svg,fDot,{
+    move:p=>{ fx=clamp(p.x,150,510); update(); },
+    end:()=>bump()
+  });
+  update();
+  return {
+    reveal(){ fx=150+2*k; update(); ctx.pass(); }
+  };
+}
+
+/* ---------------- 关卡：描出点的轨迹（高级3，题11） ---------------- */
+function buildH3(ctx){
+  const W=620,H=520,dpr=window.devicePixelRatio||1;
+  const cv=document.createElement("canvas");
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.maxWidth="620px";
+  const g=cv.getContext("2d"); g.scale(dpr,dpr);
+  ctx.host.appendChild(cv);
+  const X0=100,Y0=460,SC=200;                            // 侧面区域：x∈[0,2]→[100,500]，z∈[0,2]→[460,60]
+  const cells=new Set();                                 // 已点亮的格子 "r,c"
+  let Pc={x:1.0,z:0.5}, dragging=false, doneFlag=false;
+  const css=getComputedStyle(document.body);
+  const CMAIN=css.getPropertyValue("--main").trim()||"#ff9f43", CACC=css.getPropertyValue("--accent").trim()||"#ffd166";
+  function xy(x,z){ return {px:X0+x*SC, py:Y0-z*SC}; }
+  function ang(x,z){                                     // OD1 与 OP 夹角
+    const v1={x:1,y:1,z:2}, v2={x:x-1,y:-1,z:z};
+    const d=v1.x*v2.x+v1.y*v2.y+v1.z*v2.z;
+    return Math.acos(clamp(Math.abs(d)/(Math.hypot(1,1,2)*Math.hypot(v2.x,v2.y,v2.z)),0,1))*R2D;
+  }
+  function draw(){
+    g.clearRect(0,0,W,H);
+    g.fillStyle="rgba(255,255,255,0.04)"; g.fillRect(X0,60,400,400);
+    g.strokeStyle="rgba(255,255,255,0.12)"; g.lineWidth=1;
+    for(let i=0;i<=10;i++){                               // 网格（0.2 单位一格）
+      g.beginPath(); g.moveTo(X0+i*40,60); g.lineTo(X0+i*40,460); g.stroke();
+      g.beginPath(); g.moveTo(X0,460-i*40); g.lineTo(X0+400,460-i*40); g.stroke();
+    }
+    g.strokeStyle=CMAIN; g.lineWidth=4; g.strokeRect(X0,60,400,400);
+    /* 已点亮的轨迹格 */
+    cells.forEach(k=>{
+      const [r,c]=k.split(",").map(Number);
+      g.fillStyle="rgba(123,237,159,0.55)";
+      g.fillRect(X0+c*20,460-(r+1)*20,20,20);
+    });
+    g.fillStyle=CACC; g.font="bold 20px sans-serif";
+    g.fillText("B₁",X0-52,74); g.fillText("C₁",X0+408,74); g.fillText("B",X0-52,462); g.fillText("C",X0+408,462);
+    g.font="bold 17px sans-serif"; g.fillStyle="rgba(255,255,255,0.75)";
+    g.fillText("侧面 BB₁C₁C（正方形，棱长2）",X0+64,42);
+    /* 当前 P 点 */
+    const p=xy(Pc.x,Pc.z);
+    const a=ang(Pc.x,Pc.z);
+    g.beginPath(); g.arc(p.px,p.py,10,0,7);
+    g.fillStyle=(a>=89.2&&a<=90.8)?"#7bed9f":CACC; g.fill();
+    g.lineWidth=3; g.strokeStyle="#111"; g.stroke();
+    g.fillStyle=CACC; g.font="bold 20px sans-serif"; g.fillText("P",p.px+14,p.py-10);
+    if(doneFlag){                                         // 揭示：画出完整轨迹
+      g.strokeStyle="#7bed9f"; g.lineWidth=5; g.setLineDash([12,8]);
+      g.beginPath(); g.moveTo(xy(2,0).px,xy(2,0).py); g.lineTo(xy(0,1).px,xy(0,1).py); g.stroke(); g.setLineDash([]);
+      g.fillStyle="#7bed9f"; g.font="bold 19px sans-serif";
+      g.fillText("P₁（BB₁中点）",X0+6,xy(0,1).py-12);
+      g.fillText("轨迹是线段 C P₁",X0+250,180);
+    }
+  }
+  function updReadout(){
+    const a=ang(Pc.x,Pc.z);
+    const rs=[...cells].map(k=>+k.split(",")[0]);
+    const minR=rs.length?Math.min(...rs):99, maxR=rs.length?Math.max(...rs):-1;
+    const okCnt=cells.size>=10&&minR<=1&&maxR>=8;
+    ctx.ro.innerHTML=
+      `<div class="rl"><span>P 的位置（沿BC x，沿BB₁ z）</span><b>${fmt(Pc.x,2)}, ${fmt(Pc.z,2)}</b></div>`+
+      `<div class="rl"><span>OD₁ 与 OP 所成角</span><b>${fmt(a)}°</b></div>`+
+      `<div class="rl"><span>已点亮格子</span><b>${cells.size} / 需≥10 且两端</b></div>`+
+      `<div class="note">O 是底面中心（对角线交点），D₁ 在左上后方。拖动 P：只要 OD₁⊥OP（角=90°），这一格就被点亮。把整条轨迹（两端都要）描出来！</div>`;
+    if(okCnt&&!doneFlag){
+      doneFlag=true;
+      ctx.ro.insertAdjacentHTML("beforeend",'<div class="good">轨迹描出来了！它是线段 C P₁（P₁ 为 BB₁ 的中点）。原题结论：△D₁C₁P 的面积在 √5 与 2√5 之间取值。</div>');
+      ctx.pass();
+    }
+  }
+  function toPt(e){
+    const r=cv.getBoundingClientRect();
+    return {x:clamp((e.clientX-r.left)*(W/r.width),X0,X0+400), y:clamp((e.clientY-r.top)*(H/r.height),60,460)};
+  }
+  cv.addEventListener("pointerdown",e=>{
+    if(!cv.isConnected) return;                          // 关卡已切换时忽略残留事件
+    e.preventDefault(); dragging=true; try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+    const p=toPt(e); Pc={x:(p.x-X0)/SC,z:(Y0-p.y)/SC}; stamp(); draw(); updReadout();
+  });
+  cv.addEventListener("pointermove",e=>{
+    if(!dragging||!cv.isConnected) return;
+    const p=toPt(e); Pc={x:(p.x-X0)/SC,z:(Y0-p.y)/SC}; stamp(); draw(); updReadout();
+  });
+  const up=()=>{ if(dragging){ dragging=false; bump(); } };
+  cv.addEventListener("pointerup",up); cv.addEventListener("pointercancel",up);
+  function stamp(){                                       // 满足垂直则点亮所在格
+    const a=ang(Pc.x,Pc.z);
+    if(a>=89.2&&a<=90.8){
+      const r=clamp(Math.floor(Pc.z*10),0,19), c=clamp(Math.floor(Pc.x*10),0,19);
+      cells.add(r+","+c);
+    }
+  }
+  draw(); updReadout();
+  return {
+    reveal(){
+      doneFlag=true;
+      for(let i=0;i<=40;i++){ const z=i/40, x=2-2*z; cells.add(clamp(Math.floor(z*10),0,19)+","+clamp(Math.floor(x*10),0,19)); }
+      draw(); updReadout(); ctx.pass();
+    }
+  };
+}
+
+/* ============================================================
+   难度与关卡调度
+   ============================================================ */
+const DIFFS={
+  easy:{ label:"初级 · 智慧之门", levels:[
+    {name:"第1关 · 判定定理实验室", q:`<span class="qtag">判定定理</span>平面内有相交于 O 点的两条直线 a、b，立柱 l 从 O 立起。<b>线面垂直判定定理：</b>若直线 l 垂直于平面内的<b>两条相交直线</b>，则 l 垂直于该平面。<br>任务：调节两个滑块控制立柱倾斜，拖动 b 端旋钮转动直线 b——当立柱<b>同时垂直于 a 和 b</b>，且 a、b <b>相交</b>时，灯塔点亮！再试一试：把 b 转到与 a 平行，灯塔还亮吗？`,
+      build:buildL1},
+    {name:"第2关 · 直角三角形点灯", q:`<span class="qtag">原题改编</span>如图，<b>PA⊥平面ABC，∠ACB=90°</b>（变式条件见图下说明）。图形已把图中出现的所有三角形列成卡片。<br>任务：依据条件<b>推理</b>（线面垂直 ⇒ 线线垂直），点击卡片把所有<b>直角三角形</b>点亮！提醒：以推理为准，不要目测角度。`,
+      build:buildL2},
+    {name:"第3关 · 菱形里的秘密", q:`<span class="qtag">原题</span>如图，<b>MC⊥菱形 ABCD 所在的平面</b>，那么 MA 与 BD 的位置关系是什么？<br>任务：上下拖动点 M，观察读数（所成角、是否相交）；再把正确的结论卡片<b>拖入答案框</b>。候选结论：平行 / 垂直相交 / 垂直但不相交 / 相交但不垂直。`,
+      build:buildL3}
+  ]},
+  mid:{ label:"中级 · 勇者试炼", levels:[
+    {name:"第1关 · 正方体上找线面角", q:`<span class="qtag">原题</span>正方体 ABCD-A₁B₁C₁D₁ 中，点 E 在棱 A₁D₁ 上（棱长为 2），直线 AE 与平面 ABCD 所成角即 ∠A₁EA（因为 AA₁⊥上底面，A₁E 是 AE 的射影；平行平面截同一直线，线面角相等）。<br>任务：拖动点 E，把 tan∠A₁EA 调到<b>目标值</b>，灯塔点亮！`,
+      build:buildM1},
+    {name:"第2关 · 中点距离双灯记", q:`<span class="qtag">原题</span>已知平面 α 外两点 A、B 到平面 α 的距离分别是 <b>dA 与 dB（本局随机）</b>，线段 AB 的中点 P 到平面 α 的距离是多少？<br>任务：上下拖动点 B（B 到 α 的距离必须恰为 dB），分别完成<b>同侧</b>与<b>异侧</b>两种摆放，点亮两盏灯！`,
+      build:buildM2},
+    {name:"第3关 · 垂足找外心", q:`<span class="qtag">原题</span>从平面外一点 P 向平面引一条垂线 PO 和三条斜线 PA、PB、PC（斜足分别为 A、B、C）。如果这些斜线与平面所成的角相等，垂足 O 是 △ABC 的什么心？<br>任务：拖动垂足 O，让三条斜线与平面所成的角<b>相等</b>，观察 O 落在 △ABC 的什么特殊位置！`,
+      build:buildM3}
+  ]},
+  hard:{ label:"高级 · 星空挑战", levels:[
+    {name:"第1关 · 阳马立柱（九章算术）", q:`<span class="qtag">数学文化·原题</span>《九章算术》把底面为长方形、且有一条侧棱与底面垂直的四棱锥称为<b>阳马</b>。在阳马 P-ABCD 中，<b>PD⊥底面 ABCD，AD=CD=4 m</b>，斜梁 PB 与底面 ABCD 所成的角为<b>θ（本局随机）</b>，求立柱 PD 的长。<br>任务：拖动点 P 使 ∠PBD（= 线面角）恰为 θ，灯亮后读出 PD！`,
+      build:buildH1},
+    {name:"第2关 · 正方形上的垂足", q:`<span class="qtag">原题</span>四棱锥 P-ABCD 中，<b>PC⊥平面 ABCD，底面 ABCD 为正方形，CD=CB=CP=4，E 为 PD 的中点</b>。在棱 BC 上是否存在点 F，使 AF⊥BE？<br>任务：沿棱 BC 拖动点 F，观察 AF 与 BE 所成角——找到垂直的位置，读出 BF 的长！`,
+      build:buildH2},
+    {name:"第3关 · 描出点的轨迹", q:`<span class="qtag">原题·探索</span>正方体 ABCD-A₁B₁C₁D₁ 棱长为 2，O 为底面 ABCD 的中心，点 P 在<b>侧面 BB₁C₁C</b> 的边界及内部运动，且 <b>D₁O⊥OP</b>。<br>任务：在大正方形上拖动点 P，凡满足垂直的位置会点亮留痕——把 P 的运动轨迹<b>完整描出来</b>（两端都要描到）！`,
+      build:buildH3}
+  ]}
+};
+
+/* ---------- 关卡切换 ---------- */
+function renderLamps(){
+  document.querySelectorAll("#lamps .lamp").forEach((el,i)=>{
+    el.classList.toggle("lit",G.passed[i]);
+    el.classList.toggle("cur",i===G.levelIdx&&!G.passed[i]);
+  });
+}
+function buildLevel(){
+  const stage=$("#stage"); stage.innerHTML="";
+  const def=DIFFS[G.diff].levels[G.order[G.levelIdx]];
+  G.def=def; G.api=null;
+  $("#diff-label").textContent=DIFFS[G.diff].label;
+  $("#level-name").textContent=def.name+`（${G.levelIdx+1}/3）`;
+  $("#qtext").innerHTML=def.q;
+  const ro=$("#readout"); ro.innerHTML="加载中…";
+  let passedThis=false;
+  const ctx={
+    host:stage, ro,
+    bump,
+    pass(msg){                                           // 通关：亮灯 + 推进
+      if(passedThis) return; passedThis=true;
+      G.passed[G.levelIdx]=true; renderLamps();
+      if(msg) toast(msg,2600);
+      const tk=++G.advanceToken;
+      if(G.passed.every(Boolean)){ setTimeout(()=>{ if(tk===G.advanceToken) celebrate(); },1200); }
+      else setTimeout(()=>{ if(tk===G.advanceToken) nextLevel(); },1700);
+    }
+  };
+  G.api=def.build(ctx)||{};
+  renderLamps();
+}
+function nextLevel(){
+  const i=G.passed.findIndex(v=>!v);
+  if(i<0) return;
+  G.levelIdx=i; buildLevel();
+}
+function startDiff(d){
+  /* order 存的是原关卡索引的随机顺序，levelIdx 从第一关开始 */
+  G.diff=d; G.order=shuffle([0,1,2]);
+  G.passed=[false,false,false]; G.diffSteps=0;
+  G.levelIdx=0;                                          // 从打乱后的第一关开始
+  $("#scr-select").style.display="none";
+  $("#scr-play").style.display="block";
+  buildLevel();
+  toast("欢迎来到 "+DIFFS[d].label+"！色板已随机换新");
+}
+function showSelect(){
+  G.advanceToken++;
+  $("#scr-play").style.display="none";
+  $("#scr-select").style.display="block";
+  pickPal();                                             // 每次返回重抽色板（G8）
+  window.scrollTo(0,0);
+}
+
+/* ---------- 色板随机 ---------- */
+function pickPal(){ G.pal=Math.floor(Math.random()*6); document.body.dataset.pal=String(G.pal); }
+
+/* ---------- 通关庆祝（G5：彩带 + 星光） ---------- */
+function celebrate(){
+  const cel=$("#celebrate"); cel.classList.add("show");
+  $("#cele-title").textContent=DIFFS[G.diff].label.replace("·","")+" · 三座灯塔全部点亮！";
+  const m=String(Math.floor(G.sec/60)).padStart(2,"0"), s=String(G.sec%60).padStart(2,"0");
+  $("#cele-tm").textContent=m+":"+s; $("#cele-st").textContent=G.diffSteps;
+  $("#cele-msg").textContent=pick(["夜航的船队为你欢呼！","数学之光，照亮海面！","判定定理，运用自如！","你真是出色的灯塔建造师！"]);
+  const colors=[getComputedStyle(document.body).getPropertyValue("--main"),getComputedStyle(document.body).getPropertyValue("--accent"),"#7bed9f","#ffe066","#ff8fab"];
+  for(let i=0;i<90;i++){
+    const p=document.createElement("div"); p.className="cf";
+    p.style.left=rnd(0,100)+"vw"; p.style.background=pick(colors);
+    p.style.animationDuration=rnd(2.2,3.6)+"s"; p.style.animationDelay=rnd(0,0.8)+"s";
+    p.style.width=rnd(8,15)+"px"; p.style.height=rnd(12,22)+"px";
+    p.style.borderRadius=Math.random()<0.4?"50%":"2px";
+    cel.appendChild(p);
+  }
+}
+$("#btn-cele-ok").addEventListener("click",()=>{
+  $("#celebrate").classList.remove("show");
+  document.querySelectorAll(".cf").forEach(e=>e.remove());
+  showSelect();
+});
+
+/* ---------- 按钮绑定（G4：揭示答案 / 重新开始 / 返回难度选择） ---------- */
+$("#btn-reveal").addEventListener("click",()=>{ bump(); if(G.api&&G.api.reveal) G.api.reveal(); toast("已揭示答案与解析"); });
+$("#btn-restart").addEventListener("click",()=>{ buildLevel(); toast("本关已重置，重新探索吧"); });
+$("#btn-back").addEventListener("click",showSelect);
+$("#btn-rules").addEventListener("click",()=>$("#rules-modal").classList.add("show"));
+$("#btn-rules-ok").addEventListener("click",()=>$("#rules-modal").classList.remove("show"));
+document.querySelectorAll(".diff-card").forEach(c=>c.addEventListener("click",()=>startDiff(c.dataset.d)));
+
+/* ---------- 启动：先弹规则面板，随机色板 ---------- */
+pickPal();
+$("#rules-modal").classList.add("show");
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-g/g011", "name": "\u5782\u76f4\u706f\u5854\u00b7\u7ebf\u9762\u5782\u76f4\u63a2\u9669\u5de5\u574a", "file": "g011.html", "jiaocan": "\u301050\u3011\u7b2c13\u7ae0 \u7acb\u4f53\u51e0\u4f55\u521d\u6b65\uff1a13.2 \u57fa\u672c\u56fe\u5f62\u4f4d\u7f6e\u5173\u7cfb\uff1a13.2.3 \u76f4\u7ebf\u4e0e\u5e73\u9762\u7684\u4f4d\u7f6e\u5173\u7cfb\uff08\u4e8c\uff09\u2014\u2014\u76f4\u7ebf\u4e0e\u5e73\u9762\u5782\u76f4\uff1a\u5b66\u4e1a\u8d28\u91cf\u6d4b\u8bc4", "unit": "", "grade": "", "stage": "\u9ad8\u4e2d", "series": "G\uff1a\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-g"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

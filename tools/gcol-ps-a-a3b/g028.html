@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据彩虹谷 · 小小统计师（第14讲 统计（下））</title>
+<style>
+/* ===================== 基础布局与主题变量 ===================== */
+:root{
+  --bg:#eef7ff; --card:#ffffff; --primary:#0277bd; --accent:#ffb300;
+  --s1:#0277bd; --s2:#ef6c00; --ink:#12324a; --line:#cfd8dc;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:18px; line-height:1.5;
+}
+/* ===================== 顶栏 ===================== */
+#topbar{
+  display:none; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:8px 14px; background:var(--card); box-shadow:0 2px 8px rgba(0,0,0,.08);
+  position:sticky; top:0; z-index:20;
+}
+#topbar.on{ display:flex; }
+#topbar .logo{ font-size:22px; font-weight:900; color:var(--primary); }
+#topbar .lvbadge{
+  background:var(--primary); color:#fff; border-radius:16px; padding:2px 14px;
+  font-weight:700; font-size:17px;
+}
+#topbar .spacer{ flex:1; }
+#hud{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+#hud .pill{
+  background:var(--bg); border:2px solid var(--primary); color:var(--ink);
+  border-radius:16px; padding:2px 12px; font-weight:800; font-size:17px;
+}
+/* ===================== 通用按钮 ===================== */
+.btn{
+  display:inline-block; border:none; cursor:pointer; user-select:none;
+  background:var(--primary); color:#fff; font-size:17px; font-weight:800;
+  border-radius:14px; padding:10px 18px; min-height:44px;
+  box-shadow:0 3px 0 rgba(0,0,0,.18); font-family:inherit;
+}
+.btn:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.18); }
+.btn.warn{ background:#8d6e63; }
+.btn.gold{ background:var(--accent); color:#4a2f12; }
+.btn.ghost{ background:#fff; color:var(--primary); border:3px solid var(--primary); }
+/* ===================== 屏幕切换 ===================== */
+.screen{ display:none; }
+.screen.on{ display:block; }
+/* ===================== 首页 ===================== */
+#screen-home{ text-align:center; padding:26px 14px 60px; }
+#screen-home h1{
+  font-size:44px; margin:18px 0 6px; color:var(--primary);
+  text-shadow:2px 2px 0 var(--accent);
+}
+#screen-home .sub{ font-size:20px; color:var(--ink); margin-bottom:8px; }
+#screen-home .rainbow{
+  height:14px; width:min(560px,88%); margin:10px auto 22px; border-radius:8px;
+  background:linear-gradient(90deg,#ff5252,#ffd740,#69f0ae,#40c4ff,#b388ff);
+}
+#lvgrid{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin:22px 0; }
+.lvcard{
+  width:270px; background:var(--card); border-radius:20px; padding:20px 16px;
+  cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,.12); border:4px solid transparent;
+  transition:transform .15s, border-color .15s;
+}
+.lvcard:hover{ transform:translateY(-6px); border-color:var(--primary); }
+.lvcard .tag{ font-size:30px; }
+.lvcard h3{ margin:8px 0 6px; font-size:24px; color:var(--primary); }
+.lvcard p{ margin:0; font-size:16px; color:#5b7186; text-align:left; }
+/* ===================== 游戏主区 ===================== */
+#screen-game{ padding:12px; }
+#mission-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+#mission-head .mtitle{ font-size:24px; font-weight:900; color:var(--primary); }
+#mission-head .mprog{ font-size:18px; color:#5b7186; font-weight:700; }
+#gamemain{ display:flex; gap:14px; align-items:flex-start; }
+#stage{
+  flex:1 1 620px; background:var(--card); border-radius:20px; padding:8px;
+  box-shadow:0 4px 12px rgba(0,0,0,.08); min-width:0;
+}
+#chartWrap svg{ width:100%; height:auto; touch-action:none; user-select:none; display:block; }
+#side{ flex:0 0 330px; display:flex; flex-direction:column; gap:12px; }
+#taskcard{
+  background:var(--card); border-radius:20px; padding:14px 16px;
+  box-shadow:0 4px 12px rgba(0,0,0,.08); border-top:8px solid var(--accent);
+}
+#taskcard h4{ margin:0 0 6px; font-size:20px; color:var(--primary); }
+#taskcard .story{ font-size:16px; color:#5b7186; margin-bottom:8px; }
+#taskcard table{ border-collapse:collapse; width:100%; font-size:15px; margin:6px 0; }
+#taskcard table td, #taskcard table th{ border:2px solid var(--line); padding:3px 6px; text-align:center; }
+#taskcard .hintline{ font-size:15px; color:#8d6e63; }
+.tgline{ display:flex; gap:8px; align-items:flex-start; margin:6px 0; font-size:16px; }
+.tgline .st{ color:#c9cdd2; font-size:20px; line-height:1.2; }
+.tgline.done .st{ color:#f2a900; }
+.tgline.done{ color:#2e7d32; font-weight:700; }
+#toolbox{
+  background:var(--card); border-radius:20px; padding:12px 14px;
+  box-shadow:0 4px 12px rgba(0,0,0,.08); display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+}
+#toolbox .tlabel{ font-size:15px; color:#5b7186; font-weight:700; }
+.pencil{
+  border-radius:12px; padding:8px 14px; font-size:17px; font-weight:800; cursor:pointer;
+  border:4px solid transparent; color:#fff; min-height:44px; font-family:inherit;
+}
+.pencil.sel{ border-color:var(--ink); transform:scale(1.06); }
+#opbtns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:2px; }
+/* ===================== 平均线仪表 ===================== */
+#meters{ display:flex; gap:12px; }
+.meter{ flex:1; background:#f4f7f9; border-radius:12px; padding:8px; text-align:center; }
+.meter .mname{ font-size:15px; font-weight:800; }
+.meter .mbarwrap{ height:12px; background:#e2e8ee; border-radius:6px; overflow:hidden; margin:4px 0; }
+.meter .mbar{ height:100%; width:0%; border-radius:6px; transition:width .15s; }
+.meter .mnum{ font-size:18px; font-weight:900; }
+/* ===================== 修补数据表 ===================== */
+.repairwrap{ padding:10px; text-align:center; }
+.repairwrap h4{ margin:4px 0 10px; color:var(--primary); font-size:20px; }
+table.dtable{ border-collapse:collapse; margin:0 auto 12px; font-size:19px; }
+table.dtable td, table.dtable th{ border:3px solid var(--ink); padding:8px 12px; text-align:center; min-width:64px; }
+table.dtable th{ background:var(--primary); color:#fff; }
+.slot{
+  display:inline-block; min-width:44px; padding:2px 8px; border-bottom:4px dashed var(--accent);
+  font-weight:900; color:var(--primary); cursor:pointer; background:#fffdf3;
+}
+.slot.okk{ border-bottom:4px solid #2e7d32; color:#2e7d32; }
+.slot.badd{ border-bottom:4px solid #ef6c00; color:#ef6c00; }
+.slot.wobble{ animation:wob .4s 2; }
+.tiletray{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px; }
+.tile{
+  width:56px; height:56px; border-radius:12px; background:var(--primary); color:#fff;
+  font-size:26px; font-weight:900; display:flex; align-items:center; justify-content:center;
+  cursor:grab; box-shadow:0 3px 0 rgba(0,0,0,.2); user-select:none; touch-action:none;
+}
+.tile.wide{ width:74px; font-size:22px; }
+.tile-ghost{
+  position:fixed; z-index:99; pointer-events:none; opacity:.9;
+  width:56px; height:56px; border-radius:12px; color:#fff; font-size:26px; font-weight:900;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 6px 14px rgba(0,0,0,.3);
+}
+.tile-ghost.wide{ width:74px; font-size:22px; }
+#readout{ text-align:center; font-size:19px; font-weight:800; margin-top:6px; }
+#readout .good{ color:#2e7d32; } #readout .near{ color:#ef6c00; }
+/* ===================== SVG 内元素 ===================== */
+.bar{ cursor:grab; }
+.bar.locked{ stroke:#ffffff; stroke-width:4; }
+.hotcol{ fill:#000; fill-opacity:0; cursor:grab; }
+.dot{ stroke:#fff; stroke-width:3; }
+.segline{ stroke-width:6; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.avgline{ cursor:grab; }
+@keyframes wob{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+.wobble{ animation:wob .4s 2; transform-box:fill-box; transform-origin:center; }
+@keyframes popin{ 0%{transform:scale(.2)} 70%{transform:scale(1.35)} 100%{transform:scale(1)} }
+.popin{ animation:popin .45s; transform-box:fill-box; transform-origin:center; }
+@keyframes rip{ 0%{r:6; opacity:.9} 100%{r:34; opacity:0} }
+@keyframes spk{ 0%{transform:scale(.3); opacity:1} 100%{transform:scale(1.8); opacity:0} }
+.spark{ animation:spk .7s forwards; transform-box:fill-box; transform-origin:center; }
+/* ===================== 过关横幅 / 结算 ===================== */
+#banner{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+  z-index:60; background:rgba(18,50,74,.45);
+}
+#banner.on{ display:flex; }
+#banner .bcard{
+  background:#fff; border-radius:24px; padding:30px 46px; text-align:center;
+  box-shadow:0 10px 30px rgba(0,0,0,.3); animation:popin .5s;
+}
+#banner .bstars{ font-size:46px; color:#f2a900; }
+#banner .btxt{ font-size:26px; font-weight:900; color:var(--primary); margin-top:6px; }
+#screen-win{ text-align:center; padding:30px 14px 60px; }
+#screen-win h2{ font-size:38px; color:var(--primary); margin:12px 0; }
+#screen-win .bigstars{ font-size:56px; color:#f2a900; letter-spacing:6px; }
+#screen-win .stats{ font-size:20px; font-weight:700; color:#5b7186; margin:14px 0 22px; }
+/* ===================== 弹窗与提示 ===================== */
+#modal{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+  background:rgba(18,50,74,.5); z-index:70; padding:16px;
+}
+#modal.on{ display:flex; }
+#modal .mpanel{
+  background:#fff; border-radius:22px; max-width:640px; width:100%; max-height:86vh;
+  overflow:auto; padding:22px 26px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+#modal h3{ margin:0 0 10px; color:var(--primary); font-size:26px; }
+#modal p, #modal li{ font-size:17px; }
+#modal .mfoot{ text-align:center; margin-top:14px; }
+#toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  background:var(--ink); color:#fff; padding:10px 22px; border-radius:20px;
+  font-size:17px; font-weight:700; opacity:0; pointer-events:none; transition:all .25s; z-index:80;
+  max-width:86vw; text-align:center;
+}
+#toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:90; }
+/* ===================== 响应式 ===================== */
+@media (max-width:960px){
+  #gamemain{ flex-direction:column; }
+  #side{ flex:1 1 auto; width:100%; }
+  #screen-home h1{ font-size:34px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 顶栏：标题 + 难度徽章 + 计时/步数（右上角实时显示） -->
+<header id="topbar">
+  <span class="logo">数据彩虹谷</span>
+  <span class="lvbadge" id="lvbadge">初级·彩虹小径</span>
+  <span id="mprogTop" style="font-weight:700;color:#5b7186;"></span>
+  <span class="spacer"></span>
+  <div id="hud">
+    <span class="pill">用时 <span id="timer">00:00</span></span>
+    <span class="pill">步数 <span id="steps">0</span></span>
+  </div>
+</header>
+
+<!-- 首页：难度选择 -->
+<section id="screen-home" class="screen on">
+  <div class="tag" style="font-size:52px;">🌈</div>
+  <h1>数据彩虹谷 · 小小统计师</h1>
+  <div class="sub">第14讲 统计（下）：复式折线统计图 · 复式条形统计图 · 平均数</div>
+  <div class="rainbow"></div>
+  <div class="sub" style="color:#5b7186;">彩虹谷的居民们记录了好多数据，却还没画成统计图。<br>请你动手搭一搭、连一连、找一找、修一修，点亮属于你的彩虹！</div>
+  <div id="lvgrid">
+    <div class="lvcard" data-lv="easy">
+      <div class="tag">🌱</div><h3>初级 · 彩虹小径</h3>
+      <p>搭一搭单组柱状图，描点画折线，再用“移多补少”找出平均数。（例题级）</p>
+    </div>
+    <div class="lvcard" data-lv="mid">
+      <div class="tag">⭐</div><h3>中级 · 星光大道</h3>
+      <p>挑战复式条形统计图，在两条折线间慧眼寻宝，平均数再进一级。（练习级）</p>
+    </div>
+    <div class="lvcard" data-lv="hard">
+      <div class="tag">🏔️</div><h3>高级 · 智慧之巅</h3>
+      <p>双折线亲手描绘，修补破损的统计表，完成综合数据挑战。（变式级）</p>
+    </div>
+  </div>
+  <button class="btn ghost" id="btnRulesHome">规则说明</button>
+</section>
+
+<!-- 游戏主屏 -->
+<section id="screen-game" class="screen">
+  <div id="mission-head">
+    <span class="mtitle" id="mtitle">搭柱达人</span>
+    <span class="mprog" id="mprog">第 1 / 3 关</span>
+  </div>
+  <div id="gamemain">
+    <div id="stage"><div id="chartWrap"></div></div>
+    <div id="side">
+      <div id="taskcard"></div>
+      <div id="meters" style="display:none;">
+        <div class="meter">
+          <div class="mname" style="color:#ef6c00;">多出的部分</div>
+          <div class="mbarwrap"><div class="mbar" id="mbarExtra" style="background:#ef6c00;"></div></div>
+          <div class="mnum" id="mnumExtra">0</div>
+        </div>
+        <div class="meter">
+          <div class="mname" style="color:#0277bd;">还缺的部分</div>
+          <div class="mbarwrap"><div class="mbar" id="mbarGap" style="background:#0277bd;"></div></div>
+          <div class="mnum" id="mnumGap">0</div>
+        </div>
+      </div>
+      <div id="toolbox"></div>
+      <div id="opbtns">
+        <button class="btn ghost" id="btnRules">规则说明</button>
+        <button class="btn gold" id="btnReveal">揭示答案</button>
+        <button class="btn warn" id="btnRestart">重新开始</button>
+        <button class="btn warn" id="btnBack">返回难度选择</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 结算屏 -->
+<section id="screen-win" class="screen">
+  <div style="font-size:56px;">🏆</div>
+  <h2>恭喜你，点亮了整条数据彩虹！</h2>
+  <div class="bigstars" id="winStars">★★★</div>
+  <div class="stats" id="winStats"></div>
+  <button class="btn" id="btnAgain">再玩一局</button>
+  <button class="btn ghost" id="btnBack2">返回难度选择</button>
+</section>
+
+<!-- 过关横幅 -->
+<div id="banner"><div class="bcard">
+  <div class="bstars" id="bStars">★★★</div>
+  <div class="btxt" id="bTxt">本关完成！</div>
+</div></div>
+
+<!-- 规则说明弹窗（进入时弹出，可随时再看） -->
+<div id="modal"><div class="mpanel">
+  <h3>🌈 数据彩虹谷 · 游戏规则</h3>
+  <p><b>故事</b>：彩虹谷的居民们收集了商场销售额、踢毽子成绩、测验分数等好多数据。
+  请你当一回小小统计师，把数据变成统计图，从图中发现信息，找出平均数！</p>
+  <ul>
+    <li><b>搭柱达人</b>：按住柱子上下拖动，让柱子高度和表格数据一致，对的柱子会亮起来。</li>
+    <li><b>描点连线</b>：看表格数据，在图上从左到右依次点亮每个数据点（点对高度才能点亮）。双色任务要先选好画笔。</li>
+    <li><b>移多补少</b>：上下拖动彩虹平均线——当“多出的部分”正好补满“缺少的部分”，就找到平均数啦！</li>
+    <li><b>慧眼寻宝</b>：根据提示点一点图上的点或线段（比如最高的点、上升最快的一段），点亮所有星星。</li>
+    <li><b>修补数据表</b>：淘气的小精灵把统计表弄破了！把数字磁贴拖进缺口，让表格重新成立。</li>
+  </ul>
+  <p><b>小贴士</b>：平均数 = 总数量 ÷ 总份数；也可以用“移多补少”看出来。<br>
+  右上角显示<b>用时</b>和<b>步数</b>；出错越少，星星越多！</p>
+  <div class="mfoot"><button class="btn" id="btnCloseModal">开始挑战</button></div>
+</div></div>
+
+<div id="toast"></div>
+<canvas id="fx"></canvas>
+
+<script>
+"use strict";
+/* ============================================================
+   数据彩虹谷 · 小小统计师
+   第14讲 统计（下）：复式折线统计图 / 复式条形统计图 / 平均数
+   所有关卡数据均取自本讲教参（例4-例6、练习2/3/4/8/9/10/11/12/13/14/15/16/17）
+   五种玩法都与题型方法深度绑定：
+   搭柱=绘制条形图；描点=绘制折线图；平均线=移多补少找平均数；
+   寻宝=读图找拐点/比较两条线；修表=逆向推理补全统计表
+   ============================================================ */
+
+/* ---------------- 小工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function fmtTime(s){ const m=Math.floor(s/60), r=s%60; return (m<10?'0':'')+m+':'+(r<10?'0':'')+r; }
+function toastMsg(t){
+  const el=$('toast'); el.textContent=t; el.classList.add('on');
+  clearTimeout(toastMsg._tm); toastMsg._tm=setTimeout(function(){ el.classList.remove('on'); },1900);
+}
+/* 最大公约数（用于拖动吸附步长，保证所有目标值都能被拖到） */
+function gcd(a,b){ return b===0 ? a : gcd(b, a%b); }
+function gcdArr(arr){ let g=arr[0]; for(let i=1;i<arr.length;i++){ g=gcd(g,arr[i]); } return g; }
+/* 把原始刻度取整成 1/2/2.5/5×10^k 的漂亮步长 */
+function niceStep(raw){
+  if(raw<=0){ return 1; }
+  const p=Math.pow(10,Math.floor(Math.log(raw)/Math.LN10));
+  const r=raw/p; let m;
+  if(r<=1){ m=1; } else if(r<=2){ m=2; } else if(r<=2.5){ m=2.5; } else if(r<=5){ m=5; } else { m=10; }
+  return m*p;
+}
+/* 通用缓动补间 */
+function tween(dur, fn, done){
+  const t0=performance.now();
+  function frame(t){
+    const k=Math.min(1,(t-t0)/dur);
+    fn(k);
+    if(k<1){ requestAnimationFrame(frame); } else if(done){ done(); }
+  }
+  requestAnimationFrame(frame);
+}
+/* SVG 创建辅助 */
+const SVGNS='http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, parent){
+  const e=document.createElementNS(SVGNS,tag);
+  if(attrs){ Object.keys(attrs).forEach(function(k){ e.setAttribute(k,attrs[k]); }); }
+  if(parent){ parent.appendChild(e); }
+  return e;
+}
+/* 把鼠标/触摸事件坐标换算成 SVG 视图坐标 */
+function svgPoint(svg,ev){
+  const pt=svg.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY;
+  const ctm=svg.getScreenCTM();
+  if(!ctm){ return {x:0,y:0}; }
+  const p=pt.matrixTransform(ctm.inverse());
+  return {x:p.x,y:p.y};
+}
+/* 向上找到带 data-key 的祖先元素 */
+function closestKey(el,key){
+  let cur=el;
+  while(cur && cur!==document){
+    if(cur.dataset && Object.prototype.hasOwnProperty.call(cur.dataset,key)){ return cur; }
+    cur=cur.parentNode;
+  }
+  return null;
+}
+
+/* ---------------- 随机色板（每局随机换装，多次玩不腻） ---------------- */
+const PALETTES=[
+  {name:'彩虹粉', bg:'#fff5f7', primary:'#d81b60', accent:'#ffd54f', s1:'#d81b60', s2:'#3f51b5', ink:'#3a2434'},
+  {name:'海洋蓝', bg:'#eef7ff', primary:'#0277bd', accent:'#ffb300', s1:'#0277bd', s2:'#ef6c00', ink:'#12324a'},
+  {name:'森林绿', bg:'#f0faf1', primary:'#2e7d32', accent:'#ffca28', s1:'#2e7d32', s2:'#5c6bc0', ink:'#1b3320'},
+  {name:'星空紫', bg:'#f5f0ff', primary:'#5e35b1', accent:'#ffb300', s1:'#5e35b1', s2:'#00897b', ink:'#2a1e4a'},
+  {name:'暖阳橙', bg:'#fff8ee', primary:'#ef6c00', accent:'#4db6ac', s1:'#ef6c00', s2:'#3949ab', ink:'#4a2f12'},
+  {name:'薄荷青', bg:'#eefcf9', primary:'#00897b', accent:'#f06292', s1:'#00897b', s2:'#5c6bc0', ink:'#123a34'}
+];
+function applyPalette(){
+  const p=pick(PALETTES);
+  const st=document.documentElement.style;
+  st.setProperty('--bg',p.bg); st.setProperty('--primary',p.primary);
+  st.setProperty('--accent',p.accent); st.setProperty('--s1',p.s1);
+  st.setProperty('--s2',p.s2); st.setProperty('--ink',p.ink);
+  return p;
+}
+
+/* ---------------- 题库数据（全部来自本讲教参，已逐题核对） ---------------- */
+const MONTHS6=['1月','2月','3月','4月','5月','6月'];
+const TIMES5=['第1次','第2次','第3次','第4次','第5次'];
+
+/* 单组条形图数据（搭柱达人 · 初级） */
+const BAR_SINGLE=[
+  {name:'五年级同学爱吃的蔬菜人数', unit:'人', labels:['生菜','菠菜','花菜','西红柿','芹菜','萝卜'], vals:[15,19,19,18,11,12], src:'例5'},
+  {name:'希望小学各年级喜欢科普读物的人数', unit:'人', labels:['一年级','二年级','三年级','四年级','五年级','六年级'], vals:[20,28,35,57,71,91], src:'练习17'},
+  {name:'30名同学1分钟仰卧起坐的人数', unit:'人', labels:['15~20次','20~25次','25~30次','30~35次'], vals:[3,10,12,5], src:'练习15'},
+  {name:'学校第一季度各月用水量', unit:'吨', labels:['一月','二月','三月'], vals:[450,300,585], src:'练习2'}
+];
+/* 复式条形图数据（搭柱达人 · 中级） */
+const BAR_DOUBLE=[
+  {name:'光明、育才小学三年级数学测试人数', unit:'人', labels:['优秀','合格','不合格'],
+   A:{name:'光明小学',vals:[30,62,8]}, B:{name:'育才小学',vals:[26,48,6]}, src:'例6'},
+  {name:'五、六年级同学制作标本件数', unit:'件', labels:['昆虫标本','植物标本','矿石标本'],
+   A:{name:'五年级',vals:[15,30,21]}, B:{name:'六年级',vals:[25,42,35]}, src:'练习9'},
+  {name:'连锁店第四季度各月营业额', unit:'万元', labels:['10月','11月','12月'],
+   A:{name:'永红分店',vals:[20,24,26]}, B:{name:'胜利分店',vals:[16,18,22]}, src:'练习4'}
+];
+/* 单折线数据（描点连线） */
+const LINE_EASY=[
+  {name:'牛牛五次数学测验成绩', unit:'分', labels:TIMES5.slice(), series:[{name:'牛牛',vals:[90,95,85,90,100]}], src:'练习11'},
+  {name:'A超市上半年月销售额', unit:'万元', labels:MONTHS6.slice(), series:[{name:'A超市',vals:[40,20,100,110,120,90]}], src:'练习3'}
+];
+const LINE_MID=[
+  {name:'甲商场上半年月销售额', unit:'万元', labels:MONTHS6.slice(), series:[{name:'甲商场',vals:[80,60,100,120,80,70]}], src:'例4'},
+  {name:'B超市上半年月销售额', unit:'万元', labels:MONTHS6.slice(), series:[{name:'B超市',vals:[50,30,90,80,90,80]}], src:'练习3'},
+  {name:'牛牛五次数学测验成绩', unit:'分', labels:TIMES5.slice(), series:[{name:'牛牛',vals:[90,95,85,90,100]}], src:'练习11'}
+];
+/* 复式折线数据（高级描点 + 寻宝底图） */
+const LINE_DOUBLE=[
+  {name:'甲、乙商场上半年销售额', unit:'万元', labels:MONTHS6.slice(),
+   series:[{name:'甲商场',vals:[80,60,100,120,80,70]},{name:'乙商场',vals:[60,30,120,140,60,40]}], src:'例4'},
+  {name:'小明和小莉五次踢毽子个数', unit:'个', labels:TIMES5.slice(),
+   series:[{name:'小明',vals:[15,13,20,27,30]},{name:'小莉',vals:[10,13,25,20,30]}], src:'练习10'},
+  {name:'A、B超市上半年销售额', unit:'万元', labels:MONTHS6.slice(),
+   series:[{name:'A超市',vals:[40,20,100,110,120,90]},{name:'B超市',vals:[50,30,90,80,90,80]}], src:'练习3'}
+];
+/* 平均线（移多补少）数据：平均值均为整数，吸附步长可精确到达 */
+const AVG_EASY=[
+  {name:'学校第一季度各月用水量', unit:'吨', labels:['一月','二月','三月'], vals:[450,300,585], avg:445, src:'练习2'},
+  {name:'五年级制作标本件数', unit:'件', labels:['昆虫','植物','矿石'], vals:[15,30,21], avg:22, src:'练习9'},
+  {name:'牛牛五次数学测验成绩', unit:'分', labels:TIMES5.slice(), vals:[90,95,85,90,100], avg:92, src:'练习11'}
+];
+const AVG_MID=[
+  {name:'甲商场上半年月销售额', unit:'万元', labels:MONTHS6.slice(), vals:[80,60,100,120,80,70], avg:85, src:'例4'},
+  {name:'乙商场上半年月销售额', unit:'万元', labels:MONTHS6.slice(), vals:[60,30,120,140,60,40], avg:75, src:'例4'},
+  {name:'A超市上半年月销售额', unit:'万元', labels:MONTHS6.slice(), vals:[40,20,100,110,120,90], avg:80, src:'练习3'}
+];
+const AVG_HARD=[
+  {name:'工厂上半年每月制造数量', unit:'辆', labels:MONTHS6.slice(), vals:[400,416,440,450,470,500], avg:446, src:'练习8'},
+  {name:'星星小学三至六年级八个班跳绳成绩', unit:'分', labels:['三1班','三2班','四1班','四2班','五1班','五2班','六1班','六2班'],
+   vals:[75,70,68,73,80,85,60,65], avg:72, src:'练习16'}
+];
+/* 慧眼寻宝底图与目标（point 单点 / set 指定系列的若干点 / eqset 两条线相同的点 / seg 线段） */
+const FIND_POOL=[
+  {name:'甲、乙商场上半年销售额', unit:'万元', labels:MONTHS6.slice(),
+   series:[{name:'甲商场',vals:[80,60,100,120,80,70]},{name:'乙商场',vals:[60,30,120,140,60,40]}],
+   targets:[
+     {kind:'set',  s:1, idxs:[2,3], desc:'点亮“乙商场超过甲商场”的月份（共2个点）'},
+     {kind:'point',s:1, idx:3, desc:'点击乙商场销售额最高的点'},
+     {kind:'point',s:0, idx:1, desc:'点击甲商场销售额最低的点'},
+     {kind:'point',s:1, idx:1, desc:'点击乙商场销售额最低的点'}
+   ], src:'例4'},
+  {name:'小明和小莉五次踢毽子个数', unit:'个', labels:TIMES5.slice(),
+   series:[{name:'小明',vals:[15,13,20,27,30]},{name:'小莉',vals:[10,13,25,20,30]}],
+   targets:[
+     {kind:'eqset', idxs:[1,4], desc:'点亮两人踢得同样多的次数（共2个点）'},
+     {kind:'point', s:0, idx:1, desc:'点击小明踢得最少的一次'},
+     {kind:'point', s:1, idx:4, desc:'点击小莉踢得最多的一次'},
+     {kind:'point', s:1, idx:0, desc:'点击小莉踢得最少的一次'}
+   ], src:'练习10'},
+  {name:'A、B超市上半年销售额', unit:'万元', labels:MONTHS6.slice(),
+   series:[{name:'A超市',vals:[40,20,100,110,120,90]},{name:'B超市',vals:[50,30,90,80,90,80]}],
+   targets:[
+     {kind:'set',  s:1, idxs:[0,1], desc:'点亮“B超市比A超市销售额高”的月份（共2个点）'},
+     {kind:'point',s:0, idx:4, desc:'点击A超市销售额最高的点'},
+     {kind:'point',s:0, idx:1, desc:'点击A超市销售额最低的点'},
+     {kind:'point',s:1, idx:1, desc:'点击B超市销售额最低的点'}
+   ], src:'练习3'},
+  {name:'某城市2016年月平均气温', unit:'摄氏度',
+   labels:['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+   series:[{name:'月平均气温',vals:[2,6,10,18,23,26,29,28,24,17,12,4]}],
+   targets:[
+     {kind:'point',s:0, idx:0,  desc:'点击平均气温最低的月份'},
+     {kind:'point',s:0, idx:6,  desc:'点击平均气温最高的月份'},
+     {kind:'seg',  s:0, idx:2,  desc:'点击气温上升最快的一段线'},
+     {kind:'seg',  s:0, idx:10, desc:'点击气温下降最快的一段线'}
+   ], src:'练习14'}
+];
+/* 修补数据表（高级） */
+const REPAIR_POOL=[
+  {kind:'digit', name:'飞碟工厂一周产量表（台）', src:'练习12',
+   labels:['星期一','星期二','星期三','星期四','星期五','平均'],
+   known:[81,74,'6□','□7',69,73],
+   answerA:4, answerB:7, total:365, avg:73},
+  {kind:'number', name:'连锁店第四季度营业额表（万元）', src:'练习4',
+   cols:['分店','总计','10月','11月','12月'],
+   rows:[
+     ['合计',126,'?','?','?'],
+     ['永红分店',70,20,24,26],
+     ['胜利分店',56,16,18,22]
+   ],
+   correct:[36,42,48], distract:[30,40,44,52]}
+];
+
+/* ---------------- 全局状态 ---------------- */
+const G={
+  level:null, lvName:'', missions:[], mi:0,
+  steps:0, mistakes:0, startTime:0, timerId:null,
+  revealed:false, stars:[], revealFn:null
+};
+const LV_NAMES={easy:'初级·彩虹小径', mid:'中级·星光大道', hard:'高级·智慧之巅'};
+const TYPE_NAMES={bar:'搭柱达人', line:'描点连线', avg:'移多补少', find:'慧眼寻宝', repair:'修补数据表'};
+
+/* ---------------- 屏幕切换 ---------------- */
+function showScreen(name){
+  ['screen-home','screen-game','screen-win'].forEach(function(id){ $(id).classList.remove('on'); });
+  $(name).classList.add('on');
+  $('topbar').classList.toggle('on', name==='screen-game');
+}
+
+/* ---------------- 计时器与步数（右上角实时显示） ---------------- */
+function startTimer(){
+  G.startTime=Math.floor(Date.now()/1000);
+  stopTimer();
+  G.timerId=setInterval(function(){
+    $('timer').textContent=fmtTime(Math.floor(Date.now()/1000)-G.startTime);
+  },1000);
+  $('timer').textContent='00:00';
+}
+function stopTimer(){ if(G.timerId){ clearInterval(G.timerId); G.timerId=null; } }
+function addStep(){ G.steps++; $('steps').textContent=String(G.steps); }
+
+/* ---------------- 统计图构造器 ---------------- */
+function makeChart(cfg){
+  const W=880,H=560,M={l:96,r:40,t:78,b:98};
+  const labels=cfg.labels, n=labels.length;
+  let all=[];
+  cfg.series.forEach(function(s){ all=all.concat(s.vals); });
+  const maxV=Math.max.apply(null,all);
+  const step=niceStep(maxV/6);
+  const yMax=Math.ceil(maxV*1.08/step)*step;
+  const pw=W-M.l-M.r, ph=H-M.t-M.b;
+  const band=pw/n;
+  const xAt=function(i){ return M.l+band*(i+0.5); };
+  const yAt=function(v){ return M.t+ph-(v/yMax)*ph; };
+  const vAt=function(y){ return (M.t+ph-y)*yMax/ph; };
+
+  const svg=svgEl('svg',{viewBox:'0 0 '+W+' '+H});
+  /* 背景卡片 */
+  svgEl('rect',{x:6,y:6,width:W-12,height:H-12,rx:18,fill:'#ffffff',stroke:'var(--line)','stroke-width':2},svg);
+  /* 图题与单位 */
+  svgEl('text',{x:W/2,y:34,'text-anchor':'middle','font-size':22,'font-weight':900,fill:'var(--ink)'},svg).textContent=cfg.title;
+  svgEl('text',{x:W/2,y:56,'text-anchor':'middle','font-size':16,fill:'#5b7186'},svg).textContent='单位：'+cfg.unit;
+  /* 网格线与 y 轴刻度 */
+  const cnt=Math.round(yMax/step);
+  const every=cnt>11?2:1;
+  for(let k=0;k<=cnt;k++){
+    const v=k*step, y=yAt(v);
+    svgEl('line',{x1:M.l,y1:y,x2:W-M.r,y2:y,stroke:'var(--line)','stroke-width':k===0?3:1.5},svg);
+    if(k%every===0){
+      svgEl('text',{x:M.l-8,y:y+6,'text-anchor':'end','font-size':17,fill:'#5b7186'},svg).textContent=String(v);
+    }
+  }
+  /* x 轴标签 */
+  labels.forEach(function(lb,i){
+    svgEl('text',{x:xAt(i),y:H-M.b+30,'text-anchor':'middle','font-size':18,fill:'var(--ink)','font-weight':700},svg).textContent=lb;
+  });
+  /* 图例（多系列时显示在顶部） */
+  if(cfg.series.length>1){
+    let lx=M.l+6;
+    cfg.series.forEach(function(s,si){
+      const col=cfg.colorFn(si);
+      svgEl('rect',{x:lx,y:60,width:20,height:14,rx:3,fill:col},svg);
+      svgEl('text',{x:lx+26,y:73,'font-size':16,fill:'var(--ink)','font-weight':700},svg).textContent=s.name;
+      lx+=26+String(s.name).length*17+18;
+    });
+  }
+  return {svg:svg,W:W,H:H,M:M,band:band,n:n,xAt:xAt,yAt:yAt,vAt:vAt,yMax:yMax,step:step,ph:ph};
+}
+/* 点击涟漪反馈 */
+function ripple(svg,x,y,bad){
+  const c=svgEl('circle',{cx:x,cy:y,r:6,fill:'none',stroke:bad?'#ef6c00':'#2e7d32','stroke-width':4},svg);
+  c.style.animation='rip .5s forwards';
+  setTimeout(function(){ if(c.parentNode){ c.parentNode.removeChild(c); } },520);
+}
+/* 小星星闪光 */
+function sparkle(svg,x,y,color){
+  const g=svgEl('g',{transform:'translate('+x+','+y+')'},svg);
+  const star=svgEl('path',{d:'M0,-12 L3,-4 L11,-4 L5,1 L7,9 L0,4 L-7,9 L-5,1 L-11,-4 L-3,-4 Z',fill:color||'#f2a900'},g);
+  star.setAttribute('class','spark');
+  setTimeout(function(){ if(g.parentNode){ g.parentNode.removeChild(g); } },760);
+}
+
+/* ---------------- 任务卡 ---------------- */
+function dataTableHTML(d){
+  let h='<table><tr><th>'+(d.firstCol||'')+'</th><th>'+d.labels.join('</th><th>')+'</th></tr>';
+  d.seriesRows.forEach(function(r){
+    h+='<tr><td style="font-weight:800;color:'+r.color+';">'+r.name+'</td>';
+    r.vals.forEach(function(v){ h+='<td>'+(typeof v==='number'? v : '？')+'</td>'; });
+    h+='</tr>';
+  });
+  return h+'</table>';
+}
+function renderTaskCard(m){
+  const tc=$('taskcard');
+  let h='<h4>'+TYPE_NAMES[m.type]+' · '+(m.data.name||'')+'</h4>';
+  h+='<div class="story">'+m.story+'</div>';
+  if(m.table){ h+=m.table; }
+  if(m.targets){
+    h+='<div style="margin-top:4px;">';
+    m.targets.forEach(function(t,i){
+      h+='<div class="tgline" id="tg'+i+'"><span class="st">☆</span><span>'+t.desc+'</span></div>';
+    });
+    h+='</div>';
+  }
+  if(m.hintline){ h+='<div class="hintline">'+m.hintline+'</div>'; }
+  if(m.srcText){ h+='<div class="hintline">题源：'+m.srcText+'</div>'; }
+  tc.innerHTML=h;
+}
+
+/* ============================================================
+   关卡一：搭柱达人（按住柱子上下拖动，搭建条形统计图）
+   ============================================================ */
+function missionBar(data){
+  const dbl=!!data.A;
+  const series=dbl? [data.A,data.B] : [{name:'数量',vals:data.vals}];
+  const m={type:'bar', data:data, story: dbl
+    ? '把表格里两组数据搭成复式条形统计图：按住柱子上下拖动，高度正好等于表格数据时，柱子就会亮起来！'
+    : '把表格里的数据搭成条形统计图：按住柱子上下拖动，高度正好等于表格数据时，柱子就会亮起来！',
+    srcText:data.src};
+  m.table=dataTableHTML({firstCol:'项目', labels:data.labels, seriesRows:series.map(function(s,i){
+    return {name:s.name, vals:s.vals, color:i===0?'var(--s1)':'var(--s2)'};
+  })});
+  m.render=function(host){ renderBar(host,m,data,series,dbl); };
+  return m;
+}
+function renderBar(host,m,data,series,dbl){
+  const colors=['var(--s1)','var(--s2)'];
+  const chart=makeChart({title:data.name, unit:data.unit, labels:data.labels, series:series, colorFn:function(i){ return colors[i]; }});
+  host.appendChild(chart.svg);
+  let allVals=[]; series.forEach(function(s){ allVals=allVals.concat(s.vals); });
+  const fine=Math.max(1,gcdArr(allVals));
+  const baseY=chart.yAt(0);
+  const bars=[]; let doneCount=0; const total=series.length*data.labels.length; let finished=false;
+
+  series.forEach(function(s,si){
+    s.vals.forEach(function(tv,i){
+      const bw=dbl? chart.band*0.34 : chart.band*0.52;
+      const cx=chart.xAt(i)+(dbl? (si===0?-chart.band*0.19:chart.band*0.19) : 0);
+      /* 组本身带 data-bar 标记：点柱子或热区都能拖动（触摸友好） */
+      const g=svgEl('g',{'data-bar':si+'-'+i},chart.svg);
+      /* 透明热区：整列都可按住 */
+      svgEl('rect',{x:cx-bw/2-8,y:chart.M.t,width:bw+16,height:chart.ph,class:'hotcol'},g);
+      const bar=svgEl('rect',{x:cx-bw/2,y:baseY,width:bw,height:0,rx:7,fill:colors[si],opacity:.85,class:'bar'},g);
+      const bub=svgEl('text',{x:cx,y:baseY-12,'text-anchor':'middle','font-size':19,'font-weight':900,fill:'var(--ink)',visibility:'hidden'},g);
+      bars.push({si:si,i:i,tv:tv,bar:bar,bub:bub,cx:cx,done:false,g:g,v:0});
+    });
+  });
+
+  function setBar(b,v){
+    b.v=v;
+    const y=chart.yAt(v);
+    b.bar.setAttribute('y',y);
+    b.bar.setAttribute('height',Math.max(0,baseY-y));
+    b.bub.setAttribute('y',Math.max(chart.M.t+14,y-12));
+    b.bub.textContent=String(v);
+    b.bub.setAttribute('visibility','visible');
+  }
+  function lockBar(b){
+    b.done=true; doneCount++;
+    b.bar.classList.add('locked');
+    b.bub.textContent='✓ '+b.tv;
+    b.bub.setAttribute('fill','#2e7d32');
+    sparkle(chart.svg,b.cx,chart.yAt(b.tv)-24,'#f2a900');
+    if(doneCount>=total && !finished){ finished=true; setTimeout(function(){ missionDone(); },650); }
+  }
+  chart.svg.addEventListener('pointerdown',function(ev){
+    if(finished){ return; }
+    const hot=closestKey(ev.target,'bar');
+    if(!hot){ return; }
+    ev.preventDefault();
+    const key=hot.dataset.bar.split('-');
+    let b=null;
+    bars.forEach(function(x){ if(String(x.si)===key[0] && String(x.i)===key[1]){ b=x; } });
+    if(!b || b.done){ return; }
+    chart.svg.appendChild(b.g);
+    function onMove(e2){
+      const p=svgPoint(chart.svg,e2);
+      let v=Math.round(chart.vAt(p.y)/fine)*fine;
+      v=Math.max(0,Math.min(chart.yMax,v));
+      setBar(b,v);
+    }
+    function onUp(e3){
+      window.removeEventListener('pointermove',onMove);
+      window.removeEventListener('pointerup',onUp);
+      addStep();
+      const p=svgPoint(chart.svg,e3);
+      let v=Math.round(chart.vAt(p.y)/fine)*fine;
+      v=Math.max(0,Math.min(chart.yMax,v));
+      setBar(b,v);
+      if(v===b.tv){ lockBar(b); }
+      else{
+        G.mistakes++;
+        b.bar.classList.remove('wobble'); void b.bar.getBoundingClientRect(); b.bar.classList.add('wobble');
+        toastMsg('这根柱子还不对哦，再看看表格里的数～');
+      }
+    }
+    window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',onUp);
+  });
+
+  /* 揭示答案：所有柱子动画到正确高度并锁定 */
+  G.revealFn=function(){
+    finished=true;
+    bars.forEach(function(b,k){
+      setTimeout(function(){
+        const v0=b.v, y0=chart.yAt(v0), y1=chart.yAt(b.tv);
+        tween(420,function(kk){
+          setBar(b, Math.round(v0+(b.tv-v0)*kk));
+        },function(){
+          setBar(b,b.tv);
+          if(!b.done){ b.done=true; doneCount++; }
+          b.bar.classList.add('locked');
+          b.bub.textContent='✓ '+b.tv;
+        });
+      },k*150);
+    });
+    setTimeout(function(){ missionDone(); },bars.length*150+650);
+  };
+}
+
+/* ============================================================
+   关卡二：描点连线（从左到右依次点亮数据点，画出折线）
+   ============================================================ */
+function missionLine(data){
+  const m={type:'line', data:data,
+    story:(data.series.length>1
+      ? '这是一张复式折线统计图！先选一支画笔，再从左到右依次点亮它的数据点；点对位置，折线就会出现。'
+      : '看表格数据，从左到右依次点亮每个数据点（高度要对准数据），折线就会出现！'),
+    srcText:data.src};
+  m.table=dataTableHTML({firstCol:'次序', labels:data.labels, seriesRows:data.series.map(function(s,i){
+    return {name:s.name, vals:s.vals, color:i===0?'var(--s1)':'var(--s2)'};
+  })});
+  m.render=function(host){ renderLine(host,m,data); };
+  return m;
+}
+function renderLine(host,m,data){
+  const colors=['var(--s1)','var(--s2)'];
+  const chart=makeChart({title:data.name, unit:data.unit, labels:data.labels, series:data.series, colorFn:function(i){ return colors[i]; }});
+  host.appendChild(chart.svg);
+  const TOL=20;
+  const st=data.series.map(function(){ return {next:0,pts:[]}; });
+  let finished=false;
+  const cs=getComputedStyle(document.documentElement);
+  const realCols=[cs.getPropertyValue('--s1').trim()||'#0277bd', cs.getPropertyValue('--s2').trim()||'#ef6c00'];
+
+  /* 画笔选择器（复式时出现） */
+  const tb=$('toolbox');
+  let active=0;
+  const pencils=[];
+  if(data.series.length>1){
+    tb.innerHTML='<span class="tlabel">选画笔：</span>';
+    data.series.forEach(function(s,i){
+      const b=document.createElement('button');
+      b.className='pencil'+(i===0?' sel':'');
+      b.style.background=colors[i];
+      b.textContent=s.name;
+      b.addEventListener('click',function(){
+        active=i;
+        pencils.forEach(function(p,j){ p.classList.toggle('sel',j===i); });
+      });
+      pencils.push(b); tb.appendChild(b);
+    });
+  }
+  /* 瞄准辅助线：跟随手指/鼠标显示当前高度 */
+  const guide=svgEl('line',{x1:chart.M.l,x2:chart.W-chart.M.r,y1:0,y2:0,stroke:'#90a4ae','stroke-width':1.5,'stroke-dasharray':'6 6',visibility:'hidden'},chart.svg);
+  const guideTxt=svgEl('text',{x:chart.W-chart.M.r-4,y:0,'text-anchor':'end','font-size':16,fill:'#5b7186',visibility:'hidden'},chart.svg);
+  chart.svg.addEventListener('pointermove',function(ev){
+    const p=svgPoint(chart.svg,ev);
+    if(p.x<chart.M.l||p.x>chart.W-chart.M.r||p.y<chart.M.t||p.y>chart.yAt(0)){
+      guide.setAttribute('visibility','hidden'); guideTxt.setAttribute('visibility','hidden'); return;
+    }
+    guide.setAttribute('y1',p.y); guide.setAttribute('y2',p.y); guide.setAttribute('visibility','visible');
+    guideTxt.setAttribute('y',p.y-6); guideTxt.setAttribute('visibility','visible');
+    guideTxt.textContent='高度约 '+Math.max(0,Math.round(chart.vAt(p.y)))+' '+data.unit;
+  });
+  chart.svg.addEventListener('pointerleave',function(){
+    guide.setAttribute('visibility','hidden'); guideTxt.setAttribute('visibility','hidden');
+  });
+
+  function placePoint(si){
+    const i=st[si].next;
+    const v=data.series[si].vals[i];
+    const x=chart.xAt(i), y=chart.yAt(v);
+    if(i>0){
+      const prev=st[si].pts[i-1];
+      svgEl('line',{x1:prev.x,y1:prev.y,x2:x,y2:y,stroke:colors[si],class:'segline'},chart.svg);
+    }
+    svgEl('circle',{cx:x,cy:y,r:10,fill:colors[si],class:'dot popin'},chart.svg);
+    st[si].pts.push({x:x,y:y});
+    st[si].next++;
+    sparkle(chart.svg,x,y-18,realCols[si]);
+    addStep();
+    if(st.every(function(s){ return s.next>=chart.n; }) && !finished){
+      finished=true;
+      setTimeout(function(){ missionDone(); },700);
+    }
+  }
+  chart.svg.addEventListener('pointerdown',function(ev){
+    if(finished){ return; }
+    const p=svgPoint(chart.svg,ev);
+    if(p.y>chart.yAt(0)+6 || p.x<chart.M.l-20 || p.x>chart.W-chart.M.r+20){ return; }
+    ev.preventDefault();
+    const ci=Math.floor((p.x-chart.M.l)/chart.band);
+    if(ci<0||ci>=chart.n){ return; }
+    const si=active;
+    const need=st[si].next;
+    if(need>=chart.n){ toastMsg('这条线已经画完啦，换一支画笔试试吧！'); return; }
+    if(ci!==need){
+      ripple(chart.svg,p.x,p.y,true);
+      toastMsg('要按从左往右的顺序：先点亮“'+data.labels[need]+'”的数据点哦');
+      G.mistakes++; addStep();
+      return;
+    }
+    const ty=chart.yAt(data.series[si].vals[need]);
+    if(Math.abs(p.y-ty)<=TOL){
+      placePoint(si);
+    }else{
+      ripple(chart.svg,chart.xAt(ci),p.y,true);
+      toastMsg('高度不对哦：你点的高度约 '+Math.max(0,Math.round(chart.vAt(p.y)))+'，表格里“'+data.labels[need]+'”是 '+data.series[si].vals[need]);
+      G.mistakes++; addStep();
+    }
+  });
+
+  /* 揭示答案：逐个点亮剩余点 */
+  G.revealFn=function(){
+    finished=true;
+    const timer=setInterval(function(){
+      let si=-1;
+      for(let j=0;j<data.series.length;j++){
+        if(st[j].next<chart.n){ si=j; break; }
+      }
+      if(si<0){ clearInterval(timer); setTimeout(function(){ missionDone(); },600); return; }
+      placePoint(si);
+      if(st.every(function(s){ return s.next>=chart.n; })){
+        clearInterval(timer);
+        setTimeout(function(){ missionDone(); },600);
+      }
+    },260);
+  };
+}
+
+/* ============================================================
+   关卡三：移多补少（拖动彩虹平均线，多出=缺少 即平均数）
+   ============================================================ */
+function missionAvg(data){
+  const total=data.vals.reduce(function(a,b){ return a+b; },0);
+  const m={type:'avg', data:data,
+    story:'图中的柱子表示每组数据。上下拖动彩虹平均线：当“多出的部分”正好能补满“缺少的部分”时，就找到平均数啦（这就是移多补少）！',
+    hintline:'想一想：平均数 = 总数量 ÷ 总份数 = '+total+' ÷ '+data.vals.length+' = ?',
+    srcText:data.src};
+  m.table=dataTableHTML({firstCol:'组别', labels:data.labels, seriesRows:[{name:'数量', vals:data.vals, color:'var(--s1)'}]});
+  m.render=function(host){ renderAvg(host,m,data,total); };
+  return m;
+}
+function renderAvg(host,m,data,total){
+  const chart=makeChart({title:data.name+'（找平均数）', unit:data.unit, labels:data.labels,
+    series:[{name:'数量',vals:data.vals}], colorFn:function(){ return 'var(--s1)'; }});
+  host.appendChild(chart.svg);
+  /* 彩虹渐变与“多出部分”条纹图案 */
+  const defs=svgEl('defs',{},chart.svg);
+  const grad=svgEl('linearGradient',{id:'rainbow',x1:'0',y1:'0',x2:'1',y2:'0'},defs);
+  [['0%','#ff5252'],['25%','#ffd740'],['50%','#69f0ae'],['75%','#40c4ff'],['100%','#b388ff']].forEach(function(s){
+    svgEl('stop',{offset:s[0],'stop-color':s[1]},grad);
+  });
+  const pat=svgEl('pattern',{id:'stripes',width:10,height:10,patternUnits:'userSpaceOnUse',patternTransform:'rotate(45)'},defs);
+  svgEl('rect',{x:0,y:0,width:10,height:10,fill:'rgba(0,0,0,0)'},pat);
+  svgEl('rect',{x:0,y:0,width:4,height:10,fill:'#ffb300',opacity:.9},pat);
+
+  const baseY=chart.yAt(0);
+  const fine=Math.max(1,gcdArr(data.vals.concat([data.avg])));
+  const bw=chart.band*0.52;
+  const bars=[];
+  data.vals.forEach(function(v,i){
+    const cx=chart.xAt(i);
+    const y=chart.yAt(v);
+    const barEl=svgEl('rect',{x:cx-bw/2,y:y,width:bw,height:baseY-y,rx:7,fill:'var(--s1)',opacity:.8,class:'avgbar'},chart.svg);
+    const extra=svgEl('rect',{x:cx-bw/2,width:bw,fill:'url(#stripes)',rx:3,visibility:'hidden'},chart.svg);
+    const lack=svgEl('rect',{x:cx-bw/2,width:bw,fill:'none',stroke:'#0277bd','stroke-dasharray':'7 5','stroke-width':3,visibility:'hidden'},chart.svg);
+    bars.push({v:v,cx:cx,bar:barEl,extra:extra,lack:lack,y:y});
+  });
+  /* 平均线组：整组都可抓取（线、热区、标签） */
+  const lg=svgEl('g',{},chart.svg);
+  const line=svgEl('line',{x1:chart.M.l,x2:chart.W-chart.M.r,y1:baseY,y2:baseY,stroke:'url(#rainbow)','stroke-width':8,class:'avgline'},lg);
+  const hotLine=svgEl('rect',{x:chart.M.l,width:chart.W-chart.M.l-chart.M.r,height:30,fill:'#000','fill-opacity':0,class:'avgline'},lg);
+  const lineLab=svgEl('text',{x:chart.W-chart.M.r-6,y:baseY-10,'text-anchor':'end','font-size':20,'font-weight':900,fill:'var(--primary)'},lg);
+  lineLab.textContent='平均线：0';
+  let lineV=0, finished=false;
+
+  $('meters').style.display='flex';
+  function update(){
+    const y=chart.yAt(lineV);
+    line.setAttribute('y1',y); line.setAttribute('y2',y);
+    hotLine.setAttribute('y',y-15);
+    lineLab.setAttribute('y',Math.max(chart.M.t+16,y-10));
+    lineLab.textContent='平均线：'+lineV;
+    let extraSum=0, lackSum=0;
+    bars.forEach(function(b){
+      if(b.v>lineV){
+        const yv=chart.yAt(b.v);
+        b.extra.setAttribute('visibility','visible');
+        b.extra.setAttribute('y',yv);
+        b.extra.setAttribute('height',Math.max(0,y-yv));
+        b.lack.setAttribute('visibility','hidden');
+        extraSum+=b.v-lineV;
+      }else if(b.v<lineV){
+        const yv=chart.yAt(b.v);
+        b.lack.setAttribute('visibility','visible');
+        b.lack.setAttribute('y',yv);
+        b.lack.setAttribute('height',Math.max(0,y-yv));
+        b.extra.setAttribute('visibility','hidden');
+        lackSum+=lineV-b.v;
+      }else{
+        b.extra.setAttribute('visibility','hidden');
+        b.lack.setAttribute('visibility','hidden');
+      }
+    });
+    $('mnumExtra').textContent=String(extraSum);
+    $('mnumGap').textContent=String(lackSum);
+    $('mbarExtra').style.width=Math.min(100,extraSum/chart.yMax*140)+'%';
+    $('mbarGap').style.width=Math.min(100,lackSum/chart.yMax*140)+'%';
+    /* 数学原理：多出总量-缺少总量 = 总和-份数×线高，仅当线高=平均数时相等 */
+    if(extraSum===lackSum && extraSum>0 && !finished){ success(); }
+  }
+  function success(){
+    finished=true;
+    line.style.cursor='default'; hotLine.style.cursor='default';
+    toastMsg('平衡啦！多出的部分正好补满缺少的部分——平均数就是 '+data.avg+'！');
+    bars.forEach(function(b,k){
+      const y1=chart.yAt(data.avg);
+      setTimeout(function(){
+        tween(700,function(kk){
+          const y=b.y+(y1-b.y)*kk;
+          b.bar.setAttribute('y',y);
+          b.bar.setAttribute('height',Math.max(0,baseY-y));
+        },function(){
+          b.extra.setAttribute('visibility','hidden');
+          b.lack.setAttribute('visibility','hidden');
+        });
+      },k*90);
+    });
+    const formula='('+data.vals.join('+')+')÷'+data.vals.length+' = '+total+'÷'+data.vals.length+' = '+data.avg+'（'+data.unit+'）';
+    const fp=document.createElement('div');
+    fp.style.cssText='margin-top:8px;background:#e8f5e9;border-radius:12px;padding:8px 10px;color:#2e7d32;font-weight:800;font-size:16px;';
+    fp.textContent='移多补少成功！平均数 '+formula;
+    $('taskcard').appendChild(fp);
+    setTimeout(function(){ missionDone(); },bars.length*90+950);
+  }
+  lg.addEventListener('pointerdown',function(ev){
+    if(finished){ return; }
+    ev.preventDefault();
+    function onMove(e2){
+      const p=svgPoint(chart.svg,e2);
+      let v=Math.round(chart.vAt(p.y)/fine)*fine;
+      lineV=Math.max(0,Math.min(chart.yMax,v));
+      update();
+    }
+    function onUp(){
+      window.removeEventListener('pointermove',onMove);
+      window.removeEventListener('pointerup',onUp);
+      addStep();
+    }
+    window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',onUp);
+  });
+  update();
+  /* 揭示答案：平均线滑到平均数 */
+  G.revealFn=function(){
+    if(finished){ return; }
+    const v0=lineV;
+    tween(800,function(k){
+      lineV=Math.round(v0+(data.avg-v0)*k);
+      update();
+    },function(){ lineV=data.avg; update(); });
+  };
+}
+
+/* ============================================================
+   关卡四：慧眼寻宝（读图点击定位：拐点/相同点/最陡线段）
+   ============================================================ */
+function missionFind(data,tCount){
+  const tg=shuffle(data.targets).slice(0,tCount);
+  const m={type:'find', data:data,
+    story:'统计图已经画好了！根据下面的任务，点一点图上的数据点或线段，点亮所有星星吧。',
+    targets:tg, srcText:data.src};
+  m.table=dataTableHTML({firstCol:'次序', labels:data.labels, seriesRows:data.series.map(function(s,i){
+    return {name:s.name, vals:s.vals, color:i===0?'var(--s1)':'var(--s2)'};
+  })});
+  m.render=function(host){ renderFind(host,m,data,tg); };
+  return m;
+}
+function renderFind(host,m,data,tg){
+  const colors=['var(--s1)','var(--s2)'];
+  const chart=makeChart({title:data.name, unit:data.unit, labels:data.labels, series:data.series, colorFn:function(i){ return colors[i]; }});
+  host.appendChild(chart.svg);
+  /* 画完整折线 */
+  data.series.forEach(function(s,si){
+    let d='';
+    s.vals.forEach(function(v,i){ d+=(i===0?'M':'L')+chart.xAt(i)+','+chart.yAt(v); });
+    svgEl('path',{d:d,stroke:colors[si],class:'segline',opacity:.85},chart.svg);
+  });
+  /* 数据点 */
+  const dots=[];
+  data.series.forEach(function(s,si){
+    s.vals.forEach(function(v,i){
+      dots.push({si:si,i:i,x:chart.xAt(i),y:chart.yAt(v)});
+      svgEl('circle',{cx:chart.xAt(i),cy:chart.yAt(v),r:9,fill:colors[si],class:'dot'},chart.svg);
+    });
+  });
+  tg.forEach(function(t){
+    t.found=(t.kind==='set'||t.kind==='eqset')? {} : false;
+    t.done=false;
+  });
+  let finished=false;
+  function markPoint(si,i){
+    let dt=null;
+    dots.forEach(function(d){ if(d.si===si&&d.i===i){ dt=d; } });
+    if(!dt){ return; }
+    svgEl('circle',{cx:dt.x,cy:dt.y,r:16,fill:'none',stroke:'#f2a900','stroke-width':5,class:'popin'},chart.svg);
+  }
+  function refreshList(){
+    tg.forEach(function(t,i){
+      const el=$('tg'+i);
+      if(el && t.done){ el.classList.add('done'); el.querySelector('.st').textContent='★'; }
+    });
+    if(tg.every(function(t){ return t.done; }) && !finished){
+      finished=true;
+      setTimeout(function(){ missionDone(); },700);
+    }
+  }
+  chart.svg.addEventListener('pointerdown',function(ev){
+    if(finished){ return; }
+    const p=svgPoint(chart.svg,ev);
+    ev.preventDefault();
+    addStep();
+    /* 1) 命中数据点（两线交叠处可能多个点同时命中） */
+    const hits=dots.filter(function(d){ return Math.hypot(d.x-p.x,d.y-p.y)<=24; })
+                   .sort(function(a,b){ return Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y); });
+    let ok=false;
+    for(let h=0;h<hits.length && !ok;h++){
+      const d=hits[h];
+      for(let t=0;t<tg.length;t++){
+        const tt=tg[t];
+        if(tt.done){ continue; }
+        if(tt.kind==='point' && tt.s===d.si && tt.idx===d.i){
+          tt.done=true; markPoint(d.si,d.i); ok=true;
+        }else if(tt.kind==='set' && tt.s===d.si && tt.idxs.indexOf(d.i)>=0){
+          tt.found[d.i]=true; markPoint(d.si,d.i);
+          if(tt.idxs.every(function(x){ return tt.found[x]; })){ tt.done=true; }
+          ok=true;
+        }else if(tt.kind==='eqset' && tt.idxs.indexOf(d.i)>=0){
+          tt.found[d.i]=true; markPoint(d.si,d.i);
+          if(tt.idxs.every(function(x){ return tt.found[x]; })){ tt.done=true; }
+          ok=true;
+        }
+      }
+    }
+    /* 2) 命中线段（点到线段距离） */
+    if(!ok){
+      let bestSeg=null, bestD=16;
+      data.series.forEach(function(s,si){
+        for(let i=0;i<s.vals.length-1;i++){
+          const ax=chart.xAt(i), ay=chart.yAt(s.vals[i]);
+          const bx=chart.xAt(i+1), by=chart.yAt(s.vals[i+1]);
+          const vx=bx-ax, vy=by-ay;
+          const L2=vx*vx+vy*vy;
+          let t=((p.x-ax)*vx+(p.y-ay)*vy)/L2;
+          t=Math.max(0,Math.min(1,t));
+          const dd=Math.hypot(ax+vx*t-p.x, ay+vy*t-p.y);
+          if(dd<bestD){ bestD=dd; bestSeg={si:si,i:i}; }
+        }
+      });
+      if(bestSeg){
+        for(let t=0;t<tg.length;t++){
+          const tt=tg[t];
+          if(!tt.done && tt.kind==='seg' && tt.s===bestSeg.si && tt.idx===bestSeg.i){
+            tt.done=true; ok=true;
+            const s=data.series[bestSeg.si];
+            svgEl('line',{x1:chart.xAt(bestSeg.i),y1:chart.yAt(s.vals[bestSeg.i]),
+              x2:chart.xAt(bestSeg.i+1),y2:chart.yAt(s.vals[bestSeg.i+1]),
+              stroke:'#f2a900','stroke-width':11,'stroke-linecap':'round',opacity:.9,class:'popin'},chart.svg);
+            break;
+          }
+        }
+      }
+    }
+    if(ok){ sparkle(chart.svg,p.x,p.y,'#f2a900'); refreshList(); }
+    else{ ripple(chart.svg,p.x,p.y,true); G.mistakes++; toastMsg('这里不是目标哦，再仔细读读图～'); }
+  });
+  /* 揭示答案：标出全部目标 */
+  G.revealFn=function(){
+    tg.forEach(function(tt){
+      if(tt.kind==='point'){ markPoint(tt.s,tt.idx); }
+      else if(tt.kind==='set'){ tt.idxs.forEach(function(i){ markPoint(tt.s,i); }); }
+      else if(tt.kind==='eqset'){ tt.idxs.forEach(function(i){ markPoint(0,i); }); }
+      else if(tt.kind==='seg'){
+        const s=data.series[tt.s];
+        svgEl('line',{x1:chart.xAt(tt.idx),y1:chart.yAt(s.vals[tt.idx]),
+          x2:chart.xAt(tt.idx+1),y2:chart.yAt(s.vals[tt.idx+1]),
+          stroke:'#f2a900','stroke-width':11,'stroke-linecap':'round',opacity:.9},chart.svg);
+      }
+      tt.done=true;
+    });
+    refreshList();
+  };
+}
+
+/* ============================================================
+   关卡五：修补数据表（拖动数字磁贴，逆向推理补全统计表）
+   ============================================================ */
+function missionRepair(data){
+  const m={type:'repair', data:data,
+    story:(data.kind==='digit'
+      ? '淘气的小精灵把产量表里的两个数字弄模糊了！拖动数字磁贴把缺口补上，让“五天总和”正好等于目标，表格就修好啦（放错了可以点磁贴取回）。'
+      : '合计行被小精灵弄破了！拖动数字磁贴补进合计行，让每个月的“合计”正好等于两家分店之和（放错了可以点磁贴取回）。'),
+    srcText:data.src};
+  m.render=function(host){ renderRepair(host,m,data); };
+  return m;
+}
+function renderRepair(host,m,data){
+  const wrap=document.createElement('div');
+  wrap.className='repairwrap';
+  host.appendChild(wrap);
+
+  if(data.kind==='digit'){
+    /* 星期产量表：周三个位与周四十位缺失（练习12） */
+    let h='<h4>'+data.name+'</h4><table class="dtable" style="display:inline-table;"><tr>';
+    data.labels.forEach(function(lb){ h+='<th>'+lb+'</th>'; });
+    h+='</tr><tr>';
+    data.known.forEach(function(v){
+      if(v==='6□'){ h+='<td>6<span class="slot" data-slot="a">□</span></td>'; }
+      else if(v==='□7'){ h+='<td><span class="slot" data-slot="b">□</span>7</td>'; }
+      else{ h+='<td>'+v+'</td>'; }
+    });
+    h+='</tr></table>';
+    h+='<div id="readout">五天平均 <b>'+data.avg+'</b> 台 → 五天总和应为 <b>'+data.total+'</b> 台（73×5=365）<br>'+
+       '<span id="sumNow" class="near">当前五天总和：224 + 6□ + □7（放好磁贴就会自动计算）</span></div>';
+    wrap.innerHTML=h;
+    const slots=[
+      {el:wrap.querySelector('[data-slot="a"]'),key:'a',placed:null},
+      {el:wrap.querySelector('[data-slot="b"]'),key:'b',placed:null}
+    ];
+    const correct={a:data.answerA,b:data.answerB};
+    buildTiles(wrap,shuffle([0,1,2,3,4,5,6,7,8,9]).map(function(d){ return {label:String(d),val:d,wide:false}; }));
+    function sumNow(){
+      const a=slots[0].placed===null?0:slots[0].placed;
+      const b=slots[1].placed===null?0:slots[1].placed;
+      return 81+74+(60+a)+(10*b+7)+69;
+    }
+    function refresh(){
+      const both=slots[0].placed!==null && slots[1].placed!==null;
+      const sp=$('sumNow');
+      if(both && sumNow()===data.total){
+        sp.className='good';
+        sp.textContent='当前五天总和：'+sumNow()+' 台，正好等于 '+data.total+'！表格修好啦！';
+        slots.forEach(function(s){ s.el.classList.add('okk'); s.el.classList.remove('badd'); });
+        if(!refresh._ok){
+          refresh._ok=true;
+          const fp=document.createElement('div');
+          fp.style.cssText='margin:10px auto;max-width:560px;background:#e8f5e9;border-radius:12px;padding:8px 12px;color:#2e7d32;font-weight:800;';
+          fp.textContent='修好啦！73×5=365，365-81-74-69=141，所以周三+周四=141；又知周三 6□、周四 □7，只有 64+77=141。周三生产64台，周四生产77台。';
+          wrap.appendChild(fp);
+          setTimeout(function(){ missionDone(); },1000);
+        }
+      }else if(both){
+        sp.className='near';
+        sp.textContent='当前五天总和：'+sumNow()+' 台（还不等于 '+data.total+'，换换磁贴试试）';
+      }else{
+        sp.className='near';
+        sp.textContent='当前五天总和：'+sumNow()+' 台（磁贴还没放齐哦）';
+      }
+    }
+    attachDrag(wrap,slots,correct,refresh);
+  }else{
+    /* 连锁店营业额表：合计行的三个月缺失（练习4） */
+    let h='<h4>'+data.name+'</h4><table class="dtable" style="display:inline-table;">';
+    data.rows.forEach(function(r){
+      h+='<tr>';
+      r.forEach(function(c,ci){
+        if(c==='?'){ h+='<td><span class="slot" data-slot="c'+(ci-1)+'">□</span></td>'; }
+        else if(ci===0){ h+='<th>'+c+'</th>'; }
+        else{ h+='<td>'+c+'</td>'; }
+      });
+      h+='</tr>';
+    });
+    h+='</table><div id="readout"><span id="sumNow" class="near">把数字磁贴拖进合计行：合计 = 永红分店 + 胜利分店</span></div>';
+    wrap.innerHTML=h;
+    const slots=[1,2,3].map(function(k){
+      return {el:wrap.querySelector('[data-slot="c'+k+'"]'),key:'c'+k,placed:null};
+    });
+    const correct={c1:data.correct[0],c2:data.correct[1],c3:data.correct[2]};
+    const tilesData=shuffle(data.correct.concat(shuffle(data.distract).slice(0,3)));
+    buildTiles(wrap,tilesData.map(function(v){ return {label:String(v),val:v,wide:true}; }));
+    function refresh(){
+      let allOk=true;
+      slots.forEach(function(s,k){
+        if(s.placed===null){
+          s.el.classList.remove('okk','badd'); s.el.textContent='□'; allOk=false;
+        }else if(s.placed===data.correct[k]){
+          s.el.classList.add('okk'); s.el.classList.remove('badd'); s.el.textContent=String(s.placed)+' ✓';
+        }else{
+          s.el.classList.add('badd'); s.el.classList.remove('okk'); s.el.textContent=String(s.placed)+' ✗'; allOk=false;
+        }
+      });
+      if(allOk && !refresh._ok){
+        refresh._ok=true;
+        const sp=$('sumNow'); sp.className='good';
+        sp.textContent='合计行修好啦：20+16=36，24+18=42，26+22=48！';
+        const fp=document.createElement('div');
+        fp.style.cssText='margin:10px auto;max-width:520px;background:#e8f5e9;border-radius:12px;padding:8px 12px;color:#2e7d32;font-weight:800;';
+        fp.textContent='统计表修好啦！每个月的合计正好等于两家分店之和。';
+        wrap.appendChild(fp);
+        setTimeout(function(){ missionDone(); },1000);
+      }
+    }
+    attachDrag(wrap,slots,correct,refresh);
+  }
+
+  /* 生成磁贴托盘 */
+  function buildTiles(parent,tiles){
+    const tray=document.createElement('div');
+    tray.className='tiletray';
+    tiles.forEach(function(t){
+      const el=document.createElement('div');
+      el.className='tile'+(t.wide?' wide':'');
+      el.textContent=t.label;
+      el.dataset.val=String(t.val);
+      el.dataset.home='1';
+      tray.appendChild(el);
+    });
+    parent.appendChild(tray);
+  }
+
+  /* 通用磁贴拖放：幽灵跟随 + 落点检测 + 点击取回 */
+  function attachDrag(wrapEl,slotList,correct,refreshFn){
+    let ghost=null, dragTile=null;
+    function beginDrag(tile,ev){
+      dragTile=tile;
+      ghost=document.createElement('div');
+      ghost.className='tile-ghost'+(tile.classList.contains('wide')?' wide':'');
+      ghost.textContent=tile.textContent;
+      ghost.style.background=getComputedStyle(document.documentElement).getPropertyValue('--primary');
+      document.body.appendChild(ghost);
+      tile.style.visibility='hidden';
+      moveGhost(ev);
+    }
+    function moveGhost(ev){
+      if(ghost){ ghost.style.left=(ev.clientX-26)+'px'; ghost.style.top=(ev.clientY-26)+'px'; }
+    }
+    function endDrag(ev){
+      if(!ghost || !dragTile){ return; }
+      const el=document.elementFromPoint(ev.clientX,ev.clientY);
+      const slotEl=el? ((el.closest && el.closest.bind(el))('.slot') || null) : null;
+      const val=Number(dragTile.dataset.val);
+      let placed=false;
+      if(slotEl){
+        let tgt=null;
+        slotList.forEach(function(s){ if(s.el===slotEl){ tgt=s; } });
+        if(tgt && tgt.placed===null){
+          tgt.placed=val;
+          slotEl.textContent=dragTile.textContent;
+          slotEl.classList.remove('okk','badd');
+          if(val===correct[tgt.key]){ slotEl.classList.add('okk'); }
+          else{
+            slotEl.classList.add('badd');
+            slotEl.classList.remove('wobble'); void slotEl.offsetWidth; slotEl.classList.add('wobble');
+          }
+          dragTile.parentNode.removeChild(dragTile);
+          placed=true;
+          addStep();
+        }else if(tgt && tgt.placed!==null){
+          toastMsg('这个缺口已经有磁贴啦，先点它取下来再换。');
+        }
+      }
+      if(!placed){ dragTile.style.visibility='visible'; }
+      document.body.removeChild(ghost);
+      ghost=null; dragTile=null;
+      if(placed){ refreshFn(); }
+    }
+    /* 托盘磁贴按下开始拖 */
+    wrapEl.addEventListener('pointerdown',function(ev){
+      const t=ev.target.closest? ev.target.closest('.tile') : null;
+      if(t && t.dataset.home==='1'){
+        ev.preventDefault();
+        beginDrag(t,ev);
+        function onMove(e2){ moveGhost(e2); }
+        function onUp(e2){
+          window.removeEventListener('pointermove',onMove);
+          window.removeEventListener('pointerup',onUp);
+          endDrag(e2);
+        }
+        window.addEventListener('pointermove',onMove);
+        window.addEventListener('pointerup',onUp);
+      }
+    });
+    /* 点击已放置的磁贴取回托盘 */
+    wrapEl.addEventListener('click',function(ev){
+      const s=ev.target.closest? ev.target.closest('.slot') : null;
+      if(!s){ return; }
+      let tgt=null;
+      slotList.forEach(function(x){ if(x.el===s){ tgt=x; } });
+      if(tgt && tgt.placed!==null){
+        const tray=wrapEl.querySelector('.tiletray');
+        const back=document.createElement('div');
+        back.className='tile'+(String(tgt.placed).length>1?' wide':'');
+        back.textContent=String(tgt.placed);
+        back.dataset.val=String(tgt.placed);
+        back.dataset.home='1';
+        tray.appendChild(back);
+        tgt.placed=null;
+        s.textContent='□';
+        s.classList.remove('okk','badd');
+        refreshFn();
+      }
+    });
+    /* 揭示答案：直接放好正确磁贴 */
+    G.revealFn=function(){
+      slotList.forEach(function(s){
+        s.el.textContent=String(correct[s.key]);
+        s.placed=correct[s.key];
+        s.el.classList.add('okk'); s.el.classList.remove('badd');
+      });
+      refreshFn();
+    };
+  }
+}
+
+/* ============================================================
+   关卡流程控制（难度生成、过关、结算）
+   ============================================================ */
+function buildMissions(lv){
+  const ms=[];
+  if(lv==='easy'){
+    ms.push(missionBar(pick(BAR_SINGLE)));
+    ms.push(missionLine(pick(LINE_EASY)));
+    ms.push(missionAvg(pick(AVG_EASY)));
+  }else if(lv==='mid'){
+    ms.push(missionBar(pick(BAR_DOUBLE)));
+    ms.push(missionLine(pick(LINE_MID)));
+    ms.push(missionFind(pick(FIND_POOL.filter(function(d){ return d.series.length>1; })),3));
+    ms.push(missionAvg(pick(AVG_MID)));
+  }else{
+    ms.push(missionLine(pick(LINE_DOUBLE)));
+    ms.push(missionFind(pick(FIND_POOL),4));
+    ms.push(missionRepair(pick(REPAIR_POOL)));
+    ms.push(missionAvg(pick(AVG_HARD)));
+  }
+  return shuffle(ms);
+}
+function startLevel(lv){
+  G.level=lv; G.lvName=LV_NAMES[lv];
+  G.missions=buildMissions(lv);
+  G.mi=0; G.steps=0; G.mistakes=0; G.stars=[]; G.revealFn=null;
+  $('steps').textContent='0';
+  $('lvbadge').textContent=G.lvName;
+  applyPalette();
+  showScreen('screen-game');
+  startTimer();
+  renderMission();
+}
+function renderMission(){
+  G.revealed=false; G.mistakes=0; G.revealFn=null;
+  $('meters').style.display='none';
+  $('chartWrap').innerHTML='';
+  $('toolbox').innerHTML='';
+  const m=G.missions[G.mi];
+  renderTaskCard(m);
+  $('mtitle').textContent=TYPE_NAMES[m.type];
+  $('mprog').textContent='第 '+(G.mi+1)+' / '+G.missions.length+' 关';
+  $('mprogTop').textContent='（'+(G.mi+1)+'/'+G.missions.length+'）';
+  m.render($('chartWrap'));
+}
+function missionDone(){
+  let st;
+  if(G.revealed){ st=1; }
+  else if(G.mistakes===0){ st=3; }
+  else if(G.mistakes<=2){ st=2; }
+  else{ st=1; }
+  G.stars.push(st);
+  $('bStars').textContent='★'.repeat(st)+'☆'.repeat(3-st);
+  $('bTxt').textContent='第 '+(G.mi+1)+' 关完成！'+(G.revealed?'（看过答案啦，下一关自己试试！）':'');
+  $('banner').classList.add('on');
+  setTimeout(function(){
+    $('banner').classList.remove('on');
+    G.mi++;
+    if(G.mi<G.missions.length){ renderMission(); }
+    else{ showWin(); }
+  },1700);
+}
+function showWin(){
+  stopTimer();
+  const totalStars=G.stars.reduce(function(a,b){ return a+b; },0);
+  const maxStars=G.stars.length*3;
+  $('winStars').textContent='★'.repeat(totalStars)+'☆'.repeat(Math.max(0,maxStars-totalStars));
+  const used=Math.floor(Date.now()/1000)-G.startTime;
+  $('winStats').innerHTML='难度：'+G.lvName+' ｜ 获得 '+totalStars+' / '+maxStars+' 颗星<br>'+
+    '用时 '+fmtTime(used)+' ｜ 共 '+G.steps+' 步 ｜ 全程自己完成，真棒！';
+  showScreen('screen-win');
+  confetti();
+}
+
+/* ---------------- 彩纸庆祝动画（Canvas 实现） ---------------- */
+function confetti(){
+  const cv=$('fx');
+  const ctx=cv.getContext('2d');
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  const colors=['#ff5252','#ffd740','#69f0ae','#40c4ff','#b388ff','#ff8a65'];
+  const parts=[];
+  for(let i=0;i<160;i++){
+    parts.push({
+      x:Math.random()*cv.width, y:-20-Math.random()*cv.height*0.5,
+      w:8+Math.random()*8, h:8+Math.random()*10,
+      vy:2+Math.random()*3.2, vx:-1.4+Math.random()*2.8,
+      rot:Math.random()*Math.PI*2, vr:-0.12+Math.random()*0.24,
+      c:colors[Math.floor(Math.random()*colors.length)]
+    });
+  }
+  const t0=performance.now();
+  function frame(t){
+    const k=(t-t0)/3200;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    parts.forEach(function(p){
+      p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.c; ctx.globalAlpha=Math.max(0,1-k);
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    });
+    if(k<1){ requestAnimationFrame(frame); }
+    else{ ctx.clearRect(0,0,cv.width,cv.height); }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- 界面事件绑定 ---------------- */
+document.querySelectorAll('.lvcard').forEach(function(c){
+  c.addEventListener('click',function(){
+    startLevel(c.dataset.lv);
+    /* 首次进入游戏时自动弹出规则说明 */
+    if(!startLevel._rulesShown){
+      startLevel._rulesShown=true;
+      $('modal').classList.add('on');
+    }
+  });
+});
+$('btnRulesHome').addEventListener('click',function(){ $('modal').classList.add('on'); });
+$('btnRules').addEventListener('click',function(){ $('modal').classList.add('on'); });
+$('btnCloseModal').addEventListener('click',function(){ $('modal').classList.remove('on'); });
+$('btnReveal').addEventListener('click',function(){
+  if(G.revealFn){
+    G.revealed=true;
+    toastMsg('已展示正确做法～看完动画进入下一关吧！');
+    G.revealFn();
+  } else {
+    toastMsg('当前关卡暂时没有可揭示的内容');
+  }
+});
+$('btnRestart').addEventListener('click',function(){
+  toastMsg('换一套新题目重新开始！');
+  startLevel(G.level);
+});
+$('btnBack').addEventListener('click',function(){ stopTimer(); showScreen('screen-home'); });
+$('btnBack2').addEventListener('click',function(){ showScreen('screen-home'); });
+$('btnAgain').addEventListener('click',function(){ startLevel(G.level); });
+
+/* ---------------- 启动：应用随机主题色 ---------------- */
+applyPalette();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3b/g028", "name": "\u6570\u636e\u5f69\u8679\u8c37 \u00b7 \u5c0f\u5c0f\u7edf\u8ba1\u5e08\uff08\u7b2c14\u8bb2 \u7edf\u8ba1\uff08\u4e0b\uff09\uff09", "file": "g028.html", "jiaocan": "\u301028\u3011\u7b2c14\u8bb2 \u7edf\u8ba1\uff08\u4e0b\uff09", "unit": "\u7b2c14\u8bb2", "grade": "3\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

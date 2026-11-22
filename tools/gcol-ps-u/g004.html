@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>几何星光工坊 · 复杂直线形计算</title>
+<!--
+  教学互动游戏：几何星光工坊
+  对应讲次：六年级 第8讲 复杂直线形计算（几何专题第28讲）
+  核心方法：多边形内角和、等高模型、沙漏模型、金字塔（共角）模型、蝴蝶模型、周长平移配对
+  交互机制（全部为真实操作交互，无选择题/填空题）：
+    1) 角度转盘——拖动指针构造出正确的角度（误差 ±2 度）
+    2) 面积水晶——把写有面积/长度的水晶拖到图形中正确的区域上
+    3) 周长分配——拖动滑钮把总周长按正确比例分给外圈与内圈
+    4) 边的配对——把甲阴影的边拖到乙阴影同长度的边上，抵消后求周长差
+  单文件自包含，零外部依赖，纯内联 CSS + JS，支持触屏（Pointer 事件）。
+-->
+<style>
+  /* ============ 全局样式与配色变量（每局随机换色板） ============ */
+  :root{
+    --main:#2563eb; --deep:#1e3a8a; --accent:#f59e0b; --accent2:#10b981;
+    --soft:#dbeafe; --bg1:#eef4ff; --bg2:#f8fafc; --ink:#1f2937; --card:#ffffff;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+    color:var(--ink); background:linear-gradient(160deg,var(--bg1),var(--bg2));
+    min-height:100%; font-size:17px; line-height:1.55;
+    -webkit-user-select:none; user-select:none;
+  }
+  #app{ max-width:1100px; margin:0 auto; padding:12px 14px 40px; }
+
+  /* ============ 顶栏：标题 + 右上角计时/步数 ============ */
+  header{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+    padding:10px 16px; border-radius:16px; margin-bottom:14px;
+    background:linear-gradient(120deg,var(--main),var(--deep)); color:#fff;
+    box-shadow:0 6px 18px rgba(30,58,138,.25);
+  }
+  header h1{ font-size:26px; letter-spacing:1px; }
+  header .sub{ font-size:15px; opacity:.92; }
+  #hud{ display:flex; gap:14px; align-items:center; font-size:19px; font-weight:bold; }
+  #hud .pill{ background:rgba(255,255,255,.18); padding:4px 14px; border-radius:999px; white-space:nowrap; }
+
+  /* ============ 难度选择 ============ */
+  .screen{ animation:fadeIn .35s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+  #scr-title .hero{ text-align:center; padding:26px 8px 10px; }
+  #scr-title .hero h2{ font-size:34px; color:var(--deep); }
+  #scr-title .hero p{ font-size:19px; color:var(--ink); margin-top:6px; }
+  .cards{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; padding:22px 0; }
+  .diff-card{
+    width:270px; border-radius:20px; padding:22px 18px; cursor:pointer; text-align:center;
+    background:var(--card); border:3px solid var(--main); box-shadow:0 8px 20px rgba(37,99,235,.15);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .diff-card:hover{ transform:translateY(-6px) scale(1.03); box-shadow:0 14px 28px rgba(37,99,235,.28); }
+  .diff-card .lv{ font-size:24px; font-weight:900; color:var(--main); }
+  .diff-card .nm{ font-size:20px; font-weight:bold; margin:6px 0 8px; }
+  .diff-card .ds{ font-size:15px; color:#4b5563; min-height:66px; }
+  .diff-card .cnt{ display:inline-block; margin-top:10px; background:var(--soft); color:var(--deep);
+    border-radius:999px; padding:3px 14px; font-size:15px; font-weight:bold; }
+  .title-note{ text-align:center; font-size:15px; color:#6b7280; padding:6px 10px 0; }
+
+  /* ============ 游戏主区 ============ */
+  #round-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  #round-head .badge{ background:var(--accent); color:#fff; font-weight:900; border-radius:12px; padding:4px 14px; font-size:18px; }
+  #round-head .rname{ font-size:23px; font-weight:900; color:var(--deep); }
+  #round-head .prog{ margin-left:auto; font-size:18px; font-weight:bold; color:var(--main); }
+  #prob-text{
+    background:var(--card); border-left:8px solid var(--accent); border-radius:12px;
+    padding:12px 16px; font-size:19px; box-shadow:0 3px 10px rgba(0,0,0,.06); margin-bottom:12px;
+  }
+  #prob-text b{ color:var(--deep); }
+  #stage{
+    background:var(--card); border-radius:16px; padding:14px; box-shadow:0 4px 14px rgba(0,0,0,.07);
+    touch-action:none;
+  }
+  #feedback{ min-height:56px; margin:12px 0; border-radius:12px; padding:10px 16px; font-size:18px; font-weight:bold;
+    background:var(--soft); color:var(--deep); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #feedback.good{ background:#d1fae5; color:#065f46; }
+  #feedback.bad{ background:#fee2e2; color:#7f1d1d; }
+  #explain{ background:#fffbeb; border:2px dashed var(--accent); border-radius:12px; padding:12px 16px;
+    font-size:17px; margin-bottom:12px; }
+  #explain h4{ color:#92400e; margin-bottom:6px; font-size:19px; }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  button{
+    font-family:inherit; font-size:17px; font-weight:bold; padding:9px 18px; border-radius:12px;
+    border:none; cursor:pointer; background:var(--main); color:#fff; box-shadow:0 3px 8px rgba(0,0,0,.15);
+    transition:transform .12s ease;
+  }
+  button:hover{ transform:translateY(-2px); }
+  button:active{ transform:translateY(1px); }
+  button.ghostb{ background:#fff; color:var(--main); border:2px solid var(--main); }
+  button.warn{ background:var(--accent); }
+  button.big{ font-size:20px; padding:12px 30px; }
+  .primary-big{ font-size:22px; padding:14px 40px; background:var(--accent2); }
+
+  /* ============ 角度转盘 ============ */
+  .dial-wrap{ display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; justify-content:center; }
+  .dial-wrap .figbox{ flex:1 1 420px; max-width:660px; }
+  .dial-wrap .instbox{ flex:0 0 300px; text-align:center; }
+  #dial-inst{ touch-action:none; cursor:grab; border-radius:14px; background:#fff; }
+  .inst-tip{ font-size:16px; color:#4b5563; margin-top:4px; }
+  .phase-label{ font-size:20px; font-weight:900; color:var(--deep); margin:2px 0 6px; }
+  canvas.figcv{ width:100%; max-width:660px; display:block; }
+
+  /* ============ 面积水晶 ============ */
+  .chips-wrap{ display:flex; gap:16px; flex-wrap:wrap; }
+  .chips-fig{ flex:1 1 440px; min-width:320px; }
+  .chips-side{ flex:1 1 250px; min-width:250px; }
+  .chips-side h4{ font-size:19px; color:var(--deep); margin-bottom:8px; }
+  .tray{ display:flex; flex-wrap:wrap; gap:10px; padding:12px; min-height:74px;
+    background:var(--soft); border-radius:14px; }
+  .chip{
+    min-width:64px; text-align:center; padding:10px 14px; border-radius:14px; font-size:21px; font-weight:900;
+    background:linear-gradient(145deg,var(--accent),#fbbf24); color:#7c2d12; cursor:grab;
+    box-shadow:0 4px 10px rgba(245,158,11,.4); touch-action:none;
+  }
+  .chip.dragging{ opacity:.35; }
+  .ghost{ position:fixed; z-index:99; pointer-events:none; transform:translate(-50%,-50%);
+    padding:10px 14px; border-radius:14px; font-size:21px; font-weight:900;
+    background:linear-gradient(145deg,var(--accent),#fbbf24); color:#7c2d12; box-shadow:0 8px 20px rgba(0,0,0,.3); }
+  .side-tip{ font-size:15px; color:#6b7280; margin-top:10px; }
+
+  /* ============ 周长分配条 ============ */
+  .split-wrap{ display:flex; flex-direction:column; gap:14px; align-items:center; }
+  .split-bar{ position:relative; width:100%; max-width:620px; height:56px; border-radius:14px; overflow:hidden;
+    background:#e5e7eb; border:3px solid var(--deep); touch-action:none; cursor:pointer; }
+  .split-bar .fin{ position:absolute; top:0; bottom:0; left:0; background:linear-gradient(180deg,#93c5fd,var(--main)); }
+  .split-bar .fout{ position:absolute; top:0; bottom:0; right:0; background:linear-gradient(180deg,#fcd34d,var(--accent)); }
+  .split-bar .knob{ position:absolute; top:-9px; width:26px; height:74px; background:var(--deep); border-radius:8px;
+    border:3px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,.35); transform:translateX(-50%); }
+  .split-read{ display:flex; gap:26px; flex-wrap:wrap; justify-content:center; font-size:21px; font-weight:900; }
+  .split-read .o{ color:#b45309; } .split-read .i{ color:var(--main); }
+
+  /* ============ 边的配对 ============ */
+  .tiles-figs{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
+  .tiles-figs .tcard{ flex:1 1 300px; max-width:400px; background:var(--soft); border-radius:14px; padding:8px; }
+  .tiles-figs h5{ text-align:center; font-size:18px; color:var(--deep); }
+  .tile-rows{ display:flex; flex-direction:column; gap:12px; }
+  .tile-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-height:56px; padding:8px;
+    background:var(--soft); border-radius:12px; }
+  .tile-row .rowname{ font-size:17px; font-weight:900; color:var(--deep); width:100%; }
+  .tile{ width:52px; height:52px; display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:900; border-radius:12px; cursor:grab; touch-action:none;
+    box-shadow:0 3px 8px rgba(0,0,0,.18); }
+  .tile.ta{ background:#bfdbfe; color:#1e40af; border:2px solid #1d4ed8; }
+  .tile.tb{ background:#fde68a; color:#92400e; border:2px solid #b45309; }
+  .tile.taked{ cursor:default; }
+  .tile.ok{ opacity:.22; box-shadow:none; border-style:dashed; cursor:default; }
+  .tile.pulse{ animation:pulse 0.9s infinite; }
+  @keyframes pulse{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.14);} }
+  .stage2{ background:#fffbeb; border:2px dashed var(--accent); border-radius:12px; padding:12px 14px; margin-top:12px; }
+  .stage2 .qline{ font-size:20px; font-weight:900; color:#7c2d12; margin:6px 0; }
+  .slot{ display:inline-flex; align-items:center; justify-content:center; min-width:86px; height:56px;
+    border:3px dashed var(--accent); border-radius:12px; font-size:24px; font-weight:900; color:#b45309;
+    vertical-align:middle; margin:0 10px; background:#fff; }
+  .slot.filled{ border-style:solid; background:#d1fae5; color:#065f46; }
+
+  /* ============ 遮罩层：规则 / 庆祝 ============ */
+  .overlay{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center;
+    justify-content:center; z-index:50; padding:16px; }
+  .modal{ background:#fff; border-radius:20px; max-width:640px; width:100%; padding:26px 26px 22px;
+    max-height:88vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  .modal h3{ font-size:26px; color:var(--deep); margin-bottom:12px; }
+  .modal .rule{ background:var(--soft); border-radius:12px; padding:10px 14px; margin-bottom:10px; font-size:17px; }
+  .modal .rule b{ color:var(--deep); }
+  #celeb-cv{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #celeb-box{ position:relative; background:#fff; border-radius:22px; padding:30px 34px; text-align:center;
+    max-width:520px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  #celeb-box h2{ font-size:32px; color:var(--deep); }
+  #celeb-box .stars{ font-size:40px; color:var(--accent); letter-spacing:6px; margin:8px 0; }
+  #celeb-box .stat{ font-size:19px; margin:4px 0; }
+  .shake{ animation:shake .4s; }
+  @keyframes shake{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-7px);} 75%{transform:translateX(7px);} }
+  [hidden]{ display:none !important; }
+  @media (max-width:640px){
+    header h1{ font-size:20px; } #hud{ font-size:16px; }
+    #prob-text{ font-size:17px; } .diff-card{ width:88%; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div>
+      <h1>几何星光工坊</h1>
+      <div class="sub">复杂直线形计算 · 角度 / 比例模型 / 周长</div>
+    </div>
+    <div id="hud">
+      <span class="pill" id="hud-timer">用时 00:00</span>
+      <span class="pill" id="hud-steps">操作 0 次</span>
+      <span class="pill" id="hud-stars">星星 0</span>
+    </div>
+  </header>
+
+  <!-- ============ 难度选择界面 ============ -->
+  <section class="screen" id="scr-title">
+    <div class="hero">
+      <h2>选择你的挑战等级</h2>
+      <p>转动角度转盘 · 拖放面积水晶 · 分配周长 · 配对抵消，点亮所有几何之星！</p>
+    </div>
+    <div class="cards">
+      <div class="diff-card" data-diff="easy">
+        <div class="lv">初级</div>
+        <div class="nm">见习工匠</div>
+        <div class="ds">3 个关卡：一位数角度链、基础比例模型、周长配对，热身刚刚好。</div>
+        <div class="cnt">3 关</div>
+      </div>
+      <div class="diff-card" data-diff="mid">
+        <div class="lv">中级</div>
+        <div class="nm">巧手工匠</div>
+        <div class="ds">4 个关卡：沙漏与金字塔联手出击，还有蜂窝周长分配大挑战。</div>
+        <div class="cnt">4 关</div>
+      </div>
+      <div class="diff-card" data-diff="hard">
+        <div class="lv">高级</div>
+        <div class="nm">星光大师</div>
+        <div class="ds">5 个关卡：双角转盘、分数面积、蝴蝶梯形，综合运用全部模型。</div>
+        <div class="cnt">5 关</div>
+      </div>
+    </div>
+    <div class="title-note">每一局的关卡都会随机抽取、顺序打乱，配色也会随机更换，多玩几次也不重样。</div>
+    <div class="btn-row" style="justify-content:center;margin-top:14px;">
+      <button class="ghostb" id="btn-rules-0">规则说明</button>
+    </div>
+  </section>
+
+  <!-- ============ 游戏界面 ============ -->
+  <section class="screen" id="scr-game" hidden>
+    <div id="round-head">
+      <span class="badge" id="rh-badge">角度转盘</span>
+      <span class="rname" id="rh-name">关卡名</span>
+      <span class="prog" id="rh-prog">第 1/3 关</span>
+    </div>
+    <div id="prob-text">题目载入中…</div>
+    <div id="stage"></div>
+    <div id="feedback">拖动、转动、配对，开始你的操作吧！</div>
+    <div id="explain" hidden></div>
+    <div class="btn-row">
+      <button class="ghostb" id="btn-hint">小提示</button>
+      <button class="warn" id="btn-reveal">揭示答案</button>
+      <button class="ghostb" id="btn-restart">重新开始</button>
+      <button class="ghostb" id="btn-back">返回难度选择</button>
+      <button class="ghostb" id="btn-rules-1">规则说明</button>
+    </div>
+  </section>
+</div>
+
+<!-- ============ 规则遮罩 ============ -->
+<div class="overlay" id="ov-rules" hidden>
+  <div class="modal">
+    <h3>玩法规则</h3>
+    <div class="rule"><b>角度转盘：</b>先在图形里算出目标角，再把转盘的彩色指针拖到正确的度数（误差 ±2 度内即成功）。</div>
+    <div class="rule"><b>面积水晶：</b>根据等高、沙漏、金字塔（共角）、蝴蝶模型，把写有答案的水晶拖到带「？」的区域上，放对即点亮。</div>
+    <div class="rule"><b>周长分配：</b>拖动分配条上的深色滑钮，把总周长按正确的比例分给外圈和内圈，松手即检查。</div>
+    <div class="rule"><b>边的配对：</b>把甲阴影的边拖到乙阴影中<b>相同字母</b>的边上，两边抵消；全部抵消后剩下的边就是周长差，再拖入正确数字。</div>
+    <div class="rule"><b>星级：</b>独立完成且零失误得 3 星；有失误或看提示会减星；使用「揭示答案」本关 0 星。右上角实时显示用时和操作次数。</div>
+    <div class="rule"><b>小提示 / 揭示答案 / 重新开始 / 返回难度选择：</b>随时可用，重新开始会重新抽关并换配色。</div>
+    <div class="btn-row" style="justify-content:center;margin-top:8px;">
+      <button class="big" id="btn-rules-close">我明白了，出发！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 通关庆祝遮罩 ============ -->
+<div class="overlay" id="ov-celeb" hidden>
+  <canvas id="celeb-cv"></canvas>
+  <div id="celeb-box">
+    <h2>全部通关，太棒了！</h2>
+    <div class="stars" id="celeb-stars">★★★</div>
+    <div class="stat" id="celeb-stat1"></div>
+    <div class="stat" id="celeb-stat2"></div>
+    <div class="btn-row" style="justify-content:center;margin-top:16px;">
+      <button class="big primary-big" id="btn-again">再玩一次</button>
+      <button class="ghostb big" id="btn-celeb-back">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ==================================================================
+   几何星光工坊 —— 全部逻辑（纯原生 JS，无外部依赖）
+   ================================================================== */
+
+/* ---------- 基础工具 ---------- */
+function $(s){ return document.querySelector(s); }
+var SVGNS = 'http://www.w3.org/2000/svg';
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function pick(arr, n){ return shuffle(arr).slice(0, n); }
+function norm360(d){ var x = d % 360; if(x < 0) x += 360; return x; }
+function gcd(a, b){ a = Math.abs(a); b = Math.abs(b); while(b){ var t = a % b; a = b; b = t; } return a || 1; }
+/* 射线法：判断点 pt 是否在多边形 poly 内（坐标为数学坐标） */
+function pip(pt, poly){
+  var inside = false;
+  for(var i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if(((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function mkSvg(tag, attrs, parent){
+  var e = document.createElementNS(SVGNS, tag);
+  for(var k in attrs) e.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+function mkEl(tag, cls, parent, text){
+  var e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(text) e.textContent = text;
+  if(parent) parent.appendChild(e);
+  return e;
+}
+
+/* ---------- 随机色板（每局随机，保证多次游玩不腻） ---------- */
+var PALETTES = [
+  { main:'#2563eb', deep:'#1e3a8a', accent:'#f59e0b', soft:'#dbeafe', bg1:'#eef4ff', bg2:'#f8fafc' },
+  { main:'#059669', deep:'#065f46', accent:'#f97316', soft:'#d1fae5', bg1:'#ecfdf5', bg2:'#f8fafc' },
+  { main:'#7c3aed', deep:'#4c1d95', accent:'#f59e0b', soft:'#ede9fe', bg1:'#f5f3ff', bg2:'#fafafa' },
+  { main:'#db2777', deep:'#831843', accent:'#0ea5e9', soft:'#fce7f3', bg1:'#fdf2f8', bg2:'#fafafa' },
+  { main:'#0891b2', deep:'#155e75', accent:'#f59e0b', soft:'#cffafe', bg1:'#ecfeff', bg2:'#f8fafc' },
+  { main:'#ca8a04', deep:'#713f12', accent:'#2563eb', soft:'#fef9c3', bg1:'#fefce8', bg2:'#fafafa' }
+];
+function applyPalette(){
+  var p = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  var r = document.documentElement.style;
+  r.setProperty('--main', p.main); r.setProperty('--deep', p.deep);
+  r.setProperty('--accent', p.accent); r.setProperty('--soft', p.soft);
+  r.setProperty('--bg1', p.bg1); r.setProperty('--bg2', p.bg2);
+}
+
+/* ---------- 坐标映射：数学坐标 -> 画布/SVG 像素（y 轴自动翻转） ---------- */
+function Mapper(bbox, w, h, pad){
+  this.k = Math.min((w - pad * 2) / (bbox[2] - bbox[0]), (h - pad * 2) / (bbox[3] - bbox[1]));
+  this.ox = pad + ((w - pad * 2) - (bbox[2] - bbox[0]) * this.k) / 2;
+  this.oy = pad + ((h - pad * 2) - (bbox[3] - bbox[1]) * this.k) / 2;
+  this.bx = bbox[0]; this.by = bbox[1]; this.bw = bbox[2] - bbox[0]; this.bh = bbox[3] - bbox[1];
+  this.map = function(x, y){ return [this.ox + (x - this.bx) * this.k, this.oy + (this.bh - (y - this.by)) * this.k]; };
+  this.inv = function(px, py){ return [(px - this.ox) / this.k + this.bx, this.by + this.bh - (py - this.oy) / this.k]; };
+}
+
+/* ---------- SVG 图形助手（用于水晶/分配/配对的静态图） ---------- */
+function svgFig(parent, bbox, W, H, pad){
+  var svg = mkSvg('svg', { viewBox:'0 0 ' + W + ' ' + H, style:'width:100%;height:auto;display:block;' }, parent);
+  var M = new Mapper(bbox, W, H, pad || 34);
+  var css = getComputedStyle(document.documentElement);
+  function col(v){ return v && v.indexOf('var') === 0 ? css.getPropertyValue(v.slice(4, -1)).trim() : v; }
+  var h = {
+    svg: svg, M: M,
+    poly: function(pts, o){
+      o = o || {};
+      var pa = pts.map(function(p){ return M.map(p[0], p[1]).join(','); }).join(' ');
+      return mkSvg('polygon', {
+        points: pa,
+        fill: o.fill == null ? 'none' : col(o.fill),
+        stroke: o.stroke == null ? 'none' : col(o.stroke),
+        'stroke-width': o.lw || 3,
+        'stroke-dasharray': o.dash || 'none',
+        'stroke-linejoin': 'round', opacity: o.opacity == null ? 1 : o.opacity
+      }, svg);
+    },
+    line: function(a, b, o){
+      o = o || {};
+      var p1 = M.map(a[0], a[1]), p2 = M.map(b[0], b[1]);
+      return mkSvg('line', {
+        x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1],
+        stroke: col(o.stroke || '#374151'), 'stroke-width': o.lw || 3,
+        'stroke-dasharray': o.dash || 'none', 'stroke-linecap': 'round'
+      }, svg);
+    },
+    txt: function(s, x, y, o){
+      o = o || {};
+      var p = M.map(x, y);
+      var t = mkSvg('text', {
+        x: p[0], y: p[1], 'font-size': o.size || 17,
+        fill: col(o.fill || '#1f2937'), 'font-weight': o.bold === false ? '400' : '900',
+        'text-anchor': o.anchor || 'middle', 'dominant-baseline': 'middle'
+      }, svg);
+      t.textContent = s;
+      return t;
+    }
+  };
+  return h;
+}
+
+/* ---------- Canvas 图形助手（用于角度转盘的题目图） ---------- */
+function canvasFig(parent, bbox, w, h, pad){
+  var cv = mkEl('canvas', 'figcv', parent);
+  var dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = h * dpr;
+  var ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  var M = new Mapper(bbox, w, h, pad || 36);
+  var css = getComputedStyle(document.documentElement);
+  function col(name){ return css.getPropertyValue(name).trim(); }
+  var H2 = {
+    cv: cv, M: M,
+    poly: function(pts, o){
+      o = o || {};
+      ctx.beginPath();
+      pts.forEach(function(p, i){ var q = M.map(p[0], p[1]); if(i === 0) ctx.moveTo(q[0], q[1]); else ctx.lineTo(q[0], q[1]); });
+      ctx.closePath();
+      if(o.fill){ ctx.fillStyle = o.fill; ctx.fill(); }
+      if(o.stroke){ ctx.strokeStyle = o.stroke; ctx.lineWidth = o.lw || 3; ctx.setLineDash(o.dash || []); ctx.lineJoin = 'round'; ctx.stroke(); ctx.setLineDash([]); }
+    },
+    line: function(a, b, o){
+      o = o || {};
+      var p1 = M.map(a[0], a[1]), p2 = M.map(b[0], b[1]);
+      ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]);
+      ctx.strokeStyle = o.stroke || '#374151'; ctx.lineWidth = o.lw || 3;
+      ctx.setLineDash(o.dash || []); ctx.lineCap = 'round'; ctx.stroke(); ctx.setLineDash([]);
+    },
+    txt: function(s, x, y, o){
+      o = o || {};
+      var p = M.map(x, y);
+      ctx.font = (o.bold === false ? '600 ' : '900 ') + (o.size || 17) + 'px "Microsoft YaHei",sans-serif';
+      ctx.fillStyle = o.fill || '#1f2937';
+      ctx.textAlign = o.anchor || 'center'; ctx.textBaseline = 'middle';
+      if(o.halo){ /* 白色描边光晕：让文字压在线条上时依然清晰 */
+        ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+        ctx.lineJoin = 'round'; ctx.strokeText(s, p[0], p[1]);
+      }
+      ctx.fillText(s, p[0], p[1]);
+    }
+  };
+  return H2;
+}
+
+/* ==================================================================
+   题目数据 —— 全部取自讲义例题/练习/作业（个别为同题型变式）
+   每题：text 题干 / fig 图形 / 数据 / hints 提示链 / explain 解析
+   ================================================================== */
+
+/* ---------- 角度转盘类 ---------- */
+
+/* 例2：正五边形 + 向内正三角形，求 ∠BFE = 168° */
+var DIA_A1 = {
+  id: 'A1', kind: 'dial', name: '五边形里藏着的角', badge: '角度转盘',
+  text: '正五边形 <b>ABCDE</b> 中，以 CD 为边向图形<b>内部</b>作正三角形 CDF。请求出 <b>∠BFE</b> 的度数，并转动转盘指给它！',
+  bbox: [-1.5, -1.35, 1.5, 1.5],
+  fig: function(H){
+    var pent = [[0,1], [-0.951,0.309], [-0.588,-0.809], [0.588,-0.809], [0.951,0.309]];
+    var F = [0, 0.209];
+    H.poly(pent, { fill:'rgba(147,197,253,0.45)', stroke:'#1e3a8a', lw:4 });
+    H.poly([[-0.588,-0.809], [0.588,-0.809], F], { fill:'rgba(251,191,36,0.5)', stroke:'#b45309', lw:3.5 });
+    H.line(F, [-0.951,0.309], { stroke:'#dc2626', lw:2.5, dash:[9,7] });
+    H.line(F, [0.951,0.309], { stroke:'#dc2626', lw:2.5, dash:[9,7] });
+    H.txt('A', 0, 1.18); H.txt('B', -1.12, 0.42); H.txt('C', -0.66, -1.02);
+    H.txt('D', 0.66, -1.02); H.txt('E', 1.12, 0.42); H.txt('F', 0.16, 0.42);
+    H.txt('?', 0.07, 0.55, { size:26, fill:'#dc2626', halo: true });
+  },
+  phases: [{ ask: '∠BFE', target: 168 }],
+  hints: [
+    '正五边形每个内角 =（5−2）×180°÷5 = 108°；正三角形每个内角是 60°。',
+    '∠BCF = 108°−60° = 48°；又 BC = CF，所以 ∠BFC =（180°−48°）÷2 = 66°。',
+    '∠DFE 同样是 66°，所以 ∠BFE = 360°−66°−60°−66° = 168°。'
+  ],
+  explain: '正五边形内角 108°，∠BCF = 108°−60° = 48°；BC = CF，等腰底角 ∠BFC =（180°−48°）÷2 = 66°；同理 ∠DFE = 66°。围绕 F 点一圈 360°：∠BFE = 360°−66°−60°−66° = <b>168°</b>。'
+};
+
+/* 练习变式：同图求底角 ∠BFC = 66° */
+var DIA_VA2 = {
+  id: 'VA2', kind: 'dial', name: '等腰的底角', badge: '角度转盘',
+  text: '正五边形 <b>ABCDE</b> 中，以 CD 为边向内部作正三角形 CDF。请求出 <b>∠BFC</b>（底角）的度数，并转动转盘！',
+  bbox: [-1.5, -1.35, 1.5, 1.5],
+  fig: function(H){
+    var pent = [[0,1], [-0.951,0.309], [-0.588,-0.809], [0.588,-0.809], [0.951,0.309]];
+    var F = [0, 0.209];
+    H.poly(pent, { fill:'rgba(147,197,253,0.45)', stroke:'#1e3a8a', lw:4 });
+    H.poly([[-0.588,-0.809], [0.588,-0.809], F], { fill:'rgba(251,191,36,0.5)', stroke:'#b45309', lw:3.5 });
+    H.line(F, [-0.951,0.309], { stroke:'#dc2626', lw:2.5, dash:[9,7] });
+    H.line(F, [-0.588,-0.809], { stroke:'#dc2626', lw:2.5, dash:[9,7] });
+    H.txt('A', 0, 1.18); H.txt('B', -1.12, 0.42); H.txt('C', -0.66, -1.02);
+    H.txt('D', 0.66, -1.02); H.txt('E', 1.12, 0.42); H.txt('F', 0.16, 0.42);
+    H.txt('?', -0.58, -0.18, { size:26, fill:'#dc2626', halo: true });
+  },
+  phases: [{ ask: '∠BFC', target: 66 }],
+  hints: [
+    '正五边形内角 108°，正三角形内角 60°，先求 ∠BCF。',
+    '∠BCF = 108°−60° = 48°，而 BC = CF（都是边长），三角形 BCF 是等腰三角形。',
+    '底角 =（180°−48°）÷2 = 66°。'
+  ],
+  explain: '∠BCF = 108°−60° = 48°；BC = CF，等腰三角形底角 ∠BFC =（180°−48°）÷2 = <b>66°</b>。'
+};
+
+/* 例4：正六边形+正五边形+正方形嵌套，双角 84° 与 81° */
+var DIA_A2 = {
+  id: 'A2', kind: 'dial', name: '三个正多边形的握手', badge: '角度转盘',
+  text: '正六边形 <b>ABCDEF</b>、正五边形 <b>ABIJK</b>、正方形 <b>ABGH</b> 有一条公共边 AB（依次向六边形内部作图）。请分别转出 <b>∠AFK</b> 和 <b>∠AHK</b> 的度数！',
+  bbox: [-0.95, -0.32, 2.0, 2.1],
+  fig: function(H){
+    var hex = [[0,0], [1,0], [1.5,0.866], [1,1.732], [0,1.732], [-0.5,0.866]];
+    var pen = [[0,0], [1,0], [1.309,0.951], [0.5,1.539], [-0.309,0.951]];
+    var sq = [[0,0], [1,0], [1,1], [0,1]];
+    H.poly(hex, { fill:'rgba(147,197,253,0.45)', stroke:'#1e3a8a', lw:4 });
+    H.poly(pen, { fill:'rgba(167,243,208,0.55)', stroke:'#065f46', lw:3.5 });
+    H.poly(sq, { fill:'rgba(251,191,36,0.55)', stroke:'#b45309', lw:3 });
+    var F = [-0.5, 0.866], K = [-0.309, 0.951], Hpt = [0, 1];
+    H.line(F, K, { stroke:'#dc2626', lw:2.5, dash:[9,7] });
+    H.line(Hpt, K, { stroke:'#dc2626', lw:2.5, dash:[9,7] });
+    H.txt('A', -0.16, -0.14); H.txt('B', 1.16, -0.14); H.txt('C', 1.82, 0.86);
+    H.txt('D', 1.14, 1.94); H.txt('E', -0.14, 1.94); H.txt('F', -0.78, 0.80);
+    H.txt('I', 1.40, 1.16); H.txt('J', 0.54, 1.78); H.txt('K', -0.52, 1.04);
+    H.txt('G', 1.08, 1.02); H.txt('H', -0.18, 1.04);
+    H.txt('?', 0, 0.7, { size:22, fill:'#dc2626', halo: true });
+    H.txt('?', -0.45, 0.6, { size:22, fill:'#dc2626', halo: true });
+  },
+  phases: [
+    { ask: '∠AFK', target: 84 },
+    { ask: '∠AHK', target: 81 }
+  ],
+  hints: [
+    '正六边形内角 120°，正五边形内角 108°，正方形内角 90°。',
+    '∠KAF = 120°−108° = 12°，而 AF = AK（都等于边长），等腰底角 =（180°−12°）÷2 = 84°。',
+    '∠KAH = 108°−90° = 18°，AH = AK，所以 ∠AHK =（180°−18°）÷2 = 81°。两个角相差 3°。'
+  ],
+  explain: '∠KAF = 120°−108° = 12°，AF = AK，等腰 → ∠AFK =（180°−12°）÷2 = <b>84°</b>；<br>∠KAH = 108°−90° = 18°，AH = AK，等腰 → ∠AHK =（180°−18°）÷2 = <b>81°</b>。<br>两个角相差 <b>3°</b>——正多边形越多，角越"挤"！'
+};
+
+/* 作业2：折纸问题 ∠1 = 75° */
+var DIA_A3 = {
+  id: 'A3', kind: 'dial', name: '折纸里的角', badge: '角度转盘',
+  text: '把正方形的<b>左上角和右下角</b>沿折痕折起，两个角的顶点恰好重合在点 <b>A</b> 处（两条折痕都从 E 出发，F 在折痕上）。请求出 <b>∠1</b>（折痕 EF 与边 ED 的夹角）的度数！',
+  bbox: [-0.25, -0.25, 1.45, 1.4],
+  fig: function(H){
+    var sq = [[0,0], [1,0], [1,1], [0,1]]; /* E D C B 顺序 */
+    var A = [0.5, 0.866], F = [0.25, 0.933], M1 = [0.75, 0.433];
+    H.poly(sq, { fill:'rgba(147,197,253,0.4)', stroke:'#1e3a8a', lw:4 });
+    H.poly([[0,0], [1,0], A], { fill:'rgba(251,191,36,0.35)', stroke:'none' });
+    H.poly([[0,0], [0,1], A], { fill:'rgba(251,191,36,0.35)', stroke:'none' });
+    H.line([0,0], F, { stroke:'#dc2626', lw:3, dash:[9,7] });
+    H.line([0,0], M1, { stroke:'#dc2626', lw:3, dash:[9,7] });
+    H.line(F, A, { stroke:'#b45309', lw:2, dash:[5,6] });
+    H.txt('E', -0.13, -0.11); H.txt('D', 1.12, -0.11); H.txt('C', 1.12, 1.1); H.txt('B', -0.13, 1.1);
+    H.txt('A', 0.5, 0.68, { size:16 }); H.txt('F', 0.22, 1.12);
+    H.txt('1', 0.4, 0.12, { size:24, fill:'#dc2626', halo: true });
+  },
+  phases: [{ ask: '∠1', target: 75 }],
+  hints: [
+    '折痕把角对折：EA = EB = ED = 边长（A 与两个角顶点重合，E 在两条折痕上）。',
+    '于是 △AED 是正三角形，∠AED = 60°，∠BEA = 90°−60° = 30°。',
+    '折痕 EF 平分 ∠BEA：∠FEA = 15°，所以 ∠1 = ∠FED = 60°+15° = 75°。'
+  ],
+  explain: '由折叠可知 EA = EB = ED = 边长，且 AD 也等于边长，△AED 是正三角形 → ∠AED = 60°；<br>∠BEA = 90°−60° = 30°；折痕 EF 平分 ∠BEA → ∠FEA = 15°；<br>∠1 = ∠FED = ∠FEA + ∠AED = 15°+60° = <b>75°</b>。'
+};
+
+/* 变式：正六边形 + 向内正方形，∠AFH = 75° */
+var DIA_VA1 = {
+  id: 'VA1', kind: 'dial', name: '六边形与正方形', badge: '角度转盘',
+  text: '正六边形 <b>ABCDEF</b> 中，以 AB 为边向图形<b>内部</b>作正方形 ABGH。请求出 <b>∠AFH</b> 的度数，并转动转盘！',
+  bbox: [-0.95, -0.32, 2.0, 2.1],
+  fig: function(H){
+    var hex = [[0,0], [1,0], [1.5,0.866], [1,1.732], [0,1.732], [-0.5,0.866]];
+    var sq = [[0,0], [1,0], [1,1], [0,1]];
+    H.poly(hex, { fill:'rgba(147,197,253,0.45)', stroke:'#1e3a8a', lw:4 });
+    H.poly(sq, { fill:'rgba(251,191,36,0.55)', stroke:'#b45309', lw:3 });
+    H.line([-0.5,0.866], [0,1], { stroke:'#dc2626', lw:2.5, dash:[9,7] });
+    H.txt('A', -0.16, -0.14); H.txt('B', 1.16, -0.14); H.txt('C', 1.72, 0.9);
+    H.txt('D', 1.14, 1.94); H.txt('E', -0.14, 1.94); H.txt('F', -0.75, 0.82);
+    H.txt('G', 1.14, 1.02); H.txt('H', -0.16, 1.06);
+    H.txt('?', 0.1, 0.72, { size:24, fill:'#dc2626', halo: true });
+  },
+  phases: [{ ask: '∠AFH', target: 75 }],
+  hints: [
+    '正六边形内角 120°，正方形内角 90°。',
+    '∠HAF = 120°−90° = 30°，而 AH = AF（都等于边长）。',
+    '等腰三角形底角 =（180°−30°）÷2 = 75°。'
+  ],
+  explain: '∠HAF = 120°−90° = 30°；AH = AF，等腰三角形 → ∠AFH =（180°−30°）÷2 = <b>75°</b>。'
+};
+
+/* ---------- 面积水晶类 ---------- */
+
+/* 练习：梯形对角线，蝴蝶+沙漏，两翼各 8，总面积 36 */
+var CH_B3 = {
+  id: 'B3', kind: 'chips', name: '梯形蝴蝶', badge: '面积水晶',
+  text: '四边形 ABCD 是梯形，AD∥BC，对角线相交于点 O。已知 <b>△AOD = 4</b>、<b>△BOC = 16</b>、<b>△COD = 8</b>（平方厘米）。请把数字水晶拖到：左翼 <b>△AOB</b> 和<b>整个梯形</b>的位置！',
+  bbox: [-1.6, -1.5, 9.6, 7.9],
+  draw: function(h){
+    var trap = [[2,6], [0,0], [8,0], [6,6]];
+    var outer = [[1.5,6.85], [-1.05,-0.85], [9.05,-0.85], [6.5,6.85]];
+    h.poly(outer, { fill:'none', stroke:'#94a3b8', lw:2.5, dash:[10,8] }); /* 总面积光环 */
+    h.poly(trap, { fill:'rgba(148,163,184,0.18)', stroke:'#1e3a8a', lw:4 });
+    h.line([2,6], [4,4], { stroke:'#1e3a8a', lw:3 }); h.line([8,0], [4,4], { stroke:'#1e3a8a', lw:3 });
+    h.line([0,0], [4,4], { stroke:'#1e3a8a', lw:3 }); h.line([6,6], [4,4], { stroke:'#1e3a8a', lw:3 });
+  },
+  given: [
+    { pts: [[2,6], [4,4], [6,6]], value: '4', at: [4, 5.45], fill: 'rgba(147,197,253,0.55)' },
+    { pts: [[0,0], [4,4], [8,0]], value: '16', at: [4, 1.35], fill: 'rgba(147,197,253,0.55)' },
+    { pts: [[4,4], [8,0], [6,6]], value: '8', at: [6.3, 3.5], fill: 'rgba(251,191,36,0.45)' }
+  ],
+  targets: [
+    { name: '△AOB', value: '8', ptsList: [[[2,6], [4,4], [0,0]]], at: [1.8, 3.4] },
+    { name: '梯形总面积', value: '36', ring: { outer: [[1.5,6.85], [-1.05,-0.85], [9.05,-0.85], [6.5,6.85]], inner: [[2,6], [0,0], [8,0], [6,6]] }, at: [4, 7.35] }
+  ],
+  labels: [
+    { t: 'A', x: 1.7, y: 6.45 }, { t: 'B', x: -0.35, y: -0.32 }, { t: 'C', x: 8.35, y: -0.32 },
+    { t: 'D', x: 6.3, y: 6.45 }, { t: 'O', x: 4.3, y: 4.15 }
+  ],
+  chips: ['8', '36', '12', '20', '24'],
+  hints: [
+    '梯形中，两条对角线分出的左右两个"翼"三角形面积相等（蝴蝶模型）。',
+    '△AOD 与 △BOC 是沙漏模型：面积比 4:16 = 1:4，所以对应边比 1:2，即 OD:OB = 1:2。',
+    '△AOB 与 △AOD 同高（都从 A 向对角线 BD 作高），面积比 = OB:OD = 2:1，所以 △AOB = 8；总面积 = 4+16+8+8 = 36。'
+  ],
+  explain: '沙漏模型：△AOD∼△BOC，面积比 4:16 = 1:4 → OD:OB = 1:2；<br>△AOB 与 △AOD 共顶点 A、底在 BD 上，面积比 = OB:OD = 2:1 → △AOB = 4×2 = <b>8</b>；<br>蝴蝶模型：左右两翼相等（△AOB = △COD = 8，与已知一致）；<br>梯形总面积 = 4+16+8+8 = <b>36</b>（平方厘米）。'
+};
+
+/* 变式：梯形给上 9 下 16 右翼 12，求左翼与总面积 49 */
+var CH_VB1 = {
+  id: 'VB1', kind: 'chips', name: '蝴蝶双翼', badge: '面积水晶',
+  text: '梯形 ABCD 中，AB∥CD，对角线交于点 O。已知 <b>△AOB = 9</b>、<b>△COD = 16</b>、<b>△BOC = 12</b>（平方厘米）。请把数字水晶拖到：左翼 <b>△AOD</b> 和<b>梯形总面积</b>的位置！',
+  bbox: [-1.5, -1.5, 6.5, 4.6],
+  draw: function(h){
+    var trap = [[0.5,3], [3.5,3], [4,0], [0,0]];
+    var outer = [[0.06,3.75], [3.94,3.75], [4.52,-0.55], [-0.52,-0.55]];
+    h.poly(outer, { fill:'none', stroke:'#94a3b8', lw:2.5, dash:[10,8] });
+    h.poly(trap, { fill:'rgba(148,163,184,0.18)', stroke:'#1e3a8a', lw:4 });
+    h.line([0.5,3], [4,0], { stroke:'#1e3a8a', lw:3 }); h.line([3.5,3], [0,0], { stroke:'#1e3a8a', lw:3 });
+  },
+  given: [
+    { pts: [[0.5,3], [2,1.714], [3.5,3]], value: '9', at: [2, 2.72], fill: 'rgba(147,197,253,0.55)' },
+    { pts: [[0,0], [2,1.714], [4,0]], value: '16', at: [2, 0.55], fill: 'rgba(147,197,253,0.55)' },
+    { pts: [[3.5,3], [2,1.714], [4,0]], value: '12', at: [3.42, 1.8], fill: 'rgba(251,191,36,0.45)' }
+  ],
+  targets: [
+    { name: '△AOD', value: '12', ptsList: [[[0.5,3], [2,1.714], [0,0]]], at: [0.9, 1.6] },
+    { name: '梯形总面积', value: '49', ring: { outer: outer_pts_vb1(), inner: [[0.5,3], [3.5,3], [4,0], [0,0]] }, at: [2, 4.25] }
+  ],
+  labels: [
+    { t: 'A', x: 0.35, y: 3.42 }, { t: 'B', x: 3.68, y: 3.42 }, { t: 'C', x: 4.4, y: -0.3 },
+    { t: 'D', x: -0.32, y: -0.3 }, { t: 'O', x: 2.28, y: 1.9 }
+  ],
+  chips: ['12', '49', '24', '37', '16'],
+  hints: [
+    '先看沙漏：△AOB 与 △COD 相似，面积比 9:16 → 边比 3:4。',
+    '△AOD 与 △AOB 共底 AO，高在 BD 上：面积比 = OD:OB。由沙漏知 OD:OB = 4:3？注意对应——OB:OD = 3:4。',
+    '△AOD = 9×（4/3）= 12；又两翼相等（△BOC 也是 12，与已知一致）。总面积 = 9+16+12+12 = 49。'
+  ],
+  explain: '沙漏模型：△AOB∼△COD，面积比 9:16 → 边比 3:4；<br>△AOD 与 △AOB 共底 AO，面积比 = OD:OB = 4:3 → △AOD = 9×4/3 = <b>12</b>（与右翼 △BOC = 12 相等，正是蝴蝶模型）；<br>梯形总面积 = 9+16+12+12 = <b>49</b>（平方厘米）。'
+};
+function outer_pts_vb1(){ return [[0.06,3.75], [3.94,3.75], [4.52,-0.55], [-0.52,-0.55]]; }
+
+/* 挑战2：长方形 AB=5 BC=12，△AFE=15，求 DE/FD/△CFE */
+var CH_B5 = {
+  id: 'B5', kind: 'chips', name: '延长线上的沙漏', badge: '面积水晶',
+  text: '长方形 ABCD 中，<b>AB = 5</b>，<b>BC = 12</b>（厘米）。点 E 在 CD 的延长线上，BE 与 AD 相交于点 F，阴影 △AFE 的面积是 <b>15</b>（平方厘米）。请把水晶拖到：<b>DE</b>、<b>FD</b> 和 <b>△CFE</b> 的位置！',
+  bbox: [-6.1, -1.7, 6.6, 13.3],
+  draw: function(h){
+    h.line([-5,0], [5,12], { stroke:'#b45309', lw:3.5 }); /* BE 线 */
+    h.poly([[0,0], [5,0], [5,12], [0,12]], { fill:'none', stroke:'#1e3a8a', lw:4 });
+  },
+  given: [
+    { pts: [[0,12], [0,6], [-5,0]], value: '15', at: [-1.55, 6.6], fill: 'rgba(251,191,36,0.5)' }
+  ],
+  targets: [
+    { name: 'DE', value: '5', ptsList: [[[-5,-0.5], [0,-0.5], [0,0.5], [-5,0.5]]], at: [-2.5, -1.1] },
+    { name: 'FD', value: '6', ptsList: [[[-0.55,0], [-0.55,6], [0.55,6], [0.55,0]]], at: [1.15, 3.1] },
+    { name: '△CFE', value: '30', ptsList: [[[5,0], [0,6], [-5,0]]], at: [2.6, 2.2] }
+  ],
+  labels: [
+    { t: 'A', x: -0.35, y: 12.35 }, { t: 'B', x: 5.35, y: 12.35 }, { t: 'C', x: 5.5, y: -0.35 },
+    { t: 'D', x: 0, y: -0.55 }, { t: 'E', x: -5, y: -0.55 }, { t: 'F', x: 0.4, y: 6.35 },
+    { t: 'AB=5', x: 2.5, y: 12.8, size: 16 }, { t: 'BC=12', x: 6.05, y: 6.2, size: 16 }
+  ],
+  chips: ['5', '6', '30', '10', '15'],
+  hints: [
+    '△ABF 与 △DEF 构成沙漏模型（AB∥DE），对应边成比例：AB/DE = AF/DF。',
+    '△AFE 以 AF 为底、E 到直线 AD 的距离（就是 DE）为高：15 = AF×DE÷2，所以 AF×DE = 30。',
+    '由比例 AB×DF = AF×DE = 30 → DF = 30÷5 = 6；AF = AD−DF = 6；DE = 30÷6 = 5；△CFE =（CD+DE）×FD÷2 = 10×6÷2 = 30。'
+  ],
+  explain: '沙漏：△ABF∼△DEF → AB×DF = AF×DE；又 S△AFE = AF×DE÷2 = 15 → AF×DE = 30；<br>所以 DF = 30÷AB = 30÷5 = <b>6</b>，AF = 12−6 = 6，DE = 30÷6 = <b>5</b>；<br>S△CFE =（CD+DE）×FD÷2 =（5+5）×6÷2 = <b>30</b>（平方厘米）。'
+};
+
+/* 变式：AB=4 BC=12 △AFE=12 → DE=4 FD=6 △CFE=24 */
+var CH_VB5 = {
+  id: 'VB5', kind: 'chips', name: '再来一局沙漏', badge: '面积水晶',
+  text: '长方形 ABCD 中，<b>AB = 4</b>，<b>BC = 12</b>（厘米）。点 E 在 CD 的延长线上，BE 与 AD 相交于点 F，阴影 △AFE 的面积是 <b>12</b>（平方厘米）。请把水晶拖到：<b>DE</b>、<b>FD</b> 和 <b>△CFE</b> 的位置！',
+  bbox: [-5.1, -1.7, 5.6, 13.3],
+  draw: function(h){
+    h.line([-4,0], [4,12], { stroke:'#b45309', lw:3.5 });
+    h.poly([[0,0], [4,0], [4,12], [0,12]], { fill:'none', stroke:'#1e3a8a', lw:4 });
+  },
+  given: [
+    { pts: [[0,12], [0,6], [-4,0]], value: '12', at: [-1.3, 6.6], fill: 'rgba(251,191,36,0.5)' }
+  ],
+  targets: [
+    { name: 'DE', value: '4', ptsList: [[[-4,-0.5], [0,-0.5], [0,0.5], [-4,0.5]]], at: [-2, -1.1] },
+    { name: 'FD', value: '6', ptsList: [[[-0.55,0], [-0.55,6], [0.55,6], [0.55,0]]], at: [1.15, 3.1] },
+    { name: '△CFE', value: '24', ptsList: [[[4,0], [0,6], [-4,0]]], at: [2.1, 2.2] }
+  ],
+  labels: [
+    { t: 'A', x: -0.35, y: 12.35 }, { t: 'B', x: 4.35, y: 12.35 }, { t: 'C', x: 4.5, y: -0.35 },
+    { t: 'D', x: 0, y: -0.55 }, { t: 'E', x: -4, y: -0.55 }, { t: 'F', x: 0.4, y: 6.35 },
+    { t: 'AB=4', x: 2, y: 12.8, size: 16 }, { t: 'BC=12', x: 4.9, y: 6.2, size: 16 }
+  ],
+  chips: ['4', '6', '24', '8', '12'],
+  hints: [
+    '和上一题同一个模型：△ABF 与 △DEF 是沙漏（AB∥DE）。',
+    'S△AFE = AF×DE÷2 = 12 → AF×DE = 24；再由 AB×DF = AF×DE = 24。',
+    'DF = 24÷4 = 6；AF = 12−6 = 6；DE = 24÷6 = 4；△CFE =（4+4）×6÷2 = 24。'
+  ],
+  explain: '沙漏：△ABF∼△DEF → AB×DF = AF×DE；S△AFE = AF×DE÷2 = 12 → AF×DE = 24；<br>DF = 24÷AB = 24÷4 = <b>6</b>；AF = 12−6 = 6；DE = 24÷AF = <b>4</b>；<br>S△CFE =（CD+DE）×FD÷2 =（4+4）×6÷2 = <b>24</b>（平方厘米）。'
+};
+
+/* 练习：平行四边形 △AFE=4 △DCE=9 → △BFC=25 ▱=30 */
+var CH_B6 = {
+  id: 'B6', kind: 'chips', name: '平行四边形里的沙漏', badge: '面积水晶',
+  text: '四边形 ABCD 是平行四边形。F 在 BA 的延长线上，连线 FC 与 AD 交于点 E。已知 <b>△AFE = 4</b>、<b>△DCE = 9</b>（平方厘米）。请把水晶拖到：<b>△BFC</b> 和<b>平行四边形 ABCD</b> 的位置！',
+  bbox: [-3.6, -1.1, 6.4, 4.9],
+  draw: function(h){
+    var para = [[0,3], [4,3], [5,0], [1,0]];
+    var outer = [[-0.65,4.1], [4.62,4.1], [5.85,-0.85], [0.6,-0.85]];
+    h.poly(outer, { fill:'none', stroke:'#94a3b8', lw:2.5, dash:[10,8] });
+    h.poly(para, { fill:'rgba(148,163,184,0.15)', stroke:'#1e3a8a', lw:4 });
+    h.line([-2.667,3], [5,0], { stroke:'#b45309', lw:3.5 }); /* F-E-C */
+    h.line([-2.667,3], [4,3], { stroke:'#1e3a8a', lw:3 });   /* F-B */
+  },
+  given: [
+    { pts: [[0,3], [-2.667,3], [0.4,1.8]], value: '4', at: [-0.95, 2.62], fill: 'rgba(251,191,36,0.5)' },
+    { pts: [[1,0], [0.4,1.8], [5,0]], value: '9', at: [2.1, 0.55], fill: 'rgba(147,197,253,0.55)' }
+  ],
+  targets: [
+    { name: '△BFC', value: '25', ptsList: [[[-2.667,3], [4,3], [5,0]]], at: [2.3, 2.3] },
+    { name: '平行四边形ABCD', value: '30', ring: { outer: [[-0.65,4.1], [4.62,4.1], [5.85,-0.85], [0.6,-0.85]], inner: [[0,3], [4,3], [5,0], [1,0]] }, at: [2, 4.55] }
+  ],
+  labels: [
+    { t: 'A', x: -0.1, y: 3.38 }, { t: 'B', x: 4.1, y: 3.38 }, { t: 'C', x: 5.35, y: -0.3 },
+    { t: 'D', x: 0.9, y: -0.38 }, { t: 'E', x: 0.28, y: 1.75 }, { t: 'F', x: -2.9, y: 3.35 }
+  ],
+  chips: ['25', '30', '20', '16', '21'],
+  hints: [
+    '△AFE 与 △DCE 是沙漏模型（AF∥DC）：面积比 4:9 → 边比 EF:EC = 2:3，所以 EF:FC = 2:5。',
+    '△AFE 与 △BFC 在 F 点共角（金字塔/共角模型）：面积比 =（FA/FB）×（FE/FC）。',
+    '由 AF:DC = 2:3 且 DC = AB 得 AF:FB = 2:5；于是 S△BFC = 4×（5/2）×（5/2）= 25；四边形 ABCE = 25−4 = 21；平行四边形 = 21+9 = 30。'
+  ],
+  explain: '沙漏：△AFE∼△DCE（AF∥DC），面积比 4:9 → EF:EC = 2:3，即 EF:FC = 2:5，AF:DC = 2:3 → AF:FB = 2:5；<br>共角（金字塔）模型：S△BFC = S△AFE×（FB/FA）×（FC/FE）= 4×(5/2)×(5/2) = <b>25</b>；<br>四边形 ABCE = 25−4 = 21；平行四边形 ABCD = 21+9 = <b>30</b>（平方厘米）。'
+};
+
+/* 变式：△AFE=4 △DCE=16 → △BFC=36 ▱=48 */
+var CH_VB4 = {
+  id: 'VB4', kind: 'chips', name: '沙漏升级版', badge: '面积水晶',
+  text: '四边形 ABCD 是平行四边形。F 在 BA 的延长线上，连线 FC 与 AD 交于点 E。已知 <b>△AFE = 4</b>、<b>△DCE = 16</b>（平方厘米）。请把水晶拖到：<b>△BFC</b> 和<b>平行四边形 ABCD</b> 的位置！',
+  bbox: [-3.1, -1.1, 6.4, 4.9],
+  draw: function(h){
+    var para = [[0,3], [4,3], [5,0], [1,0]];
+    var outer = [[-0.65,4.1], [4.62,4.1], [5.85,-0.85], [0.6,-0.85]];
+    h.poly(outer, { fill:'none', stroke:'#94a3b8', lw:2.5, dash:[10,8] });
+    h.poly(para, { fill:'rgba(148,163,184,0.15)', stroke:'#1e3a8a', lw:4 });
+    h.line([-2,3], [5,0], { stroke:'#b45309', lw:3.5 });
+    h.line([-2,3], [4,3], { stroke:'#1e3a8a', lw:3 });
+  },
+  given: [
+    { pts: [[0,3], [-2,3], [0.333,2]], value: '4', at: [-0.75, 2.62], fill: 'rgba(251,191,36,0.5)' },
+    { pts: [[1,0], [0.333,2], [5,0]], value: '16', at: [2.1, 0.6], fill: 'rgba(147,197,253,0.55)' }
+  ],
+  targets: [
+    { name: '△BFC', value: '36', ptsList: [[[-2,3], [4,3], [5,0]]], at: [2.3, 2.3] },
+    { name: '平行四边形ABCD', value: '48', ring: { outer: [[-0.65,4.1], [4.62,4.1], [5.85,-0.85], [0.6,-0.85]], inner: [[0,3], [4,3], [5,0], [1,0]] }, at: [2, 4.55] }
+  ],
+  labels: [
+    { t: 'A', x: -0.1, y: 3.38 }, { t: 'B', x: 4.1, y: 3.38 }, { t: 'C', x: 5.35, y: -0.3 },
+    { t: 'D', x: 0.9, y: -0.38 }, { t: 'E', x: 0.2, y: 1.95 }, { t: 'F', x: -2.25, y: 3.35 }
+  ],
+  chips: ['36', '48', '32', '24', '42'],
+  hints: [
+    '沙漏模型：△AFE 与 △DCE 相似（AF∥DC），面积比 4:16 = 1:4 → EF:EC = 1:2。',
+    '于是 EF:FC = 1:3；又 AF:DC = 1:2，DC = AB，得 AF:FB = 2:6 = 1:3。',
+    '共角模型：S△BFC = 4×（FB/FA）×（FC/FE）= 4×3×3 = 36；四边形 ABCE = 36−4 = 32；平行四边形 = 32+16 = 48。'
+  ],
+  explain: '沙漏：面积比 4:16 → EF:EC = 1:2，EF:FC = 1:3，AF:DC = 1:2 → AF:FB = 1:3；<br>共角模型：S△BFC = 4×(3/1)×(3/1) = 4×9 = <b>36</b>；<br>四边形 ABCE = 36−4 = 32；平行四边形 ABCD = 32+16 = <b>48</b>（平方厘米）。'
+};
+
+/* 作业3：长方形三等分点，阴影1 → △OAE=3 长方形=24 */
+var CH_B7 = {
+  id: 'B7', kind: 'chips', name: '三等分点的秘密', badge: '面积水晶',
+  text: '长方形 ABCD 中，E 是 DC 的三等分点（<b>CE = DC 的三分之一</b>）。连线 BE 与对角线 AC 相交于点 O，阴影 △OCE 的面积是 <b>1</b>（平方厘米）。请把水晶拖到：<b>△OAE</b> 和<b>长方形 ABCD</b> 的位置！',
+  bbox: [-0.9, -0.9, 4.4, 3.9],
+  draw: function(h){
+    var rect = [[0,3], [3,3], [3,0], [0,0]];
+    var outer = [[-0.62,3.72], [3.66,3.72], [3.66,-0.6], [-0.62,-0.6]];
+    h.poly(outer, { fill:'none', stroke:'#94a3b8', lw:2.5, dash:[10,8] });
+    h.poly(rect, { fill:'rgba(148,163,184,0.15)', stroke:'#1e3a8a', lw:4 });
+    h.line([0,3], [3,0], { stroke:'#1e3a8a', lw:3 });      /* AC */
+    h.line([3,3], [2,0], { stroke:'#b45309', lw:3 });      /* BE */
+    h.line([3,0], [2,0], { stroke:'#1e3a8a', lw:2 });      /* 底边分段提示 */
+  },
+  given: [
+    { pts: [[2,0], [2.25,0.75], [3,0]], value: '1', at: [2.5, 0.32], fill: 'rgba(251,191,36,0.55)' }
+  ],
+  targets: [
+    { name: '△OAE', value: '3', ptsList: [[[0,3], [2.25,0.75], [2,0]]], at: [1.05, 1.85] },
+    { name: '长方形ABCD', value: '24', ring: { outer: [[-0.62,3.72], [3.66,3.72], [3.66,-0.6], [-0.62,-0.6]], inner: [[0,3], [3,3], [3,0], [0,0]] }, at: [1.5, 4.15] }
+  ],
+  labels: [
+    { t: 'A', x: -0.18, y: 3.32 }, { t: 'B', x: 3.2, y: 3.32 }, { t: 'C', x: 3.32, y: -0.28 },
+    { t: 'D', x: -0.3, y: -0.28 }, { t: 'E', x: 2, y: -0.4 }, { t: 'O', x: 2.55, y: 1.0 }
+  ],
+  chips: ['3', '24', '6', '8', '12'],
+  hints: [
+    '沙漏模型：△OCE 与 △OAB 相似（CE∥AB），CE:AB = 1:3，所以 CO:OA = 1:3。',
+    '△OAE 与 △OCE 共顶点 E、底 OA 与 OC 在同一条直线上：面积比 = OA:OC = 3:1。',
+    'S△OAE = 3；S△ACE = 3+1 = 4；又 CD = 3×CE，△ACD 与 △ACE 共顶点 A、底在同一直线：S△ACD = 3×4 = 12；长方形 = 2×12 = 24。'
+  ],
+  explain: '沙漏：CE:AB = 1:3 → CO:OA = 1:3；△OAE 与 △OCE 共顶点 E → S△OAE = 3×1 = <b>3</b>；<br>S△ACE = 3+1 = 4；CD = 3×CE → S△ACD = 3×S△ACE = 12；<br>长方形 ABCD = 2×S△ACD = <b>24</b>（平方厘米）。'
+};
+
+/* 变式：四等分点，阴影1 → △OAE=4 长方形=40 */
+var CH_VB2 = {
+  id: 'VB2', kind: 'chips', name: '四等分点挑战', badge: '面积水晶',
+  text: '长方形 ABCD 中，E 是 DC 的四等分点（<b>CE = DC 的四分之一</b>）。连线 BE 与对角线 AC 相交于点 O，阴影 △OCE 的面积是 <b>1</b>（平方厘米）。请把水晶拖到：<b>△OAE</b> 和<b>长方形 ABCD</b> 的位置！',
+  bbox: [-0.9, -0.9, 5.4, 4.9],
+  draw: function(h){
+    var rect = [[0,4], [4,4], [4,0], [0,0]];
+    var outer = [[-0.62,4.72], [4.66,4.72], [4.66,-0.6], [-0.62,-0.6]];
+    h.poly(outer, { fill:'none', stroke:'#94a3b8', lw:2.5, dash:[10,8] });
+    h.poly(rect, { fill:'rgba(148,163,184,0.15)', stroke:'#1e3a8a', lw:4 });
+    h.line([0,4], [4,0], { stroke:'#1e3a8a', lw:3 });
+    h.line([4,4], [3,0], { stroke:'#b45309', lw:3 });
+  },
+  given: [
+    { pts: [[3,0], [3.2,0.8], [4,0]], value: '1', at: [3.55, 0.32], fill: 'rgba(251,191,36,0.55)' }
+  ],
+  targets: [
+    { name: '△OAE', value: '4', ptsList: [[[0,4], [3.2,0.8], [3,0]]], at: [1.3, 2.5] },
+    { name: '长方形ABCD', value: '40', ring: { outer: [[-0.62,4.72], [4.66,4.72], [4.66,-0.6], [-0.62,-0.6]], inner: [[0,4], [4,4], [4,0], [0,0]] }, at: [2, 5.15] }
+  ],
+  labels: [
+    { t: 'A', x: -0.18, y: 4.32 }, { t: 'B', x: 4.2, y: 4.32 }, { t: 'C', x: 4.32, y: -0.28 },
+    { t: 'D', x: -0.3, y: -0.28 }, { t: 'E', x: 3, y: -0.4 }, { t: 'O', x: 3.5, y: 1.05 }
+  ],
+  chips: ['4', '40', '8', '10', '20'],
+  hints: [
+    '沙漏模型：CE:AB = 1:4，所以 CO:OA = 1:4。',
+    '△OAE 与 △OCE 共顶点 E：面积比 = OA:OC = 4:1 → S△OAE = 4。',
+    'S△ACE = 4+1 = 5；CD = 4×CE → S△ACD = 4×5 = 20；长方形 = 2×20 = 40。'
+  ],
+  explain: '沙漏：CE:AB = 1:4 → CO:OA = 1:4；S△OAE = 4×1 = <b>4</b>；<br>S△ACE = 5；CD = 4×CE → S△ACD = 20；<br>长方形 ABCD = <b>40</b>（平方厘米）。'
+};
+
+/* 作业4：正方形面积4，三等分，△OEF=1/6，两翼=1 */
+var CH_B8 = {
+  id: 'B8', kind: 'chips', name: '正方形中的两翼', badge: '面积水晶',
+  text: '正方形 ABCD 的面积是 <b>4</b>。E、F 是 DC 的三等分点，连接 AF 与 BE 相交于点 O。请把水晶拖到：<b>△OEF</b> 和<b>两翼阴影合计（△OAE 与 △OBF）</b>的位置！（答案可以是分数）',
+  bbox: [-0.55, -0.75, 2.6, 2.6],
+  draw: function(h){
+    var sq = [[0,2], [2,2], [2,0], [0,0]];
+    h.poly(sq, { fill:'rgba(148,163,184,0.15)', stroke:'#1e3a8a', lw:4 });
+    h.line([0,2], [4/3,0], { stroke:'#b45309', lw:3 });  /* AF */
+    h.line([2,2], [2/3,0], { stroke:'#b45309', lw:3 });  /* BE */
+    h.txt('面积 4', 1, 1.62, { size:16, fill:'#475569' });
+  },
+  given: [],
+  targets: [
+    { name: '两翼阴影合计', value: '1', ptsList: [[[0,2], [2/3,0], [1,0.5]], [[2,2], [4/3,0], [1,0.5]]], at: [1, 1.05] },
+    { name: '△OEF', value: '1/6', ptsList: [[[2/3,0], [1,0.5], [4/3,0]]], at: [1, 0.18] }
+  ],
+  labels: [
+    { t: 'A', x: -0.16, y: 2.25 }, { t: 'B', x: 2.16, y: 2.25 }, { t: 'C', x: 2.24, y: -0.25 },
+    { t: 'D', x: -0.26, y: -0.25 }, { t: 'E', x: 0.66, y: -0.42 }, { t: 'F', x: 1.36, y: -0.42 },
+    { t: 'O', x: 1.2, y: 0.62 }
+  ],
+  chips: ['1/6', '1', '1/3', '2/3', '1/9'],
+  hints: [
+    'EF 是 DC 的三分之一，所以 EF:AB = 1:3。△OEF 与 △OAB 是沙漏模型。',
+    '设 S△OEF = a，则 S△OAB = 9a（面积比 = 边比平方）；A、O、F 共线且 OE:OB = 1:3，可得左右两翼各是 3a。',
+    '梯形 ABFE = a+9a+3a+3a = 16a，又梯形面积 =（AB+EF）×高÷2 =（2+2/3）×2÷2 = 8/3，所以 a = 1/6，两翼 = 6a = 1。'
+  ],
+  explain: 'EF:AB = 1:3 → 沙漏 △OEF∼△OAB；设 S△OEF = a，则 S△OAB = 9a；<br>O 在 AF、BE 上，OE:OB = 1:3 → 左右两翼各 3a；梯形 ABFE = 16a；<br>梯形实际面积 =（2 + 2/3）×2÷2 = 8/3 → a = 1/6；<br>所以 S△OEF = <b>1/6</b>，两翼阴影 = 6a = <b>1</b>（平方厘米）。'
+};
+
+/* 变式：正方形面积36 → △OEF=1.5 两翼=9 */
+var CH_VB3 = {
+  id: 'VB3', kind: 'chips', name: '大正方形两翼', badge: '面积水晶',
+  text: '正方形 ABCD 的面积是 <b>36</b>。E、F 是 DC 的三等分点，连接 AF 与 BE 相交于点 O。请把水晶拖到：<b>△OEF</b> 和<b>两翼阴影合计（△OAE 与 △OBF）</b>的位置！',
+  bbox: [-0.8, -1.0, 6.9, 6.9],
+  draw: function(h){
+    var sq = [[0,6], [6,6], [6,0], [0,0]];
+    h.poly(sq, { fill:'rgba(148,163,184,0.15)', stroke:'#1e3a8a', lw:4 });
+    h.line([0,6], [4,0], { stroke:'#b45309', lw:3 });
+    h.line([6,6], [2,0], { stroke:'#b45309', lw:3 });
+    h.txt('面积 36', 3, 4.6, { size:16, fill:'#475569' });
+  },
+  given: [],
+  targets: [
+    { name: '两翼阴影合计', value: '9', ptsList: [[[0,6], [2,0], [3,1.5]], [[6,6], [4,0], [3,1.5]]], at: [3, 3.2] },
+    { name: '△OEF', value: '1.5', ptsList: [[[2,0], [3,1.5], [4,0]]], at: [3, 0.5] }
+  ],
+  labels: [
+    { t: 'A', x: -0.2, y: 6.4 }, { t: 'B', x: 6.2, y: 6.4 }, { t: 'C', x: 6.45, y: -0.35 },
+    { t: 'D', x: -0.42, y: -0.35 }, { t: 'E', x: 2, y: -0.65 }, { t: 'F', x: 4, y: -0.65 },
+    { t: 'O', x: 3.45, y: 1.85 }
+  ],
+  chips: ['1.5', '9', '3', '6', '18'],
+  hints: [
+    '和上一题同样的结构：EF:AB = 1:3，沙漏模型，设 S△OEF = a。',
+    'S△OAB = 9a，两翼各 3a，梯形 ABFE = 16a。',
+    '梯形面积 =（6+2）×6÷2 = 24，所以 16a = 24，a = 1.5，两翼 = 6a = 9。'
+  ],
+  explain: '沙漏：EF:AB = 1:3；设 S△OEF = a → S△OAB = 9a，两翼各 3a，梯形 = 16a；<br>梯形实际面积 =（6+2）×6÷2 = 24 → a = 1.5；<br>S△OEF = <b>1.5</b>，两翼阴影 = 6a = <b>9</b>（平方厘米）。'
+};
+
+/* 作业5：△ABC=1 三等分 → △ADE=1/9 △ADO=1/27 */
+var CH_B9 = {
+  id: 'B9', kind: 'chips', name: '一分为二十七', badge: '面积水晶',
+  text: '△ABC 的面积是 <b>1</b>。D、E、F 是三等分点：<b>AD = AB 的三分之一</b>、<b>AE = AC 的三分之一</b>、<b>BF = BC 的三分之一</b>。连接 AF 与 DE 相交于点 O。请把水晶拖到：<b>△ADE</b> 和<b>阴影 △ADO</b> 的位置！（答案是分数）',
+  bbox: [-3.8, -0.7, 3.8, 3.7],
+  draw: function(h){
+    var tri = [[0,3], [-3,0], [3,0]];
+    h.poly(tri, { fill:'rgba(148,163,184,0.13)', stroke:'#1e3a8a', lw:4 });
+    h.line([0,3], [-1,0], { stroke:'#b45309', lw:3 });   /* AF */
+    h.line([-1,2], [1,2], { stroke:'#b45309', lw:3 });   /* DE */
+    h.txt('△ABC 面积 = 1', 0, 0.85, { size:17, fill:'#334155' });
+  },
+  given: [],
+  targets: [
+    { name: '△ADE', value: '1/9', ptsList: [[[0,3], [-1,2], [1,2]]], at: [0.45, 2.35] },
+    { name: '△ADO', value: '1/27', ptsList: [[[0,3], [-1,2], [-1/3,2]]], at: [-0.6, 2.35], fill: 'rgba(251,191,36,0.5)' }
+  ],
+  labels: [
+    { t: 'A', x: 0, y: 3.3 }, { t: 'B', x: -3.3, y: -0.25 }, { t: 'C', x: 3.3, y: -0.25 },
+    { t: 'D', x: -1.28, y: 2.2 }, { t: 'E', x: 1.3, y: 2.2 }, { t: 'F', x: -1, y: -0.45 },
+    { t: 'O', x: -0.42, y: 1.72 }
+  ],
+  chips: ['1/9', '1/27', '1/3', '2/9', '1/6'],
+  hints: [
+    '金字塔模型：△ADE 与 △ABC 共角 A，两边比都是 1/3，面积比 = 1/3 × 1/3 = 1/9。',
+    'EF 与 AB 平行且 EF = AB 的三分之二。△ADO 与 △EFO 是沙漏模型（AD∥EF）。',
+    'AD:EF = 1/3 : 2/3 = 1:2 → DO:OE = 1:2；△ADO 与 △ADE 共底 AD、O 和 E 在 DE 上：S△ADO = 1/3 × 1/9 = 1/27。'
+  ],
+  explain: '金字塔（共角）：S△ADE = 1/3×1/3 = <b>1/9</b>；<br>沙漏：AD∥EF，AD:EF = 1:2 → DO:OE = 1:2；<br>△ADO 与 △ADE 共底 AD，面积比 = DO:DE = 1:3 → S△ADO = 1/9 × 1/3 = <b>1/27</b>。'
+};
+
+/* ---------- 周长分配类（正六边形蜂窝） ---------- */
+function splitFigData(){
+  var SQ3 = Math.sqrt(3);
+  function hexPts(R){
+    var pts = [];
+    for(var k = 0; k < 6; k++){
+      var a = k * Math.PI / 3;
+      pts.push([R * Math.cos(a), R * Math.sin(a)]);
+    }
+    return pts;
+  }
+  return { hexPts: hexPts, SQ3: SQ3 };
+}
+var SP_P2 = {
+  id: 'P2', kind: 'split', name: '蜂窝周长分配', badge: '周长分配',
+  text: '大正六边形内部有 7 个完全一样的小正六边形（蜂窝形排列：中间 1 个，周围 6 个），阴影环带的<b>总周长是 120</b>。外周长就是大六边形的周长；内周长是花形露出的边。图中大六边形每条边恰好等于 <b>9 条小边</b>（已画刻度）。请拖动滑钮，把 120 按正确的比例分给<b>外圈</b>和<b>内圈</b>！',
+  total: 120, correct: 90,
+  hints: [
+    '数一数：每个外围小六边形有 3 条边贴着邻居，露出 3 条边，6 个共露出 18 条小边——这就是内周长。',
+    '大六边形每条边 = 9 条小边，外周长 = 6×9 = 54 条小边，正好是内周长（18 条小边）的 3 倍。',
+    '外:内 = 3:1，所以外圈 = 120×3/4 = 90。'
+  ],
+  explain: '花形露出 18 条小边 = 内周长；大六边形 = 54 条小边 = 3×内周长；<br>外:内 = 3:1，外 + 内 = 120 → 外圈 = 120×3/4 = <b>90</b>，内圈 = 30。<br>所以大正六边形的周长是 <b>90</b>。'
+};
+var SP_VP2 = {
+  id: 'VP2', kind: 'split', name: '更大的蜂窝', badge: '周长分配',
+  text: '还是那个蜂窝图形：大正六边形里有 7 个一样的小正六边形，大边 = 9 条小边，花形露出 18 条小边。这一次阴影环带的<b>总周长是 200</b>。请拖动滑钮，把 200 按正确的比例分给<b>外圈</b>和<b>内圈</b>！',
+  total: 200, correct: 150,
+  hints: [
+    '内外周长的比与上一题相同：花形露出 18 条小边，大六边形 54 条小边。',
+    '外:内 = 54:18 = 3:1。',
+    '外圈 = 200×3/4 = 150。'
+  ],
+  explain: '外:内 = 3:1 不变，外 + 内 = 200 → 外圈 = 200×3/4 = <b>150</b>，内圈 = 50。'
+};
+
+/* ---------- 边的配对类（周长差） ---------- */
+var TL_P1 = {
+  id: 'P1', kind: 'tiles', name: '边的配对抵消', badge: '周长配对',
+  text: '两个完全一样的长方形，长 = <b>a+2b</b>、宽 = <b>a+b</b>（厘米），且<b>长比宽多 8 厘米</b>。甲、乙两个阴影图形每条边的长度如图中字母所示。请把<b>甲的边</b>拖到乙图中<b>相同字母</b>的边上抵消，找出周长差！',
+  aTiles: ['a','a','a','a','b','b','b','b'],
+  bTiles: ['a','a','a','a','b','b','b','b','b','b'],
+  diff: 8, answer: '16',
+  chips: ['16', '8', '12', '24'],
+  hints: [
+    '相同字母的边一样长：先把甲的 4 条 a 边和乙的 4 条 a 边一一配对，再把 b 边配对。',
+    '配对完成后，乙还剩下 2 条 b 边没有伙伴——周长差 = 2b。',
+    '长 − 宽 =（a+2b）−（a+b）= b = 8，所以周长差 = 2×8 = 16 厘米。'
+  ],
+  explain: '甲阴影周长 = 4a+4b；乙阴影周长 = 4a+6b；<br>配对抵消后差 = 2b；又 长−宽 = b = 8（厘米）；<br>所以周长差 = 2b = 2×8 = <b>16 厘米</b>。'
+};
+var TL_VP1 = {
+  id: 'VP1', kind: 'tiles', name: '再配一次边', badge: '周长配对',
+  text: '两个完全一样的长方形，长 = <b>a+2b</b>、宽 = <b>a+b</b>（厘米），且<b>长比宽多 10 厘米</b>。甲、乙两个阴影图形每条边的长度如图中字母所示。请把<b>甲的边</b>拖到乙图中<b>相同字母</b>的边上抵消，找出周长差！',
+  aTiles: ['a','a','a','a','b','b','b','b'],
+  bTiles: ['a','a','a','a','b','b','b','b','b','b'],
+  diff: 10, answer: '20',
+  chips: ['20', '10', '30', '40'],
+  hints: [
+    '老规矩：相同字母配对抵消，甲的 8 条边全部能找到伙伴。',
+    '乙剩下 2 条 b 边，周长差 = 2b。',
+    '长 − 宽 = b = 10，所以周长差 = 2×10 = 20 厘米。'
+  ],
+  explain: '差 = 2b，b = 10（厘米），所以周长差 = <b>20 厘米</b>。'
+};
+
+/* ---------- 题库分池（每局按难度随机抽样，反重复） ---------- */
+var POOLS = {
+  dial:  { easy: [DIA_VA2, DIA_VA1], mid: [DIA_A1, DIA_A3], hard: [DIA_A2, DIA_A1, DIA_VA2] },
+  chips: { easy: [CH_B7, CH_B8, CH_VB2], mid: [CH_B3, CH_B6, CH_B5, CH_VB4, CH_VB5], hard: [CH_B9, CH_VB1, CH_VB3, CH_B6, CH_B5] },
+  split: { mid: [SP_P2, SP_VP2], hard: [SP_P2, SP_VP2] },
+  tiles: { easy: [TL_P1, TL_VP1] }
+};
+
+/* ==================================================================
+   引擎一：角度转盘（拖动指针构造角度）
+   ================================================================== */
+function engineDial(stage, prob, api){
+  var wrap = mkEl('div', 'dial-wrap', stage);
+  var figbox = mkEl('div', 'figbox', wrap);
+  var instbox = mkEl('div', 'instbox', wrap);
+
+  /* 题目图形（Canvas 绘制） */
+  var H = canvasFig(figbox, prob.bbox, 640, 300, 30);
+  prob.fig(H);
+
+  /* 转盘仪表（Canvas，可拖动）。画布下方预留读数区，避免大数字压住刻度 */
+  var phaseLab = mkEl('div', 'phase-label', instbox, '');
+  var cv = mkEl('canvas', '', instbox);
+  cv.id = 'dial-inst';
+  var W = 300, H = 348, dpr = window.devicePixelRatio || 1;
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.width = W + 'px'; cv.style.maxWidth = '100%'; cv.style.height = 'auto';
+  var ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  var cx = W / 2, cy = 146, R = 108;
+  var tip = mkEl('div', 'inst-tip', instbox, '在圆盘内按住拖动，指针跟着转，松手检查');
+
+  var phase = 0, attempts = 0, finished = false, revealed = false;
+  var cur = randStart();
+
+  function target(){ return prob.phases[phase].target; }
+  function randStart(){
+    var t = target(), v;
+    do { v = 15 + Math.floor(Math.random() * 330); } while(Math.abs(v - t) < 25);
+    return v;
+  }
+  function cssc(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function draw(){
+    ctx.clearRect(0, 0, W, H);
+    var main = cssc('--main'), deep = cssc('--deep'), accent = cssc('--accent');
+    /* 底盘 */
+    ctx.beginPath(); ctx.arc(cx, cy, R + 24, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(148,163,184,0.18)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = deep; ctx.stroke();
+    /* 刻度线：每 15 度一小格，每 30 度一大格（数字稍后再画，压在指针之上） */
+    for(var a = 0; a < 360; a += 15){
+      var rad = a * Math.PI / 180, major = (a % 30 === 0);
+      var r1 = R - (major ? 16 : 9);
+      ctx.beginPath();
+      ctx.moveTo(cx + (R - 2) * Math.cos(rad), cy - (R - 2) * Math.sin(rad));
+      ctx.lineTo(cx + r1 * Math.cos(rad), cy - r1 * Math.sin(rad));
+      ctx.lineWidth = major ? 3 : 2; ctx.strokeStyle = major ? deep : '#94a3b8';
+      ctx.stroke();
+    }
+    /* 固定基准射线（0 度方向，向右） */
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + R - 4, cy);
+    ctx.lineWidth = 8; ctx.strokeStyle = deep; ctx.lineCap = 'round'; ctx.stroke();
+    /* 活动指针（当前角度，逆时针为正） */
+    var rc = cur * Math.PI / 180;
+    var hx = cx + (R - 18) * Math.cos(rc), hy = cy - (R - 18) * Math.sin(rc);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy);
+    ctx.lineWidth = 8; ctx.strokeStyle = accent; ctx.stroke();
+    ctx.beginPath(); ctx.arc(hx, hy, 13, 0, Math.PI * 2);
+    ctx.fillStyle = accent; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+    /* 圆心 */
+    ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fillStyle = deep; ctx.fill();
+    /* 扫过角度的弧 */
+    ctx.beginPath(); ctx.arc(cx, cy, 46, 0, -rc, true);
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(220,38,38,0.75)'; ctx.stroke();
+    /* 刻度数字最后绘制（叠在指针上方，保证可读）；0 度位置改标在射线下方 */
+    ctx.font = '900 16px "Microsoft YaHei",sans-serif';
+    ctx.fillStyle = '#475569'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for(var b = 30; b < 360; b += 30){
+      var rb = b * Math.PI / 180;
+      ctx.fillText(String(b), cx + (R - 40) * Math.cos(rb), cy - (R - 40) * Math.sin(rb));
+    }
+    ctx.font = '900 17px "Microsoft YaHei",sans-serif';
+    ctx.fillStyle = deep;
+    ctx.fillText('0°', cx + 58, cy + 17);
+    /* 大号读数（画在圆盘正下方，避免遮挡刻度数字） */
+    ctx.font = '900 42px "Microsoft YaHei",sans-serif';
+    ctx.fillStyle = '#dc2626'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(Math.round(cur) + '°', cx, H - 26);
+    phaseLab.textContent = finished ? '完成！' : ('第 ' + (phase + 1) + ' 步：把指针转到 ' + prob.phases[phase].ask + ' = ？ 度');
+  }
+
+  function canvasXY(e){
+    var r = cv.getBoundingClientRect();
+    return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)];
+  }
+  var dragging = false;
+  cv.addEventListener('pointerdown', function(e){
+    if(finished || revealed) return;
+    e.preventDefault();
+    dragging = true;
+    cv.setPointerCapture(e.pointerId);
+    move(e);
+  });
+  cv.addEventListener('pointermove', function(e){ if(dragging) move(e); });
+  function move(e){
+    var p = canvasXY(e);
+    var dx = p[0] - cx, dy = p[1] - cy;
+    if(dx * dx + dy * dy < 400) return; /* 圆心附近不响应 */
+    var deg = norm360(Math.atan2(-dy, dx) * 180 / Math.PI);
+    cur = Math.round(deg);
+    draw();
+  }
+  cv.addEventListener('pointerup', function(e){
+    if(!dragging) return;
+    dragging = false;
+    if(finished || revealed) return;
+    api.step();
+    if(Math.abs(cur - target()) <= 2){
+      if(phase < prob.phases.length - 1){
+        phase++; attempts = 0; cur = randStart(); draw();
+        api.say('太棒了！接着转出下一个角。', true);
+      }else{
+        finished = true; draw();
+        api.say('角度完全正确，关卡点亮！', true);
+        api.done();
+      }
+    }else{
+      attempts++;
+      api.wrong();
+      cv.classList.remove('shake'); void cv.offsetWidth; cv.classList.add('shake');
+      if(attempts >= 2){
+        api.say('提示：' + prob.hints[Math.min(attempts - 2, prob.hints.length - 1)], false);
+      }else{
+        api.say('差了一点点，再想想已知角之间的关系！', false);
+      }
+    }
+  });
+  draw();
+  return {
+    reveal: function(){
+      revealed = true;
+      phase = prob.phases.length - 1;
+      cur = target();
+      draw();
+    }
+  };
+}
+
+/* ==================================================================
+   引擎二：面积水晶（拖放数字到区域）
+   ================================================================== */
+function engineChips(stage, prob, api){
+  var wrap = mkEl('div', 'chips-wrap', stage);
+  var figCol = mkEl('div', 'chips-fig', wrap);
+  var side = mkEl('div', 'chips-side', wrap);
+  mkEl('h4', '', side, '数字水晶（拖到带 ？ 的区域）');
+  var tray = mkEl('div', 'tray', side);
+  mkEl('div', 'side-tip', side, '提示：先想清楚用哪个模型（等高 / 沙漏 / 金字塔 / 蝴蝶），再拖不迟。');
+
+  /* 绘制图形 */
+  var fig = svgFig(figCol, prob.bbox, 520, 430, 30);
+  if(prob.draw) prob.draw(fig);
+  var targetEls = []; /* 每个目标的可点区域多边形 */
+  var finished = false, revealed = false, attempts = 0, remain = prob.targets.length;
+
+  prob.given.forEach(function(g){
+    var el = fig.poly(g.pts, { fill: g.fill || 'rgba(251,191,36,0.45)', stroke: '#92400e', lw: 2 });
+    fig.txt(g.value, g.at[0], g.at[1], { size: 20, fill: '#7c2d12' });
+    return el;
+  });
+  prob.targets.forEach(function(tg, idx){
+    var els = [];
+    var list = tg.ptsList || (tg.pts ? [tg.pts] : []);
+    list.forEach(function(pts){
+      els.push(fig.poly(pts, { fill: tg.fill || 'rgba(255,255,255,0.35)', stroke: '#dc2626', lw: 3, dash: [10,8] }));
+    });
+    if(tg.ring){
+      els.push(fig.poly(tg.ring.outer, { fill: 'rgba(255,255,255,0)', stroke: '#dc2626', lw: 3, dash: [10,8] }));
+    }
+    var label = fig.txt('?', tg.at[0], tg.at[1], { size: 24, fill: '#dc2626' });
+    targetEls.push({ tg: tg, els: els, label: label, idx: idx, done: false });
+  });
+  (prob.labels || []).forEach(function(L){
+    fig.txt(L.t, L.x, L.y, { size: L.size || 17, fill: '#1e3a8a' });
+  });
+
+  /* 水晶拖拽 */
+  var chips = shuffle(prob.chips);
+  var dragChip = null, ghost = null;
+  chips.forEach(function(v){
+    var c = mkEl('div', 'chip', tray, v);
+    c.dataset.v = v;
+    c.addEventListener('pointerdown', function(e){
+      if(finished || revealed || dragChip) return;
+      e.preventDefault();
+      dragChip = c;
+      c.classList.add('dragging');
+      ghost = mkEl('div', 'ghost', document.body, v);
+      ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+      c.setPointerCapture(e.pointerId);
+    });
+    c.addEventListener('pointermove', function(e){
+      if(!dragChip || dragChip !== c) return;
+      ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+      hover(e.clientX, e.clientY);
+    });
+    c.addEventListener('pointerup', function(e){
+      if(!dragChip || dragChip !== c) return;
+      drop(e.clientX, e.clientY, c);
+    });
+    c.addEventListener('pointercancel', function(){
+      if(dragChip === c) endDrag(false, 0, 0, c);
+    });
+  });
+
+  function userPt(cx0, cy0){
+    var rect = fig.svg.getBoundingClientRect();
+    var sx = (cx0 - rect.left) * (520 / rect.width);
+    var sy = (cy0 - rect.top) * (430 / rect.height);
+    return fig.M.inv(sx, sy);
+  }
+  function hitTarget(cx0, cy0){
+    var p = userPt(cx0, cy0);
+    for(var i = targetEls.length - 1; i >= 0; i--){
+      var te = targetEls[i];
+      if(te.done) continue;
+      if(te.tg.ring){
+        if(pip(p, te.tg.ring.outer) && !pip(p, te.tg.ring.inner)) return te;
+      }else{
+        var list = te.tg.ptsList || [te.tg.pts];
+        for(var j = 0; j < list.length; j++){
+          if(pip(p, list[j])) return te;
+        }
+      }
+    }
+    return null;
+  }
+  var hoverEl = null;
+  function hover(cx0, cy0){
+    var te = hitTarget(cx0, cy0);
+    if(hoverEl && hoverEl !== te){ hoverEl.els.forEach(function(el){ el.setAttribute('stroke-width', 3); }); hoverEl = null; }
+    if(te){ te.els.forEach(function(el){ el.setAttribute('stroke-width', 6); }); hoverEl = te; }
+  }
+  function endDrag(ok, cx0, cy0, c){
+    if(ghost){ ghost.remove(); ghost = null; }
+    c.classList.remove('dragging');
+    dragChip = null;
+    if(hoverEl){ hoverEl.els.forEach(function(el){ el.setAttribute('stroke-width', 3); }); hoverEl = null; }
+  }
+  function drop(cx0, cy0, c){
+    var v = c.dataset.v;
+    var te = hitTarget(cx0, cy0);
+    endDrag(true, cx0, cy0, c);
+    if(!te) return; /* 空白处松手：水晶回家，不计失误 */
+    api.step();
+    if(v === te.tg.value){
+      te.done = true; remain--;
+      te.els.forEach(function(el){
+        el.setAttribute('fill', 'rgba(209,250,229,0.75)');
+        el.setAttribute('stroke', '#059669'); el.setAttribute('stroke-width', 4);
+        el.setAttribute('stroke-dasharray', 'none');
+      });
+      te.label.textContent = te.tg.value;
+      te.label.setAttribute('fill', '#065f46');
+      if(remain === 0 && !finished){
+        finished = true;
+        api.say('全部水晶归位，区域全部点亮！', true);
+        api.done();
+      }else{
+        api.say('放对了一块！还剩 ' + remain + ' 个区域。', true);
+      }
+    }else{
+      attempts++;
+      api.wrong();
+      tray.classList.remove('shake'); void tray.offsetWidth; tray.classList.add('shake');
+      if(attempts >= 2){
+        api.say('提示：' + prob.hints[Math.min(attempts - 2, prob.hints.length - 1)], false);
+      }else{
+        api.say('这块水晶不属于这里，再想想比例关系！', false);
+      }
+    }
+  }
+  return {
+    reveal: function(){
+      revealed = true;
+      targetEls.forEach(function(te){
+        if(te.done) return;
+        te.done = true;
+        te.els.forEach(function(el){
+          el.setAttribute('fill', 'rgba(254,243,199,0.8)');
+          el.setAttribute('stroke', '#b45309'); el.setAttribute('stroke-width', 4);
+          el.setAttribute('stroke-dasharray', 'none');
+        });
+        te.label.textContent = te.tg.value;
+      });
+    }
+  };
+}
+
+/* ==================================================================
+   引擎三：周长分配（拖动滑钮按比例分配）
+   ================================================================== */
+function engineSplit(stage, prob, api){
+  var wrap = mkEl('div', 'split-wrap', stage);
+  var fd = splitFigData();
+  var fig = svgFig(wrap, [-10.6, -10.6, 10.6, 11.6], 400, 420, 26);
+
+  /* 大六边形（阴影环带的外边界） */
+  var big = fd.hexPts(9);
+  fig.poly(big, { fill: 'rgba(251,191,36,0.45)', stroke: '#1e3a8a', lw: 4 });
+  /* 每条大边画 9 等分刻度 */
+  for(var e = 0; e < 6; e++){
+    var p1 = big[e], p2 = big[(e + 1) % 6];
+    for(var s = 1; s <= 8; s++){
+      var t = s / 9;
+      var px = p1[0] + (p2[0] - p1[0]) * t, py = p1[1] + (p2[1] - p1[1]) * t;
+      var dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+      var len = Math.sqrt(dx * dx + dy * dy);
+      var nx = -dy / len, ny = dx / len;
+      fig.line([px - nx * 0.32, py - ny * 0.32], [px + nx * 0.32, py + ny * 0.32], { stroke: '#7c2d12', lw: 2 });
+    }
+  }
+  /* 7 个小六边形（白色花形） */
+  var SQ3 = Math.sqrt(3);
+  var centers = [[0,0], [1.5, SQ3/2], [-1.5, SQ3/2], [1.5, -SQ3/2], [-1.5, -SQ3/2], [0, SQ3], [0, -SQ3]];
+  centers.forEach(function(c){
+    var pts = fd.hexPts(1).map(function(p){ return [p[0] + c[0], p[1] + c[1]]; });
+    fig.poly(pts, { fill: '#ffffff', stroke: '#1e3a8a', lw: 2.5 });
+  });
+  fig.txt('外周长：大六边形的边（带刻度）', 0, 10.9, { size: 16, fill: '#7c2d12' });
+  fig.txt('内周长：花形露出的 18 条小边', 0, -9.9, { size: 16, fill: '#1e40af' });
+
+  /* 分配条 */
+  var bar = mkEl('div', 'split-bar', wrap);
+  var fOut = mkEl('div', 'fout', bar);
+  var fIn = mkEl('div', 'fin', bar);
+  var knob = mkEl('div', 'knob', bar);
+  var read = mkEl('div', 'split-read', wrap);
+  var cap = mkEl('div', 'inst-tip', wrap, '按住深色滑钮左右拖动：右侧为外圈，左侧为内圈，松手检查');
+  mkEl('div', '', read);
+  var ro = mkEl('span', 'o', read, '');
+  mkEl('div', '', read);
+  var ri = mkEl('span', 'i', read, '');
+
+  var total = prob.total, correct = prob.correct;
+  var val = Math.round(total * (0.25 + Math.random() * 0.5)); /* 随机初始：val 表示内圈 */
+  if(Math.abs((total - val) - correct) <= 3) val = Math.round(total * 0.45); /* 万一随机到答案附近则挪开 */
+  var attempts = 0, finished = false, revealed = false, dragging = false;
+
+  function render(){
+    var pctOut = (total - val) / total * 100; /* 右侧外圈宽度 */
+    fOut.style.width = pctOut + '%';
+    fIn.style.width = (100 - pctOut) + '%';
+    knob.style.left = (100 - pctOut) + '%'; /* 滑钮位于内外圈分界处 */
+    ro.textContent = '外圈 = ' + (total - val);
+    ri.textContent = '内圈 = ' + val;
+  }
+  function barVal(e){
+    var r = bar.getBoundingClientRect();
+    var v = Math.round((e.clientX - r.left) / r.width * total);
+    if(v < 0) v = 0; if(v > total) v = total;
+    return v;
+  }
+  bar.addEventListener('pointerdown', function(e){
+    if(finished || revealed) return;
+    e.preventDefault();
+    dragging = true;
+    bar.setPointerCapture(e.pointerId);
+    val = barVal(e); render();
+  });
+  bar.addEventListener('pointermove', function(e){ if(dragging){ val = barVal(e); render(); } });
+  bar.addEventListener('pointerup', function(){
+    if(!dragging) return;
+    dragging = false;
+    if(finished || revealed) return;
+    api.step();
+    if(Math.abs((total - val) - correct) <= 2){ /* 允许正负 2 的手抖误差 */
+      finished = true;
+      val = total - correct;
+      render();
+      read.innerHTML = '<span class="o">外圈 = ' + correct + '</span><span class="i">内圈 = ' + (total - correct) + '</span>';
+      api.say('比例分配正确，蜂窝点亮！外圈（大六边形周长）= ' + correct + '。', true);
+      api.done();
+    }else{
+      attempts++;
+      api.wrong();
+      bar.classList.remove('shake'); void bar.offsetWidth; bar.classList.add('shake');
+      if(attempts >= 2){
+        api.say('提示：' + prob.hints[Math.min(attempts - 2, prob.hints.length - 1)], false);
+      }else{
+        api.say('比例不对哦，先数一数内外各有多少条小边。', false);
+      }
+    }
+  });
+  render();
+  return {
+    reveal: function(){
+      revealed = true;
+      val = total - correct;
+      render();
+    }
+  };
+}
+
+/* ==================================================================
+   引擎四：边的配对（拖动甲边到乙边抵消，再拖入答案）
+   ================================================================== */
+function engineTiles(stage, prob, api){
+  /* 两个示意图：长方形 + 折线阴影（每段标注字母） */
+  var figs = mkEl('div', 'tiles-figs', stage);
+  drawZigzagCard(figs, '甲阴影的 8 条边', ['a','b','a','b','a','b','a','b']);
+  drawZigzagCard(figs, '乙阴影的 10 条边', ['a','b','a','b','a','b','a','b','b','b']);
+  mkEl('div', 'inst-tip', stage, '长方形：长 a+2b，宽 a+b（完全一样的两个）');
+
+  var rows = mkEl('div', 'tile-rows', stage);
+  var rowA = mkEl('div', 'tile-row', rows); mkEl('div', 'rowname', rowA, '甲的边（拖我）');
+  var rowB = mkEl('div', 'tile-row', rows); mkEl('div', 'rowname', rowB, '乙的边（拖到这里配对）');
+
+  var aLeft = prob.aTiles.length, finished = false, revealed = false, attempts = 0;
+  var stage2 = null;
+
+  shuffle(prob.aTiles).forEach(function(L){ mkTile(rowA, L, 'ta', 'a'); });
+  shuffle(prob.bTiles).forEach(function(L){ mkTile(rowB, L, 'tb', 'b'); });
+
+  function mkTile(parent, letter, cls, side){
+    var t = mkEl('div', 'tile ' + cls, parent, letter);
+    t.dataset.letter = letter; t.dataset.side = side;
+    if(side === 'a'){
+      t.addEventListener('pointerdown', function(e){
+        if(finished || revealed || t.classList.contains('taked')) return;
+        e.preventDefault();
+        startTileDrag(t, e);
+      });
+    }
+    return t;
+  }
+
+  var ghost = null, dragT = null;
+  function startTileDrag(t, e){
+    dragT = t;
+    ghost = mkEl('div', 'ghost', document.body, t.dataset.letter);
+    ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+    t.classList.add('dragging');
+    t.setPointerCapture(e.pointerId);
+    t.addEventListener('pointermove', onMove);
+    t.addEventListener('pointerup', onUp);
+    t.addEventListener('pointercancel', onCancel);
+  }
+  function onMove(e){
+    if(!ghost) return;
+    ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+  }
+  function clearDrag(){
+    if(ghost){ ghost.remove(); ghost = null; }
+    if(dragT){
+      dragT.classList.remove('dragging');
+      dragT.removeEventListener('pointermove', onMove);
+      dragT.removeEventListener('pointerup', onUp);
+      dragT.removeEventListener('pointercancel', onCancel);
+      dragT = null;
+    }
+  }
+  function onUp(e){
+    if(!dragT) return;
+    var src = dragT;
+    clearDrag();
+    var under = document.elementFromPoint(e.clientX, e.clientY);
+    if(!under) return;
+    var targetTile = under.closest ? under.closest('.tile.tb') : null;
+    if(!targetTile || targetTile.classList.contains('ok')) return;
+    api.step();
+    if(targetTile.dataset.letter === src.dataset.letter){
+      src.classList.add('ok', 'taked');
+      targetTile.classList.add('ok');
+      aLeft--;
+      api.say('两条边一样长，抵消成功！还剩 ' + aLeft + ' 条甲边。', true);
+      if(aLeft === 0 && !finished) enterStage2();
+    }else{
+      attempts++;
+      api.wrong();
+      rowB.classList.remove('shake'); void rowB.offsetWidth; rowB.classList.add('shake');
+      if(attempts >= 3){
+        api.say('提示：相同字母的边才一样长，先配 4 条 a 边，再配 b 边。', false);
+      }else{
+        api.say('这两条边不一样长，换一条试试！', false);
+      }
+    }
+  }
+  function onCancel(){ clearDrag(); }
+
+  /* 第二阶段：答案水晶拖入卡槽 */
+  function enterStage2(){
+    var remainB = [];
+    rowB.querySelectorAll('.tile:not(.ok)').forEach(function(t){ remainB.push(t); });
+    remainB.forEach(function(t){ t.classList.add('pulse'); });
+    stage2 = mkEl('div', 'stage2', stage);
+    mkEl('div', '', stage2, '配对完成！乙还剩下 2 条 b 边没有伙伴——周长差 = 2b。');
+    mkEl('div', '', stage2, '长 − 宽 =（a+2b）−（a+b）= b = ' + prob.diff + ' 厘米。');
+    var q = mkEl('div', 'qline', stage2, '周长差 = 2 × ' + prob.diff + ' = ');
+    var slot = mkEl('span', 'slot', q, '？');
+    mkEl('span', '', q, '厘米');
+    var chipRow = mkEl('div', 'tray', stage2);
+    shuffle(prob.chips).forEach(function(v){
+      var c = mkEl('div', 'chip', chipRow, v);
+      c.addEventListener('pointerdown', function(e){
+        if(finished || revealed || slot.classList.contains('filled')) return;
+        e.preventDefault();
+        var g = mkEl('div', 'ghost', document.body, v);
+        g.style.left = e.clientX + 'px'; g.style.top = e.clientY + 'px';
+        c.setPointerCapture(e.pointerId);
+        function mv(ev){ g.style.left = ev.clientX + 'px'; g.style.top = ev.clientY + 'px'; }
+        function up(ev){
+          c.removeEventListener('pointermove', mv);
+          c.removeEventListener('pointerup', up);
+          g.remove();
+          var u = document.elementFromPoint(ev.clientX, ev.clientY);
+          var hitSlot = u && u.closest && (u.closest('.slot') === slot);
+          if(!hitSlot) return;
+          api.step();
+          if(v === prob.answer){
+            slot.textContent = v;
+            slot.classList.add('filled');
+            finished = true;
+            api.say('周长差 = ' + v + ' 厘米，配对完全成功！', true);
+            api.done();
+          }else{
+            attempts++;
+            api.wrong();
+            slot.classList.remove('shake'); void slot.offsetWidth; slot.classList.add('shake');
+            api.say('不是这个数，差 = 2b，b 是多少？', false);
+          }
+        }
+        c.addEventListener('pointermove', mv);
+        c.addEventListener('pointerup', up);
+      });
+    });
+  }
+
+  /* 折线示意卡片：每段标注字母 */
+  function drawZigzagCard(parent, title, letters){
+    var card = mkEl('div', 'tcard', parent);
+    mkEl('h5', '', card, title);
+    var W = 300, Hh = 190;
+    var svg = mkSvg('svg', { viewBox: '0 0 ' + W + ' ' + Hh }, card);
+    svg.setAttribute('style', 'width:100%;');
+    var aLen = 52, bLen = 26;
+    var x = 16, y = Hh - 18, horiz = true;
+    var pts = [[x, y]];
+    letters.forEach(function(){
+      if(horiz) x += aLen; else y -= bLen;
+      pts.push([x, y]);
+      horiz = !horiz;
+    });
+    var dstr = pts.map(function(p, i){ return (i === 0 ? 'M' : 'L') + p[0] + ' ' + p[1]; }).join(' ');
+    mkSvg('path', { d: dstr, fill: 'none', stroke: '#b45309', 'stroke-width': 7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    /* 每段中点旁标注字母（水平段标在上方，竖直段标在右侧，避免压线） */
+    for(var i = 0; i < pts.length - 1; i++){
+      var mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2;
+      var vertical = (pts[i][0] === pts[i + 1][0]);
+      var tx = vertical ? mx + 16 : mx;
+      var ty = vertical ? my : my - 13;
+      var t = mkSvg('text', { x: tx, y: ty, 'font-size': 19, 'font-weight': 900, fill: '#7c2d12', 'text-anchor': 'middle' }, svg);
+      t.textContent = letters[i];
+    }
+  }
+
+  return {
+    reveal: function(){
+      revealed = true;
+      /* 自动完成所有配对 */
+      var aTiles = [], bTiles = [];
+      rowA.querySelectorAll('.tile').forEach(function(t){ if(!t.classList.contains('ok')) aTiles.push(t); });
+      rowB.querySelectorAll('.tile').forEach(function(t){ if(!t.classList.contains('ok')) bTiles.push(t); });
+      aTiles.forEach(function(at){
+        at.classList.add('ok', 'taked');
+        for(var i = 0; i < bTiles.length; i++){
+          if(!bTiles[i].classList.contains('ok') && bTiles[i].dataset.letter === at.dataset.letter){
+            bTiles[i].classList.add('ok'); break;
+          }
+        }
+      });
+      if(!stage2) enterStage2();
+      var slot = stage2.querySelector('.slot');
+      slot.textContent = prob.answer;
+      slot.classList.add('filled');
+    }
+  };
+}
+
+/* ==================================================================
+   回合管理器：抽题、计时、步数、星级、揭示、庆祝
+   ================================================================== */
+var RUN = null, CUR = null, timerId = null, CONFETTI = null;
+
+function buildRun(diff){
+  var list = [];
+  if(diff === 'easy'){
+    list = list.concat(pick(POOLS.dial.easy, 1), pick(POOLS.chips.easy, 1), pick(POOLS.tiles.easy, 1));
+  }else if(diff === 'mid'){
+    list = list.concat(pick(POOLS.dial.mid, 1), pick(POOLS.chips.mid, 2), pick(POOLS.split.mid, 1));
+  }else{
+    list = list.concat(pick(POOLS.dial.hard, 2), pick(POOLS.chips.hard, 2), pick(POOLS.split.hard, 1));
+  }
+  return shuffle(list);
+}
+
+function fmtTime(sec){
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+function startTimer(){
+  stopTimer();
+  timerId = setInterval(function(){
+    if(!RUN) return;
+    var sec = Math.floor((Date.now() - RUN.t0) / 1000);
+    $('#hud-timer').textContent = '用时 ' + fmtTime(sec);
+  }, 500);
+}
+function stopTimer(){ if(timerId){ clearInterval(timerId); timerId = null; } }
+
+function beginRun(diff){
+  applyPalette(); /* 每局随机配色 */
+  RUN = {
+    diff: diff, probs: buildRun(diff), idx: 0, stars: 0,
+    steps: 0, t0: Date.now(),
+    roundWrong: 0, roundHints: 0, revealed: false, roundDone: false
+  };
+  $('#scr-title').hidden = true;
+  $('#scr-game').hidden = false;
+  $('#hud-timer').textContent = '用时 00:00';
+  $('#hud-steps').textContent = '操作 0 次';
+  $('#hud-stars').textContent = '星星 0';
+  startTimer();
+  mountRound();
+}
+
+var API = {
+  step: function(){
+    if(!RUN) return;
+    RUN.steps++;
+    $('#hud-steps').textContent = '操作 ' + RUN.steps + ' 次';
+  },
+  wrong: function(){ if(RUN) RUN.roundWrong++; },
+  say: function(msg, good){
+    var fb = $('#feedback');
+    fb.className = good ? 'good' : 'bad';
+    fb.textContent = msg;
+  },
+  done: function(){ finishRound(false); }
+};
+
+function mountRound(){
+  var p = RUN.probs[RUN.idx];
+  RUN.roundWrong = 0; RUN.roundHints = 0; RUN.revealed = false; RUN.roundDone = false;
+  $('#rh-badge').textContent = p.badge;
+  $('#rh-name').textContent = p.name;
+  $('#rh-prog').textContent = '第 ' + (RUN.idx + 1) + '/' + RUN.probs.length + ' 关';
+  $('#prob-text').innerHTML = p.text;
+  var st = $('#stage'); st.innerHTML = '';
+  var fb = $('#feedback'); fb.className = ''; fb.textContent = '观察图形，动手操作吧！';
+  $('#explain').hidden = true;
+  $('#explain').innerHTML = '';
+  if(p.kind === 'dial') CUR = engineDial(st, p, API);
+  else if(p.kind === 'chips') CUR = engineChips(st, p, API);
+  else if(p.kind === 'split') CUR = engineSplit(st, p, API);
+  else CUR = engineTiles(st, p, API);
+}
+
+function finishRound(revealed){
+  if(RUN.roundDone) return;
+  RUN.roundDone = true;
+  var s;
+  if(revealed){ s = 0; }
+  else{
+    s = 3;
+    if(RUN.roundWrong > 0) s--;
+    if(RUN.roundWrong >= 3 || RUN.roundHints > 0) s--;
+    if(s < 1) s = 1;
+  }
+  RUN.stars += s;
+  $('#hud-stars').textContent = '星星 ' + RUN.stars;
+  var fb = $('#feedback');
+  fb.className = 'good';
+  var starStr = '';
+  for(var i = 0; i < 3; i++) starStr += (i < s ? '★' : '☆');
+  var last = (RUN.idx === RUN.probs.length - 1);
+  fb.innerHTML = (revealed ? '已揭示答案，本关 0 星 ☆☆☆' : ('本关完成！获得 ' + starStr)) +
+    ' <button class="big" id="btn-next">' + (last ? '查看成绩单' : '下一关') + ' »</button>';
+  $('#btn-next').addEventListener('click', function(){
+    if(last) celebrate();
+    else{ RUN.idx++; mountRound(); }
+  });
+  /* 展示解析 */
+  var ex = $('#explain');
+  var p = RUN.probs[RUN.idx];
+  ex.innerHTML = '<h4>解析（' + p.name + '）</h4>' + p.explain;
+  ex.hidden = false;
+}
+
+function celebrate(){
+  stopTimer();
+  var sec = Math.floor((Date.now() - RUN.t0) / 1000);
+  var total = RUN.probs.length * 3;
+  $('#celeb-stars').textContent = '★'.repeat(RUN.stars) + '☆'.repeat(Math.max(0, total - RUN.stars));
+  $('#celeb-stat1').textContent = '获得星星：' + RUN.stars + ' / ' + total;
+  $('#celeb-stat2').textContent = '用时 ' + fmtTime(sec) + ' · 共操作 ' + RUN.steps + ' 次';
+  $('#ov-celeb').hidden = false;
+  confetti();
+}
+
+/* ---------- 彩纸庆祝动画（Canvas 实现） ---------- */
+function confetti(){
+  var cv = $('#celeb-cv');
+  var box = $('#ov-celeb');
+  cv.width = box.clientWidth; cv.height = box.clientHeight;
+  var ctx = cv.getContext('2d');
+  var css = getComputedStyle(document.documentElement);
+  var colors = [
+    css.getPropertyValue('--main').trim(), css.getPropertyValue('--accent').trim(),
+    '#10b981', '#ef4444', '#8b5cf6', '#f472b6'
+  ];
+  var parts = [];
+  for(var i = 0; i < 140; i++){
+    parts.push({
+      x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * 0.5,
+      r: 5 + Math.random() * 7,
+      vy: 2 + Math.random() * 3.2, vx: -1.6 + Math.random() * 3.2,
+      rot: Math.random() * Math.PI, vr: -0.12 + Math.random() * 0.24,
+      c: colors[Math.floor(Math.random() * colors.length)]
+    });
+  }
+  var t0 = Date.now();
+  function frame(){
+    if(box.hidden) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    parts.forEach(function(p){
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if(p.y > cv.height + 30){ p.y = -20; p.x = Math.random() * cv.width; }
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.r, -p.r * 0.6, p.r * 2, p.r * 1.2);
+      ctx.restore();
+    });
+    if(Date.now() - t0 < 9000) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 界面事件绑定 ---------- */
+function bindUI(){
+  document.querySelectorAll('.diff-card').forEach(function(c){
+    c.addEventListener('click', function(){ beginRun(c.dataset.diff); });
+  });
+  $('#btn-rules-0').addEventListener('click', function(){ $('#ov-rules').hidden = false; });
+  $('#btn-rules-1').addEventListener('click', function(){ $('#ov-rules').hidden = false; });
+  $('#btn-rules-close').addEventListener('click', function(){ $('#ov-rules').hidden = true; });
+  $('#btn-hint').addEventListener('click', function(){
+    if(!RUN || RUN.roundDone) return;
+    var p = RUN.probs[RUN.idx];
+    var i = Math.min(RUN.roundHints, p.hints.length - 1);
+    RUN.roundHints++;
+    API.say('提示 ' + RUN.roundHints + '：' + p.hints[i], false);
+  });
+  $('#btn-reveal').addEventListener('click', function(){
+    if(!RUN || RUN.roundDone || !CUR) return;
+    RUN.revealed = true;
+    CUR.reveal();
+    finishRound(true);
+  });
+  $('#btn-restart').addEventListener('click', function(){
+    if(!RUN) return;
+    var d = RUN.diff;
+    beginRun(d); /* 重新抽题 + 换配色 */
+  });
+  $('#btn-back').addEventListener('click', backToTitle);
+  $('#btn-celeb-back').addEventListener('click', backToTitle);
+  $('#btn-again').addEventListener('click', function(){
+    $('#ov-celeb').hidden = true;
+    var d = RUN.diff;
+    beginRun(d);
+  });
+}
+function backToTitle(){
+  stopTimer();
+  RUN = null;
+  $('#ov-celeb').hidden = true;
+  $('#scr-game').hidden = true;
+  $('#scr-title').hidden = false;
+}
+
+/* ---------- 启动 ---------- */
+applyPalette();
+bindUI();
+$('#ov-rules').hidden = false; /* 进入时先展示规则面板 */
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-u/g004", "name": "\u51e0\u4f55\u661f\u5149\u5de5\u574a \u00b7 \u590d\u6742\u76f4\u7ebf\u5f62\u8ba1\u7b97", "file": "g004.html", "jiaocan": "\u30108\u3011\u7b2c8\u8bb2 \u590d\u6742\u76f4\u7ebf\u5f62\u8ba1\u7b97\uff08\u51e0\u4f55\u4e13\u9898\u7b2c28\u8bb2\uff09", "unit": "\u7b2c8\u8bb2", "grade": "6\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

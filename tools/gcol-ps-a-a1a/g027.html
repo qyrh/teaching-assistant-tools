@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>搭小桥找规律 · 数列闯关</title>
+<style>
+/* ============================================================
+   搭小桥找规律 —— 互动数列闯关游戏
+   核心机制：学生先拖"运算牌"(+2/-5等)放到数字之间搭出小桥，
+            再拖"数字牌"填进空位，最后系统逐桥校验。
+   深度绑定教参方法："先搭桥，再填数"。
+   ============================================================ */
+
+/* ---------- 全局重置与基础变量 ---------- */
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
+body{
+  background:#0f2236;
+  color:#fff;
+  overflow-x:hidden;
+  min-height:100vh;
+  user-select:none;
+}
+
+/* 主色板：每局随机从 6 套配色里挑一套 */
+:root{
+  --c1:#ffd166; --c2:#06d6a0; --c3:#ef476f; --c4:#118ab2; --bg:#0f2236;
+  --stone:#5a3b2a; --stone-light:#8b6244; --bridge:#ffb703;
+}
+.theme-ocean{ --c1:#90e0ef; --c2:#00b4d8; --c3:#0077b6; --c4:#caf0f8; --bg:#03045e; --bridge:#48cae4; }
+.theme-forest{ --c1:#d8f3dc; --c2:#52b788; --c3:#2d6a4f; --c4:#b7e4c7; --bg:#081c15; --bridge:#95d5b2; }
+.theme-sunset{ --c1:#ffe5d9; --c2:#ff8c61; --c3:#ce4257; --c4:#ffd166; --bg:#3d1f2b; --bridge:#ffb703; }
+.theme-berry{ --c1:#e0aaff; --c2:#c77dff; --c3:#7b2cbf; --c4:#ff70a6; --bg:#240046; --bridge:#e0aaff; }
+.theme-mint{  --c1:#caffbf; --c2:#9bf6ff; --c3:#ffc6ff; --c4:#bdb2ff; --bg:#1d3557; --bridge:#a0c4ff; }
+
+/* ---------- 顶部信息栏 ---------- */
+.topbar{
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 16px;
+  background:rgba(0,0,0,.35);
+  backdrop-filter:blur(6px);
+  border-bottom:2px solid var(--c1);
+}
+.topbar .title{ font-size:clamp(16px,3.5vw,24px); font-weight:900; color:var(--c1); text-shadow:2px 2px 0 rgba(0,0,0,.4);}
+.topbar .stats{ display:flex; gap:10px; }
+.stat-box{
+  background:rgba(255,255,255,.12);
+  border:2px solid var(--c2);
+  border-radius:12px;
+  padding:6px 12px;
+  font-size:clamp(13px,2.6vw,18px);
+  font-weight:700;
+  min-width:74px;
+  text-align:center;
+}
+.stat-box .lab{ font-size:11px; color:var(--c4); display:block; }
+.stat-box .val{ font-size:clamp(16px,3.2vw,22px); color:#fff; }
+.btn-icon{
+  background:var(--c3);
+  border:none; color:#fff;
+  border-radius:10px; padding:8px 12px;
+  font-size:14px; font-weight:700; cursor:pointer;
+  box-shadow:0 3px 0 rgba(0,0,0,.3);
+}
+.btn-icon:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.3);}
+
+/* ---------- 通用按钮 ---------- */
+.btn{
+  border:none; cursor:pointer; font-weight:900;
+  font-family:inherit; color:#fff;
+  border-radius:16px; padding:14px 24px;
+  font-size:clamp(16px,3vw,22px);
+  box-shadow:0 5px 0 rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.3);
+  transition:transform .08s, box-shadow .08s;
+}
+.btn:active{ transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.3);}
+.btn-green{ background:linear-gradient(#52d68f,#1fa866); }
+.btn-blue{ background:linear-gradient(#5db7e8,#2670a8); }
+.btn-orange{ background:linear-gradient(#ffb454,#e08020); }
+.btn-red{ background:linear-gradient(#ff7a7a,#c0303f); }
+.btn-purple{ background:linear-gradient(#c084e8,#7b2cbf); }
+
+/* ---------- 全屏面板 ---------- */
+.panel{
+  position:fixed; inset:0; z-index:100;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:20px; gap:18px;
+  background:radial-gradient(circle at 50% 30%, rgba(255,255,255,.08), rgba(0,0,0,.85));
+  overflow-y:auto;
+}
+.panel.hidden{ display:none; }
+
+/* ---------- 难度选择 ---------- */
+.diff-wrap{ display:flex; flex-direction:column; align-items:center; gap:18px; width:100%; max-width:680px;}
+.diff-wrap h1{
+  font-size:clamp(26px,6vw,46px); color:var(--c1);
+  text-shadow:3px 3px 0 rgba(0,0,0,.5);
+  text-align:center; line-height:1.2;
+}
+.diff-wrap .sub{ font-size:clamp(14px,3vw,20px); color:#fff; opacity:.9; text-align:center;}
+.diff-grid{ display:grid; grid-template-columns:1fr; gap:14px; width:100%; }
+@media(min-width:640px){ .diff-grid{ grid-template-columns:repeat(3,1fr);} }
+.diff-card{
+  background:rgba(255,255,255,.08);
+  border:3px solid var(--c1);
+  border-radius:20px; padding:18px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  transition:transform .12s, background .2s;
+}
+.diff-card:hover{ transform:translateY(-4px); background:rgba(255,255,255,.16);}
+.diff-card .emoji{ font-size:48px; }
+.diff-card .name{ font-size:clamp(18px,3.5vw,24px); font-weight:900; color:var(--c1);}
+.diff-card .desc{ font-size:13px; color:#fff; opacity:.85; text-align:center; line-height:1.4;}
+
+/* ---------- 规则面板 ---------- */
+.rules-card{
+  background:#fff; color:#222; border-radius:20px; padding:24px;
+  max-width:560px; width:100%; line-height:1.7;
+  font-size:clamp(14px,2.8vw,17px);
+}
+.rules-card h2{ color:var(--c3); margin-bottom:10px; font-size:clamp(20px,4vw,28px);}
+.rules-card ol{ margin-left:20px; }
+.rules-card b{ color:var(--c4); }
+.rules-card .demo{ display:flex; align-items:center; justify-content:center; gap:6px; margin:14px 0;}
+.demo .dn{ background:var(--stone-light); color:#fff; border-radius:8px; padding:8px 12px; font-weight:900; font-size:22px;}
+.demo .db{ background:var(--bridge); color:#000; border-radius:8px; padding:4px 8px; font-weight:900;}
+
+/* ---------- 游戏区 ---------- */
+.game-area{
+  padding:16px 10px 30px;
+  max-width:1100px; margin:0 auto;
+  display:flex; flex-direction:column; gap:16px;
+}
+.level-info{
+  text-align:center; font-size:clamp(15px,3vw,20px);
+  color:var(--c4); font-weight:700;
+}
+.level-info .q{ color:var(--c1); font-size:clamp(16px,3.2vw,22px); margin-bottom:6px; display:block;}
+.hint-bar{
+  background:rgba(255,255,255,.1); border-left:6px solid var(--c1);
+  border-radius:8px; padding:8px 12px; font-size:14px; line-height:1.5;
+}
+
+/* ---------- 数列石桥舞台 ---------- */
+.bridge-stage{
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.25));
+  border:3px dashed var(--c2);
+  border-radius:20px; padding:30px 10px 24px;
+  overflow-x:auto;
+}
+.bridge-row{
+  display:flex; align-items:flex-end; justify-content:center;
+  gap:0; min-width:max-content; margin:0 auto;
+}
+/* 数字石 */
+.slot-col{ display:flex; flex-direction:column; align-items:center; }
+.slot-num{
+  width:clamp(56px,12vw,76px); height:clamp(56px,12vw,76px);
+  border-radius:14px;
+  background:var(--stone);
+  border:3px solid var(--stone-light);
+  display:flex; align-items:center; justify-content:center;
+  font-size:clamp(22px,5vw,34px); font-weight:900;
+  color:#fff; text-shadow:2px 2px 0 rgba(0,0,0,.5);
+  box-shadow:inset 0 -6px 0 rgba(0,0,0,.3), 0 4px 10px rgba(0,0,0,.4);
+  position:relative;
+}
+.slot-num.empty{
+  background:repeating-linear-gradient(45deg,#444,#444 8px,#333 8px,#333 16px);
+  border:3px dashed var(--c1);
+}
+.slot-num.empty.drag-over{ background:var(--c4); border-color:#fff; }
+.slot-num.filled{ background:var(--c2); border-color:#fff; animation:pop .3s; }
+.slot-num.wrong{ background:var(--c3); animation:shake .3s; }
+.slot-num.revealed{ background:#888; color:#ffe; }
+@keyframes pop{ 0%{transform:scale(.4)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
+@keyframes shake{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+/* 桥位（两个数字之间的桥） */
+.slot-bridge{
+  width:clamp(54px,11vw,66px); height:clamp(40px,8vw,52px);
+  border-radius:10px 10px 4px 4px;
+  background:rgba(255,255,255,.06);
+  border:3px dashed var(--bridge);
+  display:flex; align-items:center; justify-content:center;
+  font-size:clamp(16px,3.4vw,24px); font-weight:900;
+  margin:0 2px; margin-bottom:6px;
+}
+.slot-bridge.drag-over{ background:var(--bridge); }
+.slot-bridge.filled{ background:var(--bridge); color:#000; border-style:solid; animation:pop .3s;}
+.slot-bridge.wrong{ background:var(--c3); color:#fff; animation:shake .3s; }
+.slot-bridge.revealed{ background:#888; color:#ffe; }
+
+/* 桥墩装饰（小三角，让"桥"更形象） */
+.slot-pillar{
+  width:0; height:0;
+  border-left:8px solid transparent;
+  border-right:8px solid transparent;
+  border-top:12px solid var(--stone-light);
+  margin:2px 0;
+}
+
+/* 第二层桥（高级难度用） */
+.row-bridge2{
+  display:flex; justify-content:center; gap:0; margin-top:6px;
+}
+.bridge2-item{
+  width:clamp(54px,11vw,66px); text-align:center;
+  font-size:clamp(13px,2.6vw,16px); font-weight:900;
+  color:var(--c1);
+}
+
+/* ---------- 操作牌区 ---------- */
+.treasury{
+  background:rgba(0,0,0,.3);
+  border:2px solid var(--c1);
+  border-radius:16px; padding:14px;
+}
+.treasury h3{ font-size:16px; color:var(--c1); margin-bottom:10px; text-align:center;}
+.chips{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; min-height:50px;}
+.chip{
+  border:none; cursor:grab;
+  border-radius:12px; padding:10px 16px;
+  font-size:clamp(18px,3.8vw,26px); font-weight:900;
+  font-family:inherit;
+  box-shadow:0 4px 0 rgba(0,0,0,.4);
+  touch-action:none;
+}
+.chip.bridge-chip{ background:var(--bridge); color:#000; }
+.chip.num-chip{ background:var(--c2); color:#fff; }
+.chip:active{ cursor:grabbing; transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.4);}
+.chip.consumed{ opacity:.25; pointer-events:none; }
+.chip.disabled{ display:none; }
+
+/* 拖拽幽灵 */
+.drag-ghost{
+  position:fixed; z-index:9999; pointer-events:none;
+  opacity:.85; transform:translate(-50%,-50%) scale(1.1);
+}
+
+/* ---------- 反馈与按钮组 ---------- */
+.feedback{
+  min-height:34px; text-align:center; font-weight:900;
+  font-size:clamp(16px,3.2vw,22px);
+}
+.feedback.ok{ color:var(--c2); }
+.feedback.no{ color:var(--c3); }
+.action-row{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center;}
+
+/* ---------- 通关庆祝 ---------- */
+#celebrate{ pointer-events:none; }
+#celebrate .msg{
+  pointer-events:auto;
+  background:rgba(0,0,0,.7); border:4px solid var(--c1);
+  border-radius:24px; padding:30px; text-align:center;
+}
+#celebrate h1{ font-size:clamp(30px,7vw,54px); color:var(--c1); text-shadow:3px 3px 0 rgba(0,0,0,.5);}
+#celebrate p{ font-size:clamp(16px,3.5vw,22px); margin:10px 0; color:#fff;}
+.confetti{ position:fixed; top:-10px; width:10px; height:14px; z-index:200; pointer-events:none;}
+
+/* ---------- 挂载粒子画布 ---------- */
+#fxCanvas{ position:fixed; inset:0; pointer-events:none; z-index:150;}
+
+@media(max-width:480px){
+  .topbar .title{ font-size:16px;}
+  .stat-box{ min-width:54px; padding:4px 8px;}
+  .stat-box .lab{ font-size:10px;}
+}
+</style>
+</head>
+<body class="theme-default">
+
+<!-- ============== 顶部信息栏 ============== -->
+<div class="topbar">
+  <div class="title">🌉 搭小桥找规律</div>
+  <div class="stats">
+    <div class="stat-box"><span class="lab">⏱ 时间</span><span class="val" id="timerVal">0″</span></div>
+    <div class="stat-box"><span class="lab">🐾 步数</span><span class="val" id="stepVal">0</span></div>
+    <button class="btn-icon" id="btnRulesTop">📖 规则</button>
+  </div>
+</div>
+
+<!-- ============== 难度选择面板 ============== -->
+<div class="panel" id="panelDiff">
+  <div class="diff-wrap">
+    <h1>🌉 搭小桥找规律</h1>
+    <p class="sub">先搭桥、再填数，闯过数字王国！</p>
+    <div class="diff-grid">
+      <div class="diff-card" data-diff="easy">
+        <div class="emoji">🌱</div>
+        <div class="name">初级</div>
+        <div class="desc">等差数列<br>一座小桥一路通<br>(加/减相同)</div>
+      </div>
+      <div class="diff-card" data-diff="mid">
+        <div class="emoji">⭐</div>
+        <div class="name">中级</div>
+        <div class="desc">双重数列<br>隔着搭桥跳跳看<br>(奇偶各一串)</div>
+      </div>
+      <div class="diff-card" data-diff="hard">
+        <div class="emoji">🔥</div>
+        <div class="name">高级</div>
+        <div class="desc">二级等差数列<br>桥上再搭一层桥<br>(差也在变)</div>
+      </div>
+    </div>
+    <button class="btn btn-blue" id="btnFirstRules">📖 先看怎么玩</button>
+  </div>
+</div>
+
+<!-- ============== 规则面板 ============== -->
+<div class="panel hidden" id="panelRules">
+  <div class="rules-card">
+    <h2>🎮 怎么玩</h2>
+    <p>数列里有些数字掉了，我们要把它们补回来！教过的口诀是<b>"先搭桥，再填数"</b>。</p>
+    <ol>
+      <li>下方会出现一堆<b>运算牌</b>（如 <b>+2</b>、<b>-5</b>）和<b>数字牌</b>。</li>
+      <li>把<b>运算牌</b>拖到两个数字之间的<b>🟡桥位</b>，表示相邻两数相差多少。</li>
+      <li>再把<b>数字牌</b>拖到<b>🟫空石头</b>上，把数列补全。</li>
+      <li>点 <b>"✅ 校验"</b>，系统会逐桥检查，对的全亮绿，错的闪红。</li>
+      <li>全部正确就通关 🎉！不会就点 <b>"💡揭示答案"</b>。</li>
+    </ol>
+    <div class="demo">
+      <span class="dn">2</span><span class="db">+2</span><span class="dn">4</span><span class="db">+2</span><span class="dn">6</span><span class="db">+2</span><span class="dn">8</span>
+    </div>
+    <p><b>中级(双重数列)</b>：相邻两数忽大忽小看不出来，要<b>隔着搭桥</b>（奇数位一串、偶数位一串）。</p>
+    <p><b>高级(二级等差)</b>：相邻差本身也在变，要在小桥上<b>再搭一层桥</b>。</p>
+    <p style="text-align:center;margin-top:16px;">
+      <button class="btn btn-green" id="btnRulesClose">明白啦，开始闯关！</button>
+    </p>
+  </div>
+</div>
+
+<!-- ============== 游戏区 ============== -->
+<div class="game-area" id="gameArea" style="display:none;">
+  <div class="level-info" id="levelInfo"></div>
+  <div class="hint-bar" id="hintBar"></div>
+
+  <div class="bridge-stage">
+    <div class="row-bridge2" id="rowBridge2"></div>
+    <div class="bridge-row" id="bridgeRow"></div>
+  </div>
+
+  <div class="treasury">
+    <h3>🟡 运算牌（拖到桥位）</h3>
+    <div class="chips" id="opChips"></div>
+  </div>
+  <div class="treasury">
+    <h3>🟢 数字牌（拖到空石头）</h3>
+    <div class="chips" id="numChips"></div>
+  </div>
+
+  <div class="feedback" id="feedback"></div>
+  <div class="action-row">
+    <button class="btn btn-green" id="btnCheck">✅ 校验</button>
+    <button class="btn btn-orange" id="btnReveal">💡 揭示答案</button>
+    <button class="btn btn-purple" id="btnNext">⏭ 换一题</button>
+    <button class="btn btn-blue" id="btnBack">🏠 返回难度</button>
+    <button class="btn btn-red" id="btnReset">🔄 重新开始</button>
+  </div>
+</div>
+
+<!-- ============== 通关庆祝 ============== -->
+<div class="panel hidden" id="celebrate">
+  <div class="msg">
+    <h1 id="celeTitle">🎉 通关啦！</h1>
+    <p id="celeSub"></p>
+    <p id="celeStat"></p>
+    <div class="action-row" style="margin-top:18px;pointer-events:auto;">
+      <button class="btn btn-green" id="btnNext2">⏭ 再来一关</button>
+      <button class="btn btn-blue" id="btnBack2">🏠 返回难度</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="fxCanvas"></canvas>
+
+<script>
+/* ============================================================
+   数据层 —— 题目库（来自教参 docx，并自创变式补足）
+   每道题：sequence 数列（null=待填空），bridges 桥答案(带符号),
+           type 类型, source 出处
+   ============================================================ */
+// 工具：从【完整数列】生成"运算牌"字符串数组（带正负号）。
+// 关键：桥必须基于完整答案序列计算，这样每个空位都有有效邻桥可用。
+function makeBridges(full){
+  const b=[];
+  for(let i=0;i<full.length-1;i++){
+    const d=full[i+1]-full[i];
+    b.push((d>=0?'+':'')+d);
+  }
+  return b;
+}
+
+// 题库（来源标注教参例题/练习序号）
+// 每条：full 完整答案数列；gaps 要挖空的索引（运行时随机决定挖哪些，保证每次玩不重）
+// 这样 makeBridges 永远基于完整序列算，computeAnswer 不会出 NaN。
+const BANK = {
+  easy:[
+    {full:[2,4,6,8,10,12,14],              src:'例1(1)', tag:'等差'},
+    {full:[1,5,9,13,17,21,25],              src:'例1(2)', tag:'等差'},
+    {full:[30,25,20,15,10,5,0],             src:'例1(3)', tag:'等差'},
+    {full:[1,3,5,7,9,11,13,15],             src:'练习1(1)', tag:'等差'},
+    {full:[2,5,8,11,14,17,20],              src:'练习1(2)', tag:'等差'},
+    {full:[50,44,38,32,26,20],              src:'练习1(3)', tag:'等差'},
+    {full:[5,10,15,20,25,30],               src:'练习2(1)', tag:'等差'},
+    {full:[2,6,10,14,18,22],                src:'练习2(2)', tag:'等差'},
+    // 自创变式
+    {full:[10,20,30,40,50,60],              src:'变式', tag:'等差'},
+    {full:[100,90,80,70,60,50,40],          src:'变式', tag:'等差'},
+    {full:[7,10,13,16,19,22],               src:'变式', tag:'等差'},
+    {full:[25,21,17,13,9,5],                src:'变式', tag:'等差'},
+  ],
+  mid:[
+    {full:[1,2,1,4,1,6,1,8,1,10,1,12],      src:'例3(1)', tag:'双重'},
+    {full:[20,3,18,4,16,5,14,6,12,7],       src:'例3(2)', tag:'双重'},
+    {full:[2,4,3,7,4,10,5,13,6,16],         src:'例3(3)', tag:'双重'},
+    {full:[1,5,1,10,1,15,1,20,1,25],        src:'练习7(1)', tag:'双重'},
+    {full:[10,18,11,17,12,16,13,15,14,14],  src:'练习7(2)', tag:'双重'},
+    {full:[20,1,19,3,18,5,17,7,16,9],       src:'练习7(3)', tag:'双重'},
+    {full:[45,1,40,2,35,3,30,4],            src:'练习8(1)', tag:'双重'},
+    {full:[1,16,2,14,3,12,4,10,5,8,6,6],    src:'练习8(2)', tag:'双重'},
+    // 自创变式
+    {full:[3,2,6,4,9,6,12,8],               src:'变式', tag:'双重'},
+    {full:[2,10,4,9,6,8,8,7],               src:'变式', tag:'双重'},
+  ],
+  hard:[
+    {full:[5,7,11,17,25],                   src:'例2(1)', tag:'二级等差'},
+    {full:[1,6,10,13,15,16],                src:'例2(2)', tag:'二级等差'},
+    {full:[15,14,12,9,5,0],                 src:'例2(3)', tag:'二级等差'},
+    {full:[3,4,7,12,19],                    src:'练习4(1)', tag:'二级等差'},
+    {full:[10,12,15,19,24],                 src:'练习4(2)', tag:'二级等差'},
+    {full:[18,13,9,6,4],                    src:'练习4(3)', tag:'二级等差'},
+    {full:[1,3,6,10,15,21,28],              src:'练习5(1)', tag:'二级等差'},
+    {full:[20,15,11,8,6,5],                 src:'练习5(2)', tag:'二级等差'},
+    {full:[2,4,7,11,16,22],                 src:'练习6', tag:'二级等差'},
+    // 自创变式
+    {full:[1,2,4,7,11,16],                  src:'变式', tag:'二级等差'},
+    {full:[4,5,7,10,14,19],                 src:'变式', tag:'二级等差'},
+  ]
+};
+
+/* ============================================================
+   全局状态
+   ============================================================ */
+const State = {
+  diff:null,
+  bank:[],          // 当前难度的题库（已打乱）
+  idx:0,            // 当前题号
+  cur:null,         // 当前题 {seq, bridges, gaps, gapBridges, src, tag}
+  placedBridges:{}, // 桥位index -> 运算牌字符串
+  placedNums:{},    // 空位index -> 数字
+  steps:0,
+  startTime:0,
+  timerInt:null,
+  solved:0,
+  themes:['theme-default','theme-ocean','theme-forest','theme-sunset','theme-berry','theme-mint'],
+  dragging:null,    // 当前拖拽 {type:'op'|'num', value, el, chipEl}
+};
+
+/* ============================================================
+   工具函数
+   ============================================================ */
+function $(id){ return document.getElementById(id); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a;}
+function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+// 解析运算牌字符串："+2" -> 2, "-5" -> -5
+function opVal(s){ return parseInt(s,10); }
+
+// 计算题目：根据难度从 full 中随机挖空若干个，并算出桥答案。
+// 挖空策略：等差至少挖2个相邻空；双重挖空时优先挖偶位或奇位成对；二级等差挖1-2个末尾。
+function buildPuzzle(item){
+  const full=item.full.slice();
+  const bridges=makeBridges(full); // 基于完整序列，永远有效
+  // 随机选空位
+  const n=full.length;
+  let gaps=[];
+  if(State.diff==='easy'){
+    // 挖2-3个位置，尽量相邻（让桥推理有意义）
+    const start=rand(1, n-3);
+    gaps=[start, start+1];
+    if(n>6 && Math.random()<0.5) gaps.push(start+2<n?start+2:start-1);
+  }else if(State.diff==='mid'){
+    // 双重数列：挖2个位置（鼓励隔着看）
+    const opts=[];
+    for(let i=1;i<n-1;i++) opts.push(i);
+    const sh=shuffle(opts);
+    gaps=[sh[0], sh[1]];
+  }else{
+    // 高级：挖1-2个（末尾为主，二级等差推理链短）
+    gaps=[n-1];
+    if(n>=6) gaps.push(n-2);
+  }
+  gaps=[...new Set(gaps)].sort((a,b)=>a-b);
+  // 构造展示用 seq（null 表示空）
+  const seq=full.map((v,i)=> gaps.includes(i)? null : v);
+  // 哪些桥位需要玩家填（相邻至少一侧是空）
+  const gapBridges=[];
+  for(let i=0;i<bridges.length;i++){
+    if(gaps.includes(i)||gaps.includes(i+1)) gapBridges.push(i);
+  }
+  return {seq, bridges, gaps, gapBridges, full, src:item.src, tag:item.tag};
+}
+
+// 生成运算牌候选（含正确+若干干扰）
+function genOpChips(p){
+  const correct=[...new Set(p.gapBridges.map(i=>p.bridges[i]).filter(x=>x!==null))];
+  const chips=[...correct];
+  // 干扰：从正确值附近生成
+  const pool=['+1','-1','+2','-2','+3','-3','+4','-4','+5','-5','+6','-6','+7','-7','+8','-8','+10','-10'];
+  for(const v of shuffle(pool)){
+    if(chips.length>=8) break;
+    if(!chips.includes(v)) chips.push(v);
+  }
+  // 每个空桥位都要有可用牌，所以要保证牌的总数>=空桥位数
+  // 把正确牌复制足够份数（同名牌可重复用）
+  const need=p.gapBridges.length;
+  while(chips.filter(c=>correct.includes(c)).length < need){
+    chips.push(correct[rand(0,correct.length-1)]);
+  }
+  return shuffle(chips);
+}
+
+// 生成数字牌候选
+function genNumChips(p){
+  const real=p.gaps.map(i=>computeAnswer(p,i));
+  const chips=[...real];
+  const used=new Set(real);
+  while(chips.length<Math.max(6, real.length+3)){
+    const base=real[rand(0,real.length-1)];
+    const v=base+rand(-4,4);
+    if(!used.has(v)){ chips.push(v); used.add(v);}
+  }
+  return shuffle(chips);
+}
+
+// 给定空位 index，依据【完整桥答案】计算应填数字。
+// 现在 bridges 都基于 full 算出，非空，所以任一邻桥都可推理。
+function computeAnswer(p, gapIdx){
+  const full=p.full, bridges=p.bridges;
+  // 优先左邻桥 i=gapIdx-1：full[gapIdx-1] -> full[gapIdx]
+  if(gapIdx>0){
+    return full[gapIdx-1] + opVal(bridges[gapIdx-1]);
+  }
+  // 否则右邻桥 i=gapIdx：full[gapIdx] -> full[gapIdx+1]
+  if(gapIdx<full.length-1){
+    return full[gapIdx+1] - opVal(bridges[gapIdx]);
+  }
+  return full[gapIdx];
+}
+
+/* ============================================================
+   渲染：搭建数列石桥
+   ============================================================ */
+function renderStage(){
+  const p=State.cur;
+  const row=$('bridgeRow'); row.innerHTML='';
+  const row2=$('rowBridge2'); row2.innerHTML='';
+
+  // 渲染数列：数字石 + 中间桥位
+  for(let i=0;i<p.seq.length;i++){
+    // 桥位（在数字之间，i>0 时，桥 i-1 连接 seq[i-1] 和 seq[i]）
+    if(i>0){
+      const bridgeIdx=i-1;
+      const bEl=document.createElement('div');
+      bEl.className='slot-bridge';
+      bEl.dataset.bridge=bridgeIdx;
+      if(p.bridges[bridgeIdx]!==null && !p.gapBridges.includes(bridgeIdx)){
+        // 已知桥（题目给定），显示出来
+        bEl.classList.add('filled');
+        bEl.textContent=p.bridges[bridgeIdx];
+      }else if(p.gapBridges.includes(bridgeIdx)){
+        // 空桥位，等待玩家放牌
+        if(State.placedBridges[bridgeIdx]){
+          bEl.classList.add('filled');
+          bEl.textContent=State.placedBridges[bridgeIdx];
+        }else{
+          bEl.textContent='？';
+        }
+        bEl.addEventListener('touchstart',onDropTargetOver,{passive:false});
+        bEl.addEventListener('touchend',onDropTargetDrop,{passive:false});
+        registerDropTarget(bEl,'op');
+      }
+      row.appendChild(bEl);
+    }
+    // 数字石
+    const col=document.createElement('div'); col.className='slot-col';
+    const nEl=document.createElement('div');
+    nEl.className='slot-num';
+    nEl.dataset.pos=i;
+    if(p.seq[i]!==null){
+      nEl.textContent=p.seq[i];
+    }else if(State.placedNums[i]!==undefined){
+      nEl.classList.add('filled');
+      nEl.textContent=State.placedNums[i];
+    }else{
+      nEl.classList.add('empty');
+      nEl.textContent='？';
+      registerDropTarget(nEl,'num');
+    }
+    // 桥墩装饰（数字下方）
+    const pillar=document.createElement('div'); pillar.className='slot-pillar';
+    col.appendChild(nEl); col.appendChild(pillar);
+    row.appendChild(col);
+  }
+
+  // 高级难度：渲染第二层桥（桥上数的差）
+  if(State.diff==='hard'){
+    // 把所有相邻桥差再算一层
+    const allBridges=[];
+    for(let i=0;i<p.bridges.length;i++){
+      if(p.bridges[i]!==null && !p.gapBridges.includes(i)) allBridges.push(p.bridges[i]);
+      else if(State.placedBridges[i]) allBridges.push(State.placedBridges[i]);
+      else allBridges.push('？');
+    }
+    // 第二层桥显示相邻桥的差
+    for(let i=0;i<allBridges.length;i++){
+      const item=document.createElement('div'); item.className='bridge2-item';
+      if(i>0){
+        const a=opVal(allBridges[i-1]), b=opVal(allBridges[i]);
+        if(!isNaN(a)&&!isNaN(b)){
+          const d=b-a; item.textContent=(d>=0?'+':'')+d;
+          item.style.color = d===0 ? '#fff' : 'var(--c1)';
+        }else item.textContent='';
+      }else item.textContent='';
+      row2.appendChild(item);
+    }
+  }
+
+  renderChips();
+  updateHint();
+}
+
+// 注册拖拽目标（区分接受 op 还是 num）
+function registerDropTarget(el, accept){
+  el.addEventListener('dragover',e=>{ e.preventDefault(); if(State.dragging&&State.dragging.type===accept){ el.classList.add('drag-over'); }});
+  el.addEventListener('dragleave',e=>{ el.classList.remove('drag-over');});
+  el.addEventListener('drop',e=>{
+    e.preventDefault(); el.classList.remove('drag-over');
+    if(State.dragging&&State.dragging.type===accept){
+      handleDrop(el, State.dragging);
+    }
+  });
+}
+
+function renderChips(){
+  // 运算牌
+  const oc=$('opChips'); oc.innerHTML='';
+  const opSet=new Set();
+  State._opChips.forEach((v,k)=>{
+    if(State._opUsed[k]) return; // 已消耗
+    const chip=document.createElement('button');
+    chip.className='chip bridge-chip';
+    chip.textContent=v; chip.dataset.op=v; chip.dataset.k=k;
+    chip.draggable=true;
+    enableChipDrag(chip,'op',v,k);
+    oc.appendChild(chip);
+  });
+  // 数字牌
+  const nc=$('numChips'); nc.innerHTML='';
+  State._numChips.forEach((v,k)=>{
+    if(State._numUsed[k]) return;
+    const chip=document.createElement('button');
+    chip.className='chip num-chip';
+    chip.textContent=v; chip.dataset.num=v; chip.dataset.k=k;
+    chip.draggable=true;
+    enableChipDrag(chip,'num',v,k);
+    nc.appendChild(chip);
+  });
+}
+
+/* ============================================================
+   拖拽：同时支持鼠标(HTML5 drag) 和 触摸(自实现)
+   ============================================================ */
+function enableChipDrag(chip,type,value,key){
+  // HTML5 桌面拖拽
+  chip.addEventListener('dragstart',e=>{
+    State.dragging={type,value,key,chipEl:chip};
+    e.dataTransfer.setData('text','x');
+    setTimeout(()=>chip.classList.add('consumed'),0);
+  });
+  chip.addEventListener('dragend',e=>{
+    chip.classList.remove('consumed');
+    State.dragging=null;
+    document.querySelectorAll('.drag-over').forEach(e=>e.classList.remove('drag-over'));
+  });
+  // 触摸拖拽
+  let ghost=null, active=false, startX=0,startY=0;
+  chip.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1) return;
+    active=true;
+    State.dragging={type,value,key,chipEl:chip};
+    const t=e.touches[0];
+    startX=t.clientX; startY=t.clientY;
+    ghost=chip.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.left=t.clientX+'px'; ghost.style.top=t.clientY+'px';
+    document.body.appendChild(ghost);
+    chip.classList.add('consumed');
+    e.preventDefault();
+  },{passive:false});
+  chip.addEventListener('touchmove',e=>{
+    if(!active) return;
+    const t=e.touches[0];
+    if(ghost){ ghost.style.left=t.clientX+'px'; ghost.style.top=t.clientY+'px';}
+    // 高亮目标
+    document.querySelectorAll('.drag-over').forEach(e=>e.classList.remove('drag-over'));
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    if(el){
+      const tgt = el.closest('.slot-bridge, .slot-num.empty');
+      if(tgt){
+        const accept = tgt.classList.contains('slot-bridge') ? 'op' : 'num';
+        if(State.dragging.type===accept) tgt.classList.add('drag-over');
+      }
+    }
+    e.preventDefault();
+  },{passive:false});
+  chip.addEventListener('touchend',e=>{
+    if(!active) return;
+    active=false;
+    const t=e.changedTouches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    if(ghost){ ghost.remove(); ghost=null; }
+    chip.classList.remove('consumed');
+    document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));
+    if(el){
+      const tgt=el.closest('.slot-bridge, .slot-num.empty');
+      if(tgt){
+        const accept = tgt.classList.contains('slot-bridge') ? 'op' : 'num';
+        if(State.dragging && State.dragging.type===accept){
+          handleDrop(tgt, State.dragging);
+        }
+      }
+    }
+    State.dragging=null;
+  },{passive:false});
+}
+
+// 占位的 touch 回调（防止某些浏览器报警告）
+function onDropTargetOver(e){ /* noop */ }
+function onDropTargetDrop(e){ /* noop */ }
+
+/* ============================================================
+   放置处理
+   ============================================================ */
+function handleDrop(el, drag){
+  addStep();
+  if(drag.type==='op'){
+    const idx=parseInt(el.dataset.bridge,10);
+    // 如果之前有别的牌占着（同名牌还原），先回收
+    if(State.placedBridges[idx]!==undefined){
+      // 找到原牌key放回
+      recycleOp(State.placedBridges[idx]);
+    }
+    State.placedBridges[idx]=drag.value;
+    State._opUsed[drag.key]=true;
+  }else{
+    const idx=parseInt(el.dataset.pos,10);
+    if(State.placedNums[idx]!==undefined){
+      recycleNum(State.placedNums[idx]);
+    }
+    State.placedNums[idx]=drag.value;
+    State._numUsed[drag.key]=true;
+  }
+  renderStage();
+  setFeedback('',''); 
+}
+
+// 回收牌（让玩家可以拖回去换）—— 简化：重新生成等价可用牌
+function recycleOp(val){
+  // 找一个未用的同值牌解除占用
+  for(const [k,v] of State._opChips){
+    if(v===val && State._opUsed[k]){ State._opUsed[k]=false; return; }
+  }
+}
+function recycleNum(val){
+  for(const [k,v] of State._numChips){
+    if(v===val && State._numUsed[k]){ State._numUsed[k]=false; return; }
+  }
+}
+
+// 点击已放置的牌可以取回
+function bindClickToRemove(){
+  document.querySelectorAll('.slot-bridge.filled,.slot-num.filled').forEach(el=>{
+    el.addEventListener('click',()=>{
+      if(el.classList.contains('slot-bridge')){
+        const idx=parseInt(el.dataset.bridge,10);
+        if(State.cur.gapBridges.includes(idx)){
+          recycleOp(State.placedBridges[idx]);
+          delete State.placedBridges[idx];
+          renderStage();
+        }
+      }else if(el.classList.contains('slot-num') && el.dataset.pos){
+        const idx=parseInt(el.dataset.pos,10);
+        if(State.cur.seq[idx]===null){
+          recycleNum(State.placedNums[idx]);
+          delete State.placedNums[idx];
+          renderStage();
+        }
+      }
+    });
+  });
+}
+
+/* ============================================================
+   校验逻辑
+   ============================================================ */
+function check(){
+  const p=State.cur;
+  let allOk=true;
+  // 1. 校验每个空桥位
+  p.gapBridges.forEach(i=>{
+    const placed=State.placedBridges[i];
+    const correct=p.bridges[i];
+    const el=document.querySelector(`.slot-bridge[data-bridge="${i}"]`);
+    el.classList.remove('wrong');
+    if(placed===undefined){
+      allOk=false;
+    }else if(placed!==correct){
+      allOk=false;
+      el.classList.add('wrong');
+    }
+  });
+  // 2. 校验每个空数字位
+  p.gaps.forEach(i=>{
+    const placed=State.placedNums[i];
+    const correct=computeAnswer(p,i);
+    const el=document.querySelector(`.slot-num[data-pos="${i}"]`);
+    el.classList.remove('wrong');
+    if(placed===undefined){
+      allOk=false;
+    }else if(placed!==correct){
+      allOk=false;
+      el.classList.add('wrong');
+    }
+  });
+
+  if(allOk){
+    setFeedback('🎉 全部正确，太棒了！','ok');
+    State.solved++;
+    setTimeout(()=>celebrate(),400);
+  }else{
+    setFeedback('❌ 还有红色位置不对哦，调整一下再试。','no');
+  }
+}
+
+function reveal(){
+  const p=State.cur;
+  // 把答案填进去
+  p.gapBridges.forEach(i=>{
+    State.placedBridges[i]=p.bridges[i];
+    const el=document.querySelector(`.slot-bridge[data-bridge="${i}"]`);
+    if(el){ el.classList.add('revealed'); el.textContent=p.bridges[i]; }
+  });
+  p.gaps.forEach(i=>{
+    const v=computeAnswer(p,i);
+    State.placedNums[i]=v;
+    const el=document.querySelector(`.slot-num[data-pos="${i}"]`);
+    if(el){ el.classList.add('revealed'); el.textContent=v; }
+  });
+  setFeedback('💡 答案已揭示。点"换一题"继续挑战。','ok');
+}
+
+/* ============================================================
+   关卡控制
+   ============================================================ */
+function loadLevel(){
+  if(State.idx>=State.bank.length){
+    // 本难度题库用完，重新打乱再来
+    State.bank=shuffle(BANK[State.diff]);
+    State.idx=0;
+  }
+  const item=State.bank[State.idx];
+  State.cur=buildPuzzle(item);
+  State.placedBridges={};
+  State.placedNums={};
+  // 生成牌池
+  State._opChips=new Map();
+  State._opUsed={};
+  genOpChips(State.cur).forEach((v,i)=>{ State._opChips.set(i,v); State._opUsed[i]=false;});
+  State._numChips=new Map();
+  State._numUsed={};
+  genNumChips(State.cur).forEach((v,i)=>{ State._numChips.set(i,v); State._numUsed[i]=false;});
+
+  // 关卡信息
+  const diffName={easy:'初级',mid:'中级',hard:'高级'}[State.diff];
+  $('levelInfo').innerHTML=`<span class="q">第 ${State.idx+1} 关 · ${diffName} · ${State.cur.tag}</span>来源：${State.cur.src}（共 ${State.bank.length} 关，已通过 ${State.solved} 关）`;
+  renderStage();
+  bindClickToRemove();
+  setFeedback('','');
+}
+
+function nextLevel(){
+  State.idx++;
+  loadLevel();
+}
+
+function startGame(diff){
+  State.diff=diff;
+  State.bank=shuffle(BANK[diff]);
+  State.idx=0;
+  State.solved=0;
+  State.steps=0;
+  State.startTime=Date.now();
+  startTimer();
+  // 随机主题
+  document.body.className='';
+  document.body.classList.add(State.themes[rand(0,State.themes.length-1)]);
+  // 切面板
+  $('panelDiff').classList.add('hidden');
+  $('gameArea').style.display='flex';
+  loadLevel();
+}
+
+function backToDiff(){
+  stopTimer();
+  $('gameArea').style.display='none';
+  $('celebrate').classList.add('hidden');
+  $('panelDiff').classList.remove('hidden');
+}
+
+/* ============================================================
+   提示文案（根据题型给方法提示）
+   ============================================================ */
+function updateHint(){
+  const p=State.cur;
+  let h='';
+  if(State.diff==='easy'){
+    h='🟢 <b>初级·等差数列</b>：先看数列<b>变大还是变小</b>，再在每两数之间搭<b>相同的运算桥</b>（如 +2、-5），最后用桥算出空位数。';
+  }else if(State.diff==='mid'){
+    h='🟡 <b>中级·双重数列</b>：相邻两数<b>忽大忽小</b>看不出？<b>隔着搭桥</b>——奇数位一串、偶数位一串分别看，规律就出来啦。';
+  }else{
+    h='🔴 <b>高级·二级等差</b>：相邻差<b>本身也在变</b>。先搭第一层桥，再看桥上的数有没有规律（如 +1,+2,+3…），在桥上<b>再搭一层小桥</b>就能推出下一个差。';
+  }
+  $('hintBar').innerHTML=h;
+}
+
+/* ============================================================
+   计时器与步数
+   ============================================================ */
+function startTimer(){
+  stopTimer();
+  State.timerInt=setInterval(()=>{
+    const s=Math.floor((Date.now()-State.startTime)/1000);
+    $('timerVal').textContent=s+'″';
+  },500);
+}
+function stopTimer(){ if(State.timerInt){ clearInterval(State.timerInt); State.timerInt=null;} }
+function addStep(){ State.steps++; $('stepVal').textContent=State.steps; }
+
+/* ============================================================
+   反馈文案
+   ============================================================ */
+function setFeedback(text,type){
+  const f=$('feedback');
+  f.textContent=text;
+  f.className='feedback'+(type?' '+type:'');
+}
+
+/* ============================================================
+   通关庆祝：彩纸 + 烟花
+   ============================================================ */
+function celebrate(){
+  const el=$('celebrate');
+  const time=Math.floor((Date.now()-State.startTime)/1000);
+  $('celeSub').textContent=`本局已通过 ${State.solved} 关`;
+  $('celeStat').textContent=`⏱ 用时 ${time}″　🐾 操作 ${State.steps} 步`;
+  el.classList.remove('hidden');
+  // 随机换主题，下次玩不腻
+  document.body.className='';
+  document.body.classList.add(State.themes[rand(0,State.themes.length-1)]);
+  launchConfetti();
+  launchFireworks();
+}
+
+const COLORS=['#ffd166','#06d6a0','#ef476f','#118ab2','#ff70a6','#a0c4ff','#ffb703'];
+function launchConfetti(){
+  for(let i=0;i<80;i++){
+    const c=document.createElement('div');
+    c.className='confetti';
+    c.style.left=Math.random()*100+'vw';
+    c.style.background=COLORS[rand(0,COLORS.length-1)];
+    c.style.transform=`rotate(${rand(0,360)}deg)`;
+    document.body.appendChild(c);
+    const dur=rand(2000,4000);
+    c.animate([
+      {transform:`translateY(0) rotate(0deg)`, opacity:1},
+      {transform:`translateY(${window.innerHeight+40}px) rotate(${rand(360,1080)}deg)`, opacity:0}
+    ],{duration:dur, easing:'cubic-bezier(.2,.6,.4,1)'}).onfinish=()=>c.remove();
+  }
+}
+
+// Canvas 烟花
+const fxCanvas=$('fxCanvas');
+const fxCtx=fxCanvas.getContext('2d');
+function resizeFx(){ fxCanvas.width=window.innerWidth; fxCanvas.height=window.innerHeight;}
+window.addEventListener('resize',resizeFx); resizeFx();
+const particles=[];
+function launchFireworks(){
+  let bursts=0;
+  const t=setInterval(()=>{
+    const cx=rand(80,window.innerWidth-80);
+    const cy=rand(80,window.innerHeight*0.5);
+    const color=COLORS[rand(0,COLORS.length-1)];
+    for(let i=0;i<36;i++){
+      const ang=(Math.PI*2*i)/36;
+      const sp=rand(2,5);
+      particles.push({x:cx,y:cy,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,life:60,color});
+    }
+    bursts++;
+    if(bursts>4) clearInterval(t);
+  },500);
+}
+function animateFx(){
+  fxCtx.clearRect(0,0,fxCanvas.width,fxCanvas.height);
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.08; p.life--;
+    fxCtx.globalAlpha=Math.max(0,p.life/60);
+    fxCtx.fillStyle=p.color;
+    fxCtx.beginPath(); fxCtx.arc(p.x,p.y,3,0,Math.PI*2); fxCtx.fill();
+    if(p.life<=0) particles.splice(i,1);
+  }
+  fxCtx.globalAlpha=1;
+  requestAnimationFrame(animateFx);
+}
+animateFx();
+
+/* ============================================================
+   事件绑定
+   ============================================================ */
+document.querySelectorAll('.diff-card').forEach(c=>{
+  c.addEventListener('click',()=>startGame(c.dataset.diff));
+});
+$('btnFirstRules').addEventListener('click',()=>$('panelRules').classList.remove('hidden'));
+$('btnRulesClose').addEventListener('click',()=>$('panelRules').classList.add('hidden'));
+$('btnRulesTop').addEventListener('click',()=>$('panelRules').classList.remove('hidden'));
+$('btnCheck').addEventListener('click',check);
+$('btnReveal').addEventListener('click',reveal);
+$('btnNext').addEventListener('click',nextLevel);
+$('btnBack').addEventListener('click',backToDiff);
+$('btnReset').addEventListener('click',()=>{
+  State.placedBridges={}; State.placedNums={};
+  State._opUsed={}; State._numUsed={};
+  State._opChips.forEach((v,k)=>State._opUsed[k]=false);
+  State._numChips.forEach((v,k)=>State._numUsed[k]=false);
+  renderStage(); bindClickToRemove(); setFeedback('','');
+});
+$('btnNext2').addEventListener('click',()=>{
+  $('celebrate').classList.add('hidden');
+  nextLevel();
+});
+$('btnBack2').addEventListener('click',()=>{
+  $('celebrate').classList.add('hidden');
+  backToDiff();
+});
+
+// 防止移动端拖动时页面滚动
+document.addEventListener('touchmove',e=>{
+  if(State.dragging) e.preventDefault();
+},{passive:false});
+
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g027", "name": "\u642d\u5c0f\u6865\u627e\u89c4\u5f8b \u00b7 \u6570\u5217\u95ef\u5173", "file": "g027.html", "jiaocan": "\u301027\u3011\u7b2c14\u8bb2 \u6570\u5217\u89c4\u5f8b\u521d\u6b65\uff08\u4e0a\uff09", "unit": "\u7b2c14\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

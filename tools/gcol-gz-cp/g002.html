@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>空间向量 · 星际测量局 —— 空间角与空间距离</title>
+<style>
+/* ============ 全局样式（深色高对比，适合课堂投影） ============ */
+:root{
+  --bg:#0e1630; --panel:#17203f; --ink:#eef3ff; --accent:#6db4f2; --accent2:#ffd166;
+  --canvas:#0b1226; --line:#8fb0e8; --good:#7ce38b; --bad:#ff8fa3; --chip:rgba(10,16,34,.82);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+  font-size:17px; overflow:hidden; user-select:none; -webkit-user-select:none;
+}
+#app{display:flex;flex-direction:column;height:100%;}
+/* ---------- 顶栏 ---------- */
+#topbar{
+  display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--panel);
+  border-bottom:2px solid var(--accent);flex-wrap:wrap;min-height:56px;
+}
+#topbar .brand{font-size:21px;font-weight:800;color:var(--accent2);letter-spacing:1px;}
+#hud{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:17px;font-weight:700;}
+.hudbox{background:rgba(0,0,0,.28);border:1.5px solid var(--accent);border-radius:10px;padding:4px 12px;}
+.tbtn{
+  background:var(--accent);color:#08101f;border:none;border-radius:10px;padding:8px 14px;
+  font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;
+}
+.tbtn.alt{background:var(--accent2);}
+.tbtn.ghost{background:transparent;color:var(--ink);border:2px solid var(--accent);}
+.tbtn:active{transform:scale(.95);}
+/* ---------- 主区域 ---------- */
+#main{flex:1;display:flex;min-height:0;}
+#menu{
+  flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:20px;overflow:auto;
+}
+#menu.show{display:flex;}
+#menu h1{font-size:40px;margin:6px 0 0;color:var(--accent2);letter-spacing:3px;text-align:center;}
+#menu .sub{font-size:19px;color:var(--ink);opacity:.92;text-align:center;line-height:1.7;margin:0;}
+.tiercard{
+  width:min(620px,94vw);border:3px solid var(--accent);border-radius:18px;background:var(--panel);
+  padding:18px 22px;cursor:pointer;transition:transform .12s;position:relative;
+}
+.tiercard:hover{transform:translateY(-3px);}
+.tiercard h2{margin:0 0 6px;font-size:23px;color:var(--accent);padding-right:96px;} /* 右侧留出徽标空间，避免遮挡 */
+.tiercard p{margin:0;font-size:16.5px;line-height:1.65;opacity:.95;}
+.tiercard .tag{
+  position:absolute;right:16px;top:14px;background:var(--accent2);color:#08101f;
+  font-weight:800;border-radius:10px;padding:3px 10px;font-size:15px;
+}
+/* ---------- 游戏区 ---------- */
+#game{flex:1;display:none;min-height:0;}
+#game.show{display:flex;}
+#cvwrap{flex:1.35;position:relative;min-width:0;background:var(--canvas);}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;}
+#cv.dragging{cursor:grabbing;}
+#zoomer{position:absolute;right:12px;bottom:12px;display:flex;gap:8px;}
+.zbtn{
+  width:46px;height:46px;border-radius:12px;background:var(--panel);color:var(--ink);
+  border:2px solid var(--accent);font-size:24px;font-weight:800;cursor:pointer;font-family:inherit;
+}
+#lbls{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.lb{
+  position:absolute;transform:translate(-50%,-50%);white-space:nowrap;
+  background:rgba(8,12,26,.80);border:1px solid rgba(255,255,255,.14);border-radius:6px;
+  padding:1px 6px;font-weight:700;font-size:17px;color:var(--ink);
+}
+.lb.c{font-size:16px;font-weight:400;color:var(--accent2);}
+.lb.v{font-size:16px;color:var(--accent2);}
+.lb.n{font-size:16px;color:var(--good);}
+.lb.m{font-size:16px;color:var(--accent2);border-color:var(--accent2);}
+.lb.ax{font-size:19px;color:var(--accent);}
+#viewhint{
+  position:absolute;left:12px;bottom:12px;background:var(--chip);border:1.5px solid var(--accent);
+  border-radius:10px;padding:6px 12px;font-size:15px;opacity:.92;
+}
+#side{
+  flex:1;max-width:520px;min-width:330px;background:var(--panel);border-left:2px solid var(--accent);
+  display:flex;flex-direction:column;overflow-y:auto;padding:12px 14px;gap:10px;
+}
+.card{background:rgba(0,0,0,.22);border:1.5px solid var(--accent);border-radius:14px;padding:12px 14px;}
+.card h3{margin:0 0 8px;font-size:19px;color:var(--accent2);}
+#mtitle{font-size:20px;font-weight:800;color:var(--accent2);margin:0;}
+#mprog{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+.mdot{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent);background:transparent;}
+.mdot.now{background:var(--accent2);border-color:var(--accent2);}
+.mdot.done{background:var(--good);border-color:var(--good);}
+.stages{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.stg{font-size:15px;font-weight:700;border-radius:9px;padding:3px 10px;border:1.5px solid var(--line);opacity:.55;}
+.stg.now{opacity:1;border-color:var(--accent2);background:rgba(255,255,255,.08);}
+.stg.done{opacity:1;border-color:var(--good);color:var(--good);}
+#stmt{font-size:17px;line-height:1.85;}
+#stmt b{color:var(--accent2);}
+#stagepanel{display:flex;flex-direction:column;gap:10px;}
+.guide{font-size:16.5px;line-height:1.8;background:rgba(0,0,0,.25);border-left:5px solid var(--accent2);
+  border-radius:8px;padding:9px 12px;}
+.slot{border:2px dashed var(--line);border-radius:12px;padding:8px 12px;margin-top:8px;font-size:16.5px;line-height:1.6;}
+.slot.active{border-color:var(--accent2);background:rgba(255,255,255,.06);}
+.slot.ok{border-style:solid;border-color:var(--good);color:var(--good);}
+.slot .coord{font-weight:800;color:var(--accent2);}
+.msg{font-size:16.5px;font-weight:700;min-height:24px;}
+.msg.good{color:var(--good);} .msg.bad{color:var(--bad);}
+/* 法向量锻造 */
+.forgebox{display:flex;flex-direction:column;gap:8px;}
+.nslots{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:20px;font-weight:800;}
+.nslot{
+  width:56px;height:56px;border-radius:12px;border:2.5px dashed var(--accent);display:flex;
+  align-items:center;justify-content:center;font-size:24px;background:rgba(0,0,0,.3);cursor:pointer;
+}
+.nslot.filled{border-style:solid;background:rgba(255,255,255,.12);}
+.cardrow{display:flex;gap:8px;flex-wrap:wrap;}
+.ncard{
+  width:52px;height:52px;border-radius:12px;background:var(--accent);color:#08101f;
+  display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:800;
+  cursor:grab;touch-action:none;font-family:inherit;border:none;
+}
+.ncard.sel{outline:4px solid var(--accent2);transform:scale(1.08);}
+.ncard.ghost{opacity:.25;}
+.dots{font-size:17px;line-height:1.9;}
+.dots .zero{color:var(--good);font-weight:800;}
+.dots .nz{color:var(--accent2);font-weight:800;}
+/* 测量仪 */
+.instr{font-size:17px;line-height:2;}
+.instr .num{color:var(--accent2);font-weight:800;font-size:19px;}
+#dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;}
+#dial{touch-action:none;cursor:pointer;}
+#readout{font-size:21px;font-weight:800;color:var(--accent2);}
+.fine{display:flex;gap:10px;align-items:center;justify-content:center;}
+.ruler{position:relative;height:52px;border-radius:12px;background:rgba(0,0,0,.35);
+  border:2px solid var(--accent);margin:6px 0;touch-action:none;cursor:pointer;}
+.rulerfill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(109,180,242,.35),rgba(255,209,102,.5));border-radius:10px;}
+.rhandle{position:absolute;top:-8px;bottom:-8px;width:26px;border-radius:8px;background:var(--accent2);
+    display:flex;align-items:center;justify-content:center;color:#08101f;font-weight:800;}
+.rlabel{display:flex;justify-content:space-between;font-size:15px;opacity:.85;}
+/* 成功卡片 */
+.successcard{border:2.5px solid var(--good);background:rgba(60,200,110,.10);border-radius:14px;padding:12px 14px;}
+.successcard h4{margin:0 0 8px;color:var(--good);font-size:20px;}
+.bigbtn{
+  width:100%;margin-top:10px;padding:13px;font-size:20px;font-weight:800;border-radius:12px;border:none;
+  background:var(--good);color:#06220f;cursor:pointer;font-family:inherit;
+}
+/* ---------- 弹窗 ---------- */
+#modal{position:fixed;inset:0;background:rgba(4,8,20,.78);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
+#modal.show{display:flex;}
+.mbox{
+  width:min(760px,94vw);max-height:88vh;overflow-y:auto;background:var(--panel);
+  border:3px solid var(--accent2);border-radius:18px;padding:20px 24px;font-size:17px;line-height:1.9;
+}
+.mbox h2{margin:0 0 12px;color:var(--accent2);font-size:24px;}
+.mbox .close{margin-top:14px;}
+.sol{background:rgba(0,0,0,.25);border-radius:12px;padding:10px 14px;margin-top:8px;}
+/* 庆祝特效画布 */
+#fx{position:fixed;inset:0;pointer-events:none;z-index:60;display:none;overflow:hidden;}
+.conf{position:absolute;top:-40px;border-radius:3px;animation:confFall linear forwards;}
+.conf.star{border-radius:0;clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);}
+@keyframes confFall{
+  0%{transform:translateY(0) rotate(0deg);opacity:1;}
+  85%{opacity:1;}
+  100%{transform:translateY(108vh) rotate(680deg);opacity:0;}
+}
+/* 响应式：窄屏纵向布局 */
+@media (max-width:880px){
+  #main{flex-direction:column;}
+  #game{flex-direction:column;overflow-y:auto;}
+  #cvwrap{min-height:46vh;flex:none;}
+  #side{max-width:none;min-width:0;border-left:none;border-top:2px solid var(--accent);}
+  #menu h1{font-size:30px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 顶栏：标题 + 计时/步数 + 功能按钮 -->
+  <div id="topbar">
+    <span class="brand">空间向量 · 星际测量局</span>
+    <div id="hud">
+      <span class="hudbox">用时 <span id="tm">00:00</span></span>
+      <span class="hudbox">操作 <span id="st">0</span> 次</span>
+      <button class="tbtn ghost" id="btnRules">玩法说明</button>
+      <button class="tbtn alt" id="btnReveal">揭示答案</button>
+      <button class="tbtn ghost" id="btnRestart">重新开始</button>
+      <button class="tbtn ghost" id="btnBack">返回难度选择</button>
+    </div>
+  </div>
+  <div id="main">
+    <!-- 难度选择界面 -->
+    <section id="menu" class="show">
+      <h1>空间向量 · 星际测量局</h1>
+      <p class="sub">建系 → 捕捉向量 → 锻造法向量 → 表盘测角 / 标尺量距<br>
+      把《空间角与空间距离》的四步向量法，变成亲手操作的探险任务！</p>
+      <div class="tiercard" data-tier="0">
+        <span class="tag">3 个任务</span>
+        <h2>初级 · 星光观测站（异面直线所成角）</h2>
+        <p>放置原点星标建系，点选两条异面直线的方向向量，转动表盘测出它们所成的角。</p>
+      </div>
+      <div class="tiercard" data-tier="1">
+        <span class="tag">3 个任务</span>
+        <h2>中级 · 云海测绘站（直线与平面所成角）</h2>
+        <p>先锻造平面的法向量——拖数字卡让两个数量积同时归零，再读出斜线与平面夹角的正弦。</p>
+      </div>
+      <div class="tiercard" data-tier="2">
+        <span class="tag">3 个任务</span>
+        <h2>高级 · 深空测定站（二面角与空间距离）</h2>
+        <p>双法向量定面面夹角，投影法量点到直线距离，数量积法量点到平面距离，综合挑战等你解锁。</p>
+      </div>
+      <button class="tbtn alt" id="btnRules2" style="font-size:18px;padding:10px 22px;">先看看玩法说明</button>
+    </section>
+    <!-- 游戏主界面 -->
+    <section id="game">
+      <div id="cvwrap">
+        <canvas id="cv"></canvas>
+        <div id="lbls"><!-- 顶点/坐标/向量文字标签覆盖层（DOM 渲染，清晰稳定） --></div>
+        <div id="zoomer">
+          <button class="zbtn" id="zin">＋</button>
+          <button class="zbtn" id="zout">－</button>
+        </div>
+        <div id="viewhint">拖动空白处可旋转视角 · 滚轮 / ＋－ 缩放</div>
+      </div>
+      <aside id="side">
+        <div>
+          <p id="mtitle">任务</p>
+          <div id="mprog"></div>
+          <div class="stages" id="stgbar"></div>
+        </div>
+        <div class="card"><h3>任务简报</h3><div id="stmt"></div></div>
+        <div id="stagepanel"></div>
+      </aside>
+    </section>
+  </div>
+</div>
+<!-- 通用弹窗 -->
+<div id="modal"><div class="mbox" id="mbox"></div></div>
+<!-- 庆祝彩纸特效层（纯 CSS 动画） -->
+<div id="fx"></div>
+
+<script>
+'use strict';
+/* =====================================================
+   空间向量 · 星际测量局
+   核心玩法：把"向量法求空间角/距离"的四步
+   （建系 → 写方向向量 → 求法向量 → 套公式）
+   全部变成可拖、可点、可滑的操作环节。
+   ===================================================== */
+
+/* ---------- 基础工具 ---------- */
+const $ = (id) => document.getElementById(id);
+const TAU = Math.PI * 2;
+
+/* 三维向量小工具（用数组 [x,y,z] 表示） */
+function vsub(a, b){ return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
+function vdot(a, b){ return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+function vcross(a, b){
+  return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+}
+function vlen(a){ return Math.hypot(a[0], a[1], a[2]); }
+function vscale(a, k){ return [a[0]*k, a[1]*k, a[2]*k]; }
+
+/* 数值美化显示：整数 → 分数 → 根式（含 k√s/d 形式），最后退回两位小数 */
+function fmtNum(v){
+  if (Math.abs(v) < 1e-9) return '0';
+  const sign = v < 0 ? '−' : '';
+  const a = Math.abs(v);
+  if (Math.abs(a - Math.round(a)) < 1e-9) return sign + Math.round(a);
+  for (const d of [2,3,4,5,6]){
+    for (let n = 1; n <= 12; n++){
+      if (Math.abs(a - n/d) < 1e-9) return sign + n + '/' + d;
+    }
+  }
+  for (const s of [2,3,5,6,7,10,11,15,30]){
+    const base = Math.sqrt(s);
+    for (const den of [1,2,3,4,5,6]){
+      for (let n = 1; n <= 9; n++){
+        if (Math.abs(a - n*base/den) < 1e-7){
+          const r = '√' + s;
+          return sign + (n === 1 ? '' : n) + r + (den === 1 ? '' : '/' + den);
+        }
+      }
+    }
+  }
+  return sign + a.toFixed(2);
+}
+function fmtVec(u){ return '(' + fmtNum(u[0]) + ', ' + fmtNum(u[1]) + ', ' + fmtNum(u[2]) + ')'; }
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i = a.length-1; i > 0; i--){
+    const j = Math.floor(Math.random()*(i+1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+/* ---------- 随机色板（每局随机，保证多次游玩不腻） ---------- */
+const PALETTES = [
+  {bg:'#0e1630',panel:'#17203f',ink:'#eef3ff',accent:'#6db4f2',accent2:'#ffd166',canvas:'#0b1226',line:'#8fb0e8'},
+  {bg:'#0f2318',panel:'#16382a',ink:'#eefff5',accent:'#58d68d',accent2:'#ffcf5c',canvas:'#0a1c12',line:'#9fd9b8'},
+  {bg:'#2a1a10',panel:'#3d2817',ink:'#fff4e6',accent:'#ffb35c',accent2:'#7ed0ff',canvas:'#221408',line:'#e8c39a'},
+  {bg:'#211433',panel:'#31204a',ink:'#f5edff',accent:'#b78cff',accent2:'#7ce8d5',canvas:'#190f28',line:'#cdb2ef'},
+  {bg:'#14161a',panel:'#20242b',ink:'#f2f5f9',accent:'#ff8fa3',accent2:'#9ad0ff',canvas:'#0e1013',line:'#c3ccd8'},
+  {bg:'#0a2026',panel:'#123540',ink:'#e8fbff',accent:'#4fd8c9',accent2:'#ffc2d1',canvas:'#071a1f',line:'#a2e6dd'},
+];
+let PAL = PALETTES[0];
+function applyPaletteRandom(){
+  PAL = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  invalidate();
+  const r = document.documentElement.style;
+  r.setProperty('--bg', PAL.bg); r.setProperty('--panel', PAL.panel);
+  r.setProperty('--ink', PAL.ink); r.setProperty('--accent', PAL.accent);
+  r.setProperty('--accent2', PAL.accent2); r.setProperty('--canvas', PAL.canvas);
+  r.setProperty('--line', PAL.line);
+}
+
+/* =====================================================
+   任务数据：全部取自本讲教参（五三 7.5 空间角与空间距离）
+   type: ll=异面直线角  lp=线面角  pp=面面夹角  dl=点到线距离  dp=点到面距离
+   ===================================================== */
+const S2 = Math.sqrt(2), S3 = Math.sqrt(3), S22 = 2*Math.sqrt(2), S23 = 2*Math.sqrt(3);
+const MISSIONS = [
+/* -------- 初级：异面直线所成角 -------- */
+{
+  tier:0, id:'P1', name:'星光棱锥 · 中点之光', type:'ll',
+  stmt:'如图，四边形 ABCD 是正方形，<b>PA⊥平面ABCD</b>，PA = AB = 2，点 M 是线段 PB 的中点。求异面直线 DM 与 PA 所成的角。',
+  fig:{
+    points:{ 'A':[0,0,0],'B':[2,0,0],'C':[2,2,0],'D':[0,2,0],'P':[0,0,2],'M':[1,0,1] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['P','A'],['P','B'],['P','C']],
+    dashed:[],
+    lo:{ 'A':[0,40],'B':[38,8],'C':[26,26],'D':[-38,10],'P':[0,-40],'M':[40,-2] }
+  },
+  origin:{ pt:'A', why:'A 处三条棱 AB、AD、AP 两两垂直，以 A 为原点、AB/AD/AP 为 x/y/z 轴最方便。' },
+  vecs:[
+    { key:'a', line:['P','A'], name:'直线 PA 的方向向量' },
+    { key:'b', line:['D','M'], name:'直线 DM 的方向向量' }
+  ],
+  forge:[],
+  answerShort:'θ ≈ 65.9°（cosθ = √6/6，tanθ = √5）',
+  solution:'以 A 为原点，AB、AD、AP 方向分别为 x、y、z 轴正方向建系。<br>则 D(0,2,0)，P(0,0,2)，B(2,0,0)，M 为 PB 中点 → M(1,0,1)。<br>DM = (1, −2, 1)，PA = (0, 0, −2)。<br>cos⟨DM, PA⟩ = (−2)/(√6 · 2) = −√6/6，异面直线所成角取绝对值：cosθ = √6/6 ≈ 0.408，<br>所以 θ = arccos(√6/6) ≈ <b>65.9°</b>（此时 tanθ = √5，与教参答案一致）。'
+},
+{
+  tier:0, id:'P2', name:'魔方星阵 · 对角连线', type:'ll',
+  stmt:'如图，正方体 ABCD-A₁B₁C₁D₁ 的棱长为 2。求异面直线 AB₁ 与 A₁D 所成的角。',
+  fig:{
+    points:{ 'A':[0,0,0],'B':[2,0,0],'C':[2,2,0],'D':[0,2,0],'A₁':[0,0,2],'B₁':[2,0,2],'C₁':[2,2,2],'D₁':[0,2,2] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['A₁','B₁'],['B₁','C₁'],['C₁','D₁'],['D₁','A₁'],
+           ['A','A₁'],['B','B₁'],['C','C₁'],['D','D₁']],
+    dashed:[],
+    lo:{ 'A':[0,40],'B':[40,4],'C':[4,40],'D':[-40,6],'A₁':[-4,-40],'B₁':[40,-6],'C₁':[26,-30],'D₁':[-40,-8] }
+  },
+  origin:{ pt:'A', why:'正方体任一顶点处三条棱两两垂直；按本题答案建系，以 A 为原点、AB/AD/AA₁ 为 x/y/z 轴。' },
+  vecs:[
+    { key:'a', line:['A','B₁'], name:'直线 AB₁ 的方向向量' },
+    { key:'b', line:['A₁','D'], name:'直线 A₁D 的方向向量' }
+  ],
+  forge:[],
+  answerShort:'θ = 60°（cosθ = 1/2）',
+  solution:'以 A 为原点，AB、AD、AA₁ 为 x、y、z 轴建系，棱长 2。<br>AB₁ = (2, 0, 2)，A₁D = (0, 2, −2)。<br>数量积 AB₁·A₁D = −4，|AB₁| = |A₁D| = 2√2。<br>|cos⟨AB₁, A₁D⟩| = 4/8 = 1/2，所以异面直线所成角 <b>θ = 60°</b>。'
+},
+{
+  tier:0, id:'P3', name:'折纸星翼 · 菱形升空', type:'ll',
+  stmt:'在菱形 ABCD 中，AB = 2，∠DAB = 60°。将 △DAC 沿对角线 AC 折起，使三棱锥 D-ABC 的体积最大（此时平面 DAC ⊥ 平面 ABC），E 为 AC 的中点。求异面直线 AB 与 CD 所成的角。',
+  fig:{
+    points:{ 'E':[0,0,0],'A':[0,-S3,0],'B':[1,0,0],'C':[0,S3,0],'D':[0,0,1] },
+    edges:[['A','B'],['B','C'],['A','C'],['A','D'],['B','D'],['C','D']],
+    dashed:[['B','E']],
+    lo:{ 'A':[36,-18],'B':[40,-2],'C':[-32,26],'D':[-4,-40],'E':[-40,2] }
+  },
+  origin:{ pt:'E', why:'E 为 AC 中点：BE⊥AC、DE⊥AC，折到体积最大时 DE⊥底面 ABC，三条线 EB、EC、ED 两两垂直，以 E 为原点建系最方便。' },
+  vecs:[
+    { key:'a', line:['A','B'], name:'直线 AB 的方向向量' },
+    { key:'b', line:['C','D'], name:'直线 CD 的方向向量' }
+  ],
+  forge:[],
+  answerShort:'θ ≈ 41.4°（cosθ = 3/4）',
+  solution:'菱形边长 2、∠DAB = 60° → 对角线 AC = 2√3，另一条对角线 BD = 2。<br>E 为 AC 中点：AE = CE = √3，BE = DE = √(2² − (√3)²) = 1。<br>体积最大时平面 DAC⊥平面 ABC，即 DE⊥底面 ABC。以 E 为原点、EB/EC/ED 为 x/y/z 轴：<br>A(0,−√3,0)，B(1,0,0)，C(0,√3,0)，D(0,0,1)。<br>AB = (1, √3, 0)，CD = (0, −√3, 1)，数量积 = −3，|AB| = |CD| = 2。<br>|cos| = 3/4，θ = arccos(3/4) ≈ <b>41.4°</b>（教参典例1答案选 C：3/4）。'
+},
+/* -------- 中级：直线与平面所成角 -------- */
+{
+  tier:1, id:'M1', name:'水晶棱柱 · 云上斜线', type:'lp',
+  stmt:'如图，直四棱柱 ABCD-A₁B₁C₁D₁ 的底面 ABCD 是菱形，<b>边长与对角线 AC 都等于 2</b>，侧棱 AA₁ = 2√3，O、O₁ 分别为下底面、上底面对角线的交点。求直线 DC₁ 与平面 A₁C₁B 所成的角。',
+  fig:{
+    points:{ 'O':[0,0,0],'A':[-1,0,0],'B':[0,-S3,0],'C':[1,0,0],'D':[0,S3,0],
+             'O₁':[0,0,S23],'A₁':[-1,0,S23],'B₁':[0,-S3,S23],'C₁':[1,0,S23],'D₁':[0,S3,S23] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['A₁','B₁'],['B₁','C₁'],['C₁','D₁'],['D₁','A₁'],
+           ['A','A₁'],['B','B₁'],['C','C₁'],['D','D₁']],
+    dashed:[['A','C'],['B','D'],['O','O₁']],
+    lo:{ 'O':[2,42],'A':[-38,0],'B':[38,-20],'C':[38,0],'D':[-34,22],
+         'O₁':[0,-40],'A₁':[-40,-6],'B₁':[32,-30],'C₁':[40,-4],'D₁':[-40,4] }
+  },
+  origin:{ pt:'O', why:'菱形对角线 AC⊥BD 交于 O，直棱柱侧棱垂直底面 → OA、OB、OO₁ 两两垂直，以 O 为原点建系最方便。' },
+  vecs:[
+    { key:'a', line:['D','C₁'], name:'直线 DC₁ 的方向向量' }
+  ],
+  forge:[
+    { plane:'平面 A₁C₁B', poly:['B','A₁','C₁'], anchor:'B',
+      u:{ label:'BC₁', disp:'(1, √3, 2√3)', v:[1, S3, S23] },
+      w:{ label:'BA₁', disp:'(−1, √3, 2√3)', v:[-1, S3, S23] },
+      target:[0,2,-1] }
+  ],
+  answerShort:'θ ≈ 50.8°（sinθ = √15/5）',
+  solution:'菱形边长 2 且 AC = 2 → △ABC 为正三角形，OA = OC = 1，OB = √3。<br>以 O 为原点、OC/OD/OO₁ 为 x/y/z 轴：B(0,−√3,0)，D(0,√3,0)，A₁(−1,0,2√3)，C₁(1,0,2√3)。<br>BC₁ = (1, √3, 2√3)，BA₁ = (−1, √3, 2√3)。设 n = (x,y,z)：<br>n·BC₁ = 0 且 n·BA₁ = 0 → x = 0，√3y + 2√3z = 0 → 取 n = (0, 2, −1)。<br>DC₁ = (1, −√3, 2√3)，sinθ = |n·DC₁|/(|n||DC₁|) = 4√3/(√5·4) = √15/5 ≈ 0.775，<br>θ = arcsin(√15/5) ≈ <b>50.8°</b>。'
+},
+{
+  tier:1, id:'M2', name:'魔方星阵 · 斜线入面', type:'lp',
+  stmt:'如图，正方体 ABCD-A₁B₁C₁D₁ 的棱长为 2。求直线 AC 与平面 AB₁D₁ 所成的角。',
+  fig:{
+    points:{ 'A':[0,0,0],'B':[2,0,0],'C':[2,2,0],'D':[0,2,0],'A₁':[0,0,2],'B₁':[2,0,2],'C₁':[2,2,2],'D₁':[0,2,2] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['A₁','B₁'],['B₁','C₁'],['C₁','D₁'],['D₁','A₁'],
+           ['A','A₁'],['B','B₁'],['C','C₁'],['D','D₁']],
+    dashed:[['A','C'],['A','B₁'],['A','D₁'],['B₁','D₁']],
+    lo:{ 'A':[0,40],'B':[40,4],'C':[4,40],'D':[-40,6],'A₁':[-4,-40],'B₁':[40,-6],'C₁':[26,-30],'D₁':[-40,-8] }
+  },
+  origin:{ pt:'A', why:'平面 AB₁D₁ 过顶点 A，且正方体以 A 为原点时三条棱两两垂直，坐标最简洁。' },
+  vecs:[
+    { key:'a', line:['A','C'], name:'直线 AC 的方向向量' }
+  ],
+  forge:[
+    { plane:'平面 AB₁D₁', poly:['A','B₁','D₁'], anchor:'A',
+      u:{ label:'AB₁', disp:'(2, 0, 2)', v:[2,0,2] },
+      w:{ label:'AD₁', disp:'(0, 2, 2)', v:[0,2,2] },
+      target:[1,1,-1] }
+  ],
+  answerShort:'θ ≈ 54.7°（sinθ = √6/3）',
+  solution:'以 A 为原点，AB、AD、AA₁ 为 x、y、z 轴建系，棱长 2。<br>AC = (2, 2, 0)；平面 AB₁D₁ 内 AB₁ = (2,0,2)，AD₁ = (0,2,2)。<br>设 n = (x,y,z)：2x + 2z = 0，2y + 2z = 0 → x = y = −z，取 n = (1, 1, −1)。<br>sinθ = |n·AC|/(|n||AC|) = 4/(√3 · 2√2) = √6/3 ≈ 0.816，θ ≈ <b>54.7°</b>。'
+},
+{
+  tier:1, id:'M3', name:'平行之谷 · 中点航线', type:'lp',
+  stmt:'在四棱锥 P-ABCD 中，底面 ABCD 是平行四边形，∠ABC = 120°，AB = 1，BC = 4，M、N 分别为 BC、PC 的中点，且 <b>PD⊥DC，PM⊥MD</b>，PA = √15。求直线 AN 与平面 PDM 所成的角。',
+  fig:{
+    points:{ 'D':[0,0,0],'M':[S3,0,0],'C':[0,1,0],'A':[2*S3,-2,0],'B':[2*S3,-1,0],'P':[S3,0,S22],'N':[S3/2,0.5,S2] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['D','P'],['D','M'],['P','M'],['P','C'],['P','A']],
+    dashed:[['D','M'],['P','M']],
+    lo:{ 'D':[0,40],'M':[0,36],'C':[-36,14],'A':[40,-10],'B':[34,20],'P':[-8,-40],'N':[-38,0] }
+  },
+  origin:{ pt:'D', why:'由 PD⊥DC、PM⊥MD 可推出 CD⊥平面 PDM，于是 DM⊥DC：以 D 为原点、DM/DC 为 x/y 轴，z 轴落在平面 PDM 内，建系最省力。' },
+  vecs:[
+    { key:'a', line:['A','N'], name:'直线 AN 的方向向量' }
+  ],
+  forge:[
+    { plane:'平面 PDM', poly:['P','D','M'], anchor:'D',
+      u:{ label:'DP', disp:'(√3, 0, 2√2)', v:[S3,0,S22] },
+      w:{ label:'DM', disp:'(√3, 0, 0)', v:[S3,0,0] },
+      target:[0,1,0] }
+  ],
+  answerShort:'θ ≈ 40.2°（sinθ = √15/6）',
+  solution:'△CDM 中 DC = 1，MC = 2，∠DCM = 60°，余弦定理得 DM = √3，且 CD² + DM² = CM²，故 CD⊥DM；又 CD⊥PD → CD⊥平面 PDM。<br>以 D 为原点、DM/DC 为 x/y 轴：A(2√3,−2,0)，C(0,1,0)，M(√3,0,0)；由 PA = √15 定出 P(√3, 0, 2√2)；N 为 PC 中点 → N(√3/2, 1/2, √2)。<br>平面 PDM 即坐标平面 xOz，法向量取 n = (0, 1, 0)。<br>AN = (−3√3/2, 5/2, √2)，|AN| = √15，sinθ = |AN·n|/|AN| = (5/2)/√15 = √15/6 ≈ 0.645，θ ≈ <b>40.2°</b>。'
+},
+/* -------- 高级：面面夹角与空间距离 -------- */
+{
+  tier:2, id:'H1', name:'双面星盘 · 夹角测定', type:'pp',
+  stmt:'在四棱锥 P-ABCD 中，CD∥AB，∠ABC = 90°，AB = 2BC = 2CD = 4，<b>PA = PD，平面PAD⊥平面ABCD</b>，点 P 到平面 ABCD 的距离为 √2（M 为 AD 中点）。点 N 在线段 AP 上，且 AN = 2NP。求平面 NCD 与平面 ABCD 的夹角。',
+  fig:{
+    points:{ 'D':[0,0,0],'A':[2*S2,0,0],'M':[S2,0,0],'B':[0,2*S2,0],'C':[-S2,S2,0],'P':[S2,0,S2],
+             'N':[4*S2/3,0,2*S2/3] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['P','A'],['P','D'],['N','C'],['N','D']],
+    dashed:[['P','M']],
+    lo:{ 'D':[0,40],'A':[40,10],'M':[2,32],'B':[-24,32],'C':[-40,0],'P':[-14,-40],'N':[34,-26] }
+  },
+  origin:{ pt:'D', why:'等腰△PAD + 面面垂直 → PM⊥底面（M 为 AD 中点）；底面中 AD⊥BD（AD²+BD²=AB²）。以 D 为原点、DA/DB/竖直方向为三轴。' },
+  vecs:[],
+  forge:[
+    { plane:'平面 NCD', poly:['N','C','D'], anchor:'N',
+      u:{ label:'CD 方向', disp:'(1, −1, 0)', v:[1,-1,0] },
+      w:{ label:'CN 方向', disp:'(7, −3, 2)', v:[7,-3,2] },
+      target:[1,1,-2] },
+    { plane:'平面 ABCD', poly:['A','B','C','D'], anchor:'C',
+      u:{ label:'AD 方向', disp:'(1, 0, 0)', v:[1,0,0] },
+      w:{ label:'DB 方向', disp:'(0, 1, 0)', v:[0,1,0] },
+      target:[0,0,1] }
+  ],
+  answerShort:'夹角 ≈ 35.3°（cos = √6/3）',
+  solution:'PA = PD 且平面PAD⊥底面 → 取 AD 中点 M，PM⊥AD，从而 PM⊥底面，PM = √2。<br>底面中 BD = 2√2，AD = 2√2，AD² + BD² = AB² → AD⊥BD。以 D 为原点、DA/DB/DP 平行方向为轴：<br>A(2√2,0,0)，B(0,2√2,0)，C(−√2,√2,0)，P(√2,0,√2)，N = A + (2/3)(P−A) = (4√2/3, 0, 2√2/3)。<br>平面 NCD 内可取 CD 方向 (1,−1,0)、CN 方向 (7,−3,2)：设 n₁ = (x,y,z)，x − y = 0 且 7x − 3y + 2z = 0 → 取 n₁ = (1, 1, −2)。<br>底面法向量 n₂ = (0, 0, 1)。<br>cosθ = |n₁·n₂|/(|n₁||n₂|) = 2/√6 = √6/3 ≈ 0.816，夹角 θ ≈ <b>35.3°</b>。'
+},
+{
+  tier:2, id:'H2', name:'星际航线 · 最近距离', type:'dl',
+  stmt:'在长方体 ABCD-A₁B₁C₁D₁ 中，AB = AA₁ = 4，AD = 2。点 P 在侧面 ABB₁A₁ 内运动，且满足 <b>C₁P∥平面ACD₁</b>。已知点 P 的轨迹是线段 A₁B，且当 C₁P 取最小值时，P 恰为 A₁B 的中点。求此时点 P 到直线 A₁C₁ 的距离。',
+  fig:{
+    points:{ 'A':[0,0,0],'B':[4,0,0],'C':[4,2,0],'D':[0,2,0],
+             'A₁':[0,0,4],'B₁':[4,0,4],'C₁':[4,2,4],'D₁':[0,2,4],'P':[2,0,2] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['A₁','B₁'],['B₁','C₁'],['C₁','D₁'],['D₁','A₁'],
+           ['A','A₁'],['B','B₁'],['C','C₁'],['D','D₁'],['A₁','B']],
+    dashed:[['A₁','C₁']],
+    lo:{ 'A':[0,40],'B':[40,8],'C':[2,40],'D':[-40,8],'A₁':[-2,-40],'B₁':[40,-8],'C₁':[36,14],'D₁':[-40,-6],'P':[-38,-6] }
+  },
+  origin:{ pt:'A', why:'长方体以任一顶点建系都方便；本题取 A 为原点、AB/AD/AA₁ 为 x/y/z 轴，P、A₁、C₁ 坐标全是整数或简单数。' },
+  vecs:[
+    { key:'ap', line:['A₁','P'], name:'位置向量 A₁P（从直线上的点 A₁ 指向 P）' },
+    { key:'dir', line:['A₁','C₁'], name:'直线 A₁C₁ 的方向向量' }
+  ],
+  forge:[],
+  answerShort:'d = 2√30/5 ≈ 2.19',
+  solution:'以 A 为原点，AB、AD、AA₁ 为 x、y、z 轴：A₁(0,0,4)，C₁(4,2,4)，P 为 A₁B 中点 → P(2,0,2)。<br>A₁P = (2, 0, −2)，|A₁P| = 2√2；A₁C₁ = (4, 2, 0)，|A₁C₁| = 2√5。<br>投影长 = |A₁P·A₁C₁| / |A₁C₁| = 8/(2√5) = 4/√5。<br>d = √(|A₁P|² − 投影²) = √(8 − 16/5) = √(24/5) = <b>2√30/5 ≈ 2.19</b>（与教参变式训练2-1答案一致）。'
+},
+{
+  tier:2, id:'H3', name:'金字塔内 · 垂直航标', type:'dp',
+  stmt:'在四棱锥 P-ABCD 中，底面 ABCD 是正方形，<b>PA⊥底面ABCD</b>，PA = AD = 3，点 F 是棱 PD 的中点，点 E 在棱 DC 上，且 DE = 1。求点 B 到平面 AEF 的距离。',
+  fig:{
+    points:{ 'A':[0,0,0],'B':[3,0,0],'C':[3,3,0],'D':[0,3,0],'P':[0,0,3],'F':[0,1.5,1.5],'E':[1,3,0] },
+    edges:[['A','B'],['B','C'],['C','D'],['D','A'],['P','A'],['P','D'],['P','C'],['A','E'],['A','F'],['E','F']],
+    dashed:[],
+    lo:{ 'A':[0,40],'B':[40,8],'C':[2,40],'D':[-40,8],'P':[0,-40],'F':[-38,-8],'E':[-26,26] }
+  },
+  origin:{ pt:'A', why:'PA、AB、AD 两两垂直且都过 A，平面 AEF 也过 A —— 以 A 为原点，一切坐标都是简单数。' },
+  vecs:[
+    { key:'ab', line:['A','B'], name:'位置向量 AB（从平面内点 A 指向 B）' }
+  ],
+  forge:[
+    { plane:'平面 AEF', poly:['A','E','F'], anchor:'A',
+      u:{ label:'AE', disp:'(1, 3, 0)', v:[1,3,0] },
+      w:{ label:'AF 方向', disp:'(0, 1, 1)', v:[0,1,1] },
+      target:[3,-1,1] }
+  ],
+  answerShort:'d = 9√11/11 ≈ 2.71',
+  solution:'以 A 为原点，AB、AD、AP 为 x、y、z 轴：B(3,0,0)，E(1,3,0)（DE = 1），F 为 PD 中点 → F(0, 3/2, 3/2)。<br>AE = (1,3,0)，AF 方向可取 (0,1,1)。设 n = (x,y,z)：x + 3y = 0 且 y + z = 0 → 令 y = −1，取 n = (3, −1, 1)。<br>d = |AB·n| / |n| = |3×3 + 0 + 0| / √11 = 9/√11 = <b>9√11/11 ≈ 2.71</b>（教参典例5：由线面角正弦条件可算得 E(1,3,0)，结果一致）。'
+}
+];
+
+/* =====================================================
+   运行状态
+   ===================================================== */
+const G = {
+  screen:'menu', tier:0, list:[], mi:0,
+  token:0, lastMsg:null,
+  stageIdx:0, stages:[],
+  originDone:false, vecIdx:0, forgeIdx:0,
+  sel:[],                 // 当前点选的点（构造向量用）
+  vecData:{},             // 已锁定的向量 {key:{v:[...], label:'DM'}}
+  forgeN:[],              // 每个锻造任务学生放出的 n
+  forgeOK:[],             // 锻造是否完成
+  needle:12, ruler:0, rulerMax:4,
+  target:{},              // 测量目标（角度或距离）
+  settleTimer:null, solved:false, missionDone:false,
+  steps:0, t0:0, tick:null, elapsed:0,
+  cur:null,               // 当前任务（含计算结果）
+};
+const TIERNAME = ['初级 · 星光观测站','中级 · 云海测绘站','高级 · 深空测定站'];
+
+/* =====================================================
+   三维投影与画布渲染（斜二测风格：z 向上，x 右下，y 左下）
+   ===================================================== */
+const cv = $('cv'); const ctx = cv.getContext('2d');
+const view = { yaw:-0.46, pitch:0.34, scale:1, cx:0, cy:0 };
+let dpr = 1;
+
+function resizeCanvas(){
+  dpr = Math.min(1.5, window.devicePixelRatio || 1);   // 限制光栅倍率，兼顾清晰与稳定
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = Math.max(1, Math.round(w*dpr)); cv.height = Math.max(1, Math.round(h*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  fitView();
+  invalidate();
+}
+/* 把数学坐标（z 向上）投影到屏幕坐标 */
+function project(p){
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
+  const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const X = p[0]*cy + p[1]*sy;
+  const Y = -p[0]*sy + p[1]*cy;
+  const scr = Y*sp - p[2]*cp;
+  const depth = Y*cp + p[2]*sp;
+  return { x: view.cx + X*view.scale, y: view.cy + scr*view.scale, d: depth };
+}
+/* 依据任务所有顶点（连同坐标轴）自动取景、居中 */
+function fitView(){
+  if (!G.cur) return;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (w < 10 || h < 10) return;
+  const m = 74;                       // 四周留白
+  const extraBottom = 46;             // 底部提示条空间
+  const cyw = Math.cos(view.yaw), syw = Math.sin(view.yaw);
+  const cpw = Math.cos(view.pitch), spw = Math.sin(view.pitch);
+  const raw = (p)=>{                   // 与 project 一致的"视平面"坐标（不含平移缩放）
+    const X = p[0]*cyw + p[1]*syw;
+    const Y = -p[0]*syw + p[1]*cyw;
+    return [X, Y*spw - p[2]*cpw];
+  };
+  let L = 0.6;
+  for (const p of Object.values(G.cur.fig.points)) L = Math.max(L, Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2]));
+  L *= 1.18;
+  const sample = Object.values(G.cur.fig.points).concat([[L,0,0],[0,L,0],[0,0,L],[0,0,0]]);
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  for (const p of sample){
+    const q = raw(p);
+    minX=Math.min(minX,q[0]); maxX=Math.max(maxX,q[0]);
+    minY=Math.min(minY,q[1]); maxY=Math.max(maxY,q[1]);
+  }
+  const sx = (w-2*m)/Math.max(1e-3, maxX-minX);
+  const syy = (h-2*m-extraBottom)/Math.max(1e-3, maxY-minY);
+  view.scale = Math.max(6, Math.min(sx, syy));
+  view.cx = w/2 - (minX+maxX)/2*view.scale;
+  view.cy = h/2 - (minY+maxY)/2*view.scale + extraBottom/2;
+}
+/* 文字标签收集器：本帧所有文字先收集，绘制结束后一次性同步到 DOM 覆盖层
+   （画布上不绘制任何文字：DOM 文字更清晰，也避开高频 fillText 的渲染压力） */
+const LB = [];                          // [{x,y,t,c}]
+function addLabel(x, y, text, cls){ LB.push({x:Math.round(x), y:Math.round(y), t:text, c:cls||''}); }
+function syncLabels(){
+  let html = '';
+  for (const l of LB){
+    html += '<span class="lb ' + l.c + '" style="left:' + l.x + 'px;top:' + l.y + 'px;">' + l.t + '</span>';
+  }
+  document.getElementById('lbls').innerHTML = html;
+}
+function arrowHead(x1,y1,x2,y2,size,color){
+  const ang = Math.atan2(y2-y1, x2-x1);
+  ctx.fillStyle = color; ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-size*Math.cos(ang-0.42), y2-size*Math.sin(ang-0.42));
+  ctx.lineTo(x2-size*Math.cos(ang+0.42), y2-size*Math.sin(ang+0.42));
+  ctx.closePath(); ctx.fill();
+}
+/* 当前帧的投影缓存（用于点击检测） */
+let projCache = {};
+let needsRedraw = true;                      // 脏标记：只在有变化时重绘，降低渲染负载
+function invalidate(){ needsRedraw = true; }
+/* 单独刷新投影缓存（视角变化后立即更新，保证点击检测准确） */
+function updateProjCache(){
+  if (!G.cur) return;
+  projCache = {};
+  for (const k in G.cur.fig.points) projCache[k] = project(G.cur.fig.points[k]);
+}
+const marker = { x:84, y:76, home:{x:84,y:76}, drag:false, wob:0 };
+
+function render(){
+  /* 页面不可见或画面无变化时跳过重绘，节省资源 */
+  if (document.hidden || (!needsRedraw && marker.wob === 0)){ requestAnimationFrame(render); return; }
+  needsRedraw = false;
+  LB.length = 0;                            // 清空本帧文字标签
+  const w = cv.clientWidth, h = cv.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  if (!G.cur || G.screen!=='game'){ requestAnimationFrame(render); return; }
+  const F = G.cur.fig;
+  updateProjCache();
+
+  /* --- 已完成锻造的平面：半透明填充 --- */
+  G.cur.forge.forEach((fk,i)=>{
+    if (!G.forgeOK[i]) return;
+    const poly = fk.poly.map(k=>projCache[k]);
+    ctx.beginPath(); ctx.moveTo(poly[0].x, poly[0].y);
+    for (let i2=1;i2<poly.length;i2++) ctx.lineTo(poly[i2].x, poly[i2].y);
+    ctx.closePath();
+    ctx.fillStyle = hexA(PAL.accent2, .13); ctx.fill();
+    ctx.strokeStyle = hexA(PAL.accent2, .6); ctx.lineWidth = 2; ctx.stroke();
+  });
+
+  /* --- 坐标轴（建系完成后点亮） --- */
+  if (G.originDone){
+    const O = projCache[G.cur.origin.pt];
+    let L = 0.6;
+    for (const p of Object.values(F.points)) L = Math.max(L, Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2]));
+    L *= 1.18;
+    const axes = [ [[L,0,0],'x'], [[0,L,0],'y'], [[0,0,L],'z'] ];
+    for (const [d,lab] of axes){
+      const e = project(d);
+      ctx.strokeStyle = hexA(PAL.accent,.85); ctx.lineWidth = 2.5;
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(O.x,O.y); ctx.lineTo(e.x,e.y); ctx.stroke();
+      arrowHead(O.x,O.y,e.x,e.y,10,hexA(PAL.accent,.9));
+      addLabel(e.x + (lab==='x'?16:lab==='y'?-16:0), e.y + (lab==='z'?-16:0), lab, 'ax');
+    }
+  }
+
+  /* --- 立体图形的棱：按深度排序（远的先画），虚线单独弱化 --- */
+  const allE = F.edges.map(e=>({p:e[0],q:e[1],d:(projCache[e[0]].d+projCache[e[1]].d)/2}))
+                      .concat(F.dashed.map(e=>({p:e[0],q:e[1],d:(projCache[e[0]].d+projCache[e[1]].d)/2,dash:true})));
+  allE.sort((a,b)=>a.d-b.d);
+  for (const e of allE){
+    const a = projCache[e.p], b = projCache[e.q];
+    ctx.strokeStyle = e.dash ? hexA(PAL.line,.4) : hexA(PAL.line,.95);
+    ctx.lineWidth = e.dash ? 1.6 : 3;
+    ctx.setLineDash(e.dash ? [7,6] : []);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  /* --- 已锁定的方向向量：彩色箭头 + 坐标标签 --- */
+  for (const key in G.vecData){
+    const rec = G.vecData[key];
+    const a = projCache[rec.from], b = projCache[rec.to];
+    ctx.strokeStyle = PAL.accent2; ctx.lineWidth = 4.5;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    arrowHead(a.x,a.y,b.x,b.y,13,PAL.accent2);
+    addLabel((a.x+b.x)/2, (a.y+b.y)/2 - 22, rec.label + ' = ' + fmtVec(rec.v), 'v');
+  }
+
+  /* --- 锻造成功的法向量箭头：立在平面上 --- */
+  G.cur.forge.forEach((fk,i)=>{
+    if (!G.forgeOK[i]) return;
+    const n = G.forgeN[i], ln = vlen(n) || 1;
+    const dir = vscale(n, 1.35/ln);
+    const a0 = F.points[fk.anchor];
+    const a = project(a0), b = project([a0[0]+dir[0], a0[1]+dir[1], a0[2]+dir[2]]);
+    ctx.strokeStyle = PAL.good; ctx.lineWidth = 4.5;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    arrowHead(a.x,a.y,b.x,b.y,13,PAL.good);
+    addLabel((a.x+b.x)/2, (a.y+b.y)/2 - 20, 'n' + (G.cur.forge.length>1 ? (i+1) : '') + ' = ' + fmtVec(n), 'n');
+  });
+
+  /* --- 顶点：圆点 + 名称 + 坐标（建系后显示坐标） --- */
+  for (const k in F.points){
+    const q = projCache[k];
+    const isSel = G.sel.includes(k);
+    ctx.beginPath(); ctx.arc(q.x,q.y, isSel?9:6.5, 0, TAU);
+    ctx.fillStyle = isSel ? PAL.accent2 : PAL.ink; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+    const lo = (F.lo && F.lo[k]) || [0,-24];
+    let lx = q.x + lo[0], ly = q.y + lo[1];
+    addLabel(lx, ly, k);
+    if (G.originDone){
+      addLabel(lx, ly + 26, fmtVec(F.points[k]), 'c');
+    }
+  }
+
+  /* --- 原点星标（建系阶段可拖动） --- */
+  if (G.stageType==='origin'){
+    const mx = marker.x, my = marker.y + (marker.wob ? Math.sin(performance.now()/90)*marker.wob : 0);
+    drawStar(mx,my,13,5,PAL.accent2);
+    addLabel(mx, my+36, '原点星标 → 拖到 ' + G.cur.origin.pt + ' 点', 'm');
+  }
+  syncLabels();                             // 文字标签一次性同步到 DOM 覆盖层
+  requestAnimationFrame(render);
+}
+function drawStar(cx0,cy0,r,pts,color){
+  ctx.beginPath();
+  for (let i=0;i<pts*2;i++){
+    const rr = i%2===0 ? r : r*0.45;
+    const a = -Math.PI/2 + i*Math.PI/pts;
+    const px = cx0+rr*Math.cos(a), py = cy0+rr*Math.sin(a);
+    i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+  }
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+  ctx.strokeStyle = '#08101f'; ctx.lineWidth = 2; ctx.stroke();
+}
+/* 颜色工具：#rrggbb + 透明度 */
+function hexA(hex, a){
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
+
+/* =====================================================
+   画布交互：拖原点星标 / 点选顶点 / 旋转视角
+   ===================================================== */
+let ptr = { down:false, x:0, y:0, moved:false, mode:'' };
+function cvPos(ev){
+  const r = cv.getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+function nearestPoint(x,y,rad){
+  let best=null, bd=rad*rad;
+  for (const k in projCache){
+    const q = projCache[k], dx=q.x-x, dy=q.y-y, d2=dx*dx+dy*dy;
+    if (d2<bd){ bd=d2; best=k; }
+  }
+  return best;
+}
+cv.addEventListener('pointerdown', (ev)=>{
+  if (G.screen!=='game' || !G.cur) return;
+  const p = cvPos(ev);
+  ptr = { down:true, x:p.x, y:p.y, sx:p.x, sy:p.y, moved:false, mode:'' };
+  if (G.stageType==='origin' && Math.hypot(p.x-marker.x, p.y-marker.y) < 46){
+    ptr.mode = 'marker'; marker.drag = true;
+    cv.classList.add('dragging');
+    cv.setPointerCapture(ev.pointerId);
+  } else {
+    updateProjCache();                       // 视角可能变过，先刷新投影缓存再检测点击
+    const hit = nearestPoint(p.x, p.y, 26);
+    if (G.stageType==='vectors' && hit && !G.solved) ptr.mode = 'maybe-click';
+    else ptr.mode = 'view';
+  }
+});
+cv.addEventListener('pointermove', (ev)=>{
+  if (!ptr.down) return;
+  const p = cvPos(ev);
+  const dx = p.x - ptr.x, dy = p.y - ptr.y;
+  if (Math.hypot(p.x-ptr.sx, p.y-ptr.sy) > 6) ptr.moved = true;
+  if (ptr.mode === 'marker'){ marker.x = p.x; marker.y = p.y; invalidate(); }
+  else if (ptr.mode === 'view'){
+    view.yaw += dx*0.008;
+    view.pitch = Math.max(0.12, Math.min(1.1, view.pitch + dy*0.005));
+    invalidate();
+    cv.classList.add('dragging');
+  }
+  ptr.x = p.x; ptr.y = p.y;
+});
+cv.addEventListener('pointerup', (ev)=>{
+  if (!ptr.down) return;
+  cv.classList.remove('dragging');
+  const p = cvPos(ev);
+  updateProjCache();
+  if (ptr.mode === 'marker'){
+    marker.drag = false;
+    const hit = nearestPoint(p.x, p.y, 34);
+    if (hit === G.cur.origin.pt){ finishOrigin(); }
+    else {
+      if (hit){ stageMsg('bad', hit + ' 点不合适哦。' + G.cur.origin.why); marker.wob = 6; bump(); }
+      marker.x = marker.home.x; marker.y = marker.home.y;
+    }
+    setTimeout(()=>{marker.wob=0; invalidate();}, 500);
+  } else if (ptr.mode === 'maybe-click' && !ptr.moved){
+    const hit = nearestPoint(p.x, p.y, 26);
+    if (hit) handlePointClick(hit);
+  }
+  invalidate();
+  ptr.down = false;
+});
+cv.addEventListener('wheel', (ev)=>{
+  ev.preventDefault();
+  view.scale = Math.max(0.3, Math.min(3, view.scale * (ev.deltaY<0?1.1:0.9)));
+  invalidate();
+}, {passive:false});
+$('zin').onclick = ()=>{ view.scale = Math.min(3, view.scale*1.18); invalidate(); };
+$('zout').onclick = ()=>{ view.scale = Math.max(0.3, view.scale*0.85); invalidate(); };
+window.addEventListener('resize', resizeCanvas);
+
+/* =====================================================
+   阶段一：建系（拖放原点星标）
+   ===================================================== */
+function finishOrigin(){
+  G.originDone = true;
+  invalidate();
+  bump();
+  stageMsg('good', '建系成功！' + G.cur.origin.why + ' 各点坐标已点亮，可以读坐标啦。');
+  const tk = G.token;
+  setTimeout(()=>{ if (tk===G.token) nextStage(); }, 900);
+}
+
+/* =====================================================
+   阶段二：点选两个点构造方向向量 / 位置向量
+   ===================================================== */
+function handlePointClick(id){
+  const slot = G.cur.vecs[G.vecIdx];
+  if (!slot || G.solved) return;                 // 当前没有待构造的向量时忽略点击
+  invalidate();
+  if (G.sel.includes(id)){ G.sel = []; refreshStageUI(); return; } // 再点一次取消
+  G.sel.push(id);
+  if (G.sel.length === 2){
+    const [f,t] = G.sel;
+    const v = vsub(G.cur.fig.points[t], G.cur.fig.points[f]);
+    const dir = vsub(G.cur.fig.points[slot.line[1]], G.cur.fig.points[slot.line[0]]);
+    const c = vcross(v, dir);
+    bump();
+    if (vlen(c) < 1e-6){ // 与目标直线共线 → 锁定为金色箭头
+      G.vecData[slot.key] = { v, from:f, to:t, label:nameOf(f,t) };
+      G.sel = [];
+      G.vecIdx++;
+      stageMsg('good', '向量 ' + nameOf(f,t) + ' = ' + fmtVec(v) + '，与' + slot.name + '共线，捕捉成功！');
+      const tk = G.token;
+      if (G.vecIdx >= G.cur.vecs.length) setTimeout(()=>{ if (tk===G.token) nextStage(); }, 800);
+    } else {
+      stageMsg('bad', '向量 ' + nameOf(f,t) + ' = ' + fmtVec(v) + ' 与' + slot.name + '不共线，重新点选两个点试试。');
+      G.sel = [];
+    }
+  }
+  refreshStageUI();
+}
+/* 向量命名：如 D→M 记作 DM */
+function nameOf(f,t){ return f + t; }
+
+/* =====================================================
+   阶段三：法向量锻造（拖数字卡，让两个数量积同时为 0）
+   ===================================================== */
+let pickedCard = null; // 当前选中的数字卡（点选放置模式）
+function buildForgeUI(host){
+  const fk = G.cur.forge[G.forgeIdx];
+  const box = document.createElement('div');
+  box.className = 'card forgebox';
+  box.innerHTML =
+    '<h3>法向量锻造舱 · ' + fk.plane + '</h3>' +
+    '<div class="guide">把数字卡拖（或先点卡片再点格子）放入 <b>n = (x, y, z)</b>，' +
+    '使 <b>n·' + fk.u.label + ' = 0</b> 且 <b>n·' + fk.w.label + ' = 0</b>（两个读数同时为 0，且 n 不是零向量）。</div>' +
+    '<div class="dots" style="margin-top:6px;">平面内两个不共线向量：<br>' +
+    '　' + fk.u.label + ' = <span class="nz">' + fk.u.disp + '</span>　' + fk.w.label + ' = <span class="nz">' + fk.w.disp + '</span></div>' +
+    '<div class="nslots">n = (' +
+      '<div class="nslot" data-i="0"></div>, <div class="nslot" data-i="1"></div>, <div class="nslot" data-i="2"></div>)</div>' +
+    '<div class="cardrow" id="cardrow"></div>' +
+    '<div class="dots" id="dotreads"></div>' +
+    '<div class="msg" id="forgemsg">提示：先定一个未知数（比如令 z = 1 或 x = 0），再解二元一次方程组。</div>';
+  host.appendChild(box);
+  const row = box.querySelector('#cardrow');
+  [-3,-2,-1,0,1,2,3].forEach(n=>{
+    const b = document.createElement('button');
+    b.className = 'ncard'; b.textContent = n; b.dataset.val = n;
+    bindCardDrag(b);
+    row.appendChild(b);
+  });
+  box.querySelectorAll('.nslot').forEach(sl=>{
+    sl.addEventListener('pointerup', (ev)=>{
+      ev.stopPropagation();
+      if (pickedCard !== null){ placeCard(parseInt(sl.dataset.i,10), parseInt(pickedCard.dataset.val,10)); pickedCard.classList.remove('sel'); pickedCard=null; }
+      else { placeCard(parseInt(sl.dataset.i,10), null); } // 点击已填格子 = 清除
+    });
+  });
+  refreshForgeReads();
+}
+/* 数字卡：支持拖拽放置与点选放置两种方式 */
+function bindCardDrag(card){
+  card.addEventListener('pointerdown', (ev)=>{
+    ev.preventDefault();
+    pickedCard = card; card.classList.add('sel');
+    const startX = ev.clientX, startY = ev.clientY;
+    let moved = false;
+    const ghost = card.cloneNode(true);
+    ghost.style.cssText = 'position:fixed;z-index:99;pointer-events:none;opacity:.9;width:52px;height:52px;display:none;';
+    document.body.appendChild(ghost);
+    const mv = (e2)=>{
+      if (Math.hypot(e2.clientX-startX, e2.clientY-startY) > 8){ moved = true; ghost.style.display='flex';
+        ghost.style.left=(e2.clientX-26)+'px'; ghost.style.top=(e2.clientY-26)+'px';
+        ghost.textContent = card.textContent; }
+    };
+    const up = (e2)=>{
+      document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up);
+      ghost.remove();
+      if (moved){
+        const el = document.elementFromPoint(e2.clientX, e2.clientY);
+        const sl = el && el.closest ? el.closest('.nslot') : null;
+        if (sl){ placeCard(parseInt(sl.dataset.i,10), parseInt(card.dataset.val,10)); card.classList.remove('sel'); pickedCard=null; }
+        else { card.classList.remove('sel'); pickedCard=null; }
+      } // 未移动 → 保持选中，等待点击格子（点选放置模式）
+    };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
+}
+/* 放置 / 清除某个坐标格（锻造完成后锁定，防止重复触发） */
+function placeCard(i, val){
+  if (G.forgeOK[G.forgeIdx]) return;
+  G.forgeN[G.forgeIdx][i] = val;
+  invalidate();
+  bump();
+  refreshForgeReads();
+  refreshStageUI();
+}
+function refreshForgeReads(){
+  const fk = G.cur.forge[G.forgeIdx];
+  const n = G.forgeN[G.forgeIdx];
+  document.querySelectorAll('.nslot').forEach(sl=>{
+    const v = n[parseInt(sl.dataset.i,10)];
+    sl.textContent = v===null ? '' : v;
+    sl.classList.toggle('filled', v!==null);
+  });
+  const rd = $('dotreads');
+  const hasEmpty = n.some(x=>x===null);       // 三张卡未放满时不算数量积（避免空位被当作 0）
+  if (hasEmpty){
+    if (rd) rd.innerHTML = 'n·' + fk.u.label + ' = ?　　n·' + fk.w.label + ' = ?（放满三张数字卡后自动开始计算）';
+    return;
+  }
+  const du = vdot(n, fk.u.v), dw = vdot(n, fk.w.v);
+  const zero = vlen(n) > 1e-9 && Math.abs(du)<1e-9 && Math.abs(dw)<1e-9;
+  if (rd){
+    rd.innerHTML = 'n·' + fk.u.label + ' = <span class="' + (Math.abs(du)<1e-9?'zero':'') + '">' + fmtNum(du) + '</span>' +
+      '　　n·' + fk.w.label + ' = <span class="' + (Math.abs(dw)<1e-9?'zero':'') + '">' + fmtNum(dw) + '</span>';
+  }
+  if (zero && !G.forgeOK[G.forgeIdx]){
+    G.forgeOK[G.forgeIdx] = true;
+    const fm = $('forgemsg');
+    if (fm){ fm.className='msg good'; fm.textContent = '法向量锻造成功！n = ' + fmtVec(n) + ' 已立于平面之上。'; }
+    stageMsg('good', '法向量锻造成功！n = ' + fmtVec(n) + ' 已立于平面之上。');
+    const tk = G.token;
+    setTimeout(()=>{
+      if (tk !== G.token) return;
+      G.forgeIdx++;
+      if (G.forgeIdx >= G.cur.forge.length) nextStage(); else refreshStageUI();
+    }, 900);
+  }
+}
+
+/* =====================================================
+   阶段四：测量（角度表盘 / 距离标尺）
+   ===================================================== */
+function computeActual(){ // 汇总学生实际构造的向量，算出仪表常数
+  const t = G.cur.type;
+  if (t==='ll') return { a:G.vecData.a.v, b:G.vecData.b.v };
+  if (t==='lp') return { a:G.vecData.a.v, n:G.forgeN[0] };
+  if (t==='pp') return { n1:G.forgeN[0], n2:G.forgeN[1] };
+  if (t==='dl') return { ap:G.vecData.ap.v, dir:G.vecData.dir.v };
+  return { ab:G.vecData.ab.v, n:G.forgeN[0] };
+}
+function buildMeasureUI(host){
+  const t = G.cur.type, ac = computeActual();
+  const box = document.createElement('div');
+  box.className = 'card';
+  let head = '';
+  if (t==='ll'){
+    const d = vdot(ac.a, ac.b);
+    head = '方向向量 a = ' + fmtVec(ac.a) + '，b = ' + fmtVec(ac.b) + '<br>' +
+      '<span class="num">a·b = ' + fmtNum(d) + '</span>　<span class="num">|a| = ' + fmtNum(vlen(ac.a)) +
+      '</span>　<span class="num">|b| = ' + fmtNum(vlen(ac.b)) + '</span><br>' +
+      '公式：|cosθ| = |a·b| ÷ (|a|·|b|)。先算出比值，再转动表盘，让 cosθ 读数等于它（θ 为异面直线所成角，取 [0°, 90°]）。';
+    G.target = { kind:'angle', trig:'cos', deg: Math.deg(Math.acos(Math.min(1, Math.abs(d)/(vlen(ac.a)*vlen(ac.b))))) };
+  } else if (t==='lp'){
+    const d = Math.abs(vdot(ac.n, ac.a));
+    head = '直线方向 a = ' + fmtVec(ac.a) + '，你锻造的法向量 n = ' + fmtVec(ac.n) + '<br>' +
+      '<span class="num">|n·a| = ' + fmtNum(d) + '</span>　<span class="num">|n| = ' + fmtNum(vlen(ac.n)) +
+      '</span>　<span class="num">|a| = ' + fmtNum(vlen(ac.a)) + '</span><br>' +
+      '公式：sinθ = |n·a| ÷ (|n|·|a|)。先算出比值，再转动表盘，让 sinθ 读数等于它（θ 为直线与平面所成的角）。';
+    G.target = { kind:'angle', trig:'sin', deg: Math.deg(Math.asin(Math.min(1, d/(vlen(ac.n)*vlen(ac.a))))) };
+  } else if (t==='pp'){
+    const d = Math.abs(vdot(ac.n1, ac.n2));
+    head = '两个法向量 n₁ = ' + fmtVec(ac.n1) + '，n₂ = ' + fmtVec(ac.n2) + '<br>' +
+      '<span class="num">|n₁·n₂| = ' + fmtNum(d) + '</span>　<span class="num">|n₁| = ' + fmtNum(vlen(ac.n1)) +
+      '</span>　<span class="num">|n₂| = ' + fmtNum(vlen(ac.n2)) + '</span><br>' +
+      '公式：cosθ = |n₁·n₂| ÷ (|n₁|·|n₂|)。两平面夹角等于两法向量夹角（取绝对值），转动表盘测出 θ。';
+    G.target = { kind:'angle', trig:'cos', deg: Math.deg(Math.acos(Math.min(1, d/(vlen(ac.n1)*vlen(ac.n2))))) };
+  } else if (t==='dl'){
+    const proj = Math.abs(vdot(ac.ap, ac.dir))/vlen(ac.dir);
+    G.target = { kind:'dist', val: Math.sqrt(vlen(ac.ap)**2 - proj**2) };
+    G.rulerMax = Math.ceil(vlen(ac.ap)*10)/10 + 0.4;
+    head = '位置向量 ' + G.vecData.ap.label + ' = ' + fmtVec(ac.ap) + '，直线方向向量所在线 = ' + fmtVec(ac.dir) + '<br>' +
+      '<span class="num">|AP| = ' + fmtNum(vlen(ac.ap)) + '</span>　<span class="num">投影长 = |AP·u| = ' + fmtNum(proj) + '</span><br>' +
+      '公式：d = √(|AP|² − 投影²)。先算出 d，再拖动标尺，让读数停在计算结果上。';
+  } else {
+    const d = Math.abs(vdot(ac.ab, ac.n));
+    G.target = { kind:'dist', val: d/vlen(ac.n) };
+    G.rulerMax = Math.ceil(vlen(ac.ab)*10)/10 + 0.4;
+    head = '位置向量 ' + G.vecData.ab.label + ' = ' + fmtVec(ac.ab) + '，你锻造的法向量 n = ' + fmtVec(ac.n) + '<br>' +
+      '<span class="num">|AB·n| = ' + fmtNum(d) + '</span>　<span class="num">|n| = ' + fmtNum(vlen(ac.n)) + '</span><br>' +
+      '公式：d = |AB·n| ÷ |n|。先算出 d，再拖动标尺，让读数停在计算结果上。';
+  }
+  box.innerHTML = '<h3>测量舱 · ' + (G.target.kind==='angle'?'角度表盘':'距离标尺') + '</h3><div class="instr">' + head + '</div>';
+  const wrap = document.createElement('div');
+  wrap.id = 'dialwrap';
+  if (G.target.kind === 'angle'){
+    const dc = document.createElement('canvas');
+    dc.id = 'dial'; dc.width = 340; dc.height = 210; dc.style.width='min(340px,100%)';
+    wrap.appendChild(dc);
+    const read = document.createElement('div'); read.id = 'readout'; wrap.appendChild(read);
+    const fine = document.createElement('div'); fine.className='fine';
+    fine.innerHTML = '<button class="tbtn ghost" id="dm">◀ 0.5°</button><button class="tbtn ghost" id="dp">0.5° ▶</button>';
+    wrap.appendChild(fine);
+    box.appendChild(wrap);
+    host.appendChild(box);
+    bindDial(dc);
+    $('dm').onclick = ()=>{ G.needle = Math.max(0, G.needle-0.5); drawDial(); checkSettle(); };
+    $('dp').onclick = ()=>{ G.needle = Math.min(90, G.needle+0.5); drawDial(); checkSettle(); };
+  } else {
+    const ru = document.createElement('div');
+    ru.innerHTML = '<div class="rlabel"><span>0</span><span>' + G.rulerMax.toFixed(1) + '</span></div>' +
+      '<div class="ruler" id="rule"><div class="rulerfill" id="rfill"></div><div class="rhandle" id="rhand">◀▶</div></div>' +
+      '<div id="readout">d = 0.00</div>';
+    const fine = document.createElement('div'); fine.className='fine';
+    fine.innerHTML = '<button class="tbtn ghost" id="dm">− 0.05</button><button class="tbtn ghost" id="dp">＋ 0.05</button>';
+    wrap.appendChild(ru); wrap.appendChild(fine);
+    box.appendChild(wrap);
+    host.appendChild(box);
+    bindRuler();
+    $('dm').onclick = ()=>{ G.ruler = Math.max(0, G.ruler-0.05); drawRuler(); checkSettle(); };
+    $('dp').onclick = ()=>{ G.ruler = Math.min(G.rulerMax, G.ruler+0.05); drawRuler(); checkSettle(); };
+  }
+  if (G.target.kind==='angle') drawDial(); else drawRuler();
+}
+Math.deg = (r)=> r*180/Math.PI;
+
+/* --- 角度表盘（自制量角器，指针可拖） --- */
+function bindDial(dc){
+  let down = false;
+  const set = (ev)=>{
+    const r = dc.getBoundingClientRect();
+    const sx = (ev.clientX - r.left) * (dc.width / r.width);   // 屏幕坐标 → 画布坐标
+    const sy = (ev.clientY - r.top) * (dc.height / r.height);
+    const cx0 = dc.width/2, cy0 = dc.height-24;
+    let ang = Math.deg(Math.atan2(cy0-sy, sx-cx0));
+    G.needle = Math.max(0, Math.min(90, ang));
+    drawDial(); checkSettle();
+  };
+  dc.addEventListener('pointerdown', (ev)=>{ down=true; dc.setPointerCapture(ev.pointerId); set(ev); });
+  dc.addEventListener('pointermove', (ev)=>{ if(down) set(ev); });
+  dc.addEventListener('pointerup', ()=>{ down=false; checkSettle(true); });
+}
+function drawDial(){
+  const dc = $('dial'); if (!dc) return;
+  const c = dc.getContext('2d');
+  const W = dc.width, H = dc.height, cx0 = W/2, cy0 = H-24, R = Math.min(W/2-16, H-44);
+  c.clearRect(0,0,W,H);
+  /* 表盘底盘 */
+  c.fillStyle = 'rgba(0,0,0,.30)';
+  c.beginPath(); c.moveTo(cx0,cy0); c.arc(cx0,cy0,R,Math.PI,0); c.closePath(); c.fill();
+  c.strokeStyle = PAL.accent; c.lineWidth = 3;
+  c.beginPath(); c.arc(cx0,cy0,R,Math.PI,0); c.stroke();
+  /* 刻度：每 5° 一小格，每 15° 标数字 */
+  for (let d=0; d<=90; d+=5){
+    const a = Math.PI - d*Math.PI/180;
+    const len = d%15===0 ? 14 : 7;
+    c.strokeStyle = d%15===0 ? PAL.ink : hexA(PAL.line,.7);
+    c.lineWidth = d%15===0 ? 2.5 : 1.5;
+    c.beginPath();
+    c.moveTo(cx0+(R-len)*Math.cos(a), cy0-(R-len)*Math.sin(a));
+    c.lineTo(cx0+R*Math.cos(a), cy0-R*Math.sin(a));
+    c.stroke();
+    if (d%15===0){
+      c.fillStyle = PAL.ink; c.font='bold 15px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+      c.fillText(d+'°', cx0+(R-30)*Math.cos(a), cy0-(R-30)*Math.sin(a));
+    }
+  }
+  /* 指针 */
+  const na = Math.PI - G.needle*Math.PI/180;
+  c.strokeStyle = PAL.accent2; c.lineWidth = 5;
+  c.beginPath(); c.moveTo(cx0,cy0); c.lineTo(cx0+(R-8)*Math.cos(na), cy0-(R-8)*Math.sin(na)); c.stroke();
+  c.beginPath(); c.arc(cx0,cy0,7,0,TAU); c.fillStyle = PAL.accent2; c.fill();
+  const rd = $('readout');
+  const v = G.target.trig==='cos' ? Math.cos(G.needle*Math.PI/180) : Math.sin(G.needle*Math.PI/180);
+  if (rd) rd.textContent = 'θ = ' + G.needle.toFixed(1) + '°　' + G.target.trig + 'θ = ' + v.toFixed(3);
+}
+/* --- 距离标尺 --- */
+function bindRuler(){
+  const rule = $('rule'), hand = $('rhand');
+  let down = false;
+  const set = (ev)=>{
+    const r = rule.getBoundingClientRect();
+    const fr = Math.max(0, Math.min(1, (ev.clientX-r.left)/r.width));
+    G.ruler = fr*G.rulerMax;
+    drawRuler(); checkSettle();
+  };
+  rule.addEventListener('pointerdown', (ev)=>{ down=true; rule.setPointerCapture(ev.pointerId); set(ev); });
+  rule.addEventListener('pointermove', (ev)=>{ if(down) set(ev); });
+  rule.addEventListener('pointerup', ()=>{ down=false; checkSettle(true); });
+}
+function drawRuler(){
+  const rule = $('rule'), fill = $('rfill'), hand = $('rhand'), rd = $('readout');
+  if (!rule) return;
+  const fr = G.ruler/G.rulerMax;
+  fill.style.width = (fr*100)+'%';
+  hand.style.left = 'calc(' + (fr*100) + '% - 13px)';
+  if (rd) rd.textContent = 'd = ' + G.ruler.toFixed(2);
+}
+/* 停留判定：在容差内稳定停留 0.65 秒即自动通过（操作本身就是提交） */
+function checkSettle(release){
+  if (G.solved) return;
+  let ok = false;
+  if (G.target.kind==='angle') ok = Math.abs(G.needle - G.target.deg) <= 2;
+  else ok = Math.abs(G.ruler - G.target.val) <= 0.12;
+  if (G.settleTimer){ clearTimeout(G.settleTimer); G.settleTimer = null; }
+  if (ok){
+    G.settleTimer = setTimeout(()=>{
+      let ok2 = false;
+      if (G.target.kind==='angle') ok2 = Math.abs(G.needle - G.target.deg) <= 2;
+      else ok2 = Math.abs(G.ruler - G.target.val) <= 0.12;
+      if (ok2 && !G.solved) finishMeasure();
+    }, 650);
+  }
+}
+function finishMeasure(){
+  G.solved = true;
+  bump();
+  celebrate(90, 1800);
+  const panel = $('stagepanel');
+  const sc = document.createElement('div');
+  sc.className = 'successcard';
+  let det = '';
+  if (G.target.kind==='angle'){
+    det = '精确值：θ = ' + G.target.deg.toFixed(1) + '°';
+  } else {
+    det = '精确值：d = ' + G.target.val.toFixed(3) + ' ≈ ' + G.target.val.toFixed(2);
+  }
+  sc.innerHTML = '<h4>测量完成！</h4><div>' + det + '<br>答案：' + G.cur.answerShort + '</div>';
+  const btn = document.createElement('button');
+  btn.className = 'bigbtn';
+  btn.textContent = G.mi+1 < G.list.length ? '下一任务，继续探险 ★' : '完成全部任务 ★';
+  btn.onclick = ()=>{
+    G.missionDone = true;
+    if (G.mi+1 < G.list.length){ G.mi++; startMission(); }
+    else finishRun();
+  };
+  sc.appendChild(btn);
+  panel.appendChild(sc);
+  sc.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/* =====================================================
+   阶段流转与界面刷新
+   ===================================================== */
+function stageMsg(kind, text){
+  G.lastMsg = { kind, text };           // 存起来，面板重建后仍可显示
+  const m = $('stagemsg');
+  if (m){ m.className = 'msg ' + kind; m.textContent = text; }
+}
+function bump(){ G.steps++; $('st').textContent = G.steps; }
+function nextStage(){
+  G.stageIdx++;
+  G.sel = [];
+  refreshStageUI();
+}
+function refreshStageUI(){
+  if (G.screen!=='game') return;
+  const m = G.cur;
+  /* 阶段条：编号按实际存在的环节依次编号（无锻造环节时不跳号） */
+  const sb = $('stgbar'); sb.innerHTML = '';
+  G.stages.forEach((s,i)=>{
+    const d = document.createElement('span');
+    d.className = 'stg' + (i<G.stageIdx?' done':i===G.stageIdx?' now':'');
+    d.textContent = '第' + (i+1) + '步·' + STAGE_LABEL[s];
+    sb.appendChild(d);
+  });
+  /* 面板 */
+  const panel = $('stagepanel'); panel.innerHTML = '';
+  const guide = document.createElement('div');
+  guide.className = 'guide';
+  const msg = document.createElement('div'); msg.id='stagemsg'; msg.className='msg';
+  if (G.stageType==='origin'){
+    guide.innerHTML = '<b>第一步 · 建系</b>：把画布左上角的「原点星标」拖到 <b>' + m.origin.pt + '</b> 点。' + m.origin.why;
+  } else if (G.stageType==='vectors'){
+    const slot = m.vecs[G.vecIdx];
+    guide.innerHTML = slot
+      ? '<b>第二步 · 捕捉向量</b>：当前需要 <b>' + slot.name + '</b> —— 依次点击图上这条直线/线段的<b>两个端点</b>（顺序不限）。' +
+        (G.sel.length ? '（已点 ' + G.sel.join('、') + '，再点一个点）' : '')
+      : '<b>第二步 · 捕捉向量</b>：全部向量已就绪，正在进入下一环节……';
+  } else if (G.stageType==='forge'){
+    guide.innerHTML = '<b>第三步 · 锻造法向量</b>：为 <b>' + m.forge[G.forgeIdx].plane + '</b> 锻造一个法向量。';
+  } else if (G.stageType==='measure'){
+    guide.innerHTML = '<b>第四步 · 测量</b>：根据仪表给出的数据完成计算，再操作表盘 / 标尺对准结果。';
+  }
+  panel.appendChild(guide);
+  /* 向量槽位清单 */
+  if (G.stageType==='vectors' || (m.vecs.length && G.stageType==='measure')){
+    const listCard = document.createElement('div'); listCard.className='card';
+    listCard.innerHTML = '<h3>向量清单</h3>';
+    m.vecs.forEach((slot,i)=>{
+      const d = document.createElement('div');
+      const rec = G.vecData[slot.key];
+      if (rec){ d.className='slot ok'; d.innerHTML = '✔ ' + slot.name + '：<span class="coord">' + rec.label + ' = ' + fmtVec(rec.v) + '</span>'; }
+      else { d.className='slot' + (i===G.vecIdx && G.stageType==='vectors' ? ' active' : ''); d.textContent = '○ ' + slot.name + '：待点选'; }
+      listCard.appendChild(d);
+    });
+    if (m.vecs.length) panel.appendChild(listCard);
+  }
+  if (G.stageType==='forge') buildForgeUI(panel);
+  if (G.stageType==='measure') buildMeasureUI(panel);
+  panel.appendChild(msg);
+  if (G.lastMsg){ msg.className = 'msg ' + G.lastMsg.kind; msg.textContent = G.lastMsg.text; }
+  invalidate();
+}
+const STAGE_LABEL = { origin:'建系', vectors:'取向量', forge:'法向量', measure:'测量' };
+
+/* =====================================================
+   任务开始 / 结束
+   ===================================================== */
+function startRun(tier){
+  G.tier = tier;
+  G.list = shuffle(MISSIONS.filter(m=>m.tier===tier));
+  G.mi = 0; G.steps = 0; G.elapsed = 0;
+  $('st').textContent = '0';
+  applyPaletteRandom();
+  G.screen = 'game';
+  $('menu').classList.remove('show'); $('game').classList.add('show');
+  if (G.tick) clearInterval(G.tick);
+  G.t0 = Date.now() - G.elapsed*1000;
+  G.tick = setInterval(()=>{
+    if (G.screen==='game'){
+      G.elapsed = Math.floor((Date.now()-G.t0)/1000);
+      const mm = String(Math.floor(G.elapsed/60)).padStart(2,'0');
+      const ss = String(G.elapsed%60).padStart(2,'0');
+      $('tm').textContent = mm + ':' + ss;
+    }
+  }, 1000);
+  startMission();
+  showModal(rulesHTML(), true);
+}
+function startMission(){
+  G.token++; G.lastMsg = null;
+  const m = G.list[G.mi];
+  G.cur = m;
+  G.originDone = false; G.vecIdx = 0; G.forgeIdx = 0;
+  G.sel = []; G.vecData = {};
+  G.forgeN = m.forge.map(()=>[null,null,null]);
+  G.forgeOK = m.forge.map(()=>false);
+  G.needle = 12; G.ruler = 0; G.solved = false; G.missionDone = false;
+  G.stageIdx = 0;
+  G.stages = ['origin'];
+  if (m.vecs.length) G.stages.push('vectors');
+  if (m.forge.length) G.stages.push('forge');
+  G.stages.push('measure');
+  view.yaw = -0.46; view.pitch = 0.34; view.scale = 1; view.cx = 0; view.cy = 0;
+  marker.x = marker.home.x; marker.y = marker.home.y;
+  /* 标题与进度 */
+  $('mtitle').textContent = TIERNAME[m.tier] + '　第 ' + (G.mi+1) + '/' + G.list.length + ' 关 · ' + m.name;
+  const mp = $('mprog'); mp.innerHTML = '';
+  G.list.forEach((mm,i)=>{
+    const d = document.createElement('span');
+    d.className = 'mdot' + (i<G.mi?' done':i===G.mi?' now':'');
+    mp.appendChild(d);
+  });
+  $('stmt').innerHTML = m.stmt + '<br><span style="opacity:.8;font-size:15px;">（立体图形见测量舱视图，拖动可旋转观察）</span>';
+  needsRedraw = true;
+  resizeCanvas();
+  requestAnimationFrame(resizeCanvas);   // 布局稳定后再校准一次画布尺寸
+  refreshStageUI();
+}
+function finishRun(){
+  celebrate(220, 5200);
+  showModal(
+    '<h2>★ 全部任务完成！★</h2>' +
+    '<p><b>' + TIERNAME[G.tier] + '</b> 的 ' + G.list.length + ' 个任务全部通过！</p>' +
+    '<p>用时 <b>' + $('tm').textContent + '</b>　·　共操作 <b>' + G.steps + '</b> 次</p>' +
+    '<p>你已经把向量法四步——<b>建系 → 取向量 → 求法向量 → 套公式</b>——完整地亲手走了一遍！</p>' +
+    '<div style="display:flex;gap:12px;justify-content:center;margin-top:14px;">' +
+    '<button class="tbtn alt" onclick="restartRun()">再玩一次</button>' +
+    '<button class="tbtn ghost" onclick="backMenu()">返回难度选择</button></div>'
+  );
+}
+function restartRun(){
+  closeModal();
+  startRun(G.tier);
+}
+function backMenu(){
+  closeModal();
+  G.screen = 'menu';
+  if (G.tick){ clearInterval(G.tick); G.tick = null; }
+  $('game').classList.remove('show'); $('menu').classList.add('show');
+  G.cur = null;
+}
+
+/* =====================================================
+   弹窗：玩法说明 / 揭示答案
+   ===================================================== */
+function rulesHTML(){
+  return '<h2>玩法说明 · 星际测量员的四步工作法</h2>' +
+  '<p>每个任务都对应一道《空间角与空间距离》真题，你要用向量法的四个步骤完成测量：</p>' +
+  '<div class="sol"><b>第一步 · 建系</b>：把「原点星标」拖到题目建议的原点（通常是三条两两垂直的棱的交点），坐标系展开、各点坐标点亮。</div>' +
+  '<div class="sol"><b>第二步 · 取向量</b>：按提示依次点击图上两个点，构造方向向量或位置向量，点对了会以金色箭头锁定。</div>' +
+  '<div class="sol"><b>第三步 · 锻造法向量</b>：把数字卡拖进 n=(x,y,z)，让 n 与平面内两个向量的数量积<b>同时为 0</b>（这就是解方程组求法向量！），法向量箭头会立在平面上。</div>' +
+  '<div class="sol"><b>第四步 · 测量</b>：仪表给出 a·b、|a|、|n| 等数据，你先算出 cosθ / sinθ / d，再拖动表盘指针或标尺对准结果，在容差内稳定停留即自动通过（角度 ±2°，距离 ±0.12）。</div>' +
+  '<p style="margin-top:10px;">小提示：拖动画布空白处可<b>旋转视角</b>，滚轮或 ＋/－ 可缩放；右上角随时可看<b>玩法说明</b>、<b>揭示答案</b>、<b>重新开始</b>或<b>返回难度选择</b>。每局配色都会随机换新哦！</p>' +
+  '<button class="tbtn close" onclick="closeModal()">明白啦，开始探险！</button>';
+}
+function showModal(html, noClose){
+  $('mbox').innerHTML = html;
+  $('modal').classList.add('show');
+  $('modal').dataset.noclose = noClose ? '1' : '';
+}
+function closeModal(){ $('modal').classList.remove('show'); }
+$('modal').addEventListener('pointerdown', (ev)=>{
+  if (ev.target === $('modal') && $('modal').dataset.noclose !== '1') closeModal();
+});
+$('btnRules').onclick = ()=>showModal(rulesHTML());
+$('btnRules2').onclick = ()=>showModal(rulesHTML());
+$('btnReveal').onclick = ()=>{
+  if (G.screen!=='game' || !G.cur) return;
+  showModal('<h2>揭示答案 · ' + G.cur.name + '</h2><div class="sol">' + G.cur.solution + '</div>' +
+    '<p><b>答案：' + G.cur.answerShort + '</b></p>' +
+    '<button class="tbtn close" onclick="closeModal()">我明白了，继续测量</button>');
+};
+$('btnRestart').onclick = ()=>{ if (G.screen==='game') restartRun(); };
+$('btnBack').onclick = backMenu;
+document.querySelectorAll('.tiercard').forEach(c=>{
+  c.addEventListener('click', ()=>startRun(parseInt(c.dataset.tier,10)));
+});
+
+/* =====================================================
+   庆祝特效：彩纸 + 星星（纯 CSS 动画实现，稳定且不占用画布）
+   ===================================================== */
+function celebrate(count, ms){
+  const fx = document.getElementById('fx');
+  fx.style.display = 'block';
+  fx.innerHTML = '';
+  const colors = [PAL.accent, PAL.accent2, '#ffd54d', '#7ce38b', '#6db4f2', '#ff8fa3'];
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < count; i++){
+    const el = document.createElement('span');
+    const star = Math.random() < 0.22;
+    el.className = 'conf' + (star ? ' star' : '');
+    const dur = (ms/1000) * (0.55 + Math.random()*0.5);
+    el.style.cssText =
+      'left:' + (Math.random()*100).toFixed(1) + 'vw;' +
+      'width:' + (star ? (10+Math.random()*12) : (8+Math.random()*9)).toFixed(0) + 'px;' +
+      'height:' + (star ? (10+Math.random()*12) : (6+Math.random()*7)).toFixed(0) + 'px;' +
+      'background:' + colors[i%colors.length] + ';' +
+      'animation-duration:' + dur.toFixed(2) + 's;' +
+      'animation-delay:' + (Math.random()*0.6).toFixed(2) + 's;';
+    frag.appendChild(el);
+  }
+  fx.appendChild(frag);
+  setTimeout(()=>{ fx.style.display = 'none'; fx.innerHTML = ''; }, ms + 900);
+}
+
+/* 让 G.stageType 成为动态属性（当前阶段名） */
+Object.defineProperty(G, 'stageType', {
+  get(){ return G.stages[Math.min(G.stageIdx, G.stages.length-1)] || 'origin'; }
+});
+
+/* ---------- 启动：先渲染菜单（画布空转等待任务） ---------- */
+applyPaletteRandom();
+resizeCanvas();
+requestAnimationFrame(render);
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-cp/g002", "name": "\u7a7a\u95f4\u5411\u91cf \u00b7 \u661f\u9645\u6d4b\u91cf\u5c40 \u2014\u2014 \u7a7a\u95f4\u89d2\u4e0e\u7a7a\u95f4\u8ddd\u79bb", "file": "g002.html", "jiaocan": "\u301084\u3011#\u7cbe\u8bb2#\u4e13\u9898\u4e03 \u7acb\u4f53\u51e0\u4f55\u4e0e\u7a7a\u95f4\u5411\u91cf\uff1a7.5 \u7a7a\u95f4\u89d2\u4e0e\u7a7a\u95f4\u8ddd\u79bb\u3001\u7a7a\u95f4\u5411\u91cf\u53ca\u5e94\u7528", "unit": "", "grade": "", "stage": "\u9ad8\u4e2d", "series": "C+\uff1a\u4e94\u4e09\u9ad8\u8003\u6570\u5b662026\uff08\u65b0\u9ad8\u8003\uff09", "kind": "\u6e38\u620f", "kinds": ["\u7cbe\u8bb2"], "ver": "1.0.0", "hub": "\u4e94\u4e09\u9ad8\u8003\u6570\u5b662026\uff08\u65b0\u9ad8\u8003\uff09\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-cp"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

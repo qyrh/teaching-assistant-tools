@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>页码魔法印刷坊 · 第17讲 页码问题（上）</title>
+<style>
+/* ============================================================
+   页码魔法印刷坊 —— 三年级下 第17讲《页码问题（上）》互动游戏
+   核心方法绑定：
+   活字分段机 = 分段统计法（好方法1/2）
+   页厚调节台 = 已知数字个数倒推页数（好方法3，补位法思想）
+   数字寻宝墙 = 按位枚举统计某数字出现次数（好方法4）
+   彩虹配对环 = 页码累加和 / 高斯配对（好方法6 的求和方法）
+   ============================================================ */
+:root{
+  --main:#e8603c; --main2:#f4a259; --accent:#3d9be9; --bg:#fff6ec; --card:#ffffff;
+  --ink:#2b2320; --ok:#2a9d5c; --bad:#d62828; --gold:#f2b705;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0;}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Heiti SC",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:18px; line-height:1.5;
+  min-height:100vh; display:flex; flex-direction:column;
+}
+button{font-family:inherit; cursor:pointer;}
+b{color:var(--main);}
+
+/* ---------- 顶部栏：按钮 + 计时 + 步数 ---------- */
+#topbar{
+  display:none; align-items:center; flex-wrap:wrap; gap:8px;
+  background:var(--card); border-bottom:6px solid var(--main);
+  padding:8px 14px; position:sticky; top:0; z-index:20;
+}
+#topbar.show{display:flex;}
+#topbar .tb-title{font-weight:900; font-size:20px; color:var(--main); margin-right:4px;}
+#topbar .tb-sub{font-size:15px; color:#7a6a5f; margin-right:auto;}
+.btn{
+  border:3px solid var(--ink); border-radius:12px; background:var(--card);
+  padding:8px 14px; font-size:16px; font-weight:700; color:var(--ink);
+  box-shadow:0 3px 0 var(--ink); transition:transform .08s;
+}
+.btn:active{transform:translateY(3px); box-shadow:0 0 0 var(--ink);}
+.btn.primary{background:var(--main); color:#fff;}
+.btn.warnb{background:var(--accent); color:#fff;}
+.btn.small{padding:5px 10px; font-size:14px;}
+.stats{display:flex; gap:10px; align-items:center; margin-left:auto;}
+.stat{
+  background:var(--bg); border:2px solid var(--ink); border-radius:10px;
+  padding:4px 12px; font-weight:900; font-size:17px; white-space:nowrap;
+}
+.stat span{color:var(--main);}
+
+/* ---------- 首页 ---------- */
+#screen-home{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:26px 16px; text-align:center;}
+.home-kicker{font-size:16px; letter-spacing:4px; color:#8a7a6e; font-weight:700;}
+.home-title{
+  font-size:clamp(34px,7vw,58px); font-weight:900; color:var(--main);
+  text-shadow:3px 3px 0 rgba(0,0,0,.08); margin:6px 0 2px;
+}
+.home-sub{font-size:clamp(15px,2.5vw,19px); color:#6f6055; margin-bottom:8px;}
+.bookrow{display:flex; gap:10px; margin:14px 0 22px;}
+.book{
+  width:52px; height:70px; border-radius:4px 10px 10px 4px; border:3px solid var(--ink);
+  box-shadow:4px 4px 0 rgba(0,0,0,.12); position:relative;
+}
+.book::after{content:""; position:absolute; left:8px; top:6px; bottom:6px; width:4px; border-radius:3px; background:rgba(255,255,255,.55);}
+.diff-wrap{display:flex; gap:16px; flex-wrap:wrap; justify-content:center;}
+.diff-card{
+  width:230px; border:4px solid var(--ink); border-radius:18px; background:var(--card);
+  box-shadow:0 6px 0 var(--ink); padding:18px 14px; text-align:center;
+}
+.diff-card h3{margin:0 0 6px; font-size:24px;}
+.diff-card p{margin:0 0 12px; font-size:14px; color:#7a6a5f; min-height:44px;}
+.diff-card .go{width:100%; font-size:18px; padding:10px;}
+.diff-card:nth-child(1) h3{color:#2a9d5c;}
+.diff-card:nth-child(2) h3{color:var(--accent);}
+.diff-card:nth-child(3) h3{color:var(--main);}
+.know-card{
+  margin-top:26px; max-width:640px; background:var(--card); border:3px dashed var(--main2);
+  border-radius:14px; padding:12px 16px; font-size:14px; color:#6f6055; text-align:left;
+}
+.know-card table{border-collapse:collapse; margin-top:6px; width:100%;}
+.know-card td,.know-card th{border:2px solid #e5d6c8; padding:3px 8px; text-align:center; font-size:14px;}
+.src{margin-top:14px; font-size:13px; color:#a2937f;}
+
+/* ---------- 游戏屏 ---------- */
+#screen-game{display:none; flex:1; padding:14px; max-width:1100px; width:100%; margin:0 auto;}
+#screen-game.show{display:block;}
+#mission-head{
+  background:var(--card); border:4px solid var(--ink); border-radius:16px;
+  box-shadow:0 5px 0 var(--ink); padding:12px 16px; margin-bottom:14px;
+}
+#mh-order{font-size:14px; font-weight:900; color:#fff; background:var(--main); display:inline-block; padding:2px 12px; border-radius:999px; margin-right:8px;}
+#mh-name{font-size:15px; font-weight:900; color:var(--accent);}
+#mh-text{font-size:clamp(17px,2.6vw,21px); font-weight:700; margin-top:6px;}
+#stage{position:relative;}
+.stage-locked{pointer-events:none;}
+
+/* ---------- 任务1：活字分段机（拖分段闸门） ---------- */
+.zonebar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
+.zchip{
+  background:var(--card); border:3px solid var(--ink); border-radius:12px; padding:6px 12px;
+  font-size:15px; font-weight:700; flex:1; min-width:190px;
+}
+.zchip .zt{font-weight:900; display:block; margin-bottom:2px;}
+.zchip.c1 .zt{color:#4a90d9;} .zchip.c2 .zt{color:#d98a2b;} .zchip.c3 .zt{color:var(--main);}
+.zchip.alert{border-color:var(--bad); background:#fff1f1;}
+.strip-wrap{position:relative; padding:70px 4px 42px;}
+.strip{display:flex; height:52px; border:3px solid var(--ink); border-radius:10px; position:relative; background:#efe6da; touch-action:none;}
+.cell{flex:1 1 0; min-width:0;}
+.cell.z1{background:#a8cdf7;} .cell.z2{background:#ffd29b;} .cell.z3{background:#ffb59e;}
+.cell.flag{background:var(--bad);}
+.cell:first-child{border-radius:7px 0 0 7px;} .cell:last-child{border-radius:0 7px 7px 0;}
+.gate{
+  position:absolute; top:-24px; height:96px; width:24px; transform:translateX(-50%);
+  background:var(--ink); border-radius:8px; cursor:grab; z-index:5; touch-action:none;
+  display:flex; align-items:center; justify-content:center;
+}
+.gate::before{content:""; width:4px; height:70%; background:#fff; border-radius:2px;}
+.gate .glabel{
+  position:absolute; top:-32px; left:50%; transform:translateX(-50%);
+  background:var(--gold); color:var(--ink); font-size:13px; font-weight:900;
+  border:2px solid var(--ink); border-radius:8px; padding:1px 7px; white-space:nowrap;
+}
+.gate.dragging{cursor:grabbing; box-shadow:0 0 0 4px var(--gold);}
+.strip-ticks{position:absolute; left:0; right:0; bottom:12px; height:22px; pointer-events:none;}
+.tick{position:absolute; transform:translateX(-50%); font-size:13px; font-weight:900; color:#6f6055;}
+.m1-msg{margin-top:8px; min-height:30px; font-size:16px; font-weight:700; color:#6f6055;}
+.m1-msg.alert{color:var(--bad);}
+.m1-machine{display:flex; gap:22px; align-items:center; margin-top:14px; flex-wrap:wrap;}
+.press{
+  width:150px; height:86px; border:4px solid var(--ink); border-radius:12px; background:var(--main2);
+  position:relative; box-shadow:0 5px 0 var(--ink); flex:none;
+}
+.press .plat{position:absolute; left:12px; right:12px; bottom:10px; height:14px; background:var(--ink); border-radius:6px;}
+.press .head{
+  position:absolute; left:26px; right:26px; top:10px; height:20px; background:var(--main);
+  border:3px solid var(--ink); border-radius:6px; transition:transform .5s;
+}
+.press.run .head{transform:translateY(38px);}
+.press .pname{position:absolute; bottom:-4px; left:0; right:0; text-align:center; font-size:13px; font-weight:900; color:#5a3c1e; background:var(--main2); border-radius:0 0 8px 8px;}
+.cover{
+  min-width:220px; border:4px solid var(--ink); border-radius:12px; background:var(--card);
+  padding:10px 16px; font-size:19px; font-weight:900; opacity:0; transform:scale(.6) rotate(-6deg);
+  transition:all .55s cubic-bezier(.2,1.4,.4,1); box-shadow:0 4px 0 var(--ink);
+}
+.cover.show{opacity:1; transform:scale(1) rotate(0);}
+.cover small{display:block; font-size:13px; color:#8a7a6e; font-weight:700;}
+
+/* ---------- 任务2：页厚调节台（拖书厚游标） ---------- */
+.m2-top{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+.badge-target{
+  background:var(--ink); color:#fff; border-radius:14px; padding:8px 18px;
+  font-size:19px; font-weight:900;
+}
+.badge-target b{color:var(--gold); font-size:26px;}
+.m2-hint{font-size:15px; color:#6f6055; font-weight:700;}
+.ruler-wrap{position:relative; padding:14px 4px 36px;}
+.ruler{display:flex; height:58px; border:3px solid var(--ink); border-radius:10px; position:relative; touch-action:none; background:#efe6da;}
+.band{position:relative; overflow:hidden; border-right:3px solid rgba(43,35,32,.35);}
+.band:last-child{border-right:none;}
+.band .bl{
+  position:absolute; left:6px; top:50%; transform:translateY(-50%);
+  font-size:12px; font-weight:900; color:rgba(43,35,32,.85); white-space:nowrap;
+}
+.band.b1{background:#a8cdf7;} .band.b2{background:#ffd29b;} .band.b3{background:#ffb59e;}
+.bookmarker{
+  position:absolute; top:2px; height:86px; transform:translateX(-50%); z-index:6; touch-action:none; cursor:grab;
+  display:flex; align-items:center; justify-content:center;
+}
+.bm-body{
+  min-width:80px; height:56px; background:var(--main); border:4px solid var(--ink); border-radius:6px 12px 12px 6px;
+  color:#fff; font-weight:900; font-size:16px; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 0 rgba(0,0,0,.25); position:relative; padding:0 8px 0 16px; white-space:nowrap;
+}
+.bm-body::after{content:""; position:absolute; left:8px; top:6px; bottom:6px; width:4px; background:rgba(255,255,255,.5); border-radius:3px;}
+.bookmarker.dragging .bm-body{box-shadow:0 0 0 5px var(--gold);}
+.bookmarker.win .bm-body{background:var(--ok);}
+.ruler-ticks{position:absolute; left:0; right:0; bottom:6px; height:22px; pointer-events:none;}
+.m2-readout{
+  background:var(--card); border:4px solid var(--ink); border-radius:14px; padding:12px 16px;
+  box-shadow:0 4px 0 var(--ink); margin-top:10px;
+}
+.m2-lines{font-size:16px; font-weight:700;}
+.m2-lines .seg{display:inline-block; margin:2px 10px 2px 0; background:var(--bg); border:2px solid var(--ink); border-radius:8px; padding:2px 10px;}
+.m2-total{font-size:20px; font-weight:900; margin-top:6px;}
+.m2-total .st-under{color:#b26a00;} .m2-total .st-over{color:var(--bad);} .m2-total .st-ok{color:var(--ok);}
+.reservoir{height:26px; border:3px solid var(--ink); border-radius:999px; background:#efe6da; overflow:hidden; margin-top:10px;}
+.reservoir .fill{height:100%; width:0%; background:var(--main2); transition:width .12s;}
+.reservoir .fill.under{background:var(--main2);} .reservoir .fill.over{background:var(--bad);} .reservoir .fill.ok{background:var(--ok);}
+
+/* ---------- 任务3：数字寻宝墙（点亮含目标数字的页） ---------- */
+.m3-head{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:10px;}
+.digit-badge{
+  width:64px; height:64px; border-radius:16px; background:var(--main); border:4px solid var(--ink);
+  color:#fff; font-size:36px; font-weight:900; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 0 var(--ink); flex:none;
+}
+.m3-count{font-size:19px; font-weight:900;}
+.m3-count b{font-size:26px;}
+.wall{display:grid; grid-template-columns:repeat(auto-fill,minmax(52px,1fr)); gap:6px;}
+.tile{
+  border:3px solid var(--ink); border-radius:10px; background:var(--card); font-size:17px;
+  font-weight:700; padding:9px 0; color:var(--ink); transition:transform .1s; touch-action:manipulation;
+}
+.tile.lit{background:var(--gold); transform:scale(1.06);}
+.tile.lit1{background:#ffe08a; transform:scale(1.04);}
+.tile.nope{animation:shake .45s; background:#ffc9c9;}
+.tile.pulse{animation:pulse 1.6s;}
+@keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-5px);}40%{transform:translateX(5px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}30%{box-shadow:0 0 0 8px var(--gold);}60%{box-shadow:0 0 0 4px var(--gold);}}
+
+/* ---------- 任务4：彩虹配对环（拖页码配对） ---------- */
+.m4-wrap{display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;}
+.m4-slots{flex:2; min-width:300px; display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:8px; align-content:start;}
+.pair{
+  display:flex; align-items:center; gap:8px; background:var(--card); border:3px solid var(--ink);
+  border-radius:12px; padding:6px 10px;
+}
+.pair .pair-tag{font-size:13px; font-weight:900; color:#8a7a6e; width:46px; flex:none;}
+.pair .plus,.pair .sum{font-size:20px; font-weight:900; color:var(--accent);}
+.pair .sum{min-width:64px; text-align:center;}
+.slot{
+  width:62px; height:52px; border:3px dashed #d98a2b; border-radius:10px; background:var(--bg);
+  display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:900; flex:none;
+}
+.slot.hot{border-color:var(--gold); background:#fff3c4;}
+.pair.locked{border-color:var(--ok); background:#eafaf0;}
+.pair.locked .slot{border-style:solid; border-color:var(--ok);}
+.pair.bad{animation:shake .45s; border-color:var(--bad);}
+.chipbox{
+  min-width:52px; height:44px; border-radius:10px; background:var(--main); border:3px solid var(--ink);
+  color:#fff; font-size:20px; font-weight:900; display:flex; align-items:center; justify-content:center;
+  cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; padding:0 6px;
+}
+.chipbox.mystery{background:var(--accent);}
+.chipbox.locked{background:var(--ok);}
+.chipbox.revealed{background:var(--gold); color:var(--ink);}
+.chipbox.dragging{opacity:.35;}
+.m4-pool{
+  flex:1; min-width:240px; background:var(--card); border:4px solid var(--ink); border-radius:14px;
+  padding:12px; box-shadow:0 4px 0 var(--ink); display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start;
+}
+.m4-pool h4{margin:0 0 8px; font-size:15px; color:#8a7a6e; width:100%;}
+.ghost{
+  position:fixed; z-index:99; pointer-events:none; transform:translate(-50%,-50%) scale(1.08);
+}
+.m4-msg{margin-top:10px; font-weight:700; color:#6f6055; min-height:28px; font-size:16px;}
+.m4-sumcard{
+  margin:10px auto 0; display:inline-block; border:4px solid var(--ink); border-radius:12px;
+  background:var(--gold); padding:10px 18px; font-size:21px; font-weight:900; box-shadow:0 4px 0 var(--ink);
+  opacity:0; transform:scale(.6); transition:all .5s cubic-bezier(.2,1.4,.4,1);
+}
+.m4-sumcard.show{opacity:1; transform:scale(1);}
+
+/* ---------- 模态框 ---------- */
+.modal-backdrop{
+  display:none; position:fixed; inset:0; background:rgba(43,35,32,.55); z-index:60;
+  align-items:center; justify-content:center; padding:16px;
+}
+.modal-backdrop.show{display:flex;}
+.modal{
+  background:var(--card); border:5px solid var(--ink); border-radius:20px; box-shadow:0 8px 0 var(--ink);
+  max-width:640px; width:100%; max-height:86vh; overflow:auto; padding:22px 24px; position:relative;
+}
+.modal h2{margin:0 0 10px; color:var(--main); font-size:26px;}
+.modal .m-close{
+  position:absolute; top:10px; right:12px; width:38px; height:38px; border-radius:50%;
+  border:3px solid var(--ink); background:var(--main2); font-size:18px; font-weight:900; color:var(--ink);
+}
+.modal p,.modal li{font-size:16.5px;}
+.modal .m-foot{display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap;}
+.answer-big{
+  background:var(--bg); border:3px solid var(--main); border-radius:12px; padding:10px 14px;
+  font-size:20px; font-weight:900; margin:10px 0;
+}
+.tip-card{
+  background:#eafaf0; border:3px dashed var(--ok); border-radius:12px; padding:10px 14px; font-size:15px;
+}
+.star-row{font-size:38px; letter-spacing:6px; color:var(--gold); text-align:center; margin:6px 0; text-shadow:1px 2px 0 rgba(0,0,0,.15);}
+.star-row .off{color:#e0d5c8;}
+.reveal-box{background:var(--bg); border:3px solid var(--accent); border-radius:12px; padding:10px 14px; font-size:16px;}
+.reveal-box .step{margin:6px 0;}
+.reveal-box .fm{color:var(--main); font-weight:900;}
+
+/* ---------- 庆祝画布 ---------- */
+#fx{position:fixed; inset:0; pointer-events:none; z-index:80;}
+
+@media (max-width:640px){
+  body{font-size:16px;}
+  #topbar .tb-title{display:none;}
+  .press{width:120px;}
+  .pair .sum{min-width:52px;}
+  .slot{width:54px; height:46px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== 顶部栏（游戏中显示）：功能按钮 + 计时 + 步数 ===================== -->
+<header id="topbar">
+  <span class="tb-title">页码魔法印刷坊</span>
+  <span class="tb-sub" id="tb-sub"></span>
+  <button class="btn small" id="btn-back">返回难度选择</button>
+  <button class="btn small" id="btn-rules">规则说明</button>
+  <button class="btn small warnb" id="btn-reveal">揭示答案</button>
+  <button class="btn small" id="btn-restart">重新开始</button>
+  <div class="stats">
+    <div class="stat">时间 <span id="stat-time">00:00</span></div>
+    <div class="stat">步数 <span id="stat-steps">0</span></div>
+  </div>
+</header>
+
+<!-- ===================== 首页 / 难度选择 ===================== -->
+<main id="screen-home">
+  <div class="home-kicker">三年级（下）· 第17讲</div>
+  <h1 class="home-title">页码魔法印刷坊</h1>
+  <div class="home-sub">排好数字活字，印出整本书的页码 —— 玩着玩着就学会"页码问题"！</div>
+  <div class="bookrow">
+    <div class="book" style="background:#e8603c;"></div>
+    <div class="book" style="background:#3d9be9;"></div>
+    <div class="book" style="background:#2a9d5c;"></div>
+    <div class="book" style="background:#f2b705;"></div>
+    <div class="book" style="background:#9b5de5;"></div>
+  </div>
+  <div class="diff-wrap">
+    <div class="diff-card">
+      <h3>初级 · 活字小匠</h3>
+      <p>例题级：两位数图书的分段统计，寻宝墙范围小，适合刚入门。</p>
+      <button class="btn primary go" data-diff="初级">开始挑战</button>
+    </div>
+    <div class="diff-card">
+      <h3>中级 · 印刷能手</h3>
+      <p>练习级：三位数分段、由数字个数倒推页数，还有彩虹配对环。</p>
+      <button class="btn primary go" data-diff="中级">开始挑战</button>
+    </div>
+    <div class="diff-card">
+      <h3>高级 · 魔法印刷师</h3>
+      <p>变式级：大库存倒推、大范围寻宝、墨渍页配对推理。</p>
+      <button class="btn primary go" data-diff="高级">开始挑战</button>
+    </div>
+  </div>
+  <div class="know-card">
+    <b>印刷师小手册</b>（页码问题的分类统计表）
+    <table>
+      <tr><th>分类</th><th>页数范围</th><th>页数</th><th>数字个数</th></tr>
+      <tr><td>一位数</td><td>1～9</td><td>9</td><td>1×9=9</td></tr>
+      <tr><td>两位数</td><td>10～99</td><td>90</td><td>2×90=180</td></tr>
+      <tr><td>三位数</td><td>100～999</td><td>900</td><td>3×900=2700</td></tr>
+      <tr><td>四位数</td><td>1000～9999</td><td>9000</td><td>4×9000=36000</td></tr>
+    </table>
+    小知识：同一张纸正反两面是相邻页码，奇数在前、偶数在后哦。
+  </div>
+  <div class="src">改编自 小学数学思维培养《第17讲 页码问题（上）》</div>
+</main>
+
+<!-- ===================== 游戏屏 ===================== -->
+<main id="screen-game">
+  <div id="mission-head">
+    <span id="mh-order">订单 1/4</span><span id="mh-name">活字分段机</span>
+    <div id="mh-text"></div>
+  </div>
+  <div id="stage"></div>
+</main>
+
+<!-- ===================== 规则说明模态（进入即弹出，可随时再看） ===================== -->
+<div class="modal-backdrop" id="modal-rules">
+  <div class="modal">
+    <button class="m-close" data-close="modal-rules">X</button>
+    <h2>欢迎来到页码魔法印刷坊！</h2>
+    <p>你是印刷坊的小学徒。图书订单送来后，要亲手<b>排数字活字</b>，把页码印到每一页上。每个难度共 <b>4 张订单</b>（关卡），完成全部订单就能点亮彩虹印台！</p>
+    <ul>
+      <li><b>活字分段机</b>：拖动黑色<b>分段闸门</b>，把整本书的页码分成"一位数区、两位数区、三位数区"。放错区的页会变红；调到没有红格，印刷机就会开动，算出全书用了多少个数字活字。</li>
+      <li><b>页厚调节台</b>：已知活字库里有多少个数字活字，拖动<b>小书游标</b>往后排页码；松手那一刻正好把活字用完，就知道了这本书一共有多少页。</li>
+      <li><b>数字寻宝墙</b>：把墙上数字<b>出现的地方</b>全部点亮——出现一次点一下，出现两次（比如 55 里的两个 5）点两下；个位、十位、百位都要找，全找到就通关。</li>
+      <li><b>彩虹配对环</b>：把页码活字<b>拖进配对槽</b>，两两配成"和相等"的数对；全部配对成功就能算出全书页码总和。高级订单里还有被墨渍盖住的"?"页，等你推理！</li>
+    </ul>
+    <p>右上角有<b>计时和步数</b>；卡住了点"揭示答案"看方法；"重新开始"会换一批新订单。每局配色都会变，多玩几次也不重样！</p>
+    <div class="m-foot"><button class="btn primary" data-close="modal-rules">我准备好了，开工！</button></div>
+  </div>
+</div>
+
+<!-- ===================== 揭示答案模态 ===================== -->
+<div class="modal-backdrop" id="modal-reveal">
+  <div class="modal">
+    <button class="m-close" data-close="modal-reveal">X</button>
+    <h2>方法揭示</h2>
+    <div id="reveal-body" class="reveal-box"></div>
+    <div class="m-foot"><button class="btn primary" data-close="modal-reveal">知道了，继续挑战</button></div>
+  </div>
+</div>
+
+<!-- ===================== 单关完成模态 ===================== -->
+<div class="modal-backdrop" id="modal-done">
+  <div class="modal">
+    <h2 style="text-align:center;">订单完成！</h2>
+    <div class="star-row" id="done-stars"></div>
+    <div class="answer-big" id="done-answer"></div>
+    <div class="tip-card" id="done-tip"></div>
+    <div class="m-foot"><button class="btn primary" id="btn-next">下一张订单</button></div>
+  </div>
+</div>
+
+<!-- ===================== 全部通关模态 ===================== -->
+<div class="modal-backdrop" id="modal-final">
+  <div class="modal">
+    <h2 style="text-align:center;">全部订单完成！</h2>
+    <div class="star-row" id="final-stars"></div>
+    <div class="answer-big" id="final-body"></div>
+    <div class="m-foot">
+      <button class="btn primary" id="btn-again">再玩一次（换新订单）</button>
+      <button class="btn" id="btn-home2">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- 庆祝彩纸画布 -->
+<canvas id="fx"></canvas>
+
+<script>
+'use strict';
+/* ============================================================
+   工具函数区
+   ============================================================ */
+function $(s){ return document.querySelector(s); }
+function $all(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
+/* 随机整数（含两端） */
+function ri(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
+/* 随机取数组一员 */
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+/* 洗牌（Fisher-Yates），返回新数组 */
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){
+    var j = Math.floor(Math.random()*(i+1));
+    var t=a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+/* 一个页码是几位数 */
+function digitLen(n){ return String(n).length; }
+/* 1~n 页的页码共用了多少个数字（分段统计法） */
+function digitsUpTo(n){
+  var total=0, len=1, start=1, cnt=9;
+  while(start<=n){
+    var end = Math.min(n, start+cnt-1);
+    total += (end-start+1)*len;
+    start *= 10; cnt *= 10; len++;
+  }
+  return total;
+}
+/* 1~n 页中数字 d 出现的次数（按位枚举） */
+function countDigit(n,d){
+  var c=0, ds=String(d);
+  for(var i=1;i<=n;i++){
+    var s=String(i);
+    for(var j=0;j<s.length;j++){ if(s.charAt(j)===ds) c++; }
+  }
+  return c;
+}
+
+/* ============================================================
+   配色随机化：每局从色板中随机选一套主色（G8）
+   ============================================================ */
+var PALETTES = [
+  {name:'珊瑚橙', main:'#e8603c', main2:'#f4a259', accent:'#3d9be9', bg:'#fff6ec'},
+  {name:'海洋蓝', main:'#2f7fd6', main2:'#7cc4f2', accent:'#f4a259', bg:'#eef6fd'},
+  {name:'青草绿', main:'#3f9e4d', main2:'#9bd07a', accent:'#e8603c', bg:'#f2faf0'},
+  {name:'葡萄紫', main:'#8a5bc8', main2:'#c3a3ec', accent:'#2a9d8f', bg:'#f7f2fd'},
+  {name:'蜜桃粉', main:'#e06a8a', main2:'#f5a8bd', accent:'#3d9be9', bg:'#fdf2f5'},
+  {name:'向日葵', main:'#dd9a0a', main2:'#f5cf5a', accent:'#2f7fd6', bg:'#fdf9ec'}
+];
+function applyPalette(){
+  var p = pick(PALETTES);
+  var r = document.documentElement.style;
+  r.setProperty('--main', p.main);
+  r.setProperty('--main2', p.main2);
+  r.setProperty('--accent', p.accent);
+  r.setProperty('--bg', p.bg);
+  return p;
+}
+
+/* ============================================================
+   全局状态
+   ============================================================ */
+var S = {
+  diff:'',          // 当前难度
+  levels:[],        // 本局的订单（关卡）数组
+  idx:0,            // 当前订单序号
+  steps:0,          // 步数
+  sec:0,            // 秒数
+  timerOn:false,    // 计时开关
+  stars:0,          // 累计星星
+  levelDone:false,  // 当前关是否已完成（防重复结算）
+  revealUsed:false, // 本关是否用过揭示
+  wrongOps:0,       // 本关失误操作数
+  finished:false    // 当前关交互是否已锁定
+};
+
+/* 计时器（G7） */
+var timerId = null;
+function startTimer(){
+  if(S.timerOn) return;
+  S.timerOn = true;
+  timerId = setInterval(function(){
+    S.sec++;
+    var m = Math.floor(S.sec/60), s = S.sec%60;
+    $('#stat-time').textContent = (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  },1000);
+}
+function stopTimer(){ S.timerOn=false; if(timerId){ clearInterval(timerId); timerId=null; } }
+/* 步数（G7） */
+function addStep(n){ S.steps += (n||1); $('#stat-steps').textContent = String(S.steps); }
+
+/* ============================================================
+   屏幕切换与模态
+   ============================================================ */
+function showScreen(name){
+  var home=$('#screen-home'), game=$('#screen-game'), bar=$('#topbar');
+  if(name==='home'){
+    home.style.display='flex'; game.classList.remove('show'); game.style.display='none';
+    bar.classList.remove('show'); stopTimer();
+  }else{
+    home.style.display='none'; game.style.display='block'; game.classList.add('show');
+    bar.classList.add('show'); startTimer();
+  }
+}
+function openModal(id){ $('#'+id).classList.add('show'); }
+function closeModal(id){ $('#'+id).classList.remove('show'); }
+
+/* ============================================================
+   题库：docx 例题/练习改编 + 同题型随机变式（反重复机制）
+   ============================================================ */
+/* 订单1（活字分段机）：知页数求数字个数
+   题源：例1(40页=71个)、例2(150页=342个)、练习1(20页=31个)、练习2(80页=151个)、练习4(86页=163个) + 随机变式 */
+var M1_POOL = {
+  '初级':[20,32,40,47,55,63,71,80,86,95],
+  '中级':[105,110,120,135,150,160,178,204,225,240],
+  '高级':[258,272,296,305,333,362,408]
+};
+/* 订单2（页厚调节台）：知数字个数倒推页数
+   题源：练习5(127个→68页)、练习7(105个→57页)、例3(225个→111页)、
+         练习14(492个→200页)、练习15(1989个→699页) + 随机变式 */
+var M2_POOL = {
+  '初级':[15,23,31,42,44,50,56,57,68],
+  '中级':[111,123,132,145,154,168,176,187,200],
+  '高级':[200,256,318,345,425,528,640,699]
+};
+
+function genM1(diff, avoidN){
+  var pool = shuffle(M1_POOL[diff]);
+  var N = pool[0];
+  if(avoidN && N===avoidN){ N = pool[1] || (N+7); }
+  var kind = pick(['小漫画书','小册子','故事书','科幻小说','画册']);
+  return {
+    type:'m1', N:N, T:digitsUpTo(N), kind:kind,
+    text:'一本'+kind+'一共有 '+N+' 页，给每页印上页码，这些页码共要用多少个数字活字？拖动分段闸门，把页码按位数分好段，印刷机就会自动算出来！'
+  };
+}
+function genM2(diff){
+  var P = pick(M2_POOL[diff]);
+  var T = digitsUpTo(P);
+  var maxP = Math.min(999, P + Math.max(15, Math.round(P*0.15)));
+  return {
+    type:'m2', P:P, T:T, maxP:maxP,
+    text:'给一本书编页码，活字库里一共有 '+T+' 个数字活字。拖动小书游标往后排页码，松手时正好把活字全部用完，这本书一共排到了第几页？'
+  };
+}
+function genM3(diff){
+  /* 题源：练习10(1~100 中每个数字2~9各出现20次)、练习11(读到86页时数字8共出现15次) + 随机变式 */
+  var N, d, c;
+  if(diff==='初级'){
+    var t1=0;
+    do{ N=ri(21,48); d=ri(1,9); c=countDigit(N,d); t1++; }while((c<4||c>8)&&t1<200);
+    if(c<4||c>8){ N=32; d=5; c=countDigit(N,d); }
+  }else if(diff==='中级'){
+    if(Math.random()<0.4){ N=86; d=8; c=countDigit(N,d); }  /* 呼应练习11：86页处数字8共15个 */
+    else{
+      var t2=0;
+      do{ N=ri(70,120); d=ri(1,9); c=countDigit(N,d); t2++; }while((c<10||c>18)&&t2<200);
+      if(c<10||c>18){ N=96; d=9; c=countDigit(N,d); }
+    }
+  }else{
+    if(Math.random()<0.45){ N=100; d=ri(2,9); c=countDigit(N,d); }  /* 呼应练习10：1~100 中出现20次 */
+    else{
+      var t3=0;
+      do{ N=ri(100,180); d=ri(2,9); c=countDigit(N,d); t3++; }while((c<19||c>28)&&t3<200);
+      if(c<19||c>28){ N=150; d=3; c=countDigit(N,d); }
+    }
+  }
+  return {
+    type:'m3', N:N, d:d, C:c,
+    text:'订单：在 1～'+N+' 页的页码里，数字 '+d+' 一共出现了多少次？把墙上数字 '+d+' 出现的地方全部点亮（出现一次点一下，出现两次点两下），答案就会浮现！'
+  };
+}
+function genM4(diff){
+  var N = (diff==='高级') ? pick([16,18,20]) : pick([12,14,16]);
+  var hidden = (diff==='高级') ? ri(2,N-1) : 0;
+  return {
+    type:'m4', N:N, hidden:hidden,
+    text:'一本画册一共有 '+N+' 页。把页码活字拖进配对槽，两两配成"和相等"的数对，全部配对成功，彩虹印台就会亮出全书页码的总和！'
+               + (hidden? ' 注意：有一页被墨渍盖住了（显示为 ?），配对时推理出它是第几页！':'')
+  };
+}
+
+/* 生成一局的关卡（三档难度，数据每局随机） */
+function buildLevels(diff){
+  if(diff==='初级'){
+    var a=genM1(diff,0);
+    return [a, genM3(diff), genM2(diff), genM1(diff,a.N)];
+  }
+  if(diff==='中级'){ return [genM1(diff,0), genM2(diff), genM4(diff), genM3(diff)]; }
+  return [genM2(diff), genM3(diff), genM1(diff,0), genM4(diff)];
+}
+
+/* ============================================================
+   通用：指针拖动助手（鼠标/触屏通用）
+   ============================================================ */
+function startStripDrag(e, trackEl, onFrac, onEnd){
+  e.preventDefault();
+  function handleMove(ev){
+    var r = trackEl.getBoundingClientRect();
+    var frac = (ev.clientX - r.left)/r.width;
+    if(frac<0) frac=0;
+    if(frac>1) frac=1;
+    onFrac(frac);
+  }
+  function handleUp(){
+    document.removeEventListener('pointermove', handleMove);
+    document.removeEventListener('pointerup', handleUp);
+    document.removeEventListener('pointercancel', handleUp);
+    if(onEnd) onEnd();
+  }
+  document.addEventListener('pointermove', handleMove);
+  document.addEventListener('pointerup', handleUp);
+  document.addEventListener('pointercancel', handleUp);
+}
+
+/* ============================================================
+   订单1：活字分段机（拖分段闸门，把页码条按位数分段）
+   数学本质：分段统计法 —— 位数与所在区不一致的页变红，
+   全部分段正确后印刷机盖章，自动算出全书数字总个数。
+   ============================================================ */
+function renderM1(m){
+  var stage=$('#stage');
+  var needGate2 = m.N>=100;
+  stage.innerHTML =
+    '<div class="zonebar">'+
+      '<div class="zchip c1" id="zc1"><span class="zt">一位数区（每页1个数字）</span><span id="zs1"></span></div>'+
+      '<div class="zchip c2" id="zc2"><span class="zt">两位数区（每页2个数字）</span><span id="zs2"></span></div>'+
+      (needGate2? '<div class="zchip c3" id="zc3"><span class="zt">三位数区（每页3个数字）</span><span id="zs3"></span></div>':'')+
+    '</div>'+
+    '<div class="strip-wrap">'+
+      '<div class="strip" id="m1strip"></div>'+
+      '<div class="strip-ticks" id="m1ticks"></div>'+
+    '</div>'+
+    '<div class="m1-msg" id="m1msg">拖动黑色分段闸门，让每一区里的页码位数都相同（放错区的页码会变红）。</div>'+
+    '<div class="m1-machine">'+
+      '<div class="press" id="m1press"><div class="head"></div><div class="plat"></div><div class="pname">魔法印刷机</div></div>'+
+      '<div class="cover" id="m1cover"><small>盖章中…</small></div>'+
+    '</div>';
+
+  var strip=$('#m1strip');
+  /* 生成 1~N 的所有页格子 */
+  var frag=document.createDocumentFragment();
+  for(var i=1;i<=m.N;i++){
+    var c=document.createElement('div');
+    c.className='cell';
+    c.title='第'+i+'页（'+digitLen(i)+'位数）';
+    frag.appendChild(c);
+  }
+  strip.appendChild(frag);
+  var cells=$all('#m1strip .cell');
+
+  /* 刻度标签（帮助学生定位 9/10、99/100 分界） */
+  var ticks=$('#m1ticks');
+  function addTick(page, label, align){
+    var t=document.createElement('span');
+    t.className='tick'; t.textContent=label;
+    if(align==='left'){ t.style.left='0%'; t.style.transform='none'; }
+    else if(align==='right'){ t.style.left='100%'; t.style.transform='translateX(-100%)'; }
+    else{ t.style.left=(page/m.N*100)+'%'; }
+    ticks.appendChild(t);
+  }
+  addTick(0,'第1页','left');
+  addTick(9,'10');
+  if(needGate2){ addTick(99,'100'); }
+  addTick(m.N,'第'+m.N+'页','right');
+
+  /* 闸门状态：kA 分隔一位数区与两位数区；kB 分隔两位数区与三位数区 */
+  var kA = Math.max(2, Math.round(m.N*0.28));
+  var kB = needGate2 ? Math.max(kA+2, Math.round(m.N*0.62)) : m.N;
+  var gateA=null, gateB=null;
+
+  function makeGate(isA){
+    var g=document.createElement('div');
+    g.className='gate';
+    var lb=document.createElement('div');
+    lb.className='glabel';
+    g.appendChild(lb);
+    strip.appendChild(g);
+    function curK(){ return isA? kA : kB; }
+    function place(){
+      g.style.left=(curK()/m.N*100)+'%';
+      lb.textContent='第'+curK()+'页后';
+    }
+    g.addEventListener('pointerdown', function(e){
+      if(S.finished) return;
+      g.classList.add('dragging');
+      startStripDrag(e, strip, function(frac){
+        var k=Math.round(frac*m.N);
+        if(k<1) k=1;
+        if(k>m.N-1) k=m.N-1;
+        var nk=k;
+        if(isA){ if(needGate2 && nk>=kB) nk=kB-1; }
+        else{ if(nk<=kA) nk=kA+1; }
+        if(nk!==curK()){
+          if(isA) kA=nk; else kB=nk;
+          place(); repaint();
+        }
+      }, function(){
+        g.classList.remove('dragging');
+        addStep();
+        checkWin();
+      });
+    });
+    g.place=place;
+    return g;
+  }
+  gateA=makeGate(true);
+  if(needGate2){ gateB=makeGate(false); }
+
+  /* 依据当前闸门位置重新上色与统计（红色 = 位数与所在区不符） */
+  function repaint(){
+    var flagCount=0, sampleP=0, sampleLen=1;
+    for(var i=0;i<m.N;i++){
+      var p=i+1, cls='cell ';
+      if(p<=kA){
+        cls+='z1';
+        if(digitLen(p)!==1){ cls+=' flag'; flagCount++; if(!sampleP){sampleP=p; sampleLen=digitLen(p);} }
+      }else if(p<=kB){
+        cls+='z2';
+        if(digitLen(p)!==2){ cls+=' flag'; flagCount++; if(!sampleP){sampleP=p; sampleLen=digitLen(p);} }
+      }else{
+        cls+='z3';
+        if(digitLen(p)!==3){ cls+=' flag'; flagCount++; if(!sampleP){sampleP=p; sampleLen=digitLen(p);} }
+      }
+      cells[i].className=cls;
+    }
+    var n1=kA, n2=kB-kA, n3=m.N-kB;
+    $('#zs1').textContent='第1~'+kA+'页 · '+n1+'页 × 1 = '+n1+' 个';
+    $('#zs2').textContent='第'+(kA+1)+'~'+kB+'页 · '+n2+'页 × 2 = '+(n2*2)+' 个';
+    if(needGate2){ $('#zs3').textContent='第'+(kB+1)+'~'+m.N+'页 · '+n3+'页 × 3 = '+(n3*3)+' 个'; }
+    /* 分界没落在 9 / 99 上时，对应统计卡亮警示 */
+    $('#zc1').classList.toggle('alert', kA!==9);
+    $('#zc2').classList.toggle('alert', needGate2 && kB!==99);
+    if(needGate2){ $('#zc3').classList.toggle('alert', kB!==99); }
+    var msg=$('#m1msg');
+    if(flagCount>0){
+      msg.className='m1-msg alert';
+      msg.textContent='还有 '+flagCount+' 页放错了区（红色格子）：比如第'+sampleP+'页是 '+sampleLen+' 位数，调整分段闸门吧！';
+    }else{
+      msg.className='m1-msg';
+      msg.textContent='分段正确！每区页码的位数都一样了。';
+    }
+  }
+
+  /* 胜利判定：分界正确（9 与 99）即开动印刷机盖章 */
+  function checkWin(){
+    if(S.finished) return;
+    var okA = (kA===9);
+    var okB = needGate2 ? (kB===99) : true;
+    if(okA && okB){
+      S.finished=true;
+      var msg=$('#m1msg');
+      msg.className='m1-msg';
+      msg.textContent='印刷机启动！正在统计全书数字活字……';
+      $('#m1press').classList.add('run');
+      setTimeout(function(){
+        var total=digitsUpTo(m.N);
+        var cover=$('#m1cover');
+        cover.innerHTML='<small>'+m.kind+' · 共'+m.N+'页</small>页码共用 <b>'+total+'</b> 个数字活字';
+        cover.classList.add('show');
+        burstConfetti(70);
+        setTimeout(function(){ levelComplete(m); }, 1100);
+      }, 620);
+    }
+  }
+
+  gateA.place();
+  if(gateB){ gateB.place(); }
+  repaint();
+}
+
+/* ============================================================
+   订单2：页厚调节台（拖小书游标，倒推总页数）
+   数学本质：已知数字个数倒推页数 —— 实时分段显示已用活字，
+   松手时恰好用完即得到页数（分段倒推 / 补位法思想）。
+   ============================================================ */
+function renderM2(m){
+  var stage=$('#stage');
+  var has3 = m.maxP>99;
+  stage.innerHTML =
+    '<div class="m2-top">'+
+      '<div class="badge-target">活字库存 <b>'+m.T+'</b> 个</div>'+
+      '<div class="m2-hint">左右拖动小书游标；松手那一刻正好用完全部活字，就通关！</div>'+
+    '</div>'+
+    '<div class="ruler-wrap">'+
+      '<div class="ruler" id="m2ruler">'+
+        '<div class="band b1" id="band1"><span class="bl">1~9 每页1字</span></div>'+
+        (has3? '<div class="band b2" id="band2"><span class="bl">10~99 每页2字</span></div>'+
+               '<div class="band b3" id="band3"><span class="bl">100页起 每页3字</span></div>'
+            : '<div class="band b2" id="band2"><span class="bl">10页起 每页2字</span></div>')+
+      '</div>'+
+      '<div class="ruler-ticks" id="m2ticks"></div>'+
+    '</div>'+
+    '<div class="m2-readout">'+
+      '<div class="m2-lines" id="m2lines"></div>'+
+      '<div class="m2-total" id="m2total"></div>'+
+      '<div class="reservoir"><div class="fill" id="m2fill"></div></div>'+
+    '</div>';
+
+  var ruler=$('#m2ruler');
+  /* 按页数比例设置色带宽度 */
+  $('#band1').style.width=(9/m.maxP*100)+'%';
+  $('#band2').style.width=((has3?90:(m.maxP-9))/m.maxP*100)+'%';
+  if(has3){ $('#band3').style.width=((m.maxP-99)/m.maxP*100)+'%'; }
+
+  var ticks=$('#m2ticks');
+  function addTick(page,label,align){
+    var t=document.createElement('span');
+    t.className='tick'; t.textContent=label;
+    if(align==='left'){ t.style.left='0%'; t.style.transform='none'; }
+    else if(align==='right'){ t.style.left='100%'; t.style.transform='translateX(-100%)'; }
+    else{ t.style.left=(page/m.maxP*100)+'%'; }
+    ticks.appendChild(t);
+  }
+  addTick(0,'第1页','left');
+  addTick(9,'10');
+  if(has3){
+    addTick(99,'100');
+    var mid=Math.round(m.maxP*0.75);
+    addTick(mid,String(mid));
+  }
+  addTick(m.maxP,'第'+m.maxP+'页','right');
+
+  /* 小书游标本体（显示当前排到的页数） */
+  var marker=document.createElement('div');
+  marker.className='bookmarker';
+  marker.innerHTML='<div class="bm-body"><span id="bmP">第1页</span></div>';
+  $('.ruler-wrap').appendChild(marker);
+  var P=1;
+
+  function place(){
+    marker.style.left=(P/m.maxP*100)+'%';
+    $('#bmP').textContent='第'+P+'页';
+  }
+  /* 实时分段统计（随 P 增长逐段累计用字量） */
+  function updateReadout(){
+    var lines=[];
+    var u1=Math.min(P,9);
+    lines.push('<span class="seg">第1~'+u1+'页：用 '+(u1*1)+' 个</span>');
+    var used=u1*1;
+    if(P>9){
+      var u2=Math.min(P,99)-9;
+      lines.push('<span class="seg">第10~'+Math.min(P,99)+'页：用 '+(u2*2)+' 个</span>');
+      used+=u2*2;
+    }
+    if(P>99){
+      var u3=P-99;
+      lines.push('<span class="seg">第100~'+P+'页：用 '+(u3*3)+' 个</span>');
+      used+=u3*3;
+    }
+    $('#m2lines').innerHTML=lines.join('');
+    var left=m.T-used;
+    var tot=$('#m2total'), fill=$('#m2fill');
+    if(left===0){
+      tot.innerHTML='已用 <b>'+used+'</b> 个 / 库存 '+m.T+' 个 —— <span class="st-ok">正好用完！</span>';
+      fill.className='fill ok';
+    }else if(left>0){
+      tot.innerHTML='已用 <b>'+used+'</b> 个 / 库存 '+m.T+' 个 —— <span class="st-under">还差 '+left+' 个（再往后排）</span>';
+      fill.className='fill under';
+    }else{
+      tot.innerHTML='已用 <b>'+used+'</b> 个 / 库存 '+m.T+' 个 —— <span class="st-over">超出 '+(-left)+' 个（往回退一点）</span>';
+      fill.className='fill over';
+    }
+    var ratio=used/m.T*100;
+    if(ratio>100) ratio=100;
+    if(ratio<0) ratio=0;
+    fill.style.width=ratio+'%';
+    return left;
+  }
+
+  marker.addEventListener('pointerdown', function(e){
+    if(S.finished) return;
+    marker.classList.add('dragging');
+    startStripDrag(e, ruler, function(frac){
+      var np=Math.max(1, Math.min(m.maxP, Math.round(frac*m.maxP)));
+      if(np!==P){ P=np; place(); updateReadout(); }
+    }, function(){
+      marker.classList.remove('dragging');
+      addStep();
+      if(!S.finished && updateReadout()===0){
+        S.finished=true;
+        marker.classList.add('win');
+        $('#m2total').innerHTML='已用 <b>'+m.T+'</b> 个活字，正好排到 <b>第'+P+'页</b> —— 这本书共 '+P+' 页！';
+        burstConfetti(70);
+        setTimeout(function(){ levelComplete(m); }, 900);
+      }
+    });
+  });
+
+  place();
+  updateReadout();
+}
+
+/* ============================================================
+   订单3：数字寻宝墙（按"出现次数"点亮数字）
+   数学本质：按位枚举 —— 在整面页码墙上把目标数字出现的
+   地方逐一点亮（个位/十位/百位；同一页出现两次要点两下），
+   操作即枚举过程，总数即出现次数。
+   ============================================================ */
+function renderM3(m){
+  var stage=$('#stage');
+  stage.innerHTML =
+    '<div class="m3-head">'+
+      '<div class="digit-badge">'+m.d+'</div>'+
+      '<div class="m3-count">数字 '+m.d+' 每出现一次点亮一处：已点亮 <b id="m3f">0</b> / <b id="m3t">'+m.C+'</b> 处<br><small style="font-size:13px;color:#8a7a6e;">提示：像 55 这样的页码里数字出现两次，要点两下哦</small></div>'+
+      '<button class="btn small" id="m3hint">提示灯（帮我亮一处）</button>'+
+    '</div>'+
+    '<div class="wall" id="m3wall"></div>';
+
+  var wall=$('#m3wall');
+  var frag=document.createDocumentFragment();
+  var found=0;
+  /* need[p] = 第 p 页里数字 d 还剩几次没点亮（按"出现次数"计） */
+  var need={};
+  for(var i=1;i<=m.N;i++){
+    var occ=0, si=String(i);
+    for(var j=0;j<si.length;j++){ if(si.charAt(j)===String(m.d)) occ++; }
+    if(occ>0){ need[i]=occ; }
+  }
+  for(var k=1;k<=m.N;k++){
+    (function(p){
+      var b=document.createElement('button');
+      b.className='tile';
+      b.textContent=String(p);
+      b.addEventListener('click', function(){
+        if(S.finished) return;
+        if(need[p]===0 && b.classList.contains('lit')) return; /* 已点满 */
+        addStep();
+        if(need[p] && need[p]>0){
+          need[p]--;
+          found++;
+          $('#m3f').textContent=String(found);
+          b.classList.remove('nope');
+          b.classList.add(need[p]===0 ? 'lit' : 'lit1');
+          if(found===m.C){
+            S.finished=true;
+            burstConfetti(70);
+            setTimeout(function(){ levelComplete(m); }, 700);
+          }
+        }else{
+          S.wrongOps++;
+          b.classList.add('nope');
+          setTimeout(function(){ b.classList.remove('nope'); }, 480);
+        }
+      });
+      frag.appendChild(b);
+    })(k);
+  }
+  wall.appendChild(frag);
+
+  /* 提示灯：随机脉冲提示一个还没点满的目标页 */
+  $('#m3hint').addEventListener('click', function(){
+    if(S.finished) return;
+    addStep(2);
+    var tiles=$all('#m3wall .tile');
+    var cands=[];
+    for(var i=0;i<tiles.length;i++){
+      var p=i+1;
+      if(need[p] && need[p]>0) cands.push(tiles[i]);
+    }
+    if(cands.length){
+      var t=pick(cands);
+      t.classList.add('pulse');
+      setTimeout(function(){ t.classList.remove('pulse'); }, 1650);
+    }
+  });
+}
+
+/* ============================================================
+   订单4：彩虹配对环（拖页码活字配成和相等的数对）
+   数学本质：高斯配对求和 —— 1+N=2+(N-1)=…；高级难度的
+   "墨渍页 ?"需要通过"谁的搭档还留在零件盘"来推理。
+   ============================================================ */
+function renderM4(m){
+  var stage=$('#stage');
+  var pairs=m.N/2;
+  var slotsHtml='';
+  for(var r=1;r<=pairs;r++){
+    slotsHtml += '<div class="pair" data-row="'+r+'">'+
+      '<span class="pair-tag">第'+r+'对</span>'+
+      '<div class="slot" data-val=""></div><span class="plus">＋</span>'+
+      '<div class="slot" data-val=""></div><span class="sum">=?</span></div>';
+  }
+  stage.innerHTML =
+    '<div class="m4-wrap">'+
+      '<div class="m4-slots" id="m4slots">'+slotsHtml+'</div>'+
+      '<div class="m4-pool" id="m4pool"><h4>页码活字零件盘（拖到左边配对槽）</h4></div>'+
+    '</div>'+
+    '<div class="m4-msg" id="m4msg">试着配出第一对：哪两页相加，和跟别的对也一样呢？</div>'+
+    '<div style="text-align:center;"><div class="m4-sumcard" id="m4sum"></div></div>';
+
+  var pool=$('#m4pool');
+  var vals=[];
+  for(var i=1;i<=m.N;i++){ if(i!==m.hidden) vals.push(String(i)); }
+  if(m.hidden){ vals.push('?'); }
+  vals=shuffle(vals);
+
+  vals.forEach(function(v){
+    var chip=document.createElement('div');
+    chip.className='chipbox'+(v==='?'?' mystery':'');
+    chip.textContent=v;
+    chip.dataset.val=v;
+    pool.appendChild(chip);
+    /* 指针拖动：幽灵片跟随手指，落到空配对槽即放置 */
+    chip.addEventListener('pointerdown', function(e){
+      if(S.finished || chip.classList.contains('locked')) return;
+      e.preventDefault();
+      var ghost=chip.cloneNode(true);
+      ghost.classList.add('ghost');
+      ghost.style.width=chip.offsetWidth+'px';
+      document.body.appendChild(ghost);
+      chip.classList.add('dragging');
+      function mv(ev){
+        ghost.style.left=ev.clientX+'px';
+        ghost.style.top=ev.clientY+'px';
+        var el=document.elementFromPoint(ev.clientX, ev.clientY);
+        $all('.slot').forEach(function(s){ s.classList.remove('hot'); });
+        if(el){
+          var slot=el.closest ? el.closest('.slot') : null;
+          if(slot && slot.dataset.val==='' && !slot.parentNode.classList.contains('locked')) slot.classList.add('hot');
+        }
+      }
+      function up(ev){
+        document.removeEventListener('pointermove', mv);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', up);
+        if(ghost.parentNode){ ghost.parentNode.removeChild(ghost); }
+        chip.classList.remove('dragging');
+        $all('.slot').forEach(function(s){ s.classList.remove('hot'); });
+        var el=document.elementFromPoint(ev.clientX, ev.clientY);
+        var slot=el && el.closest ? el.closest('.slot') : null;
+        if(slot && slot.dataset.val==='' && !slot.parentNode.classList.contains('locked')){
+          slot.appendChild(chip);
+          slot.dataset.val=chip.dataset.val;
+          addStep();
+          evalRow(slot.parentNode);
+        }
+      }
+      document.addEventListener('pointermove', mv);
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', up);
+      mv(e);
+    });
+  });
+
+  /* 整块板上是否存在数字 v 的活字（零件盘 + 所有配对槽，含未判定/已锁定）
+     墨渍页判定依据：唯一不在板上的页就是被墨渍盖住的那页 */
+  function boardHas(v){
+    var chips=$all('.chipbox');
+    for(var i=0;i<chips.length;i++){
+      if(chips[i].dataset && chips[i].dataset.val===String(v)) return true;
+    }
+    return false;
+  }
+  /* 一行两个槽都填满时判定 */
+  function evalRow(row){
+    var s=row.querySelectorAll('.slot');
+    var a=s[0].dataset.val, b=s[1].dataset.val;
+    if(a===''||b==='') return;
+    if(a!=='?' && b!=='?'){
+      /* 两个都是数字页：和必须等于 N+1 才能锁定 */
+      var sum=Number(a)+Number(b);
+      if(sum===m.N+1){
+        row.classList.add('locked');
+        row.querySelector('.sum').textContent='='+(m.N+1);
+        s[0].firstChild.classList.add('locked');
+        s[1].firstChild.classList.add('locked');
+        $('#m4msg').textContent='漂亮！'+a+'＋'+b+'＝'+(m.N+1)+'。让每一对都等于 '+(m.N+1)+' 吧。';
+        burstConfetti(26);
+        checkAll();
+      }else{
+        S.wrongOps++;
+        row.classList.add('bad');
+        $('#m4msg').textContent=a+'＋'+b+'＝'+sum+'，和其他对不相等哦，再想想。';
+        setTimeout(function(){
+          row.classList.remove('bad');
+          pool.appendChild(s[0].firstChild); s[0].dataset.val='';
+          pool.appendChild(s[1].firstChild); s[1].dataset.val='';
+        }, 650);
+      }
+    }else{
+      /* 墨渍页 ? 与数字页 x 配对：x 的搭档若还在零件盘，说明配错了 */
+      var x = (a==='?')? Number(b) : Number(a);
+      var qSlot = (a==='?')? s[0] : s[1];
+      var comp = m.N+1-x;
+      if(boardHas(comp)){
+        S.wrongOps++;
+        row.classList.add('bad');
+        $('#m4msg').textContent='第'+x+'页的搭档（第'+comp+'页）还在板上呢，? 应该留给不在板上的那一页。';
+        setTimeout(function(){
+          row.classList.remove('bad');
+          pool.appendChild(s[0].firstChild); s[0].dataset.val='';
+          pool.appendChild(s[1].firstChild); s[1].dataset.val='';
+        }, 750);
+      }else{
+        row.classList.add('locked');
+        row.querySelector('.sum').textContent='='+(m.N+1);
+        var qc=qSlot.firstChild;
+        qc.textContent=String(comp);
+        qc.classList.add('revealed');
+        qc.dataset.val=String(comp);
+        qSlot.dataset.val=String(comp);
+        var other=(a==='?')? s[1].firstChild : s[0].firstChild;
+        other.classList.add('locked');
+        $('#m4msg').textContent='推理成功！墨渍页就是第 '+comp+' 页（'+x+'＋'+comp+'＝'+(m.N+1)+'）。';
+        burstConfetti(40);
+        checkAll();
+      }
+    }
+  }
+  /* 全部配对成功 → 亮出全书页码总和 */
+  function checkAll(){
+    var rows=$all('#m4slots .pair');
+    for(var i=0;i<rows.length;i++){ if(!rows[i].classList.contains('locked')) return; }
+    S.finished=true;
+    var total=(m.N+1)*m.N/2;
+    var sc=$('#m4sum');
+    sc.innerHTML='页码总和：1+2+…+'+m.N+'＝('+m.N+'＋1)×'+m.N+'÷2＝<b>'+total+'</b>';
+    sc.classList.add('show');
+    burstConfetti(90);
+    setTimeout(function(){ levelComplete(m); }, 1200);
+  }
+}
+
+/* ============================================================
+   揭示答案（每种任务对应教参里的原方法讲解，代入本关数据）
+   ============================================================ */
+function buildReveal(m){
+  if(m.type==='m1'){
+    var N=m.N, out=[];
+    out.push('<div class="step"><span class="fm">分段统计法：</span>把页码按位数分段，再分别计算。</div>');
+    out.push('<div class="step">第1~9页每页1个数字：1×9＝<b>9</b> 个。</div>');
+    if(N>=10){
+      var n2=Math.min(N,99)-9;
+      out.push('<div class="step">第10~'+Math.min(N,99)+'页每页2个数字：2×'+n2+'＝<b>'+(n2*2)+'</b> 个。</div>');
+    }
+    if(N>=100){
+      var n3=N-99;
+      out.push('<div class="step">第100~'+N+'页每页3个数字：3×'+n3+'＝<b>'+(n3*3)+'</b> 个。</div>');
+    }
+    out.push('<div class="step">合计：'+segText(N)+'＝<b>'+digitsUpTo(N)+'</b> 个。</div>');
+    out.push('<div class="step">所以这本 '+N+' 页的'+m.kind+'，页码共用了 '+digitsUpTo(N)+' 个数字。</div>');
+    return out.join('');
+  }
+  if(m.type==='m2'){
+    var P=m.P, T=m.T, out2=[];
+    out2.push('<div class="step"><span class="fm">倒推分段法：</span>从少的段往多的段逐段减。</div>');
+    if(P<=99){
+      out2.push('<div class="step">1~9 页用去 9 个；因为 9＜'+T+'＜189，页数在 10~99 之间。</div>');
+      out2.push('<div class="step">两位数页码共用 '+T+'−9＝'+(T-9)+' 个，每页2个数字：('+T+'−9)÷2＝'+((T-9)/2)+' 页。</div>');
+      out2.push('<div class="step">所以共有 9＋'+((T-9)/2)+'＝<b>'+P+'</b> 页。</div>');
+    }else{
+      out2.push('<div class="step">1~9 页用去 9 个，10~99 页用去 2×90＝180 个，共用 189 个。</div>');
+      out2.push('<div class="step">剩下 '+T+'−189＝'+(T-189)+' 个，都是三位数页码，每页3个数字：('+T+'−189)÷3＝'+((T-189)/3)+' 页。</div>');
+      out2.push('<div class="step">所以共有 99＋'+((T-189)/3)+'＝<b>'+P+'</b> 页。</div>');
+    }
+    out2.push('<div class="step"><span class="fm">补位法也能做：</span>页数是两位数时，把 1~9 每页补成两位（补9个字），('+T+'＋9)÷2＝'+((T+9)/2)+' 页；三位数书则每页补成三位再除以3。</div>');
+    return out2.join('');
+  }
+  if(m.type==='m3'){
+    var N3=m.N, dd=String(m.d), out3=[];
+    out3.push('<div class="step"><span class="fm">按位枚举法：</span>分别数个位、十位、百位上出现数字 '+m.d+' 的页。</div>');
+    var g=0, t=0, h=0;
+    for(var i=1;i<=N3;i++){
+      var s=String(i);
+      for(var j=0;j<s.length;j++){
+        if(s.charAt(j)===dd){
+          if(j===s.length-1) g++;
+          else if(j===s.length-2) t++;
+          else h++;
+        }
+      }
+    }
+    out3.push('<div class="step">个位是 '+m.d+' 的页有 <b>'+g+'</b> 页；</div>');
+    if(t>0){ out3.push('<div class="step">十位是 '+m.d+' 的页有 <b>'+t+'</b> 页；</div>'); }
+    if(h>0){ out3.push('<div class="step">百位是 '+m.d+' 的页有 <b>'+h+'</b> 页；</div>'); }
+    out3.push('<div class="step">合计：'+g+(t>0?('＋'+t):'')+(h>0?('＋'+h):'')+'＝<b>'+m.C+'</b> 次。</div>');
+    return out3.join('');
+  }
+  if(m.type==='m4'){
+    var N4=m.N, out4=[];
+    out4.push('<div class="step"><span class="fm">高斯配对法：</span>头尾两页配成一对，每对和都相等。</div>');
+    out4.push('<div class="step">1＋'+N4+'＝2＋'+(N4-1)+'＝…＝'+(N4+1)+'，一共 '+N4+'÷2＝'+(N4/2)+' 对。</div>');
+    out4.push('<div class="step">所以全书页码总和＝('+N4+'＋1)×'+N4+'÷2＝<b>'+((N4+1)*N4/2)+'</b>。</div>');
+    if(m.hidden){
+      var comp4=m.N+1-m.hidden;
+      out4.push('<div class="step">墨渍页推理：'+m.hidden+'＋'+comp4+'＝'+(m.N+1)+'，被盖住的是第 '+m.hidden+' 页。找出它的搭档第'+comp4+'页，跟 ? 配成一对就能确定答案。</div>');
+    }
+    return out4.join('');
+  }
+  return '';
+}
+/* 拼接分段加法文本，例如 "9＋180＋153" */
+function segText(N){
+  var parts=[], len=1, start=1, cnt=9;
+  while(start<=N){
+    var end=Math.min(N,start+cnt-1);
+    parts.push((end-start+1)*len);
+    start*=10; cnt*=10; len++;
+  }
+  return parts.join('＋');
+}
+
+/* ============================================================
+   关卡结算（星级 + 答案卡 + 方法卡）
+   ============================================================ */
+function levelComplete(m){
+  if(S.levelDone) return;
+  S.levelDone=true;
+  $('#stage').classList.add('stage-locked');
+  var st=1;
+  if(S.wrongOps<=3) st++;
+  if(!S.revealUsed) st++;
+  S.stars+=st;
+  $('#done-stars').innerHTML=starHtml(st);
+  $('#done-answer').innerHTML=answerText(m);
+  $('#done-tip').innerHTML=tipText(m);
+  var isLast = S.idx>=S.levels.length-1;
+  $('#btn-next').textContent = isLast? '查看成绩':'下一张订单';
+  openModal('modal-done');
+}
+function starHtml(n){
+  var s='';
+  for(var i=1;i<=3;i++){ s += '<span class="'+(i<=n?'':'off')+'">★</span>'; }
+  return s;
+}
+function answerText(m){
+  if(m.type==='m1') return '这本 '+m.N+' 页的'+m.kind+'，页码共用了 <b>'+digitsUpTo(m.N)+'</b> 个数字活字。';
+  if(m.type==='m2') return m.T+' 个数字活字正好排到第 '+m.P+' 页 —— 这本书一共有 <b>'+m.P+'</b> 页。';
+  if(m.type==='m3') return '1～'+m.N+' 的页码中，数字 '+m.d+' 一共出现了 <b>'+m.C+'</b> 次。';
+  if(m.type==='m4') return '1+2+…+'+m.N+'＝('+m.N+'＋1)×'+m.N+'÷2＝<b>'+((m.N+1)*m.N/2)+'</b>。';
+  return '';
+}
+function tipText(m){
+  if(m.type==='m1') return '方法卡：知道页数求数字个数 —— 先按一位数、两位数、三位数分段，再用"页数×每页位数"分别算，最后相加。';
+  if(m.type==='m2') return '方法卡：知道数字个数求页数 —— 先减去 1~9 页的 9 个、10~99 页的 180 个，剩下的÷3 就是三位数的页数（补位法也能做）。';
+  if(m.type==='m3') return '方法卡：数某个数字出现的次数 —— 按个位、十位、百位分别枚举再相加，不重不漏。';
+  if(m.type==='m4') return '方法卡：页码是连续自然数，求总和用高斯配对 —— 首尾配对，每对和都是（首＋尾），共 N÷2 对。';
+  return '';
+}
+function finalComplete(){
+  var total=S.levels.length*3;
+  $('#final-stars').innerHTML=starHtml(3)+'<div style="font-size:16px;color:#6f6055;">共获得 '+S.stars+' / '+total+' 颗星</div>';
+  var mm=Math.floor(S.sec/60), ss=S.sec%60;
+  $('#final-body').innerHTML='用时 <b>'+(mm<10?'0':'')+mm+'分'+(ss<10?'0':'')+ss+'秒</b>，共操作 <b>'+S.steps+'</b> 步。<br>你已经掌握页码问题的四大方法：分段统计、倒推页数、按位枚举、配对求和！';
+  openModal('modal-final');
+  bigCelebration();
+}
+
+/* ============================================================
+   庆祝动画：彩纸 + 星星（Canvas 实现，G5）
+   ============================================================ */
+var FX={cv:null, ctx:null, parts:[], raf:0};
+function fxInit(){
+  FX.cv=$('#fx');
+  FX.ctx=FX.cv.getContext('2d');
+  function resize(){
+    FX.cv.width=window.innerWidth;
+    FX.cv.height=window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+}
+function fxColors(){
+  var st=getComputedStyle(document.documentElement);
+  return [st.getPropertyValue('--main'), st.getPropertyValue('--main2'), st.getPropertyValue('--accent'), '#f2b705', '#2a9d5c'];
+}
+function burstConfetti(n){
+  var cols=fxColors();
+  for(var i=0;i<n;i++){
+    FX.parts.push({
+      x: Math.random()*FX.cv.width,
+      y: -20-Math.random()*80,
+      vx:(Math.random()-0.5)*2.4,
+      vy:1.6+Math.random()*2.6,
+      w:6+Math.random()*8, h:8+Math.random()*10,
+      rot:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.22,
+      c: pick(cols), life:1, star: Math.random()<0.22
+    });
+  }
+  fxLoop();
+}
+function bigCelebration(){
+  var k=0;
+  var iv=setInterval(function(){
+    burstConfetti(60);
+    k++;
+    if(k>=6){ clearInterval(iv); }
+  }, 420);
+}
+function fxLoop(){
+  if(FX.raf) return;
+  function frame(){
+    var ctx=FX.ctx;
+    ctx.clearRect(0,0,FX.cv.width,FX.cv.height);
+    for(var i=FX.parts.length-1;i>=0;i--){
+      var p=FX.parts[i];
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.02; p.rot+=p.vr;
+      if(p.y>FX.cv.height*0.75){ p.life-=0.02; }
+      if(p.life<=0){ FX.parts.splice(i,1); continue; }
+      ctx.save();
+      ctx.globalAlpha=Math.max(0,p.life);
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle=p.c;
+      if(p.star){
+        /* 五角星彩纸 */
+        ctx.beginPath();
+        for(var s=0;s<5;s++){
+          var a1=s*2*Math.PI/5-Math.PI/2, a2=a1+Math.PI/5;
+          ctx.lineTo(Math.cos(a1)*p.w, Math.sin(a1)*p.w);
+          ctx.lineTo(Math.cos(a2)*p.w*0.45, Math.sin(a2)*p.w*0.45);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }else{
+        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      }
+      ctx.restore();
+    }
+    if(FX.parts.length>0){
+      FX.raf=requestAnimationFrame(frame);
+    }else{
+      FX.raf=0;
+      ctx.clearRect(0,0,FX.cv.width,FX.cv.height);
+    }
+  }
+  FX.raf=requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   主流程：开始一局 / 装载关卡 / 下一关 / 重开 / 返回
+   ============================================================ */
+function startRun(diff){
+  applyPalette();
+  S.diff=diff;
+  S.levels=buildLevels(diff);
+  S.idx=0; S.steps=0; S.sec=0; S.stars=0;
+  $('#stat-time').textContent='00:00';
+  $('#stat-steps').textContent='0';
+  $('#tb-sub').textContent=diff+' · 页码问题（上）';
+  showScreen('game');
+  loadLevel();
+}
+function loadLevel(){
+  var m=S.levels[S.idx];
+  S.levelDone=false; S.finished=false; S.revealUsed=false; S.wrongOps=0;
+  $('#stage').classList.remove('stage-locked');
+  $('#mh-order').textContent='订单 '+(S.idx+1)+'/'+S.levels.length;
+  $('#mh-name').textContent = m.type==='m1'?'活字分段机': m.type==='m2'?'页厚调节台': m.type==='m3'?'数字寻宝墙':'彩虹配对环';
+  $('#mh-text').textContent=m.text;
+  $('#stage').innerHTML='';
+  if(m.type==='m1'){ renderM1(m); }
+  else if(m.type==='m2'){ renderM2(m); }
+  else if(m.type==='m3'){ renderM3(m); }
+  else{ renderM4(m); }
+}
+function nextLevel(){
+  closeModal('modal-done');
+  if(S.idx>=S.levels.length-1){
+    finalComplete();
+  }else{
+    S.idx++;
+    loadLevel();
+  }
+}
+
+/* ============================================================
+   事件绑定与启动
+   ============================================================ */
+function bindUI(){
+  /* 首页难度卡 */
+  $all('.diff-card .go').forEach(function(b){
+    b.addEventListener('click', function(){ startRun(b.dataset.diff); });
+  });
+  /* 顶栏按钮 */
+  $('#btn-back').addEventListener('click', function(){ stopTimer(); showScreen('home'); });
+  $('#btn-home2').addEventListener('click', function(){ closeModal('modal-final'); showScreen('home'); });
+  $('#btn-rules').addEventListener('click', function(){ openModal('modal-rules'); });
+  $('#btn-restart').addEventListener('click', function(){
+    closeModal('modal-done');
+    closeModal('modal-final');
+    startRun(S.diff || '初级');
+  });
+  $('#btn-again').addEventListener('click', function(){ startRun(S.diff); });
+  $('#btn-reveal').addEventListener('click', function(){
+    if(!S.levels.length) return;
+    S.revealUsed=true;
+    $('#reveal-body').innerHTML=buildReveal(S.levels[S.idx]);
+    openModal('modal-reveal');
+  });
+  $('#btn-next').addEventListener('click', nextLevel);
+  /* 所有模态的关闭按钮；规则/揭示可点背景关闭 */
+  $all('[data-close]').forEach(function(b){
+    b.addEventListener('click', function(){ closeModal(b.dataset.close); });
+  });
+  $all('.modal-backdrop').forEach(function(mb){
+    mb.addEventListener('click', function(e){
+      if(e.target===mb && mb.id!=='modal-done' && mb.id!=='modal-final'){ mb.classList.remove('show'); }
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  fxInit();
+  applyPalette();
+  bindUI();
+  showScreen('home');
+  /* 进入即弹出规则说明（G6），之后可随时再看 */
+  openModal('modal-rules');
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3b/g033", "name": "\u9875\u7801\u9b54\u6cd5\u5370\u5237\u574a \u00b7 \u7b2c17\u8bb2 \u9875\u7801\u95ee\u9898\uff08\u4e0a\uff09", "file": "g033.html", "jiaocan": "\u301033\u3011\u7b2c17\u8bb2 \u9875\u7801\u95ee\u9898\uff08\u4e0a\uff09", "unit": "\u7b2c17\u8bb2", "grade": "3\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

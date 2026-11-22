@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对称奇境工坊 · 图形的对称互动游戏</title>
+<style>
+/* ================= 全局样式（配色由 JS 按随机色板写入 CSS 变量） ================= */
+:root{
+  --primary:#2f5fc4; --deep:#1e3a8a; --accent:#f59e0b;
+  --soft:#e8eeff; --bg1:#dbe4ff; --bg2:#f7f9ff; --ink:#1f2937;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  color:var(--ink); min-height:100vh; user-select:none; -webkit-user-select:none;
+}
+#app{ max-width:1100px; margin:0 auto; padding:10px 14px 34px; }
+
+/* ---------- 顶栏（计时器 / 步数 / 失误 在右上角实时显示） ---------- */
+#topbar{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+  gap:8px; padding:10px 4px;
+}
+.brand{ font-size:24px; font-weight:800; color:var(--deep); }
+.brand .sub{ font-size:16px; font-weight:600; color:var(--primary); margin-left:10px; }
+.stats{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; }
+.chip{
+  background:#fff; border:2.5px solid var(--primary); color:var(--deep);
+  border-radius:999px; padding:5px 14px; font-size:17px; font-weight:700;
+}
+.chip.theme{ border-color:var(--accent); color:#92610a; }
+
+/* ---------- 通用按钮 ---------- */
+.btn{
+  font-size:18px; font-weight:700; color:#fff; background:var(--primary);
+  border:none; border-radius:14px; padding:12px 22px; cursor:pointer;
+  box-shadow:0 3px 0 var(--deep); transition:transform .08s;
+}
+.btn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--deep); }
+.btn.warn{ background:var(--accent); box-shadow:0 3px 0 #b45309; color:#fff; }
+.btn.ghost{ background:#fff; color:var(--deep); border:2.5px solid var(--primary); box-shadow:0 3px 0 var(--primary); }
+.btn.small{ font-size:16px; padding:8px 16px; }
+.btn:disabled{ opacity:.45; cursor:default; }
+
+/* ---------- 首屏：难度选择 ---------- */
+.menu-hero{ text-align:center; padding:16px 8px 6px; }
+.menu-hero h1{
+  margin:6px 0 4px; font-size:44px; letter-spacing:4px; color:var(--deep);
+  text-shadow:2px 2px 0 #fff;
+}
+.menu-hero .crumb{ font-size:17px; color:var(--primary); font-weight:700; margin:2px 0; }
+.menu-hero .lead{ font-size:19px; margin:12px auto 4px; max-width:720px; line-height:1.7; }
+.diff-grid{ display:flex; flex-wrap:wrap; gap:18px; justify-content:center; margin-top:18px; }
+.diff-card{
+  flex:1 1 280px; max-width:330px; background:#fff; border:4px solid var(--primary);
+  border-radius:20px; padding:18px 18px 16px; text-align:center; cursor:pointer;
+  transition:transform .12s; box-shadow:0 6px 0 var(--soft);
+}
+.diff-card:hover{ transform:translateY(-4px); }
+.diff-card h2{ margin:2px 0 6px; font-size:26px; color:var(--deep); }
+.diff-card .lv{ font-size:17px; color:#92610a; font-weight:700; margin:4px 0; }
+.diff-card p{ font-size:16px; line-height:1.6; color:var(--ink); margin:8px 0 12px; min-height:76px; }
+.diff-card .go{
+  display:inline-block; background:var(--primary); color:#fff; font-size:18px; font-weight:700;
+  border-radius:12px; padding:8px 26px;
+}
+.diff-card.hard{ border-color:var(--accent); }
+.diff-card.hard .go{ background:var(--accent); }
+.foot-tip{ text-align:center; font-size:16px; color:var(--primary); margin-top:20px; font-weight:600; }
+
+/* ---------- 游戏屏 ---------- */
+.hidden{ display:none !important; }
+.game-head{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px; justify-content:space-between;
+  background:#fff; border:3px solid var(--primary); border-radius:16px; padding:10px 14px;
+}
+.level-info{ flex:1 1 auto; min-width:200px; text-align:center; }
+#level-name{ font-size:22px; font-weight:800; color:var(--deep); }
+.progress{ display:flex; gap:8px; justify-content:center; margin-top:6px; }
+.pdot{ width:16px; height:16px; border-radius:50%; border:3px solid var(--primary); background:#fff; }
+.pdot.done{ background:var(--accent); border-color:var(--deep); }
+.pdot.cur{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(245,158,11,.35); }
+#diff-label{ font-size:18px; font-weight:800; color:#fff; background:var(--primary); border-radius:999px; padding:6px 16px; }
+
+.stage-card{
+  margin-top:14px; background:rgba(255,255,255,.95); border:4px solid var(--primary);
+  border-radius:20px; padding:14px 16px 12px; box-shadow:0 8px 0 var(--soft);
+}
+.stage-card.shake{ animation:shakeX .5s; }
+@keyframes shakeX{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-9px)} 40%{transform:translateX(9px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
+.brief{ font-size:18px; line-height:1.75; padding:4px 6px 10px; }
+.brief b{ color:var(--primary); }
+#stage{ touch-action:none; }
+#stage svg{ display:block; width:100%; height:auto; touch-action:none; }
+.hint{
+  margin-top:10px; border-top:2px dashed var(--primary); padding-top:8px;
+  font-size:16.5px; line-height:1.65; color:#374151;
+}
+.hint b{ color:var(--deep); }
+#extra-actions{ text-align:center; padding:8px 0 2px; }
+.controls{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:14px; }
+
+/* ---------- SVG 内元素 ---------- */
+.gridline{ stroke:rgba(31,41,55,.16); stroke-width:2; }
+.gridbold{ stroke:rgba(31,41,55,.35); stroke-width:3; fill:none; }
+.axis-line{ stroke:var(--accent); stroke-width:5; stroke-dasharray:16 12; stroke-linecap:round; }
+.axis-tag{
+  font-size:18px; font-weight:800; fill:#92610a; stroke:#fff; stroke-width:4;
+  paint-order:stroke;
+}
+.glabel{ font-size:19px; font-weight:800; fill:var(--ink); stroke:#fff; stroke-width:4; paint-order:stroke; }
+.glabel.acc{ fill:#92610a; }
+.star-base{ fill:var(--accent); stroke:#8a5200; stroke-width:2; }
+.lamp{ fill:rgba(255,255,255,.75); stroke:var(--deep); stroke-width:4; }
+.lamp.lit{
+  fill:var(--accent); stroke:var(--deep); transform-box:fill-box; transform-origin:center;
+  animation:pop .45s;
+}
+@keyframes pop{ 0%{transform:scale(.2)} 60%{transform:scale(1.35)} 100%{transform:scale(1)} }
+.reveal-dot{ fill:var(--primary); animation:blink 1s infinite; }
+.reveal-dot2{ fill:#16a34a; animation:blink 1s infinite; }
+@keyframes blink{ 0%,100%{opacity:.2} 50%{opacity:1} }
+.paper{ fill:#fffdf2; stroke:var(--deep); stroke-width:3.5; }
+.flap{ fill:rgba(245,158,11,.35); stroke:var(--deep); stroke-width:3; }
+.marker{ fill:var(--primary); stroke:#fff; stroke-width:3.5; cursor:grab; }
+.marker.ok{ fill:#16a34a; cursor:default; }
+.marker.err{ animation:errFlash .6s; }
+@keyframes errFlash{ 0%,100%{fill:var(--primary)} 50%{fill:#dc2626} }
+.mlabel{ font-size:18px; font-weight:800; fill:#fff; pointer-events:none; }
+.black-stone{ fill:#1f2937; stroke:#000; stroke-width:2; }
+.white-stone{ fill:#fff; stroke:#1f2937; stroke-width:3; }
+.white-stone.lit{ fill:#86efac; stroke:#15803d; }
+.cellbase{ fill:rgba(255,255,255,.9); stroke:rgba(31,41,55,.25); stroke-width:2; }
+.cell-given{ fill:var(--deep); stroke:var(--deep); }
+.cell-add{ fill:var(--primary); opacity:.75; stroke:var(--deep); stroke-width:2; transform-box:fill-box; transform-origin:center; }
+.cell-add.glow, .cell-given.glow{ animation:cellPulse .9s infinite; }
+@keyframes cellPulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(.9)} }
+.need-ring{ fill:none; stroke:#16a34a; stroke-width:4; stroke-dasharray:8 7; animation:blink 1.2s infinite; }
+.tray-tag{ font-size:17px; font-weight:700; fill:var(--deep); }
+
+/* ---------- 分拣关卡 ---------- */
+.sort-wrap{ display:flex; flex-direction:column; gap:14px; }
+.bins{ display:flex; gap:14px; flex-wrap:wrap; }
+.bin{
+  flex:1 1 200px; min-height:150px; border:3.5px dashed var(--primary); border-radius:16px;
+  background:var(--soft); padding:8px; text-align:center;
+}
+.bin h3{ margin:2px 0 8px; font-size:18px; color:var(--deep); }
+.bin .desc{ font-size:14.5px; color:#475569; margin:0 0 6px; line-height:1.4; }
+.bin-body{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; min-height:96px; }
+.tray{ border:3px solid var(--deep); border-radius:16px; background:#fff; padding:10px;
+  display:flex; flex-wrap:wrap; gap:12px; justify-content:center; min-height:120px; }
+.card{
+  width:104px; background:#fff; border:3px solid var(--deep); border-radius:12px;
+  padding:4px 4px 6px; text-align:center; cursor:grab; touch-action:none; box-shadow:0 3px 0 rgba(0,0,0,.15);
+}
+.card svg{ width:84px; height:84px; display:block; margin:0 auto; }
+.card .nm{ font-size:16px; font-weight:700; color:var(--ink); }
+.card.ok{ border-color:#16a34a; cursor:default; box-shadow:0 0 0 3px rgba(22,163,74,.35); }
+.card.ok .nm{ color:#15803d; }
+.card.nope{ animation:shakeX .45s; }
+.drag-ghost{ position:fixed; z-index:120; pointer-events:none; transform:translate(-50%,-50%) rotate(4deg) scale(1.05); }
+
+/* ---------- 弹层 ---------- */
+.overlay{
+  position:fixed; inset:0; background:rgba(15,23,42,.58); z-index:100;
+  display:flex; align-items:center; justify-content:center; padding:16px;
+}
+.panel{
+  background:#fff; border-radius:22px; border:4px solid var(--primary);
+  padding:26px 30px; max-width:640px; width:100%; text-align:center;
+  max-height:88vh; overflow:auto;
+}
+.panel h2{ margin:4px 0 10px; font-size:30px; color:var(--deep); }
+.panel p{ font-size:18px; line-height:1.75; margin:8px 0; }
+.panel .btn{ margin:10px 6px 0; }
+.star-row{ display:flex; gap:10px; justify-content:center; margin:10px 0; }
+.star-row svg{ width:52px; height:52px; }
+.stat-grid{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:12px 0; }
+.stat-grid .chip{ font-size:18px; }
+.rules{ text-align:left; }
+.rules h2{ text-align:center; }
+.rules h3{ font-size:19px; color:var(--primary); margin:14px 0 4px; }
+.rules p, .rules li{ font-size:16.5px; line-height:1.75; }
+.rules ul{ padding-left:22px; margin:4px 0; }
+.kcard{
+  background:var(--soft); border:2.5px solid var(--primary); border-radius:14px;
+  padding:8px 14px; margin:8px 0;
+}
+.kcard b{ color:var(--deep); }
+
+/* ---------- 提示气泡 ---------- */
+#toast{
+  position:fixed; top:74px; left:50%; transform:translateX(-50%); z-index:130;
+  background:var(--deep); color:#fff; font-size:17px; font-weight:700;
+  border-radius:999px; padding:9px 22px; box-shadow:0 4px 12px rgba(0,0,0,.3);
+  max-width:88vw; text-align:center;
+}
+#fx{ position:fixed; inset:0; z-index:90; pointer-events:none; }
+
+@media (max-width:640px){
+  .brand{ font-size:19px; }
+  .brand .sub{ display:block; margin:2px 0 0; font-size:14px; }
+  .menu-hero h1{ font-size:34px; }
+  .brief{ font-size:16.5px; }
+  .card{ width:88px; }
+  .card svg{ width:70px; height:70px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶栏：右上角实时显示 用时 / 步数 / 失误 -->
+  <header id="topbar">
+    <div class="brand">对称奇境工坊<span class="sub">图形的对称 · 轴对称 / 中心对称 / 折叠</span></div>
+    <div class="stats">
+      <span class="chip" id="chip-time">用时 00:00</span>
+      <span class="chip" id="chip-steps">步数 0</span>
+      <span class="chip" id="chip-miss">失误 0</span>
+      <span class="chip theme" id="chip-theme">主题色</span>
+      <button class="btn small ghost" id="btn-rules-top">规则说明</button>
+    </div>
+  </header>
+
+  <!-- 首屏：难度选择 -->
+  <main id="screen-menu">
+    <div class="menu-hero">
+      <h1>对称奇境工坊</h1>
+      <div class="crumb">七 图形的变换 · 第3节 图形的对称（含图形的折叠）</div>
+      <p class="lead">
+        你是对称艺术馆的「光影修复师」！展馆里的镜面灯、星轨图、折纸作品都蒙上了灰尘。
+        用<b>镜面反射、中心旋转、折纸还原</b>三种对称魔法，亲手把每件展品重新点亮吧！
+        （每一关都要动手操作：点格点、拖棋子、涂颜色、分拣图案。）
+      </p>
+    </div>
+    <div class="diff-grid">
+      <div class="diff-card" data-diff="easy">
+        <h2>初级 · 镜之庭</h2>
+        <div class="lv">入门试炼 · 4 关</div>
+        <p>印章分拣 → 镜面点灯 → 旋转星轨 → 星图棋盘。<br>对称轴都是横平竖直，先熟悉三种对称魔法。</p>
+        <span class="go">开始挑战</span>
+      </div>
+      <div class="diff-card" data-diff="mid">
+        <h2>中级 · 旋之廊</h2>
+        <div class="lv">进阶训练 · 4 关</div>
+        <p>印染工坊 → 镜面回廊 → 折纸工坊 → 旋转星轨塔。<br>要自己动手折一折、印一印，对称轴藏进了图案里。</p>
+        <span class="go">开始挑战</span>
+      </div>
+      <div class="diff-card hard" data-diff="hard">
+        <h2>高级 · 折之塔</h2>
+        <div class="lv">综合试炼 · 4 关</div>
+        <p>斜镜回廊 → 星图大棋盘 → 斜折工坊 → 双色印染坊。<br>斜着的对称轴、双重要求的印染，等你来点亮塔顶之星。</p>
+        <span class="go">开始挑战</span>
+      </div>
+    </div>
+    <p class="foot-tip">全程支持触屏操作 · 建议课堂投影使用 · 每局配色随机</p>
+  </main>
+
+  <!-- 游戏屏 -->
+  <main id="screen-game" class="hidden">
+    <div class="game-head">
+      <button class="btn small ghost" id="btn-back">返回难度选择</button>
+      <div class="level-info">
+        <div id="level-name">关卡名</div>
+        <div class="progress" id="progress"></div>
+      </div>
+      <div id="diff-label">初级 · 镜之庭</div>
+    </div>
+
+    <section class="stage-card" id="stage-card">
+      <div class="brief" id="level-brief"></div>
+      <div id="stage"></div>
+      <div id="extra-actions"></div>
+      <div class="hint" id="hint"></div>
+    </section>
+
+    <div class="controls">
+      <button class="btn warn" id="btn-reveal">揭示答案</button>
+      <button class="btn" id="btn-restart">重新开始</button>
+      <button class="btn small ghost" id="btn-rules">规则说明</button>
+    </div>
+  </main>
+</div>
+
+<!-- 通关弹层 -->
+<div id="overlay-clear" class="overlay hidden">
+  <div class="panel">
+    <h2 id="clear-title">本关点亮！</h2>
+    <div class="star-row" id="clear-stars"></div>
+    <p id="clear-msg"></p>
+    <button class="btn" id="btn-next">下一关</button>
+  </div>
+</div>
+
+<!-- 全部通关弹层 -->
+<div id="overlay-final" class="overlay hidden">
+  <div class="panel">
+    <h2>太棒了！全部展品点亮！</h2>
+    <div class="star-row" id="final-stars"></div>
+    <div class="stat-grid">
+      <span class="chip" id="fin-time">总用时 --</span>
+      <span class="chip" id="fin-steps">总步数 --</span>
+      <span class="chip" id="fin-miss">总失误 --</span>
+    </div>
+    <p>镜面、星轨、折纸全都亮起来了——你已经掌握轴对称、中心对称与折叠的秘密！</p>
+    <button class="btn" id="btn-again">再玩一次</button>
+    <button class="btn ghost" id="btn-tomenu">返回难度选择</button>
+  </div>
+</div>
+
+<!-- 规则说明弹层（进入时弹出，可随时再看） -->
+<div id="modal-rules" class="overlay hidden">
+  <div class="panel rules">
+    <h2>规则说明 · 光影修复师手册</h2>
+    <h3>一、怎么玩</h3>
+    <ul>
+      <li>先选难度（初级 / 中级 / 高级），每一档 4 个关卡，逐关点亮全部展品即通关。</li>
+      <li>所有关卡都要<b>动手操作</b>：点击格点落子、拖动棋子、点击白格涂色、拖图案分拣。</li>
+      <li>右上角实时显示<b>用时、步数、失误</b>；本关失误越少、没用「揭示答案」，星星越多。</li>
+      <li>卡住了可以按「揭示答案」看答案位置，也可以按「重新开始」换一组新数据再来。</li>
+    </ul>
+    <h3>二、六种关卡玩法</h3>
+    <ul>
+      <li><b>镜面点灯</b>：点击格点，点亮每颗金星关于虚线对称轴的对应点。</li>
+      <li><b>旋转星轨</b>：点击格点，点亮每颗金星关于对称中心 O 的对应点（旋转 180°）。</li>
+      <li><b>星图棋盘</b>：点击空格落白子，使全部棋子构成中心对称图形。</li>
+      <li><b>折纸工坊</b>：把「预测棋」拖到格点上，猜出对折后甲、乙两点的落点，再按「对折检验」。</li>
+      <li><b>印染工坊</b>：点击白格涂色，使整个涂色图案成为（轴）对称图形，再按「完成印染」。</li>
+      <li><b>印章分拣</b>：把图案卡片拖进正确的收藏格（仅轴对称 / 仅中心对称 / 两者都是）。</li>
+    </ul>
+    <h3>三、对称知识卡（本节课核心）</h3>
+    <div class="kcard"><b>轴对称：</b>沿某条直线折叠，两旁部分完全重合。性质：对应点所连线段被对称轴<b>垂直平分</b>；对应线段相等；成轴对称的两个图形全等。</div>
+    <div class="kcard"><b>中心对称：</b>绕某一点旋转 <b>180°</b>后与另一个图形重合。性质：对应点连线<b>经过对称中心且被平分</b>；对应线段平行（或在同一直线上）且相等。</div>
+    <div class="kcard"><b>折叠：</b>折叠的本质是<b>轴对称</b>。折痕所在直线是对称轴，可看作对应点连线的<b>垂直平分线</b>（或角平分线）；折叠前后两部分全等。</div>
+    <div style="text-align:center; margin-top:14px;">
+      <button class="btn" id="btn-rules-ok">知道了，出发！</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+<canvas id="fx"></canvas>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+ * 对称奇境工坊 —— 单文件互动数学游戏
+ * 知识来源：七 图形的变换 · 第3节 图形的对称（轴对称 / 中心对称 / 折叠）
+ * 六种玩法全部为真操作交互：点格点、拖棋子、涂色、拖卡片分拣
+ * ============================================================ */
+
+/* ---------- 基础工具 ---------- */
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  if(attrs){ for(const k in attrs){ if(k === 'text'){ e.textContent = attrs[k]; } else { e.setAttribute(k, attrs[k]); } } }
+  if(parent) parent.appendChild(e);
+  return e;
+}
+function ri(a, b){ return a + Math.floor(Math.random() * (b - a + 1)); }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function sample(arr, n){ return shuffle(arr).slice(0, n); }
+function fmtTime(sec){
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+function toastMsg(txt, dur){
+  const t = $('#toast');
+  t.textContent = txt;
+  t.classList.remove('hidden');
+  clearTimeout(toastMsg._tm);
+  toastMsg._tm = setTimeout(() => t.classList.add('hidden'), dur || 1800);
+}
+
+/* ---------- 随机色板（每局随机主色） ---------- */
+const PALETTES = [
+  { name:'星夜蓝', primary:'#2f5fc4', deep:'#1e3a8a', accent:'#f59e0b', soft:'#e8eeff', bg1:'#dbe4ff', bg2:'#f7f9ff' },
+  { name:'樱花粉', primary:'#db2777', deep:'#831843', accent:'#f59e0b', soft:'#fde7f1', bg1:'#fbd5e8', bg2:'#fff7fb' },
+  { name:'翡翠绿', primary:'#0f9d6e', deep:'#065f46', accent:'#f59e0b', soft:'#dcf5ea', bg1:'#c9efe0', bg2:'#f4fdf9' },
+  { name:'蜜橙橙', primary:'#ea7317', deep:'#9a3412', accent:'#0f9d6e', soft:'#ffe9d3', bg1:'#ffddba', bg2:'#fff8ef' },
+  { name:'紫罗兰', primary:'#7c5cd6', deep:'#4c1d95', accent:'#f59e0b', soft:'#ede9fe', bg1:'#ddd2f8', bg2:'#f9f7ff' },
+  { name:'青碧湾', primary:'#0e93a8', deep:'#155e75', accent:'#f59e0b', soft:'#d5f3f7', bg1:'#bae9f0', bg2:'#f2fcfd' }
+];
+function applyPalette(){
+  const p = pick(PALETTES);
+  const r = document.documentElement.style;
+  r.setProperty('--primary', p.primary);
+  r.setProperty('--deep', p.deep);
+  r.setProperty('--accent', p.accent);
+  r.setProperty('--soft', p.soft);
+  r.setProperty('--bg1', p.bg1);
+  r.setProperty('--bg2', p.bg2);
+  $('#chip-theme').textContent = '主题 · ' + p.name;
+}
+
+/* ---------- 简易音效（WebAudio，无外部文件） ---------- */
+let AC = null;
+function tone(freq, dur, type, when){
+  try{
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'triangle';
+    o.frequency.value = freq;
+    const t0 = AC.currentTime + (when || 0);
+    g.gain.setValueAtTime(0.12, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  }catch(e){ /* 音频不可用时静默跳过 */ }
+}
+function sndGood(){ tone(660, 0.25); }
+function sndBad(){ tone(196, 0.25, 'sine'); }
+function sndWin(){ tone(523, 0.22); tone(659, 0.22, 'triangle', 0.16); tone(784, 0.4, 'triangle', 0.32); }
+
+/* ---------- 全局状态 ---------- */
+const S = {
+  diff:null, li:0, sec:0, timer:null,
+  steps:0, miss:0, levelMiss:0,
+  revealed:false, stars:[], curLevel:null, finalSec:0
+};
+const DIFF_NAME = { easy:'初级 · 镜之庭', mid:'中级 · 旋之廊', hard:'高级 · 折之塔' };
+const LABELS = ['甲', '乙', '丙', '丁'];
+
+/* ---------- 关卡配置（每关数据在开局时随机生成） ---------- */
+const LEVELS = {
+  easy: [
+    { type:'sort',  name:'印章分拣大厅' },
+    { type:'mirror', name:'镜面点灯台', axis:'v', k:3, N:8 },
+    { type:'center', name:'旋转星轨台', k:3, N:8, centers:[[4,4]] },
+    { type:'gobang', name:'星图棋盘', m:5, pairs:5, missCnt:1 }
+  ],
+  mid: [
+    { type:'paint', name:'印染工坊', m:5, mode:'axis', seeds:4, cutOrbits:3 },
+    { type:'mirror', name:'镜面回廊', axis:'h', k:4, N:8 },
+    { type:'fold',  name:'折纸工坊', crease:'v', k:2 },
+    { type:'center', name:'旋转星轨塔', k:4, N:9, centers:[[4,4],[5,5],[4,5],[5,4]] }
+  ],
+  hard: [
+    { type:'mirror', name:'斜镜回廊', axis:'d', k:4, N:8 },
+    { type:'gobang', name:'星图大棋盘', m:6, pairs:7, missCnt:2 },
+    { type:'fold',  name:'斜折工坊', crease:'d', k:2 },
+    { type:'paint', name:'双色印染坊', m:5, mode:'both', seeds:3, cutOrbits:2 }
+  ]
+};
+
+const HINTS = {
+  mirror:'知识锦囊：<b>轴对称性质</b>——对应点所连线段被对称轴垂直平分。数一数：星点到对称轴几格，对应点就离对称轴几格，方向相反（斜轴时行列正好互换）。',
+  center:'知识锦囊：<b>中心对称性质</b>——对应点的连线经过对称中心 O，且被 O 平分。星点、O、对应点三点共线，O 到两边的格数相等、方向相反。',
+  gobang:'知识锦囊：把图案绕对称中心旋转 180° 能与自身完全重合，它就是<b>中心对称图形</b>。每颗没有配对的黑子，都暗示白子应落在它「关于中心对称」的格子上。',
+  fold:'知识锦囊：折叠的本质是<b>轴对称</b>——折痕所在直线是对称轴，可看作对应点连线的<b>垂直平分线</b>。落点到折痕的距离 = 原点到折痕的距离。',
+  paint:'知识锦囊：<b>轴对称图形</b>：沿对称轴折叠，直线两旁部分完全重合。每一格都要在轴另一侧找到自己的对应格（中心对称则绕中心转 180° 找对应格）。',
+  sort:'知识锦囊：<b>轴对称图形</b>沿直线折叠能自身重合；<b>中心对称图形</b>绕某点旋转 180° 能自身重合。正多边形中，边数为偶数（如正方形、正六边形）两者兼得。'
+};
+const WINMSG = {
+  mirror:'轴对称性质：对应点的连线被对称轴垂直平分，对应线段相等。',
+  center:'中心对称性质：对应点连线经过对称中心，且被对称中心平分。',
+  gobang:'中心对称图形绕对称中心旋转 180° 后与自身完全重合。',
+  fold:'折叠的本质是轴对称：折痕是对应点连线的垂直平分线。',
+  paint:'对称轴两旁的部分完全重合，每一格都有自己的对应格。',
+  sort:'会认图案啦！偶数边的正多边形（正方形、正六边形）既是轴对称又是中心对称图形。'
+};
+
+/* ---------- 计时器与统计 ---------- */
+function tick(){
+  S.sec++;
+  $('#chip-time').textContent = '用时 ' + fmtTime(S.sec);
+}
+function startTimer(){
+  stopTimer();
+  S.timer = setInterval(tick, 1000);
+}
+function stopTimer(){ if(S.timer){ clearInterval(S.timer); S.timer = null; } }
+function addStep(){ S.steps++; $('#chip-steps').textContent = '步数 ' + S.steps; }
+function addMiss(){ S.miss++; S.levelMiss++; $('#chip-miss').textContent = '失误 ' + S.miss; }
+
+/* ---------- SVG 通用部件 ---------- */
+function svgPoint(svg, ev){
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return { x:(ev.clientX - r.left) / r.width * vb.width + vb.x,
+           y:(ev.clientY - r.top) / r.height * vb.height + vb.y };
+}
+/* 建立 N×N 格点方格（cell 格边长，pad 内边距，extraW 右侧加宽放工具托盘） */
+function buildGrid(N, cell, pad, extraW){
+  const W = N * cell + pad * 2 + (extraW || 0);
+  const H = N * cell + pad * 2;
+  const svg = el('svg', { viewBox:'0 0 ' + W + ' ' + H });
+  const g = el('g', {}, svg);
+  for(let i = 0; i <= N; i++){
+    el('line', { x1:pad + i * cell, y1:pad, x2:pad + i * cell, y2:H - pad, class:'gridline' }, g);
+    el('line', { x1:pad, y1:pad + i * cell, x2:W - pad - (extraW || 0), y2:pad + i * cell, class:'gridline' }, g);
+  }
+  return { svg:svg, g:g, W:W, H:H, N:N, cell:cell, pad:pad,
+    pt:function(i, j){ return { x:pad + i * cell, y:pad + j * cell }; } };
+}
+/* 找最近格点（距离超过阈值返回 null） */
+function nearestNode(gr, x, y){
+  const i = Math.round((x - gr.pad) / gr.cell);
+  const j = Math.round((y - gr.pad) / gr.cell);
+  if(i < 0 || j < 0 || i > gr.N || j > gr.N) return null;
+  const p = gr.pt(i, j);
+  if(Math.hypot(p.x - x, p.y - y) > gr.cell * 0.55) return null;
+  return { i:i, j:j };
+}
+/* 点击涟漪反馈 */
+function ripple(svg, x, y, color){
+  const c = el('circle', { cx:x, cy:y, r:6, fill:'none', stroke:color, 'stroke-width':5, opacity:0.95 }, svg);
+  const t0 = performance.now();
+  function fr(t){
+    const u = Math.min(1, (t - t0) / 480);
+    c.setAttribute('r', String(6 + u * 30));
+    c.setAttribute('opacity', String(0.95 * (1 - u)));
+    if(u < 1){ requestAnimationFrame(fr); } else { c.remove(); }
+  }
+  requestAnimationFrame(fr);
+}
+/* 文字标签：优先放在目标点上方居中，自动避让画布左右边界与顶部，防止被裁切 */
+function tagNear(parent, x, y, text, W){
+  const wpx = text.length * 19 + 10;
+  const lx = Math.max(wpx / 2 + 4, Math.min(x, (W || 500) - wpx / 2 - 4));
+  const above = y - 36 > 0;
+  el('text', { x:lx.toFixed(1), y:(above ? y - 22 : y + 30).toFixed(1),
+    class:'glabel', 'text-anchor':'middle', text:text }, parent);
+}
+/* 金星（原点） */
+function starPts(cx, cy, r){
+  const pts = [];
+  for(let i = 0; i < 10; i++){
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rr = (i % 2 === 0) ? r : r * 0.46;
+    pts.push((cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1));
+  }
+  return pts.join(' ');
+}
+function drawStar(gr, i, j, label){
+  const p = gr.pt(i, j);
+  el('polygon', { points:starPts(p.x, p.y, 13), class:'star-base' }, gr.g);
+  if(label){
+    el('text', { x:p.x + 16, y:p.y - 12, class:'glabel acc', 'text-anchor':'start', text:label }, gr.g);
+  }
+}
+
+/* ============================================================
+ * 关卡一：镜面点灯（轴对称作图：点击格点放对应点）
+ * ============================================================ */
+function buildMirror(cfg){
+  const stage = $('#stage');
+  stage.innerHTML = '';
+  const gr = buildGrid(cfg.N, 46, 36, 0);
+  stage.appendChild(gr.svg);
+  /* 对称轴名称统一放在网格上沿之外，避免与图形互相遮挡 */
+  const topMid = gr.pad + cfg.N * gr.cell / 2;
+
+  const c = cfg.N / 2;
+  const bases = [], targets = [];
+  const used = {};               /* 记录已占用的格点，保证不重复 */
+  let guard = 0;
+  while(bases.length < cfg.k && guard++ < 800){
+    let i, j;
+    if(cfg.axis === 'v'){ i = ri(1, c - 1); j = ri(1, cfg.N - 1); }        /* 竖直轴左侧 */
+    else if(cfg.axis === 'h'){ i = ri(1, cfg.N - 1); j = ri(1, c - 1); }   /* 水平轴上方 */
+    else { i = ri(1, cfg.N - 2); j = ri(i + 1, cfg.N - 1); }               /* 对角线下方 j>i */
+    let ti, tj;
+    if(cfg.axis === 'v'){ ti = 2 * c - i; tj = j; }
+    else if(cfg.axis === 'h'){ ti = i; tj = 2 * c - j; }
+    else { ti = j; tj = i; }
+    const kb = i + '_' + j, kt = ti + '_' + tj;
+    if(used[kb] || used[kt]) continue;
+    used[kb] = 1; used[kt] = 1;
+    bases.push({ i:i, j:j });
+    targets.push({ i:ti, j:tj });
+  }
+
+  /* 画对称轴（标签放在网格外，不与星点、灯环重叠） */
+  let a1, a2, axisName, lx, ly, anchor;
+  if(cfg.axis === 'v'){
+    a1 = gr.pt(c, 0); a2 = gr.pt(c, cfg.N);
+    axisName = '对称轴'; lx = gr.pt(c, 0).x; ly = gr.pad - 14; anchor = 'middle';
+  }else if(cfg.axis === 'h'){
+    a1 = gr.pt(0, c); a2 = gr.pt(cfg.N, c);
+    axisName = '对称轴'; lx = topMid; ly = gr.pad - 14; anchor = 'middle';
+  }else{
+    a1 = gr.pt(0, cfg.N); a2 = gr.pt(cfg.N, 0);
+    axisName = '对称轴：左上—右下对角线'; lx = topMid; ly = gr.pad - 14; anchor = 'middle';
+  }
+  el('line', { x1:a1.x, y1:a1.y, x2:a2.x, y2:a2.y, class:'axis-line' }, gr.g);
+  el('text', { x:lx, y:ly, class:'axis-tag', 'text-anchor':anchor, text:axisName }, gr.g);
+
+  /* 画金星与待点亮灯环 */
+  bases.forEach((b, idx) => drawStar(gr, b.i, b.j, LABELS[idx]));
+  const lamps = targets.map(t => {
+    const p = gr.pt(t.i, t.j);
+    return el('circle', { cx:p.x, cy:p.y, r:13, class:'lamp' }, gr.g);
+  });
+
+  const cnt = { lit:0 };
+  const cntEl = $('#lv-count');
+  function updateCnt(){ cntEl.textContent = cnt.lit + '/' + cfg.k; }
+  updateCnt();
+
+  let won = false;
+  gr.svg.addEventListener('pointerdown', function(ev){
+    if(won) return;
+    const q = svgPoint(gr.svg, ev);
+    const node = nearestNode(gr, q.x, q.y);
+    if(!node) return;
+    addStep();
+    const key = node.i + '_' + node.j;
+    const bi = bases.findIndex(b => b.i === node.i && b.j === node.j);
+    if(bi >= 0){
+      toastMsg('这是原来的星点「' + LABELS[bi] + '」，要找它关于对称轴的对应点哦');
+      return;
+    }
+    const ti = targets.findIndex(t => t.i === node.i && t.j === node.j);
+    if(ti >= 0 && !lamps[ti].classList.contains('lit')){
+      lamps[ti].classList.add('lit');
+      cnt.lit++;
+      updateCnt();
+      sndGood();
+      if(cnt.lit === cfg.k){
+        won = true;
+        setTimeout(function(){ levelWin('mirror'); }, 500);
+      }
+    }else{
+      addMiss(); sndBad();
+      ripple(gr.svg, q.x, q.y, '#dc2626');
+    }
+  });
+
+  return {
+    reveal:function(){
+      targets.forEach((t, idx) => {
+        if(lamps[idx].classList.contains('lit')) return;
+        const p = gr.pt(t.i, t.j);
+        el('circle', { cx:p.x, cy:p.y, r:8, class:'reveal-dot' }, gr.g);
+        tagNear(gr.g, p.x, p.y, '“' + LABELS[idx] + '”的对应点', gr.W);
+      });
+      toastMsg('绿色闪烁处就是各星点关于对称轴的对应点');
+    }
+  };
+}
+
+/* ============================================================
+ * 关卡二：旋转星轨（中心对称作图：点击格点放对应点）
+ * ============================================================ */
+function buildCenter(cfg){
+  const stage = $('#stage');
+  stage.innerHTML = '';
+  const gr = buildGrid(cfg.N, 46, 36, 0);
+  stage.appendChild(gr.svg);
+
+  const C = { i:pick(cfg.centers)[0], j:pick(cfg.centers)[1] };
+  const bases = [], targets = [];
+  const used = {};
+  let guard = 0;
+  while(bases.length < cfg.k && guard++ < 900){
+    const i = ri(0, cfg.N), j = ri(0, cfg.N);
+    const ti = 2 * C.i - i, tj = 2 * C.j - j;
+    if(ti < 0 || tj < 0 || ti > cfg.N || tj > cfg.N) continue;     /* 对应点必须落在方格内 */
+    if(i === C.i && j === C.j) continue;                            /* 中心自身不作星点 */
+    if(used[i + '_' + j] || used[ti + '_' + tj]) continue;
+    used[i + '_' + j] = 1; used[ti + '_' + tj] = 1;
+    bases.push({ i:i, j:j });
+    targets.push({ i:ti, j:tj });
+  }
+
+  /* 画对称中心 O（菱形标记，说明文字放网格外上沿） */
+  const pc = gr.pt(C.i, C.j);
+  el('polygon', {
+    points:(pc.x) + ',' + (pc.y - 13) + ' ' + (pc.x + 13) + ',' + (pc.y) + ' ' +
+           (pc.x) + ',' + (pc.y + 13) + ' ' + (pc.x - 13) + ',' + (pc.y),
+    fill:'var(--deep)', stroke:'#fff', 'stroke-width':3
+  }, gr.g);
+  el('text', { x:gr.pad + cfg.N * gr.cell / 2, y:gr.pad - 14, class:'axis-tag',
+    'text-anchor':'middle', text:'对称中心 O = 菱形标记' }, gr.g);
+
+  bases.forEach((b, idx) => drawStar(gr, b.i, b.j, LABELS[idx]));
+  const lamps = targets.map(t => {
+    const p = gr.pt(t.i, t.j);
+    return el('circle', { cx:p.x, cy:p.y, r:13, class:'lamp' }, gr.g);
+  });
+
+  const cnt = { lit:0 };
+  const cntEl = $('#lv-count');
+  function updateCnt(){ cntEl.textContent = cnt.lit + '/' + cfg.k; }
+  updateCnt();
+
+  let won = false;
+  gr.svg.addEventListener('pointerdown', function(ev){
+    if(won) return;
+    const q = svgPoint(gr.svg, ev);
+    const node = nearestNode(gr, q.x, q.y);
+    if(!node) return;
+    addStep();
+    const bi = bases.findIndex(b => b.i === node.i && b.j === node.j);
+    if(bi >= 0){
+      toastMsg('这是原来的星点「' + LABELS[bi] + '」，对应点在 O 的另一侧同样远处');
+      return;
+    }
+    const ti = targets.findIndex(t => t.i === node.i && t.j === node.j);
+    if(ti >= 0 && !lamps[ti].classList.contains('lit')){
+      lamps[ti].classList.add('lit');
+      cnt.lit++; updateCnt(); sndGood();
+      if(cnt.lit === cfg.k){
+        won = true;
+        setTimeout(function(){ levelWin('center'); }, 500);
+      }
+    }else{
+      addMiss(); sndBad();
+      ripple(gr.svg, q.x, q.y, '#dc2626');
+    }
+  });
+
+  return {
+    reveal:function(){
+      targets.forEach((t, idx) => {
+        if(lamps[idx].classList.contains('lit')) return;
+        const p = gr.pt(t.i, t.j);
+        el('circle', { cx:p.x, cy:p.y, r:8, class:'reveal-dot' }, gr.g);
+        tagNear(gr.g, p.x, p.y, '“' + LABELS[idx] + '”绕O转180°', gr.W);
+      });
+      toastMsg('闪烁处就是各星点关于中心 O 的对应点');
+    }
+  };
+}
+
+/* ============================================================
+ * 关卡三：星图棋盘（点击落子使棋子构成中心对称图形）
+ * ============================================================ */
+function buildGobang(cfg){
+  const stage = $('#stage');
+  stage.innerHTML = '';
+  const m = cfg.m, cell = 52, pad = 40;
+  const W = m * cell + pad * 2, H = m * cell + pad * 2;
+  const svg = el('svg', { viewBox:'0 0 ' + W + ' ' + H });
+  stage.appendChild(svg);
+  const gBoard = el('g', {}, svg);
+  const gStones = el('g', {}, svg);
+  const gTop = el('g', {}, svg);
+
+  /* 棋盘底与网格 */
+  el('rect', { x:pad - 14, y:pad - 14, width:m * cell + 28, height:m * cell + 28, rx:14,
+    fill:'var(--soft)', stroke:'var(--deep)', 'stroke-width':3.5 }, gBoard);
+  for(let i = 0; i <= m; i++){
+    el('line', { x1:pad + i * cell, y1:pad, x2:pad + i * cell, y2:H - pad, class:'gridline' }, gBoard);
+    el('line', { x1:pad, y1:pad + i * cell, x2:W - pad, y2:pad + i * cell, class:'gridline' }, gBoard);
+  }
+  /* 对称中心标记（说明文字放棋盘外左上角，避免与棋子重叠） */
+  const cx0 = pad + m * cell / 2, cy0 = pad + m * cell / 2;
+  el('circle', { cx:cx0, cy:cy0, r:6, fill:'var(--accent)', stroke:'#8a5200', 'stroke-width':2 }, gBoard);
+  el('text', { x:pad - 8, y:pad - 16, class:'axis-tag', 'text-anchor':'start', text:'中心圆点 = 对称中心' }, gBoard);
+
+  /* 生成棋子：pairs 对成对黑子 + missCnt 颗落单黑子（其对称位为白子目标） */
+  const half = [];
+  for(let i = 0; i < m; i++){
+    for(let j = 0; j < m; j++){
+      const si = m - 1 - i, sj = m - 1 - j;
+      if(i * m + j < si * m + sj) half.push({ i:i, j:j, si:si, sj:sj });
+    }
+  }
+  const shuffled = shuffle(half);
+  const blacks = [], whites = [];
+  for(let p = 0; p < cfg.pairs; p++){
+    const pr = shuffled[p];
+    blacks.push({ i:pr.i, j:pr.j });
+    blacks.push({ i:pr.si, j:pr.sj });
+  }
+  for(let q = 0; q < cfg.missCnt; q++){
+    const pr = shuffled[cfg.pairs + q];
+    const oneSide = Math.random() < 0.5;
+    blacks.push(oneSide ? { i:pr.i, j:pr.j } : { i:pr.si, j:pr.sj });
+    whites.push(oneSide ? { i:pr.si, j:pr.sj } : { i:pr.i, j:pr.j });
+  }
+
+  const cellC = function(i, j){ return { x:pad + (i + 0.5) * cell, y:pad + (j + 0.5) * cell }; };
+  blacks.forEach(b => {
+    const p = cellC(b.i, b.j);
+    el('circle', { cx:p.x, cy:p.y, r:16, class:'black-stone' }, gStones);
+  });
+
+  const placed = [];
+  const cntEl = $('#lv-count');
+  function updateCnt(){ cntEl.textContent = placed.length + '/' + whites.length; }
+  updateCnt();
+
+  let won = false;
+  svg.addEventListener('pointerdown', function(ev){
+    if(won) return;
+    const q = svgPoint(svg, ev);
+    const i = Math.floor((q.x - pad) / cell), j = Math.floor((q.y - pad) / cell);
+    if(i < 0 || j < 0 || i >= m || j >= m) return;
+    addStep();
+    const p = cellC(i, j);
+    const wi = whites.findIndex(w => w.i === i && w.j === j);
+    if(wi >= 0 && !placed.includes(wi)){
+      placed.push(wi);
+      el('circle', { cx:p.x, cy:p.y, r:16, class:'white-stone' }, gStones);
+      updateCnt(); sndGood();
+      if(placed.length === whites.length){
+        won = true;
+        /* 演示：整盘棋子绕中心旋转 180° 后与自身重合 */
+        const start = performance.now();
+        function rot(t){
+          const u = Math.min(1, (t - start) / 1300);
+          const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+          gStones.setAttribute('transform', 'rotate(' + (180 * e).toFixed(1) + ' ' + cx0 + ' ' + cy0 + ')');
+          if(u < 1){ requestAnimationFrame(rot); }
+          else {
+            gStones.querySelectorAll('.white-stone').forEach(s => s.classList.add('lit'));
+            setTimeout(function(){ levelWin('gobang'); }, 600);
+          }
+        }
+        requestAnimationFrame(rot);
+      }
+    }else if(blacks.some(b => b.i === i && b.j === j) || placed.length > 0 && placed.some(wi2 => whites[wi2].i === i && whites[wi2].j === j)){
+      toastMsg('这里已经有棋子啦，找一个空格落子');
+    }else{
+      addMiss(); sndBad();
+      ripple(svg, p.x, p.y, '#dc2626');
+      toastMsg('落在这里还不对称哦：想想这颗子绕中心转 180° 到哪里');
+    }
+  });
+
+  return {
+    reveal:function(){
+      whites.forEach((w, idx) => {
+        if(placed.includes(idx)) return;
+        const p = cellC(w.i, w.j);
+        el('circle', { cx:p.x, cy:p.y, r:20, class:'need-ring' }, gTop);
+      });
+      toastMsg('绿圈处的空格就是白子应落的位置');
+    }
+  };
+}
+
+/* ============================================================
+ * 关卡四：折纸工坊（拖动预测棋到对折后的落点，动画检验）
+ * ============================================================ */
+function buildFold(cfg){
+  const stage = $('#stage');
+  stage.innerHTML = '';
+  const N = 8, cell = 46, pad = 36, trayW = 2.1 * cell;
+  const gr = buildGrid(N, cell, pad, trayW);
+  stage.appendChild(gr.svg);
+
+  const gPaper = el('g', {}, gr.svg);
+  gr.svg.appendChild(gr.g);                 /* 网格移到纸上方 */
+  const gTop = el('g', {}, gr.svg);
+
+  /* 纸张（正方形 0,0 到 8,8） */
+  const p00 = gr.pt(0, 0), p88 = gr.pt(N, N);
+  el('rect', { x:p00.x, y:p00.y, width:N * cell, height:N * cell, class:'paper' }, gPaper);
+
+  /* 折痕（名称放网格外上沿） */
+  let creaseA, creaseB, flapPts, cName;
+  if(cfg.crease === 'v'){
+    creaseA = gr.pt(4, 0); creaseB = gr.pt(4, N); cName = '折痕';
+    const a = gr.pt(0, 0), b = gr.pt(4, 0), c = gr.pt(4, N), d = gr.pt(0, N);
+    flapPts = [a, b, c, d];
+  }else{
+    creaseA = gr.pt(0, 0); creaseB = gr.pt(N, N); cName = '折痕：左上—右下对角线';
+    const a = gr.pt(0, 0), b = gr.pt(0, N), c = gr.pt(N, N);
+    flapPts = [a, b, c];                    /* 对角线下方的三角形翻折部分 */
+  }
+  el('line', { x1:creaseA.x, y1:creaseA.y, x2:creaseB.x, y2:creaseB.y, class:'axis-line' }, gr.g);
+  el('text', { x:gr.pad + N * gr.cell / 2, y:gr.pad - 14, class:'axis-tag',
+    'text-anchor':'middle', text:cName }, gr.g);
+
+  /* 选取折痕一侧的甲、乙两点 */
+  const usedPts = {};
+  const dots = [];
+  let guard = 0;
+  while(dots.length < cfg.k && guard++ < 600){
+    let i, j;
+    if(cfg.crease === 'v'){ i = ri(1, 3); j = ri(1, N - 1); }
+    else { i = ri(1, N - 2); j = ri(i + 1, N - 1); }
+    if(usedPts[i + '_' + j]) continue;
+    usedPts[i + '_' + j] = 1;
+    dots.push({ i:i, j:j, label:LABELS[dots.length] });
+  }
+
+  /* 原点（深色圆点+标签） */
+  dots.forEach(d => {
+    const p = gr.pt(d.i, d.j);
+    el('circle', { cx:p.x, cy:p.y, r:10, fill:'var(--deep)', stroke:'#fff', 'stroke-width':2.5, class:'dot-real' }, gr.g);
+    el('text', { x:p.x + 13, y:p.y - 11, class:'glabel', text:d.label }, gr.g);
+  });
+
+  /* 计算真实落点（关于折痕的对称点，格点坐标） */
+  const landings = dots.map(d => {
+    if(cfg.crease === 'v') return { i:8 - d.i, j:d.j };
+    return { i:d.j, j:d.i };
+  });
+
+  /* 右侧工具托盘：可拖预测棋 */
+  const trayX = gr.pad + N * gr.cell + trayW / 2;
+  el('text', { x:trayX, y:gr.pad - 14, class:'tray-tag', 'text-anchor':'middle', text:'预测棋（拖我）' }, gTop);
+  const markers = dots.map((d, idx) => {
+    const y = gr.pad + (1.6 + idx * 3.2) * gr.cell;
+    const mk = el('g', { class:'marker-g', cursor:'grab' }, gTop);
+    const c = el('circle', { cx:trayX, cy:y, r:17, class:'marker' }, mk);
+    el('text', { x:trayX, y:y + 6, class:'mlabel', 'text-anchor':'middle', text:d.label }, mk);
+    mk._cx = trayX; mk._cy = y; mk._idx = idx; mk._locked = false; mk._node = null;
+    mk._circle = c;
+    return mk;
+  });
+
+  /* 拖动逻辑 */
+  markers.forEach((mk, idx) => {
+    mk.addEventListener('pointerdown', function(ev){
+      if(mk._locked) return;
+      ev.preventDefault();
+      mk.setPointerCapture(ev.pointerId);
+      mk.setAttribute('cursor', 'grabbing');
+    });
+    mk.addEventListener('pointermove', function(ev){
+      if(mk._locked || !mk.hasPointerCapture || !mk.hasPointerCapture(ev.pointerId)) return;
+      const q = svgPoint(gr.svg, ev);
+      mk._cx = Math.max(10, Math.min(gr.W - 10, q.x));
+      mk._cy = Math.max(10, Math.min(gr.H - 10, q.y));
+      mk._circle.setAttribute('cx', String(mk._cx));
+      mk._circle.setAttribute('cy', String(mk._cy));
+      const t = mk.querySelector('text');
+      t.setAttribute('x', String(mk._cx));
+      t.setAttribute('y', String(mk._cy + 6));
+    });
+    mk.addEventListener('pointerup', function(ev){
+      if(mk._locked) return;
+      mk.setAttribute('cursor', 'grab');
+      const q = svgPoint(gr.svg, ev);
+      const node = nearestNode(gr, q.x, q.y);
+      if(node){
+        mk._node = node;
+        const p = gr.pt(node.i, node.j);
+        mk._cx = p.x; mk._cy = p.y;
+      }else{
+        mk._node = null;
+      }
+      mk._circle.setAttribute('cx', String(mk._cx));
+      mk._circle.setAttribute('cy', String(mk._cy));
+      const t = mk.querySelector('text');
+      t.setAttribute('x', String(mk._cx));
+      t.setAttribute('y', String(mk._cy + 6));
+      addStep();
+    });
+  });
+
+  /* 对折动画（翻折部分绕折痕旋转 180°，动画期间隐藏原点避免直接泄露答案） */
+  function foldPlay(withDots, done){
+    const a = creaseA, b = creaseB;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const L = Math.hypot(dx, dy);
+    const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    const flap = el('polygon', { points:'', class:'flap' }, gTop);
+    const moveDots = [];
+    if(withDots){
+      dots.forEach(d => {
+        const p = gr.pt(d.i, d.j);
+        moveDots.push({ x:p.x, y:p.y,
+          c:el('circle', { cx:p.x, cy:p.y, r:9, fill:'#16a34a', stroke:'#fff', 'stroke-width':2.5 }, gTop) });
+      });
+    }
+    const realDots = gr.g.querySelectorAll('.dot-real');
+    realDots.forEach(rd => rd.setAttribute('opacity', '0.12'));
+    const dur = 1000, start = performance.now();
+    function fr(t){
+      const u = Math.min(1, (t - start) / dur);
+      const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      const k = Math.cos(Math.PI * e);
+      const pts = flapPts.map(v => {
+        const rx = v.x - a.x, ry = v.y - a.y;
+        const uu = rx * ux + ry * uy, w = rx * nx + ry * ny;
+        return (a.x + ux * uu + nx * w * k).toFixed(1) + ',' + (a.y + uy * uu + ny * w * k).toFixed(1);
+      }).join(' ');
+      flap.setAttribute('points', pts);
+      moveDots.forEach(md => {
+        const rx = md.x - a.x, ry = md.y - a.y;
+        const uu = rx * ux + ry * uy, w = rx * nx + ry * ny;
+        md.c.setAttribute('cx', String(a.x + ux * uu + nx * w * k));
+        md.c.setAttribute('cy', String(a.y + uy * uu + ny * w * k));
+      });
+      if(u < 1){ requestAnimationFrame(fr); }
+      else {
+        realDots.forEach(rd => rd.setAttribute('opacity', '1'));
+        setTimeout(function(){ flap.remove(); moveDots.forEach(md => md.c.remove()); done(); }, withDots ? 700 : 260);
+      }
+    }
+    requestAnimationFrame(fr);
+  }
+
+  /* 「对折检验」按钮 */
+  const actions = $('#extra-actions');
+  actions.innerHTML = '';
+  const btnCheck = document.createElement('button');
+  btnCheck.className = 'btn warn';
+  btnCheck.textContent = '对折检验';
+  actions.appendChild(btnCheck);
+  let won = false;
+  btnCheck.addEventListener('click', function(){
+    if(won || btnCheck.disabled) return;
+    const unplaced = markers.filter(mk => !mk._node);
+    if(unplaced.length > 0){ toastMsg('先把每枚预测棋都拖到方格纸的格点上哦'); return; }
+    addStep();
+    btnCheck.disabled = true;
+    foldPlay(false, function(){
+      let allOk = true;
+      markers.forEach(mk => {
+        if(mk._locked) return;
+        const tg = landings[mk._idx];
+        if(mk._node.i === tg.i && mk._node.j === tg.j){
+          mk._locked = true;
+          mk._circle.classList.add('ok');
+          mk.setAttribute('cursor', 'default');
+          const p = gr.pt(tg.i, tg.j);
+          el('circle', { cx:p.x, cy:p.y, r:22, fill:'none', stroke:'#16a34a', 'stroke-width':4 }, gTop);
+        }else{
+          allOk = false;
+          addMiss(); sndBad();
+          mk._circle.classList.add('err');
+          setTimeout(function(){ mk._circle.classList.remove('err'); }, 650);
+        }
+      });
+      btnCheck.disabled = false;
+      if(allOk){
+        won = true;
+        btnCheck.disabled = true;
+        /* 通关演示：带着原点再折一次，并画出「折痕垂直平分对应点连线」 */
+        foldPlay(true, function(){
+          dots.forEach((d, idx) => {
+            const p1 = gr.pt(d.i, d.j), p2 = gr.pt(landings[idx].i, landings[idx].j);
+            el('line', { x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, stroke:'#16a34a',
+              'stroke-width':3.5, 'stroke-dasharray':'9 7' }, gTop);
+            tagNear(gTop, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2, LABELS[idx] + '与落点连线被折痕垂直平分', gr.W);
+          });
+          setTimeout(function(){ levelWin('fold'); }, 700);
+        });
+      }else{
+        toastMsg('有的预测棋还没落准：量一量它到折痕的格数，与原点到折痕的格数相等吗？');
+      }
+    });
+  });
+
+  return {
+    reveal:function(){
+      landings.forEach((t, idx) => {
+        const p = gr.pt(t.i, t.j);
+        el('circle', { cx:p.x, cy:p.y, r:9, class:'reveal-dot2' }, gTop);
+        tagNear(gTop, p.x, p.y, '“' + LABELS[idx] + '”的落点', gr.W);
+      });
+      toastMsg('把预测棋拖到闪烁的落点，再按「对折检验」');
+    }
+  };
+}
+
+/* ============================================================
+ * 关卡五：印染工坊（点击涂色使图案成为（轴/中心）对称图形）
+ * ============================================================ */
+function buildPaint(cfg){
+  const stage = $('#stage');
+  stage.innerHTML = '';
+  const m = cfg.m, cell = 62, pad = 52;
+  const W = m * cell + pad * 2, H = m * cell + pad * 2;
+  const svg = el('svg', { viewBox:'0 0 ' + W + ' ' + H });
+  stage.appendChild(svg);
+  const g = el('g', {}, svg);
+
+  /* 对称映射：关于竖直对称轴 (i,j)->(m-1-i,j)；both 模式还要求绕中心旋转 180° */
+  const maps = [ function(c){ return { i:m - 1 - c.i, j:c.j }; } ];
+  if(cfg.mode === 'both') maps.push(function(c){ return { i:m - 1 - c.i, j:m - 1 - c.j }; });
+
+  /* 把种子格沿全部对称映射补全，得到对称图案 */
+  function closeSet(seeds){
+    const set = {};
+    seeds.forEach(sd => {
+      const stack = [sd];
+      while(stack.length){
+        const c = stack.pop();
+        const key = c.i + '_' + c.j;
+        if(set[key]) continue;
+        set[key] = { i:c.i, j:c.j };
+        maps.forEach(fn => stack.push(fn(c)));
+      }
+    });
+    return set;
+  }
+
+  /* 随机生成对称目标图案 PAT（每条轨道都完整） */
+  let PAT = null, guard = 0;
+  while(guard++ < 80){
+    const seeds = [];
+    for(let s = 0; s < cfg.seeds; s++) seeds.push({ i:ri(0, m - 1), j:ri(0, m - 1) });
+    const set = closeSet(seeds);
+    const n = Object.keys(set).length;
+    if(n >= Math.max(6, cfg.seeds * 2) && n <= 12){ PAT = set; break; }
+  }
+  if(!PAT) PAT = closeSet([{ i:1, j:1 }, { i:0, j:2 }, { i:2, j:4 }]);
+
+  /* 按轨道分组，从若干条轨道各挖掉一格，形成待修复的初始图案（保证初始不对称） */
+  const seenO = {}, orbitList = [];
+  Object.keys(PAT).forEach(key => {
+    if(seenO[key]) return;
+    const orbit = [];
+    const stack = [key];
+    seenO[key] = 1;
+    while(stack.length){
+      const k = stack.pop();
+      orbit.push(k);
+      const c = PAT[k];
+      maps.forEach(fn => {
+        const d = fn(c);
+        const dk = d.i + '_' + d.j;
+        if(PAT[dk] && !seenO[dk]){ seenO[dk] = 1; stack.push(dk); }
+      });
+    }
+    orbitList.push(orbit);
+  });
+  const given = {};
+  Object.keys(PAT).forEach(k => { given[k] = true; });
+  const bigOrbits = shuffle(orbitList.filter(o => o.length >= 2));
+  let cuts = 0;
+  for(let x = 0; x < bigOrbits.length && cuts < cfg.cutOrbits; x++){
+    delete given[pick(bigOrbits[x])];
+    cuts++;
+  }
+
+  /* 绘制格子 */
+  const cells = {};
+  for(let i = 0; i < m; i++){
+    for(let j = 0; j < m; j++){
+      const x = pad + i * cell, y = pad + j * cell;
+      const r = el('rect', { x:x + 3, y:y + 3, width:cell - 6, height:cell - 6, rx:10, class:'cellbase' }, g);
+      cells[i + '_' + j] = r;
+      if(given[i + '_' + j]) r.classList.add('cell-given');
+    }
+  }
+  /* 对称轴（竖直虚线）与中心标记，说明文字放网格外上沿，不与格子重叠 */
+  const ax = pad + m * cell / 2;
+  el('line', { x1:ax, y1:pad - 2, x2:ax, y2:H - pad + 2, class:'axis-line' }, g);
+  el('text', { x:ax, y:pad - 30, class:'axis-tag', 'text-anchor':'middle', text:'对称轴（竖直虚线）' }, g);
+  if(cfg.mode === 'both'){
+    el('circle', { cx:ax, cy:ax, r:7, fill:'var(--deep)', stroke:'#fff', 'stroke-width':2.5 }, g);
+    el('text', { x:ax, y:pad - 10, class:'axis-tag', 'text-anchor':'middle', text:'中心圆点 = 旋转中心（转180°重合）' }, g);
+  }
+
+  const added = {};
+  const MAXADD = 8;      /* 补印格数上限，防止把整盘涂满“蒙混”过关 */
+  let won = false;
+  /* 补印计数 + 「完成印染」按钮 */
+  const actions = $('#extra-actions');
+  actions.innerHTML = '';
+  const cntSpan = document.createElement('span');
+  cntSpan.style.cssText = 'display:block;margin:0 0 8px;font-size:18px;font-weight:700;color:var(--deep)';
+  cntSpan.textContent = '已补 0/' + MAXADD + ' 格';
+  actions.appendChild(cntSpan);
+  const btnDone = document.createElement('button');
+  btnDone.className = 'btn warn';
+  btnDone.textContent = '完成印染';
+  actions.appendChild(btnDone);
+  function updateAdd(){ cntSpan.textContent = '已补 ' + Object.keys(added).length + '/' + MAXADD + ' 格'; }
+
+  svg.addEventListener('pointerdown', function(ev){
+    if(won) return;
+    const q = svgPoint(svg, ev);
+    const i = Math.floor((q.x - pad) / cell), j = Math.floor((q.y - pad) / cell);
+    if(i < 0 || j < 0 || i >= m || j >= m) return;
+    const key = i + '_' + j;
+    if(given[key]){ toastMsg('深色格是已印好的，不能擦掉，只能补印浅色格哦'); return; }
+    if(!added[key] && Object.keys(added).length >= MAXADD){
+      toastMsg('最多补 ' + MAXADD + ' 格——想想哪些格才是对称真正需要的');
+      return;
+    }
+    addStep();
+    if(added[key]){
+      delete added[key];
+      cells[key].classList.remove('cell-add');
+    }else{
+      added[key] = true;
+      cells[key].classList.add('cell-add');
+    }
+    updateAdd();
+  });
+
+  /* 「完成印染」按钮：性质校验（涂色集对所有对称映射都成立） */
+  btnDone.addEventListener('click', function(){
+    if(won) return;
+    addStep();
+    const all = {};
+    Object.keys(given).forEach(k => all[k] = true);
+    Object.keys(added).forEach(k => all[k] = true);
+    let pass = true, bad = null;
+    Object.keys(all).forEach(k => {
+      const c = { i:parseInt(k.split('_')[0], 10), j:parseInt(k.split('_')[1], 10) };
+      maps.forEach(fn => {
+        const d = fn(c);
+        if(!all[d.i + '_' + d.j]){ pass = false; bad = d; }
+      });
+    });
+    if(pass){
+      won = true;
+      Object.keys(all).forEach(k => cells[k].classList.add('glow'));
+      sndWin();
+      setTimeout(function(){ levelWin('paint'); }, 800);
+    }else{
+      addMiss(); sndBad();
+      const card = $('#stage-card');
+      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+      if(bad){ cells[bad.i + '_' + bad.j].setAttribute('stroke', '#dc2626'); cells[bad.i + '_' + bad.j].setAttribute('stroke-width', '5');
+        setTimeout(function(){ cells[bad.i + '_' + bad.j].setAttribute('stroke', 'rgba(31,41,55,.25)'); cells[bad.i + '_' + bad.j].setAttribute('stroke-width', '2'); }, 1400);
+      }
+      toastMsg(cfg.mode === 'both' ? '还不满足：既要是轴对称，又要绕中心转 180° 重合' : '还有不对称的格子：沿对称轴找找它的对应格');
+    }
+  });
+
+  return {
+    reveal:function(){
+      /* 展示一种有效补法：把当前涂色集沿对称映射补全，缺失格描绿框 */
+      const all = {};
+      Object.keys(given).forEach(k => all[k] = true);
+      Object.keys(added).forEach(k => all[k] = true);
+      const need = {};
+      const stack = Object.keys(all).map(k => ({ i:parseInt(k.split('_')[0], 10), j:parseInt(k.split('_')[1], 10) }));
+      while(stack.length){
+        const c = stack.pop();
+        maps.forEach(fn => {
+          const d = fn(c);
+          const dk = d.i + '_' + d.j;
+          if(!all[dk] && !need[dk]){ need[dk] = true; stack.push(d); }
+        });
+      }
+      Object.keys(need).forEach(k => {
+        const c = cells[k];
+        const x = parseFloat(c.getAttribute('x')), y = parseFloat(c.getAttribute('y'));
+        const w = parseFloat(c.getAttribute('width')), h = parseFloat(c.getAttribute('height'));
+        el('rect', { x:x - 2, y:y - 2, width:w + 4, height:h + 4, rx:12, class:'need-ring' }, g);
+      });
+      toastMsg('绿框格补上就能对称；你也可以涂出别的对称方案');
+    }
+  };
+}
+
+/* ============================================================
+ * 关卡六：印章分拣（拖动图案卡片分类：仅轴对称 / 仅中心对称 / 两者）
+ * ============================================================ */
+function regPolyPts(cx, cy, r, n, rotDeg){
+  const p = [];
+  for(let i = 0; i < n; i++){
+    const a = (rotDeg + i * 360 / n) * Math.PI / 180;
+    p.push((cx + r * Math.cos(a)).toFixed(1) + ',' + (cy - r * Math.sin(a)).toFixed(1));
+  }
+  return p.join(' ');
+}
+/* 图案库（每类若干，随机抽取，保证答案唯一且不重复） */
+const SHAPE_POOL = {
+  axis: [
+    { name:'等边三角形', svg:'<polygon points="' + regPolyPts(50, 58, 44, 3, -90) + '" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' },
+    { name:'正五边形',   svg:'<polygon points="' + regPolyPts(50, 54, 42, 5, -90) + '" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' },
+    { name:'等腰梯形',   svg:'<polygon points="26,26 74,26 88,74 12,74" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' },
+    { name:'风筝形',     svg:'<polygon points="50,8 70,54 50,92 30,54" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' }
+  ],
+  center: [
+    { name:'平行四边形', svg:'<polygon points="27,29 84,29 73,73 16,73" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' },
+    { name:'Z形图案',    svg:'<polygon points="20,15 80,15 80,32 38,68 80,68 80,85 20,85 20,68 62,32 20,32" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' },
+    { name:'双叶图案',   svg:'<ellipse cx="33" cy="33" rx="19" ry="9.5" transform="rotate(-45 33 33)" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/><ellipse cx="67" cy="67" rx="19" ry="9.5" transform="rotate(135 67 67)" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' }
+  ],
+  both: [
+    { name:'正方形',   svg:'<rect x="18" y="18" width="64" height="64" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' },
+    { name:'正六边形', svg:'<polygon points="' + regPolyPts(50, 50, 42, 6, 0) + '" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' },
+    { name:'圆环',     svg:'<circle cx="50" cy="50" r="34" fill="none" stroke="var(--primary)" stroke-width="15"/>' },
+    { name:'正十字形', svg:'<polygon points="38,14 62,14 62,38 86,38 86,62 62,62 62,86 38,86 38,62 14,62 14,38 38,38" fill="var(--primary)" stroke="var(--deep)" stroke-width="3"/>' }
+  ]
+};
+function buildSort(){
+  const stage = $('#stage');
+  stage.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'sort-wrap';
+  wrap.innerHTML =
+    '<div class="bins">' +
+      '<div class="bin" data-cat="axis"><h3>仅轴对称</h3><p class="desc">沿直线折叠能自身重合，但旋转180°不能</p><div class="bin-body"></div></div>' +
+      '<div class="bin" data-cat="center"><h3>仅中心对称</h3><p class="desc">绕某点旋转180°能自身重合，但折叠不能</p><div class="bin-body"></div></div>' +
+      '<div class="bin" data-cat="both"><h3>两者都是</h3><p class="desc">既能折叠重合，又能旋转180°重合</p><div class="bin-body"></div></div>' +
+    '</div>' +
+    '<div class="tray" id="sort-tray"></div>';
+  stage.appendChild(wrap);
+  const tray = wrap.querySelector('#sort-tray');
+
+  /* 抽图案：2 仅轴 + 2 仅中心 + 1 两者，打乱顺序 */
+  const chosen = sample(SHAPE_POOL.axis, 2)
+    .concat(sample(SHAPE_POOL.center, 2))
+    .concat(sample(SHAPE_POOL.both, 1));
+  const cards = shuffle(chosen).map(sp => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.cat = Object.keys(SHAPE_POOL).find(k => SHAPE_POOL[k].indexOf(sp) >= 0);
+    card.innerHTML = '<svg viewBox="0 0 100 100">' + sp.svg + '</svg><div class="nm">' + sp.name + '</div>';
+    card._name = sp.name;
+    tray.appendChild(card);
+    return card;
+  });
+
+  const total = cards.length;
+  let locked = 0;
+  const cntEl = $('#lv-count');
+  function updateCnt(){ cntEl.textContent = locked + '/' + total; }
+  updateCnt();
+
+  let won = false;
+  /* 拖拽（指针事件，兼容触屏） */
+  cards.forEach(card => {
+    card.addEventListener('pointerdown', function(ev){
+      if(won || card.classList.contains('ok')) return;
+      ev.preventDefault();
+      const rect = card.getBoundingClientRect();
+      const ghost = card.cloneNode(true);
+      ghost.classList.add('drag-ghost');
+      ghost.style.width = rect.width + 'px';
+      ghost.style.left = rect.left + 'px';
+      ghost.style.top = rect.top + 'px';
+      document.body.appendChild(ghost);
+      card.style.visibility = 'hidden';
+      const offX = ev.clientX - rect.left, offY = ev.clientY - rect.top;
+      function mv(e){
+        ghost.style.left = (e.clientX - offX) + 'px';
+        ghost.style.top = (e.clientY - offY) + 'px';
+      }
+      function up(e){
+        document.removeEventListener('pointermove', mv);
+        document.removeEventListener('pointerup', up);
+        ghost.remove();
+        const under = document.elementFromPoint(e.clientX, e.clientY);
+        const bin = under ? under.closest('.bin') : null;
+        addStep();
+        if(bin && bin.dataset.cat === card.dataset.cat){
+          card.classList.remove('nope');
+          card.classList.add('ok');
+          bin.querySelector('.bin-body').appendChild(card);
+          card.style.visibility = '';
+          locked++; updateCnt(); sndGood();
+          if(locked === total){
+            won = true;
+            setTimeout(function(){ levelWin('sort'); }, 500);
+          }
+        }else if(bin){
+          addMiss(); sndBad();
+          tray.appendChild(card);
+          card.style.visibility = '';
+          card.classList.add('nope');
+          setTimeout(function(){ card.classList.remove('nope'); }, 500);
+          toastMsg('再想想：它能沿直线折叠重合吗？能绕点转180°重合吗？');
+        }else{
+          tray.appendChild(card);
+          card.style.visibility = '';
+        }
+      }
+      document.addEventListener('pointermove', mv);
+      document.addEventListener('pointerup', up);
+    });
+  });
+
+  return {
+    reveal:function(){
+      const names = cards.filter(c => !c.classList.contains('ok'))
+        .map(c => c._name + ' → ' + (c.dataset.cat === 'axis' ? '仅轴对称' : c.dataset.cat === 'center' ? '仅中心对称' : '两者都是'));
+      if(names.length) toastMsg(names.join('；'), 4200);
+    }
+  };
+}
+
+/* ============================================================
+ * 关卡流程控制
+ * ============================================================ */
+function briefOf(cfg){
+  switch(cfg.type){
+    case 'sort':
+      return '<b>【' + cfg.name + '】</b>艺术馆收到 5 枚印章图案。请把每枚图案拖进正确的收藏格：只能沿直线折叠重合的放「仅轴对称」，只能绕点旋转 180° 重合的放「仅中心对称」，两种都行的放「两者都是」。全部放对即通关。已归位 <b id="lv-count">0/5</b>。';
+    case 'mirror':
+      if(cfg.axis === 'v') return '<b>【' + cfg.name + '】</b>8×8 方格纸上有一条竖直虚线是对称轴，轴的左侧有 ' + cfg.k + ' 颗金色星点。请点击格点，点亮每颗星点关于对称轴的对应点（星点、对应点到轴的格数相等，方向相反）。全部点亮即通关。已点亮 <b id="lv-count">0/' + cfg.k + '</b>。';
+      if(cfg.axis === 'h') return '<b>【' + cfg.name + '】</b>8×8 方格纸上有一条水平虚线是对称轴，轴的上方有 ' + cfg.k + ' 颗金色星点。请点击格点，点亮每颗星点关于对称轴的对应点（上下格数相等）。全部点亮即通关。已点亮 <b id="lv-count">0/' + cfg.k + '</b>。';
+      return '<b>【' + cfg.name + '】</b>8×8 方格纸上，连接两个对角的那条虚线（对角线）是对称轴，轴的下方有 ' + cfg.k + ' 颗金色星点。请点击格点，点亮每颗星点关于这条斜对称轴的对应点（对应点的行、列正好互换）。全部点亮即通关。已点亮 <b id="lv-count">0/' + cfg.k + '</b>。';
+    case 'center':
+      return '<b>【' + cfg.name + '】</b>方格纸上标有对称中心 O 和 ' + cfg.k + ' 颗金色星点。请点击格点，点亮每颗星点关于 O 的对应点——把星点绕 O 旋转 180°：星点、O、对应点共线，O 到两侧的格数相等、方向相反。全部点亮即通关。已点亮 <b id="lv-count">0/' + cfg.k + '</b>。';
+    case 'gobang':
+      return '<b>【' + cfg.name + '】</b>' + cfg.m + '×' + cfg.m + ' 星图棋盘上已有若干黑子，轮到白方落 ' + cfg.missCnt + ' 子。请点击空格放白子，使全部棋子（黑 + 白）构成的图案成为<b>中心对称图形</b>——绕棋盘中心的「对称中心」旋转 180° 后完全重合。已落子 <b id="lv-count">0/' + cfg.missCnt + '</b>。';
+    case 'fold':
+      return '<b>【' + cfg.name + '】</b>一张 8×8 的方格纸将沿虚线折痕' + (cfg.crease === 'v' ? '左右对折' : '沿对角线对折') + '。甲、乙两点在折痕同一侧。请把托盘里的「预测棋甲 / 预测棋乙」<b>拖到方格纸的格点上</b>，猜出对折后它们各自落在哪个格点，再按【对折检验】。两枚都猜对即通关。';
+    case 'paint':
+      if(cfg.mode === 'axis')
+        return '<b>【' + cfg.name + '】</b>5×5 方格中已印好若干深色格（不可擦除），竖直虚线是对称轴。请点击白格补印浅色（最多补 8 格，可再点一次撤销），使整个涂色图案成为<b>轴对称图形</b>（沿虚线对折后完全重合），完成后按【完成印染】。';
+      return '<b>【' + cfg.name + '】</b>5×5 方格中已印好若干深色格（不可擦除）。请点击白格补印浅色（最多补 8 格，可再点一次撤销），使整个涂色图案<b>既是轴对称图形</b>（关于竖直虚线对折重合），<b>又是中心对称图形</b>（绕中心圆点旋转 180° 重合），完成后按【完成印染】。';
+  }
+  return '';
+}
+function buildByType(cfg){
+  switch(cfg.type){
+    case 'sort': return buildSort();
+    case 'mirror': return buildMirror(cfg);
+    case 'center': return buildCenter(cfg);
+    case 'gobang': return buildGobang(cfg);
+    case 'fold': return buildFold(cfg);
+    case 'paint': return buildPaint(cfg);
+  }
+  return { reveal:function(){ toastMsg('本关暂无答案提示，大胆动手试试吧！'); } };
+}
+function startLevel(){
+  const list = LEVELS[S.diff];
+  const cfg = list[S.li];
+  S.revealed = false;
+  S.levelMiss = 0;
+  S.curLevel = null;
+  $('#level-name').textContent = '第 ' + (S.li + 1) + ' 关 · ' + cfg.name;
+  $('#diff-label').textContent = DIFF_NAME[S.diff];
+  $('#level-brief').innerHTML = briefOf(cfg);
+  $('#hint').innerHTML = HINTS[cfg.type];
+  $('#extra-actions').innerHTML = '';
+  const prog = $('#progress');
+  prog.innerHTML = '';
+  list.forEach((it, idx) => {
+    const d = document.createElement('div');
+    d.className = 'pdot' + (idx < S.li ? ' done' : idx === S.li ? ' cur' : '');
+    prog.appendChild(d);
+  });
+  S.curLevel = buildByType(cfg);
+}
+function levelStars(){
+  if(S.levelMiss === 0 && !S.revealed) return 3;
+  if(S.levelMiss <= 2) return 2;
+  return 1;
+}
+function starIcons(n){
+  let html = '';
+  for(let i = 0; i < 3; i++){
+    const on = i < n;
+    html += '<svg viewBox="0 0 24 24"><polygon points="12,1.5 15.1,8.6 22.8,9.3 17,14.6 18.7,22.2 12,18.3 5.3,22.2 7,14.6 1.2,9.3 8.9,8.6" fill="' +
+      (on ? '#f59e0b' : '#d5dbe6') + '" stroke="' + (on ? '#8a5200' : '#9aa4b2') + '" stroke-width="1.4"/></svg>';
+  }
+  return html;
+}
+function levelWin(type){
+  const st = levelStars();
+  S.stars.push(st);
+  sndWin();
+  $('#clear-stars').innerHTML = starIcons(st);
+  $('#clear-msg').textContent = WINMSG[type] + ('（本关失误 ' + S.levelMiss + ' 次' + (S.revealed ? '，使用了揭示答案' : '') + '）');
+  const list = LEVELS[S.diff];
+  $('#btn-next').textContent = (S.li + 1 < list.length) ? '下一关' : '查看成果';
+  $('#overlay-clear').classList.remove('hidden');
+}
+function finalShow(){
+  S.finalSec = S.sec;
+  stopTimer();
+  const totalStars = S.stars.reduce((a, b) => a + b, 0);
+  $('#final-stars').innerHTML = starIcons(3) ;
+  $('#final-stars').insertAdjacentHTML('beforeend',
+    '<span style="font-size:22px;font-weight:800;color:#8a5200;align-self:center;margin-left:8px">共 ' + totalStars + '/12 颗星</span>');
+  $('#fin-time').textContent = '总用时 ' + fmtTime(S.finalSec);
+  $('#fin-steps').textContent = '总步数 ' + S.steps;
+  $('#fin-miss').textContent = '总失误 ' + S.miss;
+  $('#overlay-final').classList.remove('hidden');
+  confettiStart();
+  sndWin();
+  setTimeout(sndWin, 600);
+}
+function startDiff(d){
+  S.diff = d; S.li = 0; S.sec = 0; S.steps = 0; S.miss = 0; S.stars = [];
+  $('#chip-time').textContent = '用时 00:00';
+  $('#chip-steps').textContent = '步数 0';
+  $('#chip-miss').textContent = '失误 0';
+  $('#screen-menu').classList.add('hidden');
+  $('#screen-game').classList.remove('hidden');
+  $('#overlay-final').classList.add('hidden');
+  $('#overlay-clear').classList.add('hidden');
+  applyPalette();
+  startTimer();
+  startLevel();
+}
+function toMenu(){
+  stopTimer();
+  $('#overlay-clear').classList.add('hidden');
+  $('#overlay-final').classList.add('hidden');
+  $('#screen-game').classList.add('hidden');
+  $('#screen-menu').classList.remove('hidden');
+  applyPalette();
+}
+
+/* ============================================================
+ * 通关庆祝：彩纸 + 星星（Canvas 实现）
+ * ============================================================ */
+let fxRunning = false;
+function confettiStart(){
+  const cv = $('#fx');
+  const ctx = cv.getContext('2d');
+  function fit(){
+    cv.width = window.innerWidth; cv.height = window.innerHeight;
+  }
+  fit();
+  window.addEventListener('resize', fit);
+  const colors = ['#f59e0b', '#2f5fc4', '#db2777', '#16a34a', '#7c5cd6', '#0e93a8', '#ef4444'];
+  const parts = [];
+  for(let i = 0; i < 170; i++){
+    parts.push({
+      x:Math.random() * cv.width, y:-Math.random() * cv.height * 0.8,
+      vx:(Math.random() - 0.5) * 2.4, vy:2 + Math.random() * 3.2,
+      size:7 + Math.random() * 9, rot:Math.random() * Math.PI, vr:(Math.random() - 0.5) * 0.24,
+      color:pick(colors), star:Math.random() < 0.3
+    });
+  }
+  const t0 = performance.now();
+  fxRunning = true;
+  function drawStarC(x, y, r, rot){
+    ctx.beginPath();
+    for(let i = 0; i < 10; i++){
+      const a = rot + i * Math.PI / 5;
+      const rr = (i % 2 === 0) ? r : r * 0.45;
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+      if(i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  function fr(t){
+    if(!fxRunning){ ctx.clearRect(0, 0, cv.width, cv.height); return; }
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    parts.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if(p.y > cv.height + 30){ p.y = -20; p.x = Math.random() * cv.width; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      if(p.star){ drawStarC(0, 0, p.size); }
+      else { ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); }
+      ctx.restore();
+    });
+    if(t - t0 < 8000){ requestAnimationFrame(fr); }
+    else { fxRunning = false; ctx.clearRect(0, 0, cv.width, cv.height); }
+  }
+  requestAnimationFrame(fr);
+}
+function confettiStop(){ fxRunning = false; }
+
+/* ============================================================
+ * 事件绑定与启动
+ * ============================================================ */
+document.querySelectorAll('.diff-card').forEach(card => {
+  card.addEventListener('click', function(){ startDiff(card.dataset.diff); });
+});
+$('#btn-back').addEventListener('click', toMenu);
+$('#btn-tomenu').addEventListener('click', function(){ confettiStop(); toMenu(); });
+$('#btn-again').addEventListener('click', function(){ confettiStop(); startDiff(S.diff); });
+$('#btn-next').addEventListener('click', function(){
+  $('#overlay-clear').classList.add('hidden');
+  const list = LEVELS[S.diff];
+  if(S.li + 1 < list.length){
+    S.li++;
+    startLevel();
+  }else{
+    finalShow();
+  }
+});
+$('#btn-reveal').addEventListener('click', function(){
+  if(!S.curLevel) return;
+  S.revealed = true;
+  S.curLevel.reveal();
+});
+$('#btn-restart').addEventListener('click', function(){
+  startLevel();
+  toastMsg('本关已换一组新数据，重新出发！');
+});
+function openRules(){ $('#modal-rules').classList.remove('hidden'); }
+$('#btn-rules').addEventListener('click', openRules);
+$('#btn-rules-top').addEventListener('click', openRules);
+$('#btn-rules-ok').addEventListener('click', function(){ $('#modal-rules').classList.add('hidden'); });
+
+applyPalette();
+openRules();   /* 进入时弹出规则说明，可随时再看 */
+
+})();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-jc-gp/g006", "name": "\u5bf9\u79f0\u5947\u5883\u5de5\u574a \u00b7 \u56fe\u5f62\u7684\u5bf9\u79f0\u4e92\u52a8\u6e38\u620f", "file": "g006.html", "jiaocan": "\u301046\u3011\u4e03 \u56fe\u5f62\u7684\u53d8\u6362\uff1a\u7b2c3\u8282 \u56fe\u5f62\u7684\u5bf9\u79f0\uff08\u542b\u56fe\u5f62\u7684\u6298\u53e0\uff09\uff08\u8f74\u5bf9\u79f0\u4e0e\u8f74\u5bf9\u79f0\u56fe\u5f62\u3001\u4e2d\u5fc3\u5bf9\u79f0\u4e0e\u4e2d\u5fc3\u5bf9\u79f0\u56fe\u5f62\u3001\u56fe\u5f62\u7684\u6298\u53e0\uff09", "unit": "", "grade": "", "stage": "\u521d\u4e2d", "series": "G+\uff1a\u4e94\u4e09\u4e2d\u8003-\u6570\u5b662026", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u4e94\u4e09\u4e2d\u8003-\u6570\u5b662026\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-jc-gp"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>计算王国 · 凑整魔法大闯关（巧算加减法进阶）</title>
+<!-- 题目来源：《第11讲 巧算加减法进阶(1)（上）》教参：凑整法（好朋友数/同尾数/打包减/拆包减）、拆数凑整、基准数法 -->
+<style>
+/* ================= 基础与色板变量 ================= */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg1:#e0f2fe;--bg2:#bde3ff;--main:#1273cf;--deep:#0b5294;--gold:#ff9d00;--ink:#10334d;
+  --card:#ffffff;--good:#2e9e5b;--warn:#e07b00;
+}
+html,body{min-height:100%}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  color:var(--ink);min-height:100vh;overflow-x:hidden;
+  -webkit-user-select:none;user-select:none;
+}
+#fxLayer{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:300;overflow:hidden}
+.fxp{position:absolute;left:0;top:0;will-change:transform,opacity;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.hidden{display:none !important}
+
+/* ================= 通用按钮 ================= */
+.btn{
+  background:var(--main);color:#fff;border:none;border-radius:16px;
+  padding:12px 20px;font-size:19px;font-weight:800;cursor:pointer;
+  box-shadow:0 5px 0 var(--deep);transition:transform .08s;
+  font-family:inherit;touch-action:manipulation;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 var(--deep)}
+.btn.ghosty{background:#fff;color:var(--main);border:3px solid var(--main);box-shadow:0 5px 0 rgba(0,0,0,.12)}
+.btn.mini{font-size:16px;padding:9px 13px;border-radius:12px}
+.btn.big{font-size:21px;padding:14px 26px}
+.btn.pulse{animation:nudge 1.1s infinite}
+.btn:disabled{opacity:.45;cursor:not-allowed;animation:none}
+
+/* ================= 开始界面 ================= */
+#startScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}
+.startCard{
+  background:rgba(255,255,255,.94);border-radius:28px;border:6px solid var(--main);
+  padding:30px 28px;max-width:640px;width:100%;text-align:center;
+  box-shadow:0 14px 40px rgba(0,0,0,.18);
+}
+.startCard .logo{font-size:64px;line-height:1}
+.startCard h1{font-size:clamp(26px,5vw,38px);color:var(--deep);margin:8px 0 6px}
+.startCard .sub{font-size:18px;color:var(--ink);opacity:.85;margin-bottom:18px}
+.diffBtns{display:flex;flex-direction:column;gap:12px;margin:6px 0 16px}
+.btn.diff{display:flex;flex-direction:column;gap:3px;padding:14px 18px}
+.btn.diff b{font-size:25px}
+.btn.diff span{font-size:16px;font-weight:600;opacity:.95}
+.startCard .tiny{font-size:16px;opacity:.7;margin-top:12px}
+
+/* ================= 顶栏与状态 ================= */
+#topbar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  padding:10px 14px;background:rgba(255,255,255,.82);
+  border-bottom:4px solid var(--main);position:sticky;top:0;z-index:60;
+}
+#topbar .brand{font-size:21px;font-weight:900;color:var(--deep);margin-right:auto}
+#topbar .palName{font-size:15px;color:var(--main);font-weight:700}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.stat{background:#fff;border:2px solid var(--main);border-radius:12px;padding:5px 10px;font-size:16px;font-weight:700;color:var(--deep)}
+.stat b{color:var(--main)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+
+#objective{
+  max-width:1020px;margin:12px auto 0;background:rgba(255,255,255,.85);
+  border-left:10px solid var(--gold);border-radius:14px;
+  padding:10px 16px;font-size:19px;font-weight:700;line-height:1.5;
+}
+#objective.nudge{animation:nudge 1s infinite}
+@keyframes nudge{0%,100%{transform:scale(1)}50%{transform:scale(1.02);box-shadow:0 0 0 4px rgba(255,157,0,.35)}}
+
+/* ================= 舞台 ================= */
+#stage{max-width:1040px;margin:0 auto;padding:10px 14px 34px}
+#exprWrap{
+  display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px;
+  min-height:130px;padding:18px 12px;background:rgba(255,255,255,.5);
+  border-radius:20px;border:3px dashed rgba(0,0,0,.14);
+}
+.op{font-size:clamp(24px,5vw,34px);font-weight:900;padding:0 2px}
+
+/* 数字卡片 */
+.card{
+  width:clamp(72px,15vw,100px);min-height:clamp(80px,16vw,110px);
+  background:var(--card);border:4px solid var(--main);border-radius:18px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-size:clamp(26px,6vw,38px);font-weight:900;color:var(--deep);
+  box-shadow:0 6px 0 rgba(0,0,0,.13);cursor:grab;touch-action:none;position:relative;
+  animation:popIn .25s;
+}
+.card.sm{width:clamp(64px,13vw,88px);font-size:clamp(21px,4.6vw,30px)}
+.card .tag{font-size:16px;font-weight:700;color:var(--main)}
+.card.bundle .num{font-size:clamp(20px,4.4vw,28px)}
+.card.bundle{border-color:var(--gold);cursor:pointer}
+.card.bundle .tag{color:var(--gold)}
+.card.smallCard{border-style:dashed}
+.card.locked{border-color:var(--good);background:#eafbef;box-shadow:0 0 20px rgba(46,158,91,.6)}
+.card.inPot{opacity:.25}
+.card.answer{border-color:var(--gold);animation:starPulse .8s infinite}
+.card.dragSrc{opacity:.35}
+.card .dev{font-size:18px;font-weight:900;border-radius:10px;padding:2px 9px;margin-top:2px}
+.card .dev.ok{background:#e2f6e9;color:#20724a}
+.card .dev.warn{background:#fdeada;color:#b35400}
+.card.gemStyle{border-color:var(--gold);background:linear-gradient(180deg,#fffdf2,#fff3c4)}
+.card.gemStyle .small{font-size:16px;font-weight:700;color:var(--ink);opacity:.75}
+@keyframes popIn{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes starPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
+
+/* ================= 魔法锅区 ================= */
+#midRow{display:flex;gap:18px;margin-top:16px;flex-wrap:wrap;justify-content:center;align-items:stretch}
+#cauldronBox{
+  flex:0 1 330px;background:rgba(255,255,255,.82);border-radius:20px;
+  padding:14px 16px;border:3px solid var(--main);text-align:center;
+}
+#cauldronBox.shake{animation:shakeX .4s}
+@keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}
+.slotRow{display:flex;gap:12px;justify-content:center}
+.slot{
+  width:112px;height:96px;border:4px dashed var(--main);border-radius:16px;background:#fff;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;
+  font-size:17px;color:var(--main);font-weight:800;text-align:center;gap:4px;
+}
+.slot.hover{background:#fff6d8;border-color:var(--gold)}
+.slot.filled{border-style:solid;border-color:var(--good)}
+.slot .slotCard{font-size:32px;font-weight:900;color:var(--deep);animation:popIn .25s}
+.pot{
+  margin:12px auto 0;width:250px;max-width:100%;height:54px;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,var(--main),var(--deep));
+  border-radius:16px 16px 80px 80px;
+}
+.pot .label{color:#fff;font-weight:900;font-size:19px;line-height:54px;text-align:center;letter-spacing:2px}
+.pot .bub{position:absolute;bottom:4px;width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.75);animation:bub 1.6s infinite}
+.pot .b1{left:26%;animation-delay:0s}.pot .b2{left:50%;animation-delay:.5s}.pot .b3{left:72%;animation-delay:1s}
+@keyframes bub{0%{transform:translateY(0);opacity:.9}100%{transform:translateY(-30px);opacity:0}}
+#cauldronMsg{min-height:56px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;color:var(--deep);margin-top:8px;line-height:1.4}
+
+/* ================= 工位区（剪刀 / 数轴 / 提示卡 / 召唤） ================= */
+#station{
+  flex:1 1 330px;max-width:520px;background:rgba(255,255,255,.82);border-radius:20px;
+  padding:14px 16px;border:3px solid var(--gold);min-height:180px;
+  display:flex;flex-direction:column;justify-content:center;gap:8px;
+}
+#station .tipTitle{font-size:20px;font-weight:900;color:var(--deep)}
+#station ul{list-style:none}
+#station li{font-size:17px;line-height:1.55;padding-left:18px;position:relative}
+#station li::before{content:"✦";position:absolute;left:0;color:var(--gold)}
+#scissors{
+  border:4px dashed var(--gold);border-radius:18px;padding:16px;margin:6px 0;
+  text-align:center;font-size:19px;font-weight:800;color:var(--gold);background:#fffdf4;
+}
+#scissors .big{font-size:44px;line-height:1.1}
+#scissors.hover{background:#fff3c4;transform:scale(1.03)}
+#eqLine{font-size:20px;font-weight:800;color:var(--ink);text-align:center}
+#bigNum{font-size:56px;font-weight:900;color:var(--deep);text-align:center}
+
+/* 数轴 */
+#nline{width:100%}
+#track{
+  position:relative;height:62px;margin:44px 8px 26px;background:linear-gradient(180deg,#fff,var(--card));
+  border:4px solid var(--deep);border-radius:16px;touch-action:none;cursor:pointer;
+}
+.tick{position:absolute;top:0;bottom:0;width:3px;background:rgba(0,0,0,.16)}
+.ticklab{position:absolute;transform:translateX(-50%);font-size:16px;font-weight:800;color:var(--deep)}
+#flag{position:absolute;top:-40px;transform:translateX(-50%);font-size:32px;cursor:grab;touch-action:none;filter:drop-shadow(0 3px 2px rgba(0,0,0,.25))}
+.nlineTip{text-align:center;font-size:16px;font-weight:700;opacity:.8;margin-bottom:8px}
+#btnBenchConfirm{align-self:center}
+
+/* ================= 托盘（魔法豆 / 徽章） ================= */
+#tray{
+  margin-top:16px;background:rgba(255,255,255,.72);border-radius:18px;padding:12px;
+  display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;min-height:76px;
+}
+.trayTitle{width:100%;text-align:center;font-size:17px;font-weight:800;color:var(--deep)}
+.chip{
+  width:52px;height:52px;border-radius:50%;background:var(--gold);color:#fff;
+  font-size:21px;font-weight:900;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 0 rgba(0,0,0,.22);cursor:grab;touch-action:none;border:3px solid #fff;
+  animation:popIn .25s;
+}
+.chip.hover{transform:scale(1.15)}
+.badge{
+  min-width:72px;height:56px;border-radius:28px;font-size:23px;font-weight:900;color:#fff;
+  display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;
+  box-shadow:0 4px 0 rgba(0,0,0,.22);animation:popIn .25s;padding:0 12px;
+}
+.badge.plus{background:var(--good)}
+.badge.minus{background:#d6336c}
+.badge.hover{transform:scale(1.12)}
+
+/* ================= 拖拽幽灵 ================= */
+.ghost{position:fixed;z-index:400;pointer-events:none;opacity:.95;transform:scale(1.08);margin:0}
+
+/* ================= 模态框 ================= */
+.modalBack{
+  position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(16,28,46,.55);
+  display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;
+}
+.modal{
+  background:#fff;border-radius:22px;max-width:660px;width:100%;max-height:86vh;overflow:auto;
+  padding:24px 26px;border:5px solid var(--main);box-shadow:0 16px 50px rgba(0,0,0,.3);
+  animation:popIn .25s;
+}
+.modal h2{font-size:26px;color:var(--deep);margin-bottom:12px}
+.modal .ansLine{font-size:24px;font-weight:900;color:var(--main);margin:8px 0}
+.modal .mLine{font-size:18px;line-height:1.6}
+.modal ol.steps{margin:10px 0 4px 22px}
+.modal ol.steps li{font-size:19px;line-height:1.7;margin:7px 0}
+.modal .starLine{font-size:20px;font-weight:800;margin:10px 0;color:var(--gold)}
+.modal .note{font-size:16px;opacity:.75;margin-top:6px}
+.btnRow{display:flex;gap:12px;margin-top:18px;flex-wrap:wrap}
+.starRow{font-size:34px;letter-spacing:6px;margin:8px 0}
+.endStats{font-size:19px;line-height:1.9;font-weight:700}
+
+@media (max-width:640px){
+  #topbar .brand{font-size:18px;margin-right:0}
+  .stat{font-size:15px;padding:4px 8px}
+  #objective{font-size:17px}
+  .slot{width:96px;height:88px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 开始（难度选择）界面 ============ -->
+<section id="startScreen">
+  <div class="startCard">
+    <div class="logo">🧮</div>
+    <h1>计算王国 · 凑整魔法大闯关</h1>
+    <!-- 装饰性内联 SVG 分隔线（零外部依赖） -->
+    <svg width="220" height="26" viewBox="0 0 220 26" aria-hidden="true" style="color:var(--main)">
+      <g stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M8 13 L64 13"></path>
+        <path d="M156 13 L212 13"></path>
+      </g>
+      <path d="M110 2 l4.2 8.4 8.4 4.2 -8.4 4.2 -4.2 8.4 -4.2-8.4 -8.4-4.2 8.4-4.2 z" fill="var(--gold)"></path>
+      <circle cx="84" cy="13" r="3.4" fill="currentColor"></circle>
+      <circle cx="136" cy="13" r="3.4" fill="currentColor"></circle>
+    </svg>
+    <p class="sub">第11讲 巧算加减法进阶(1) —— 丁丁很喜欢计算，阿普带他来计算王国闯巧算关卡！</p>
+    <div class="diffBtns">
+      <button class="btn diff" data-diff="easy"><b>初级 · 好朋友数花园</b><span>例题级：连加找好朋友数、连减找同尾数</span></button>
+      <button class="btn diff" data-diff="mid"><b>中级 · 打包驿站</b><span>练习级：四数连加、打包减、拆包减</span></button>
+      <button class="btn diff" data-diff="hard"><b>高级 · 基准数星空</b><span>变式综合级：拆数凑整、基准数法、综合巧算</span></button>
+    </div>
+    <button class="btn ghosty" id="btnRules0">📖 先看看游戏规则</button>
+    <p class="tiny">每一局都会随机换主题色、随机抽题，玩多少次都不重样！</p>
+  </div>
+</section>
+
+<!-- ============ 游戏主界面 ============ -->
+<div id="gameScreen" class="hidden">
+  <header id="topbar">
+    <div class="brand">🧮 凑整魔法 <span class="palName" id="palName"></span></div>
+    <div class="stats">
+      <span class="stat">关卡 <b id="statLevel">1/4</b></span>
+      <span class="stat">⏱ <b id="statTime">0:00</b></span>
+      <span class="stat">👣 步数 <b id="statSteps">0</b></span>
+    </div>
+    <nav class="btns">
+      <button class="btn mini ghosty" id="btnRules">规则</button>
+      <button class="btn mini ghosty" id="btnReveal">揭示答案</button>
+      <button class="btn mini ghosty" id="btnRestart">重新开始</button>
+      <button class="btn mini ghosty" id="btnBack">返回难度</button>
+    </nav>
+  </header>
+
+  <div id="objective">欢迎来到计算王国！</div>
+
+  <main id="stage">
+    <div id="exprWrap"></div>
+    <div id="midRow">
+      <div id="cauldronBox">
+        <div class="slotRow">
+          <div class="slot" id="slot0" data-drop="slot0"><span>把卡片<br>拖到这里</span></div>
+          <div class="slot" id="slot1" data-drop="slot1"><span>把卡片<br>拖到这里</span></div>
+        </div>
+        <div class="pot"><span class="bub b1"></span><span class="bub b2"></span><span class="bub b3"></span><div class="label">魔 法 锅</div></div>
+        <div id="cauldronMsg"></div>
+      </div>
+      <div id="station"></div>
+    </div>
+    <div id="tray" class="hidden"></div>
+  </main>
+</div>
+
+<!-- ============ 规则模态 ============ -->
+<div class="modalBack hidden" id="rulesModal" data-dismiss="1">
+  <div class="modal">
+    <h2>📖 游戏规则</h2>
+    <p class="mLine">丁丁很喜欢计算，阿普带他来到<b>计算王国</b>玩巧算闯关游戏。闯关成功，还有小精灵送出大礼盒哦！你的任务是：<b>用"凑整"的魔法，把一长串算式变成一个好算的数！</b></p>
+    <ol class="steps">
+      <li><b>魔法锅</b>：把两张数字卡片分别拖进锅上的两个圆框里，锅会判断它们能不能凑整。</li>
+      <li><b>加法</b>：找"好朋友数"——两数个位凑十，和正好是整十、整百。例如 26+74=100。</li>
+      <li><b>减法</b>：找"同尾数"——和被减数个位相同的减数，一减就得到整十数，例如 97−37=60；也可以把两个减数<b>打包</b>成整十数一起减，例如 34+66=100。</li>
+      <li><b>礼盒卡</b>（像 152−(34+52)）：先<b>点击礼盒拆包</b>，因为 a−(b+c)=a−b−c，拆开后再巧算。</li>
+      <li><b>魔法豆</b>：把小数字卡片拖到<b>魔法剪刀</b>上拆成一颗颗"魔法豆"（每颗是 1），再把豆拖到大数卡片上喂它，把大数喂成整十整百。</li>
+      <li><b>基准数</b>：拖动小旗，选一个整十数当基准数，让每张卡片的偏差都不超过 9；再把正、负偏差徽章拖进锅里互相抵消。</li>
+      <li>算式缩到只剩<b>一张卡片</b>时，这一关就过关啦！右上角有计时和步数，卡住了可以点"揭示答案"。</li>
+    </ol>
+    <p class="note">三档难度：初级（例题级）、中级（练习级）、高级（变式综合级）。每局随机换色、随机抽题。</p>
+    <div class="btnRow"><button class="btn big" id="btnRulesOk">明白啦，开始挑战！</button></div>
+  </div>
+</div>
+
+<!-- ============ 揭示答案模态 ============ -->
+<div class="modalBack hidden" id="revealModal" data-dismiss="1">
+  <div class="modal">
+    <h2>💡 揭示答案</h2>
+    <div class="ansLine" id="revealExpr"></div>
+    <ol class="steps" id="revealSteps"></ol>
+    <p class="note">看过答案的话，本关就不奖励星星啦——试着自己再算一遍吧！</p>
+    <div class="btnRow">
+      <button class="btn" id="btnRevealClose">继续挑战</button>
+      <button class="btn ghosty" id="btnRevealRestart">重新开始本关</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 过关模态 ============ -->
+<div class="modalBack hidden" id="clearModal">
+  <div class="modal">
+    <h2>🎉 这一关完成！</h2>
+    <div class="ansLine" id="clearExpr"></div>
+    <div class="mLine" id="clearMethod"></div>
+    <div class="starLine" id="clearStar"></div>
+    <div class="btnRow"><button class="btn big pulse" id="btnNext">下一关 ▶</button></div>
+  </div>
+</div>
+
+<!-- ============ 通关庆祝模态 ============ -->
+<div class="modalBack hidden" id="endModal">
+  <div class="modal" style="text-align:center">
+    <h2>🎊 全部通关，太棒啦！</h2>
+    <div class="starRow" id="endStars"></div>
+    <div class="endStats" id="endStats"></div>
+    <p class="mLine" style="margin-top:8px">计算王国的小精灵为丁丁和你鼓掌！巧算的秘密你都学会了吗？</p>
+    <div class="btnRow" style="justify-content:center">
+      <button class="btn big" id="btnAgain">🔁 再玩一次</button>
+      <button class="btn big ghosty" id="btnBack2">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   计算王国 · 凑整魔法大闯关
+   核心玩法：拖卡片进"魔法锅"完成凑整融合（好朋友数/同尾数/打包），
+   辅以 拆包（点击礼盒）、拆数（魔法豆喂卡）、基准数（拖旗+偏差抵消）。
+   ===================================================================== */
+
+/* ---------- 小工具 ---------- */
+function $(s){return document.querySelector(s);}
+function $$(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function pickN(pool,n){var c=pool.slice();shuffle(c);return c.slice(0,Math.min(n,c.length));}
+function fmtTime(sec){var m=Math.floor(sec/60),s=sec%60;return m+':'+(s<10?'0':'')+s;}
+var _uid=0;
+function nid(){_uid+=1;return 'c'+_uid;}
+
+/* ---------- 随机色板（每局随机换色） ---------- */
+var PALETTES=[
+ {name:'🌸 樱花粉',bg1:'#ffe9f2',bg2:'#ffd3e5',main:'#d63384',deep:'#a61e63',gold:'#ff9f1c',ink:'#4a1942'},
+ {name:'🌊 天空蓝',bg1:'#e0f2fe',bg2:'#bde3ff',main:'#1273cf',deep:'#0b5294',gold:'#ff9d00',ink:'#10334d'},
+ {name:'🌿 薄荷绿',bg1:'#e2f8ee',bg2:'#c2eeda',main:'#159a6c',deep:'#0d6e4b',gold:'#ff9f1c',ink:'#0e3d2e'},
+ {name:'🍊 活力橙',bg1:'#fff1e0',bg2:'#ffdcb8',main:'#e8720c',deep:'#b25505',gold:'#2f9e44',ink:'#4a2a05'},
+ {name:'💜 紫罗兰',bg1:'#f1e8ff',bg2:'#ddcaff',main:'#7c3aed',deep:'#5b21b6',gold:'#f59e0b',ink:'#2e1a5e'},
+ {name:'🍋 柠檬黄',bg1:'#fdf6d8',bg2:'#faeead',main:'#c77700',deep:'#935c00',gold:'#d6336c',ink:'#4d3a00'}
+];
+var PAL=PALETTES[0];
+function applyPalette(){
+  PAL=PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  var r=document.documentElement.style;
+  r.setProperty('--bg1',PAL.bg1);r.setProperty('--bg2',PAL.bg2);
+  r.setProperty('--main',PAL.main);r.setProperty('--deep',PAL.deep);
+  r.setProperty('--gold',PAL.gold);r.setProperty('--ink',PAL.ink);
+  $('#palName').textContent=PAL.name;
+}
+
+/* ---------- 题库（取自教参《巧算加减法进阶(1)》+ 少量同题型变式） ---------- */
+var POOLS={
+  /* 初级：例题级 —— 3 数连加找好朋友数、连减找同尾数 */
+  easy:[
+    {t:'add',terms:[26,37,74]},
+    {t:'add',terms:[24,65,76]},
+    {t:'add',terms:[72,36,28]},
+    {t:'add',terms:[82,27,18]},
+    {t:'add',terms:[173,46,27]},
+    {t:'add',terms:[89,43,11]},
+    {t:'sub',terms:[97,34,37]},
+    {t:'sub',terms:[68,33,28]},
+    {t:'sub',terms:[89,32,19]},
+    {t:'sub',terms:[62,19,22]},
+    {t:'sub',terms:[172,43,72]},
+    {t:'sub',terms:[165,37,65]}
+  ],
+  /* 中级：练习级 —— 4 数连加、打包减、拆包减 */
+  mid:[
+    {t:'add',terms:[43,62,57,38]},
+    {t:'add',terms:[37,24,63,76]},
+    {t:'sub',terms:[172,34,66]},
+    {t:'sub',terms:[244,46,154]},
+    {t:'sub',terms:[256,43,57]},
+    {t:'sub',terms:[127,36,54]},
+    {t:'sub',terms:[164,72,28]},
+    {t:'sub',terms:[112,58,42]},
+    {t:'sub',terms:[300,64,86]},
+    {t:'unb',first:152,bundle:[34,52]},
+    {t:'unb',first:89,bundle:[17,19]},
+    {t:'unb',first:365,bundle:[65,50]},
+    {t:'unb',first:241,bundle:[41,68]}
+  ],
+  /* 高级：变式综合级 —— 拆数凑整、基准数法、综合连减 */
+  hard:[
+    {t:'split',small:8,bigs:[98,198]},
+    {t:'split',small:6,bigs:[98,198]},
+    {t:'split',small:8,bigs:[97,197]},
+    {t:'split',small:9,bigs:[96,296]},
+    {t:'bench',terms:[84,95,93,85,87,90],bench:90},
+    {t:'bench',terms:[74,85,83,75,77,80],bench:80},
+    {t:'bench',terms:[57,58,60,63,65],bench:60},
+    {t:'bench',terms:[46,52,49,51,48,54],bench:50},
+    {t:'sub',terms:[154,27,33,54]}
+  ]
+};
+
+/* 各关卡的情境名与玩法说明 */
+var TYPE_INFO={
+  add:  {name:'好朋友数花园',how:'个位凑十的两数是好朋友！把两张卡片拖进魔法锅，凑成整十整百再相加。'},
+  sub:  {name:'同尾数小桥',how:'把和被减数"个位相同"的同尾数拖进锅（一减得整十）；也可以把两个减数"打包"成整十数一起减。'},
+  unb:  {name:'拆包礼物屋',how:'先点击礼盒拆包：a−(b+c) = a−b−c，然后用同尾数或打包继续巧算。'},
+  split:{name:'魔法豆糖果店',how:'把小数字拖到魔法剪刀上拆成魔法豆，再把豆拖到大数卡片上，把大数喂成整十整百，剩下的豆会收成新卡片。'},
+  bench:{name:'基准数星空',how:'拖动小旗选一个整十数当基准数（每张卡片偏差不超过 9），点亮后把正负偏差徽章拖进魔法锅互相抵消。'}
+};
+
+/* ---------- 题目文字 / 答案 / 解法步骤 ---------- */
+function goalOf(m){
+  if(m.t==='add'){return m.terms.reduce(function(a,b){return a+b;},0);}
+  if(m.t==='sub'){return m.terms[0]-m.terms.slice(1).reduce(function(a,b){return a+b;},0);}
+  if(m.t==='unb'){return m.first-(m.bundle[0]+m.bundle[1]);}
+  if(m.t==='split'){return m.small+m.bigs[0]+m.bigs[1];}
+  if(m.t==='bench'){return m.terms.reduce(function(a,b){return a+b;},0);}
+  return 0;
+}
+function exprString(m){
+  if(m.t==='add'){return m.terms.join(' + ');}
+  if(m.t==='sub'){return m.terms[0]+' − '+m.terms.slice(1).join(' − ');}
+  if(m.t==='unb'){return m.first+' − ('+m.bundle[0]+' + '+m.bundle[1]+')';}
+  if(m.t==='split'){return m.small+' + '+m.bigs[0]+' + '+m.bigs[1];}
+  if(m.t==='bench'){return m.terms.join(' + ');}
+  return '';
+}
+function mergeAddSteps(arr,out){
+  while(arr.length>2){
+    var fused=false;
+    for(var i=0;i<arr.length&&!fused;i++){
+      for(var j=i+1;j<arr.length&&!fused;j++){
+        if((arr[i]+arr[j])%10===0){
+          out.push('好朋友数配对：'+arr[i]+' + '+arr[j]+' = '+(arr[i]+arr[j])+'（凑成整十整百）');
+          var nv=arr[i]+arr[j];
+          arr.splice(j,1);arr.splice(i,1,nv);fused=true;
+        }
+      }
+    }
+    if(!fused){break;}
+  }
+  if(arr.length===2){out.push('最后合并：'+arr[0]+' + '+arr[1]+' = '+(arr[0]+arr[1]));}
+}
+function mergeSubSteps(arr,out){ /* arr[0] 为被减数 */
+  while(arr.length>2){
+    var done=false;
+    for(var j=1;j<arr.length&&!done;j++){
+      if(arr[0]%10===arr[j]%10){
+        out.push('同尾数巧算：'+arr[0]+' − '+arr[j]+' = '+(arr[0]-arr[j])+'（得到整十数）');
+        arr[0]=arr[0]-arr[j];arr.splice(j,1);done=true;
+      }
+    }
+    if(done){continue;}
+    for(var i=1;i<arr.length&&!done;i++){
+      for(var k=i+1;k<arr.length&&!done;k++){
+        if((arr[i]+arr[k])%10===0){
+          out.push('打包巧算：'+arr[i]+' + '+arr[k]+' = '+(arr[i]+arr[k])+'，把它们捆在一起减');
+          var nv=arr[i]+arr[k];
+          arr.splice(k,1);arr.splice(i,1,nv);done=true;
+        }
+      }
+    }
+    if(!done){break;}
+  }
+  if(arr.length===2){out.push('最后计算：'+arr[0]+' − '+arr[1]+' = '+(arr[0]-arr[1]));}
+}
+function solveSteps(m){
+  var out=[],g=goalOf(m);
+  if(m.t==='add'){mergeAddSteps(m.terms.slice(),out);}
+  else if(m.t==='sub'){mergeSubSteps(m.terms.slice(),out);}
+  else if(m.t==='unb'){
+    out.push('先拆包：'+m.first+' − ('+m.bundle[0]+' + '+m.bundle[1]+') = '+m.first+' − '+m.bundle[0]+' − '+m.bundle[1]);
+    mergeSubSteps([m.first,m.bundle[0],m.bundle[1]],out);
+  }else if(m.t==='split'){
+    var n1=10-m.bigs[0]%10,n2=10-m.bigs[1]%10;
+    out.push('把 '+m.small+' 拆开：'+m.bigs[0]+' 再加 '+n1+' 凑成 '+(m.bigs[0]+n1)+'；'+m.bigs[1]+' 再加 '+n2+' 凑成 '+(m.bigs[1]+n2));
+    var parts=[m.bigs[0]+n1,m.bigs[1]+n2],left=m.small-n1-n2;
+    if(left>0){out.push('剩下的 '+left+' 颗魔法豆收成数字卡片 '+left);parts.push(left);}
+    out.push('最后合并：'+parts.join(' + ')+' = '+parts.reduce(function(a,b){return a+b;},0));
+  }else if(m.t==='bench'){
+    var b=m.bench,n=m.terms.length;
+    out.push('找最接近的整十数 '+b+' 当基准数：'+m.terms.map(function(v){
+      return v===b?String(v):(v+' 写成 '+b+(v>b?'+':'−')+Math.abs(v-b));
+    }).join('，'));
+    var r=g-b*n;
+    out.push('正、负偏差互相抵消，最后剩下 '+(r>=0?'+':'−')+Math.abs(r));
+    out.push(b+' × '+n+' '+(r>=0?'+':'−')+' '+Math.abs(r)+' = '+g);
+  }
+  out.push('所以 '+exprString(m)+' = '+g);
+  return out;
+}
+
+/* ---------- 全局状态 ---------- */
+var G={diff:null,levels:[],li:0,seconds:0,steps:0,stars:0,timerId:null,lastAction:Date.now()};
+var LV=null;          /* 当前关状态 */
+var uiBusy=false;     /* 动画期间锁操作 */
+var slots=[null,null];/* 魔法锅两个槽：{kind:'card'|'badge',ref:对象} */
+
+/* ---------- 计时器与状态栏 ---------- */
+function startTimer(){
+  stopTimer();
+  G.timerId=setInterval(function(){
+    G.seconds+=1;$('#statTime').textContent=fmtTime(G.seconds);
+  },1000);
+}
+function stopTimer(){if(G.timerId){clearInterval(G.timerId);G.timerId=null;}}
+function updateStats(){
+  $('#statLevel').textContent=(Math.min(G.li+1,G.levels.length))+'/'+G.levels.length;
+  $('#statSteps').textContent=G.steps;
+  $('#statTime').textContent=fmtTime(G.seconds);
+}
+function stepDone(msg){G.steps+=1;G.lastAction=Date.now();updateStats();if(msg){say(msg);}}
+
+/* ---------- 锅的提示文字 ---------- */
+function say(msg){var el=$('#cauldronMsg');el.textContent=msg;el.style.animation='none';void el.offsetWidth;el.style.animation='popIn .3s';}
+
+/* ---------- 屏幕与模态切换 ---------- */
+function openM(id){$(id).classList.remove('hidden');}
+function closeM(id){$(id).classList.add('hidden');}
+function showStart(){
+  stopTimer();
+  $('#startScreen').classList.remove('hidden');
+  $('#gameScreen').classList.add('hidden');
+  ['#rulesModal','#revealModal','#clearModal','#endModal'].forEach(closeM);
+}
+function startRun(diff){
+  applyPalette();
+  G.diff=diff;G.levels=pickN(POOLS[diff],4);G.li=0;
+  G.seconds=0;G.steps=0;G.stars=0;G.lastAction=Date.now();
+  $('#startScreen').classList.add('hidden');
+  $('#gameScreen').classList.remove('hidden');
+  updateStats();startTimer();
+  renderLevel();      /* 先构建第 1 关（在规则弹窗后面） */
+  openM('#rulesModal'); /* 进入时先弹出规则 */
+}
+function nextLevel(){
+  closeM('#clearModal');
+  G.li+=1;
+  if(G.li<G.levels.length){renderLevel();}
+  else{runEnd();}
+}
+
+/* ---------- 关卡构建与渲染 ---------- */
+function renderLevel(){
+  var m=G.levels[G.li];
+  LV={meta:m,revealed:false,cleared:false,cards:[],chips:[],badges:[],
+      phase:'play',splitDone:false,unbundled:false,
+      bench:{lo:m.t==='bench'?m.bench-30:0,hi:m.t==='bench'?m.bench+30:0,flag:m.t==='bench'?m.bench-30:0,confirmed:false}};
+  uiBusy=false;slots[0]=null;slots[1]=null;
+  closeM('#revealModal');closeM('#clearModal');closeM('#endModal');
+  $('#tray').classList.add('hidden');$('#tray').innerHTML='';
+  $('#cauldronMsg').textContent='';
+  resetSlotsUI();
+
+  if(m.t==='add'||m.t==='split'){
+    var arr=(m.t==='add')?m.terms.slice():[m.small].concat(m.bigs);
+    if(m.t==='add'){shuffle(arr);}
+    arr.forEach(function(v,i){
+      LV.cards.push({id:nid(),val:v,kind:'num',role:'term',
+        big:(m.t==='split'&&i>0)||false,small:(m.t==='split'&&i===0)||false,
+        base:v,locked:false});
+    });
+  }else if(m.t==='sub'){
+    var subs=shuffle(m.terms.slice(1));
+    LV.cards.push({id:nid(),val:m.terms[0],kind:'num',role:'minuend',base:m.terms[0]});
+    subs.forEach(function(v){LV.cards.push({id:nid(),val:v,kind:'num',role:'sub',base:v});});
+  }else if(m.t==='unb'){
+    LV.cards.push({id:nid(),val:m.bundle[0]+m.bundle[1],kind:'bundle',role:'sub',parts:m.bundle.slice()});
+    LV.cards.unshift({id:nid(),val:m.first,kind:'num',role:'minuend',base:m.first});
+  }else if(m.t==='bench'){
+    LV.phase='flag';
+    m.terms.slice().forEach(function(v){LV.cards.push({id:nid(),val:v,kind:'num',role:'term',base:v});});
+  }
+
+  var info=TYPE_INFO[m.t];
+  setObjective('【'+info.name+'】第'+(G.li+1)+'关：'+info.how);
+  renderExpr();renderStation();renderTray();updateStats();
+}
+function setObjective(text){var o=$('#objective');o.textContent=text;o.classList.remove('nudge');}
+function resetSlotsUI(){
+  [0,1].forEach(function(i){
+    var el=$('#slot'+i);
+    el.classList.remove('filled');
+    el.innerHTML='<span>把卡片<br>拖到这里</span>';
+  });
+}
+
+/* 表达式卡片行 */
+function renderExpr(){
+  var wrap=$('#exprWrap');wrap.innerHTML='';
+  var m=LV.meta;
+  LV.cards.forEach(function(c,idx){
+    if(idx>0){
+      var op=document.createElement('span');
+      op.className='op';
+      op.textContent=(m.t==='add'||m.t==='split')?'+':'−';
+      wrap.appendChild(op);
+    }
+    var el=document.createElement('div');
+    el.className='card'+(LV.cards.length>4?' sm':'');
+    if(c.kind==='bundle'){
+      el.classList.add('bundle');
+      el.innerHTML='<div class="num">('+c.parts[0]+'+'+c.parts[1]+')</div><div class="tag">🎁 点我拆包</div>';
+      el.addEventListener('click',function(){tryUnbundle(c);}); /* 点按礼盒拆包 */
+    }else{
+      var inPot=(slots[0]&&slots[0].ref===c)||(slots[1]&&slots[1].ref===c);
+      if(inPot){el.classList.add('inPot');}
+      if(c.locked){el.classList.add('locked');}
+      if(c.small&&!LV.splitDone){el.classList.add('smallCard');}
+      var html='<div class="num">'+c.val+'</div>';
+      if(c.small&&!LV.splitDone){html+='<div class="tag">拖去剪刀拆开</div>';}
+      if(c.big&&LV.splitDone&&!c.locked){html+='<div class="tag">喂我魔法豆</div>';}
+      if(c.locked){html+='<div class="tag">已凑整 ✔</div>';}
+      if(LV.phase==='flag'){
+        var d=c.val-LV.bench.flag;
+        var txt=d===0?'0':(d>0?'+'+d:'−'+Math.abs(d));
+        html+='<div class="dev '+(Math.abs(d)<=9?'ok':'warn')+'">'+txt+'</div>';
+      }
+      if(LV.phase==='badge'&&LV.bench.confirmed){
+        el.classList.add('gemStyle');
+        html='<div class="small">'+c.base+'</div><div class="num">'+m.bench+'</div>';
+        var dd=c.base-m.bench;
+        if(dd!==0){html+='<div class="dev '+(dd>0?'ok':'warn')+'">'+(dd>0?'+'+dd:'−'+Math.abs(dd))+'</div>';}
+        else{html+='<div class="dev ok">正好</div>';}
+      }
+      el.innerHTML=html;
+      if(LV.phase==='play'){bindDrag(el,{kind:'card',cardObj:c});}
+      if(c.big){el.setAttribute('data-drop','feed:'+c.id);}
+    }
+    wrap.appendChild(el);
+  });
+}
+
+/* 工位区：剪刀 / 数轴 / 方法提示 / 召唤台 */
+function renderStation(){
+  var st=$('#station');st.innerHTML='';
+  var m=LV.meta;
+  if(m.t==='split'&&!LV.splitDone){
+    var sc=document.createElement('div');
+    sc.id='scissors';sc.setAttribute('data-drop','scissors');
+    sc.innerHTML='<div class="big">✂️</div>魔法剪刀台<div class="nlineTip">把小数字卡片拖到这里，拆成魔法豆</div>';
+    st.appendChild(sc);
+  }else if(m.t==='bench'&&!LV.bench.confirmed){
+    st.appendChild(buildNline());
+  }else{
+    var tips=null;
+    if(m.t==='add'){tips=['个位 6 和 4、7 和 3 都是好朋友','两张好朋友卡片一起进锅，和是整十整百','锅里放满两张卡后会自动开始'];}
+    else if(m.t==='sub'||m.t==='unb'){tips=['同尾数：和被减数个位相同','打包：两个减数相加正好是整十数','被减数卡片和减数卡片也能一起进锅'];}
+    else if(m.t==='split'){tips=['魔法豆每颗代表 1','大数卡片凑成整十整百会自动锁定','剩的豆会自动收成数字卡片'];}
+    else if(m.t==='bench'){tips=['把两个偏差徽章拖进锅里','+n 和 −n 相加为 0 会一起消失','抵消完点"合体召唤"算出答案'];}
+    var box=document.createElement('div');
+    var html='<div class="tipTitle">🌟 巧算小锦囊</div><ul>';
+    (tips||[]).forEach(function(t){html+='<li>'+t+'</li>';});
+    html+='</ul>';
+    box.innerHTML=html;st.appendChild(box);
+    if(m.t==='bench'&&LV.bench.confirmed){st.appendChild(buildSummon());}
+  }
+}
+/* 数轴（基准数关） */
+function buildNline(){
+  var box=document.createElement('div');box.id='nline';
+  var lo=LV.bench.lo,hi=LV.bench.hi;
+  var html='<div class="tipTitle">🚩 拖动小旗，选一个整十数当基准数</div><div id="track">';
+  for(var v=lo;v<=hi;v+=10){
+    var pct=((v-lo)/(hi-lo))*100;
+    html+='<div class="tick" style="left:'+pct+'%"></div><div class="ticklab" style="left:'+pct+'%">'+v+'</div>';
+  }
+  html+='<div id="flag" style="left:0%">🚩</div></div>';
+  html+='<div class="nlineTip">小旗会一格一格吸到整十数上，看每张卡片脚下的偏差变小！</div>';
+  html+='<button class="btn big" id="btnBenchConfirm">就用 '+LV.meta.bench+' 当基准数！</button>';
+  box.innerHTML=html;
+  setTimeout(function(){
+    var track=box.querySelector('#track'),flag=box.querySelector('#flag');
+    var move=function(x){
+      var r=track.getBoundingClientRect();
+      var ratio=(x-r.left)/r.width;
+      var v=LV.bench.lo+Math.round(ratio*((hi-lo)/10))*10;
+      v=Math.max(LV.bench.lo,Math.min(LV.bench.hi,v));
+      setFlag(v);
+    };
+    var dragging=false;
+    flag.addEventListener('pointerdown',function(e){dragging=true;try{flag.setPointerCapture(e.pointerId);}catch(err){}e.preventDefault();});
+    flag.addEventListener('pointermove',function(e){if(dragging){move(e.clientX);}});
+    var stop=function(){dragging=false;};
+    flag.addEventListener('pointerup',stop);flag.addEventListener('pointercancel',stop);
+    track.addEventListener('pointerdown',function(e){move(e.clientX);e.preventDefault();});
+    $('#btnBenchConfirm').addEventListener('click',confirmBench);
+    setFlag(LV.bench.flag);
+  },0);
+  return box;
+}
+function setFlag(v){
+  LV.bench.flag=v;
+  var pct=((v-LV.bench.lo)/(LV.bench.hi-LV.bench.lo))*100;
+  var flag=$('#flag');
+  if(flag){flag.style.left=pct+'%';}
+  var valid=LV.meta.terms.every(function(t){return Math.abs(t-v)<=9;});
+  var btn=$('#btnBenchConfirm');
+  if(btn){
+    btn.disabled=!valid;
+    btn.textContent=valid?('✨ 就用 '+v+' 当基准数！'):'把小旗拖到使偏差都 ≤9 的整十数上';
+    btn.classList.toggle('pulse',valid);
+  }
+  if(LV.phase==='flag'){renderExpr();}
+}
+function confirmBench(){
+  var m=LV.meta;
+  LV.bench.confirmed=true;LV.phase='badge';
+  sparkleAt($('#exprWrap'));
+  say('基准数 '+m.bench+' 点亮！正负偏差徽章出现了～');
+  LV.badges=m.terms.map(function(v){return v-m.bench;}).filter(function(d){return d!==0;})
+          .map(function(d){return {id:nid(),val:d};});
+  renderExpr();renderStation();renderTray();
+  stepDone();
+}
+/* 合体召唤台（基准数关第二阶段） */
+function buildSummon(){
+  var box=document.createElement('div');box.style.textAlign='center';
+  box.innerHTML='<div class="tipTitle">🔮 合体召唤</div>'+
+    '<div id="eqLine">把偏差徽章抵消完（或差不多啦），就点下面按钮！</div>'+
+    '<button class="btn big pulse" id="btnSummon">🔮 开始合体召唤</button>';
+  setTimeout(function(){$('#btnSummon').addEventListener('click',summonTotal);},0);
+  return box;
+}
+function summonTotal(){
+  if(uiBusy||LV.cleared){return;}
+  uiBusy=true;
+  var m=LV.meta,n=m.terms.length,base=m.bench*n,r=goalOf(m)-base;
+  var st=$('#station');st.innerHTML='';
+  var eq=document.createElement('div');
+  eq.innerHTML='<div class="tipTitle">🔮 合体召唤</div><div id="eqLine">'+m.bench+' × '+n+' = '+base+
+    (r>=0?'，再加上 ':'，再减去 ')+Math.abs(r)+'</div><div id="bigNum">'+base+'</div>';
+  st.appendChild(eq);
+  sparkleAt($('#bigNum'));
+  animNum($('#bigNum'),base,goalOf(m),1300);
+  stepDone('合体召唤开始！');
+  setTimeout(function(){levelClear();},1600);
+}
+function animNum(el,from,to,dur){
+  var t0=performance.now();
+  function frame(t){
+    var p=Math.min(1,(t-t0)/dur);
+    var v=Math.round(from+(to-from)*p);
+    el.textContent=v;
+    if(p<1){requestAnimationFrame(frame);}
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 托盘：魔法豆 / 偏差徽章 ---------- */
+function renderTray(){
+  var tray=$('#tray');
+  if(LV.splitDone&&LV.chips.length>0){
+    tray.classList.remove('hidden');
+    tray.innerHTML='<div class="trayTitle">🟡 魔法豆（每颗代表 1，拖到大数卡片上喂它）</div>';
+    LV.chips.forEach(function(ch){
+      var el=document.createElement('div');
+      el.className='chip';el.textContent='1';
+      bindDrag(el,{kind:'chip',chipId:ch.id});
+      tray.appendChild(el);
+    });
+  }else if(LV.phase==='badge'&&LV.bench.confirmed){
+    tray.classList.remove('hidden');
+    var head=LV.badges.length>0?'偏差徽章（拖两个进魔法锅：正负抵消或合成新徽章）':'偏差徽章已经抵消完啦，快去合体召唤！';
+    tray.innerHTML='<div class="trayTitle">🎭 '+head+'</div>';
+    LV.badges.forEach(function(bd){
+      var el=document.createElement('div');
+      el.className='badge '+(bd.val>0?'plus':'minus');
+      el.textContent=(bd.val>0?'+'+bd.val:'−'+Math.abs(bd.val));
+      bindDrag(el,{kind:'badge',badgeObj:bd});
+      tray.appendChild(el);
+    });
+  }else{
+    tray.classList.add('hidden');tray.innerHTML='';
+  }
+}
+
+/* ---------- 拖拽系统（Pointer Events，鼠标+触摸通用） ---------- */
+var drag=null;
+function bindDrag(el,payload){
+  el.addEventListener('pointerdown',function(e){
+    if(uiBusy||drag){return;}
+    e.preventDefault();
+    try{el.setPointerCapture(e.pointerId);}catch(err){}
+    var r=el.getBoundingClientRect();
+    var g=el.cloneNode(true);
+    g.classList.add('ghost');
+    g.style.width=r.width+'px';g.style.height=r.height+'px';
+    g.style.left=r.left+'px';g.style.top=r.top+'px';
+    document.body.appendChild(g);
+    drag={el:el,payload:payload,ghost:g,ox:e.clientX-r.left,oy:e.clientY-r.top,x0:e.clientX,y0:e.clientY};
+    el.classList.add('dragSrc');
+  });
+  el.addEventListener('pointermove',function(e){
+    if(!drag||drag.el!==el){return;}
+    drag.ghost.style.left=(e.clientX-drag.ox)+'px';
+    drag.ghost.style.top=(e.clientY-drag.oy)+'px';
+    markHover(findDrop(e.clientX,e.clientY));
+  });
+  var end=function(e){
+    if(!drag||drag.el!==el){return;}
+    var d=drag;drag=null;
+    d.ghost.remove();d.el.classList.remove('dragSrc');
+    markHover(null);
+    var target=findDrop(e.clientX,e.clientY);
+    var moved=Math.abs(e.clientX-d.x0)+Math.abs(e.clientY-d.y0);
+    resolveDrop(d.payload,target,moved);
+  };
+  el.addEventListener('pointerup',end);
+  el.addEventListener('pointercancel',end);
+}
+function findDrop(x,y){
+  var elc=document.elementFromPoint(x,y);
+  if(!elc){return null;}
+  return elc.closest('[data-drop]');
+}
+var hoverEl=null;
+function markHover(t){
+  if(hoverEl){hoverEl.classList.remove('hover');}
+  hoverEl=null;
+  if(!t){return;}
+  var attr=t.getAttribute('data-drop');
+  if(t.id==='scissors'||attr==='slot0'||attr==='slot1'||(attr&&attr.indexOf('feed:')===0)){
+    t.classList.add('hover');hoverEl=t;
+  }
+}
+function resolveDrop(payload,target,moved){
+  /* 空地放手：若是礼盒且几乎没移动，视为点按拆包 */
+  if(!target){
+    if(payload.kind==='card'&&payload.cardObj.kind==='bundle'&&moved<12){tryUnbundle(payload.cardObj);}
+    return;
+  }
+  var t=target.getAttribute('data-drop');
+  if(payload.kind==='chip'){
+    if(t&&t.indexOf('feed:')===0){
+      var cid=t.slice(5);
+      feedChip(payload.chipId,cid);
+    }else{say('魔法豆要喂到大数卡片上哦（直接拖到卡片上面）');}
+    return;
+  }
+  if(payload.kind==='badge'){
+    if(t==='slot0'||t==='slot1'){putBadge(payload.badgeObj,t);}
+    else{say('把徽章拖进魔法锅的圆框里～');}
+    return;
+  }
+  /* 卡片 */
+  if(t==='scissors'){trySplit(payload.cardObj);return;}
+  if(t&&t.indexOf('feed:')===0){say('卡片不能喂给卡片哦～小数字才拖去魔法剪刀。');return;}
+  if(t==='slot0'||t==='slot1'){putCard(payload.cardObj,t);return;}
+}
+
+/* ---------- 放入魔法锅 ---------- */
+function putCard(cardObj,slotName){
+  if(LV.meta.t==='bench'){say('这一关不动卡片，先拖小旗选基准数～');return;}
+  if(cardObj.kind==='bundle'){say('礼盒还没拆开呢！先点击礼盒拆包，再用魔法锅。');return;}
+  var i=(slotName==='slot0')?0:1;
+  if(slots[i]){say('这个圆框里已经有卡片啦，放到另一个里吧～');return;}
+  var j=1-i;
+  if(slots[j]&&slots[j].kind!=='card'){say('锅里正放着徽章呢，先把两边统一成一种～');return;}
+  slots[i]={kind:'card',ref:cardObj};
+  paintSlot(i,cardObj.val,'card');
+  renderExpr();
+  if(slots[0]&&slots[1]){
+    uiBusy=true;
+    setTimeout(evalSlots,480);
+  }
+}
+function putBadge(badgeObj,slotName){
+  var i=(slotName==='slot0')?0:1;
+  if(slots[i]){say('这个圆框里已经有徽章啦，放到另一个里吧～');return;}
+  var j=1-i;
+  if(slots[j]&&slots[j].kind!=='badge'){say('锅里正放着数字卡片呢，先把两边统一成一种～');return;}
+  slots[i]={kind:'badge',ref:badgeObj};
+  paintSlot(i,(badgeObj.val>0?'+'+badgeObj.val:'−'+Math.abs(badgeObj.val)),'badge');
+  renderTray();
+  if(slots[0]&&slots[1]){
+    uiBusy=true;
+    setTimeout(evalSlots,480);
+  }
+}
+function paintSlot(i,txt,kind){
+  var el=$('#slot'+i);
+  el.classList.add('filled');
+  el.innerHTML='<div class="slotCard">'+txt+'</div>'+(kind==='badge'?'<span style="font-size:15px">徽章</span>':'');
+}
+function clearSlots(){slots[0]=null;slots[1]=null;resetSlotsUI();}
+
+/* ---------- 魔法锅判定（核心规则） ---------- */
+function evalSlots(){
+  var a=slots[0],b=slots[1];
+  if(!a||!b){uiBusy=false;return;}
+  var m=LV.meta;
+  /* 两边种类必须一致 */
+  if(a.kind!==b.kind){
+    clearSlots();renderExpr();renderTray();uiBusy=false;
+    say('锅里要放同一种东西哦：两张卡片，或两枚徽章～');
+    return;
+  }
+  if(a.kind==='badge'){evalBadges(a.ref,b.ref);return;}
+
+  var c1=a.ref,c2=b.ref;
+  /* 有礼盒未拆时先拆包 */
+  var hasBundle=LV.cards.some(function(c){return c.kind==='bundle';});
+  if(hasBundle){
+    bounce('🎁 礼盒还没拆开呢！先点击礼盒拆包：减去和 = 连续减。');
+    return;
+  }
+  var twoLeft=(LV.cards.length===2);
+  var isAddType=(m.t==='add'||m.t==='split');
+  var sum=c1.val+c2.val;
+
+  if(isAddType){
+    if(twoLeft){ /* 最后一步：直接合并 */
+      fuse([c1,c2],sum,'term','🎉 最后一步：'+c1.val+' + '+c2.val+' = '+sum);
+      return;
+    }
+    if(sum%10===0){
+      fuse([c1,c2],sum,'term','✨ 好朋友数！'+c1.val+' + '+c2.val+' = '+sum+'，凑整成功！');
+      return;
+    }
+    bounce('这两个数相加不是整十整百哦！找个位能凑十的好朋友数再进锅。');
+    return;
+  }
+
+  /* 减法（含拆包后） */
+  var minuend=(c1.role==='minuend')?c1:((c2.role==='minuend')?c2:null);
+  var other=(minuend===c1)?c2:c1;
+  if(twoLeft){
+    var ans=minuend.val-other.val;
+    fuse([c1,c2],ans,'minuend','🎉 最后一步：'+minuend.val+' − '+other.val+' = '+ans);
+    return;
+  }
+  if(minuend){
+    if(minuend.val%10===other.val%10){
+      fuse([c1,c2],minuend.val-other.val,'minuend','✨ 同尾数！'+minuend.val+' − '+other.val+' = '+(minuend.val-other.val)+'，得到整十数！');
+      return;
+    }
+    bounce('个位不一样，直接减得不到整十数哦！找同尾数，或把两个减数打包。');
+    return;
+  }
+  if(sum%10===0){
+    fuse([c1,c2],sum,'sub','🎁 打包成功！'+c1.val+' + '+c2.val+' = '+sum+'，捆在一起减！');
+    return;
+  }
+  bounce('这两个减数打包后不是整十数哦！换一对试试，或者去找同尾数。');
+}
+/* 融合成功：移除旧卡、生成新卡 */
+function fuse(pair,newVal,newRole,msg){
+  sparkleAt($('#cauldronBox'));
+  LV.cards=LV.cards.filter(function(c){return pair.indexOf(c)<0;});
+  var nc={id:nid(),val:newVal,kind:'num',role:newRole,base:newVal};
+  if(newRole==='minuend'){LV.cards.unshift(nc);}
+  else{
+    /* 同号运算可交换，新卡追加到末尾即可 */
+    LV.cards.push(nc);
+  }
+  clearSlots();
+  stepDone(msg);
+  renderExpr();
+  if(LV.cards.length===1){
+    /* 给最终答案加高亮，稍后过关 */
+    $$('#exprWrap .card').forEach(function(el){el.classList.add('answer');});
+    setTimeout(function(){levelClear();},900);
+  }else{
+    uiBusy=false;
+  }
+}
+/* 融合失败：晃锅退回 */
+function bounce(msg){
+  var box=$('#cauldronBox');
+  box.classList.remove('shake');void box.offsetWidth;box.classList.add('shake');
+  clearSlots();renderExpr();
+  stepDone(msg||'再试一次！');
+  uiBusy=false;
+}
+
+/* ---------- 拆包（礼盒卡） ---------- */
+function tryUnbundle(bundleCard){
+  if(!LV||LV.meta.t!=='unb'||LV.unbundled||uiBusy){return;}
+  LV.unbundled=true;
+  var m=LV.meta;
+  LV.cards=LV.cards.filter(function(c){return c!==bundleCard;});
+  m.bundle.slice().forEach(function(v){LV.cards.push({id:nid(),val:v,kind:'num',role:'sub',base:v});});
+  sparkleAt($('#exprWrap'));
+  renderExpr();
+  stepDone('🎁 拆包成功：'+m.first+' − ('+m.bundle[0]+' + '+m.bundle[1]+') = '+m.first+' − '+m.bundle[0]+' − '+m.bundle[1]);
+}
+
+/* ---------- 拆数（魔法豆） ---------- */
+function trySplit(cardObj){
+  if(LV.meta.t!=='split'){say('这一关用不上魔法剪刀哦～');return;}
+  if(LV.splitDone){say('已经拆过啦，快把豆喂给大数卡片！');return;}
+  if(cardObj.big){say('大数不用拆！把小数字卡片拖到剪刀上来～');return;}
+  if(cardObj.kind!=='num'){return;}
+  LV.splitDone=true;
+  LV.cards=LV.cards.filter(function(c){return c!==cardObj;});
+  for(var i=0;i<cardObj.val;i++){LV.chips.push({id:nid()});}
+  sparkleAt($('#scissors')||$('#station'));
+  renderExpr();renderStation();renderTray();
+  stepDone('✂️ 把 '+cardObj.val+' 拆成了 '+cardObj.val+' 颗魔法豆！快喂给大数卡片～');
+}
+function feedChip(chipId,cardId){
+  if(uiBusy){return;}
+  var card=null;
+  LV.cards.forEach(function(c){if(c.id===cardId){card=c;}});
+  if(!card){return;}
+  if(!card.big){say('魔法豆要喂给大数卡片哦～');return;}
+  if(card.locked){say('它已经凑整啦！'+card.base+' → '+card.val+' ✔');return;}
+  LV.chips=LV.chips.filter(function(ch){return ch.id!==chipId;});
+  card.val+=1;
+  if(card.val%10===0){
+    card.locked=true;
+    sparkleAt($('#exprWrap'));
+    stepDone('✨ '+card.base+' 吃了 '+(card.val-card.base)+' 颗豆，凑成了 '+card.val+'！');
+    if(LV.cards.every(function(c){return !c.big||c.locked;})){gatherChips();}
+  }else{
+    stepDone(card.base+' 已经吃到 '+card.val+'，还差 '+(10-card.val%10)+' 颗就凑整～');
+  }
+  renderExpr();renderTray();
+}
+function gatherChips(){
+  var left=LV.chips.length;
+  LV.chips=[];
+  if(left>0){
+    LV.cards.push({id:nid(),val:left,kind:'num',role:'term',base:left});
+    say('剩下的 '+left+' 颗魔法豆收成了数字卡片 '+left+'！');
+  }else{
+    say('魔法豆正好全部用完，太棒啦！');
+  }
+  renderExpr();renderTray();
+}
+
+/* ---------- 偏差徽章判定 ---------- */
+function evalBadges(b1,b2){
+  var s=b1.val+b2.val;
+  LV.badges=LV.badges.filter(function(x){return x!==b1&&x!==b2;});
+  clearSlots();
+  if(s===0){
+    sparkleAt($('#cauldronBox'));
+    stepDone('💫 正负抵消！'+fmtDev(b1.val)+' 和 '+fmtDev(b2.val)+' 合成 0，一起消失啦～');
+  }else{
+    LV.badges.push({id:nid(),val:s});
+    sparkleAt($('#cauldronBox'));
+    stepDone('🔍 '+fmtDev(b1.val)+' 和 '+fmtDev(b2.val)+' 合成了新徽章 '+fmtDev(s));
+  }
+  renderTray();renderExpr();
+  uiBusy=false;
+}
+function fmtDev(v){return v>0?('+'+v):('−'+Math.abs(v));}
+
+/* ---------- 过关与庆祝 ---------- */
+function levelClear(){
+  if(!LV||LV.cleared){return;}
+  LV.cleared=true;uiBusy=false;
+  var star=LV.revealed?0:1;
+  G.stars+=star;
+  confetti(1600);
+  sparkleAt($('#exprWrap'));
+  var steps=solveSteps(LV.meta);
+  $('#clearExpr').textContent=exprString(LV.meta)+' = '+goalOf(LV.meta);
+  $('#clearMethod').textContent='用到的方法：'+steps[0];
+  $('#clearStar').textContent=star?'⭐ 获得一颗星星！':'💡 本关看过答案，不奖励星星，下次独立完成吧！';
+  $('#btnNext').textContent=(G.li+1<G.levels.length)?'下一关 ▶':'领取庆典 🎉';
+  openM('#clearModal');
+  updateStats();
+}
+function runEnd(){
+  stopTimer();
+  $('#endStars').textContent='';
+  for(var i=0;i<G.stars;i++){$('#endStars').textContent+='⭐';}
+  if(G.stars===0){$('#endStars').textContent='💫';}
+  $('#endStats').innerHTML='过关星星：'+G.stars+' / '+G.levels.length+'<br>总用时：'+fmtTime(G.seconds)+'<br>总步数：'+G.steps;
+  openM('#endModal');
+  fireworks();
+}
+
+/* ---------- 特效层：DOM 粒子 + Web Animations（合成器动画，无逐帧主线程开销） ---------- */
+var fxLayer=null,fxCnt=0;
+var FX_MAX=360; /* 同屏粒子上限，保护低性能设备 */
+function initFxLayer(){
+  if(fxLayer){return;}
+  fxLayer=document.createElement('div');
+  fxLayer.id='fxLayer';
+  document.body.appendChild(fxLayer);
+}
+function fxColors(){return [PAL.main,PAL.gold,PAL.deep,'#2e9e5b','#d6336c','#ffffff'];}
+/* 生成一个粒子：从 (x,y) 以初速 (vx,vy) 运动，重力 g，寿命 dur 毫秒 */
+function spawnFx(x,y,vx,vy,g,dur,size,color,shape){
+  initFxLayer();
+  if(fxCnt>=FX_MAX){return;}
+  var el=document.createElement('div');
+  el.className='fxp';
+  var h=(shape==='rect')?size*0.66:size;
+  el.style.left=(x-size/2)+'px';
+  el.style.top=(y-h/2)+'px';
+  el.style.width=size+'px';el.style.height=h+'px';
+  el.style.background=color;
+  if(shape==='circle'){el.style.borderRadius='50%';}
+  if(!el.animate){return;} /* 极老浏览器：直接不显示粒子 */
+  var T=dur/1000;
+  var dx=vx*T, dy=vy*T+0.5*g*T*T, rot=Math.round((Math.random()*2-1)*300);
+  fxCnt+=1;
+  var anim=el.animate([
+    {transform:'translate(0,0) rotate(0deg)',opacity:1},
+    {transform:'translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate('+rot+'deg)',opacity:0}
+  ],{duration:dur,easing:'linear'});
+  anim.onfinish=function(){el.remove();fxCnt-=1;};
+  fxLayer.appendChild(el);
+}
+function burst(x,y,n,power){
+  var cols=fxColors();
+  for(var i=0;i<n;i++){
+    var ang=Math.random()*Math.PI*2;
+    var sp=(0.35+Math.random()*0.65)*(power||6);
+    spawnFx(x,y,Math.cos(ang)*sp,Math.sin(ang)*sp-2,0.16,700+Math.random()*500,
+      5+Math.random()*6,cols[Math.floor(Math.random()*cols.length)],
+      Math.random()<0.5?'circle':'rect');
+  }
+}
+function confetti(dur){
+  var cols=fxColors();
+  var n=Math.min(72,Math.round(dur/22));
+  for(var i=0;i<n;i++){
+    spawnFx(Math.random()*window.innerWidth,-24-Math.random()*160,
+      (Math.random()-0.5)*1.6,1.6+Math.random()*2.2,0.01,
+      1400+Math.random()*900,7+Math.random()*7,
+      cols[Math.floor(Math.random()*cols.length)],'rect');
+  }
+}
+function fireworks(){
+  for(var k=0;k<7;k++){
+    (function(delay){
+      setTimeout(function(){
+        burst(window.innerWidth*(0.15+Math.random()*0.7),window.innerHeight*(0.15+Math.random()*0.4),60,9);
+      },delay);
+    })(k*420);
+  }
+  confetti(3200);
+}
+function sparkleAt(el){
+  if(!el){return;}
+  var r=el.getBoundingClientRect();
+  burst(r.left+r.width/2,r.top+r.height/2,24,5.5);
+}
+
+/* ---------- 揭示答案 / 重新开始 / 返回 ---------- */
+function openReveal(){
+  if(!LV){return;}
+  LV.revealed=true;
+  $('#revealExpr').textContent=exprString(LV.meta)+' = ?';
+  var ol=$('#revealSteps');ol.innerHTML='';
+  solveSteps(LV.meta).forEach(function(s){
+    var li=document.createElement('li');li.textContent=s;ol.appendChild(li);
+  });
+  openM('#revealModal');
+}
+
+/* ---------- 按钮绑定 ---------- */
+function bindUI(){
+  $$('.btn.diff').forEach(function(b){
+    b.addEventListener('click',function(){startRun(b.getAttribute('data-diff'));});
+  });
+  $('#btnRules0').addEventListener('click',function(){openM('#rulesModal');});
+  $('#btnRules').addEventListener('click',function(){openM('#rulesModal');});
+  $('#btnRulesOk').addEventListener('click',function(){closeM('#rulesModal');});
+  $('#btnReveal').addEventListener('click',openReveal);
+  $('#btnRevealClose').addEventListener('click',function(){closeM('#revealModal');});
+  $('#btnRevealRestart').addEventListener('click',function(){closeM('#revealModal');renderLevel();});
+  $('#btnRestart').addEventListener('click',function(){if(LV){renderLevel();}});
+  $('#btnBack').addEventListener('click',function(){showStart();});
+  $('#btnNext').addEventListener('click',nextLevel);
+  $('#btnAgain').addEventListener('click',function(){startRun(G.diff);});
+  $('#btnBack2').addEventListener('click',function(){showStart();});
+  /* 点模态背景关闭（规则/揭示） */
+  $$('.modalBack[data-dismiss]').forEach(function(mb){
+    mb.addEventListener('click',function(e){if(e.target===mb){closeM('#'+mb.id);}});
+  });
+  /* 超过 16 秒没操作就闪烁提醒，防止卡关 */
+  setInterval(function(){
+    if(!$('#gameScreen').classList.contains('hidden')&&LV&&!LV.cleared){
+      if(Date.now()-G.lastAction>16000){
+        var o=$('#objective');o.classList.add('nudge');
+        setTimeout(function(){o.classList.remove('nudge');},2400);
+        G.lastAction=Date.now();
+      }
+    }
+  },1000);
+}
+
+/* ---------- 启动 ---------- */
+applyPalette();
+bindUI();
+showStart();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a2a/g021", "name": "\u8ba1\u7b97\u738b\u56fd \u00b7 \u51d1\u6574\u9b54\u6cd5\u5927\u95ef\u5173\uff08\u5de7\u7b97\u52a0\u51cf\u6cd5\u8fdb\u9636\uff09", "file": "g021.html", "jiaocan": "\u301021\u3011\u7b2c11\u8bb2 \u5de7\u7b97\u52a0\u51cf\u6cd5\u8fdb\u9636(1)\uff08\u4e0a\uff09", "unit": "\u7b2c11\u8bb2", "grade": "2\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b72\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a2a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>方向与位置 · 探险乐园（第7讲 互动游戏）</title>
+<style>
+/* ============================================================
+   方向与位置 · 探险乐园
+   —— 单文件互动游戏：方位摆放 / 方向寻路 / 数对摘星 / 影院对号入座
+   主题色通过 CSS 变量注入，每局从色板随机抽取（见 JS 应用随机配色）
+   ============================================================ */
+:root{
+  --主色:#2f7fd6; --深色:#1b4f8a; --浅色:#e8f2fc; --点缀:#ffb703;
+  --纸面:#ffffff; --文字:#20303f; --成功:#2e9e5b; --失误:#d6455d;
+  --线条:#c9d8ea;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:linear-gradient(160deg,var(--浅色) 0%,#ffffff 60%,var(--浅色) 100%);
+  color:var(--文字); font-size:18px; line-height:1.5;
+  -webkit-tap-highlight-color:transparent;
+}
+.screen.hidden{ display:none !important; }
+button{ font-family:inherit; cursor:pointer; }
+
+/* ---------- 通用按钮 ---------- */
+.btn{
+  border:none; border-radius:14px; padding:10px 18px; font-size:18px; font-weight:bold;
+  background:var(--点缀); color:#5a3a00; box-shadow:0 3px 0 rgba(0,0,0,.15);
+  transition:transform .08s;
+}
+.btn:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.15); }
+.btn.plain{ background:#fff; color:var(--深色); border:3px solid var(--主色); }
+.btn.weak{ background:#eef3f9; color:var(--深色); border:2px solid var(--线条); }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+/* ---------- 首页（难度选择） ---------- */
+#home{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+.home-card{
+  background:var(--纸面); border-radius:26px; padding:36px 34px; max-width:860px; width:100%;
+  box-shadow:0 12px 40px rgba(27,79,138,.18); border-top:10px solid var(--主色); text-align:center;
+}
+.home-card h1{ font-size:clamp(26px,4.6vw,40px); color:var(--深色); letter-spacing:2px; }
+.subtitle{ margin:14px 0 6px; font-size:19px; color:#54677a; }
+.formula{
+  display:inline-block; margin:12px auto 4px; background:var(--浅色); border:3px dashed var(--主色);
+  border-radius:16px; padding:10px 22px; font-size:22px; font-weight:bold; color:var(--深色);
+}
+.diff-row{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin:26px 0 10px; }
+.diff-btn{
+  flex:1 1 200px; max-width:250px; border-radius:20px; border:none; padding:20px 14px;
+  background:linear-gradient(180deg,#ffffff, var(--浅色)); border:4px solid var(--主色);
+  box-shadow:0 6px 0 var(--深色); transition:transform .1s;
+}
+.diff-btn:hover{ transform:translateY(-3px); }
+.diff-btn:active{ transform:translateY(2px); box-shadow:0 2px 0 var(--深色); }
+.diff-btn .d-ico{ font-size:44px; display:block; }
+.diff-btn .d-name{ font-size:24px; font-weight:bold; color:var(--深色); display:block; margin-top:6px; }
+.diff-btn .d-desc{ font-size:16px; color:#54677a; display:block; margin-top:6px; }
+.palette-note{ margin-top:16px; font-size:17px; color:#54677a; }
+.ghost-btn{
+  margin-top:14px; background:none; border:none; color:var(--主色); font-size:19px;
+  text-decoration:underline;
+}
+
+/* ---------- 游戏页顶部 ---------- */
+.topbar{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px;
+  background:var(--主色); color:#fff; padding:10px 16px;
+}
+.brand{ font-size:21px; font-weight:bold; letter-spacing:1px; }
+.hud{
+  background:rgba(255,255,255,.18); border-radius:12px; padding:6px 14px;
+  font-size:19px; font-weight:bold; white-space:nowrap;
+}
+.topbtns{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+.topbtns .btn{ font-size:16px; padding:8px 12px; }
+.level-bar{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:10px 18px; background:#fff; border-bottom:3px solid var(--线条);
+}
+.diff-badge{
+  background:var(--深色); color:#fff; border-radius:12px; padding:5px 14px; font-weight:bold; font-size:18px;
+}
+.level-dots{ display:flex; gap:8px; }
+.dot{
+  width:18px; height:18px; border-radius:50%; background:#d5dfea; border:3px solid #b9c9da;
+}
+.dot.now{ background:var(--点缀); border-color:#c78a00; transform:scale(1.2); }
+.dot.done{ background:var(--成功); border-color:#1f7a43; }
+.level-name{ font-size:20px; font-weight:bold; color:var(--深色); }
+
+/* ---------- 舞台 ---------- */
+#stage{ max-width:1100px; margin:0 auto; padding:18px 14px 90px; user-select:none; }
+.panel-title{ font-size:23px; font-weight:bold; color:var(--深色); margin-bottom:6px; }
+.hint-line{ font-size:17px; color:#54677a; margin-bottom:12px; }
+
+/* ---------- 关卡一：彩虹小镇（拖拽方位） ---------- */
+.town-wrap{ display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+.clue-panel{
+  flex:1 1 300px; background:#fff; border:3px solid var(--线条); border-radius:18px; padding:14px;
+}
+.clue-panel h3{ font-size:20px; color:var(--深色); margin-bottom:8px; }
+.clue{
+  list-style:none; padding:8px 10px; border-radius:10px; margin-bottom:6px; font-size:18px;
+  background:var(--浅色); border-left:8px solid var(--主色);
+}
+.clue.done{ background:#e3f7ea; border-left-color:var(--成功); text-decoration:line-through; color:#2c6a45; }
+.clue .ok{ float:right; font-weight:bold; }
+.town-side{ flex:2 1 420px; }
+.town-grid{
+  display:grid; grid-template-columns:repeat(3,minmax(96px,140px)); gap:12px; justify-content:center;
+}
+.t-cell{
+  aspect-ratio:1/1; border-radius:16px; position:relative; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:2px; background:#fff; border:3px solid var(--线条);
+  min-height:96px; padding-top:14px;
+}
+.t-cell .dir-tag{
+  position:absolute; top:4px; left:8px; font-size:16px; font-weight:bold; color:#7c8ea1;
+}
+.t-cell.center{ background:var(--主色); border-color:var(--深色); color:#fff; }
+.t-cell.center .dir-tag{ color:#ffe9b3; }
+.t-cell.decor{ background:#e8f4e4; border-style:dotted; }
+.t-cell.drop{ border:3px dashed var(--主色); background:var(--浅色); }
+.t-cell.drop.hover{ border:3px solid var(--点缀); background:#fff4d6; transform:scale(1.04); }
+.t-cell.filled{ border:3px solid var(--成功); background:#e3f7ea; }
+.t-cell.shake{ animation:shake .4s; }
+.t-emoji{ font-size:clamp(28px,5vw,40px); }
+.t-name{ font-size:17px; font-weight:bold; }
+.tray{
+  margin-top:16px; background:#fff; border-radius:18px;
+  border:3px solid var(--线条); padding:12px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; min-height:70px;
+}
+.card{
+  background:linear-gradient(180deg,#fff,var(--浅色)); border:3px solid var(--主色); border-radius:14px;
+  padding:8px 14px; font-size:18px; font-weight:bold; color:var(--深色);
+  display:flex; align-items:center; gap:8px; touch-action:none; cursor:grab;
+}
+.card.dragging{ position:fixed; z-index:1000; cursor:grabbing; box-shadow:0 12px 26px rgba(0,0,0,.28); transform:scale(1.06); }
+@keyframes shake{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+@keyframes pop{ 0%{transform:scale(.4);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+.placed-chip{ animation:pop .35s; }
+
+/* ---------- 关卡二：星光寻路（方向按钮行走） ---------- */
+.route-wrap{ display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+.instr-panel{ flex:1 1 270px; background:#fff; border:3px solid var(--线条); border-radius:18px; padding:14px; }
+.instr-panel h3{ font-size:20px; color:var(--深色); margin-bottom:8px; }
+.instr{
+  padding:9px 12px; border-radius:10px; margin-bottom:6px; font-size:18px; background:var(--浅色);
+  border-left:8px solid #b9c9da; color:#54677a;
+}
+.instr.now{ background:#fff4d6; border-left-color:var(--点缀); color:#7a5200; font-weight:bold; transform:scale(1.02); }
+.instr.done{ background:#e3f7ea; border-left-color:var(--成功); text-decoration:line-through; color:#2c6a45; }
+.route-side{ flex:2 1 460px; }
+.route-board{
+  position:relative; display:grid; background:#fff; border:4px solid var(--深色); border-radius:14px;
+  overflow:hidden; margin-top:6px;
+}
+.route-cell{ border:1px solid #dfe8f2; position:relative; }
+.route-cell.trail::after{
+  content:""; position:absolute; left:50%; top:50%; width:26%; height:26%;
+  transform:translate(-50%,-50%); border-radius:50%; background:var(--点缀); opacity:.55;
+}
+.route-cell .mark{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:30px; }
+.route-cell .marker-label{
+  position:absolute; bottom:2px; width:100%; text-align:center; font-size:16px; font-weight:bold; color:var(--深色);
+}
+.char{
+  position:absolute; transform:translate(-50%,-50%); font-size:34px; z-index:6;
+  transition:left .26s ease, top .26s ease; filter:drop-shadow(0 3px 3px rgba(0,0,0,.25));
+}
+.char.shake{ animation:shake .35s; }
+.compass-box{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+.compass{ width:64px; height:64px; flex:none; }
+.compass-note{ font-size:17px; color:#54677a; }
+.dpad{
+  margin-top:16px; display:grid; grid-template-columns:repeat(3,86px); grid-template-rows:repeat(2,64px);
+  gap:8px; justify-content:center;
+}
+.dpad-btn{
+  border:none; border-radius:14px; background:var(--主色); color:#fff; font-size:21px; font-weight:bold;
+  box-shadow:0 4px 0 var(--深色); touch-action:manipulation;
+}
+.dpad-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--深色); }
+.dpad-btn[data-dir="北"]{ grid-column:2; grid-row:1; }
+.dpad-btn[data-dir="西"]{ grid-column:1; grid-row:2; }
+.dpad-btn[data-dir="东"]{ grid-column:2; grid-row:2; }
+.dpad-btn[data-dir="南"]{ grid-column:3; grid-row:2; }
+
+/* ---------- 关卡三：摘星台（数对点击定位） ---------- */
+.pairs-wrap{ display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start; justify-content:center; }
+.pairs-grid{ display:grid; background:#fff; border:4px solid var(--深色); border-radius:14px; padding:8px; }
+.p-label{
+  display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:bold; color:#7c8ea1;
+}
+.p-cell{
+  border:2px solid #dfe8f2; border-radius:8px; position:relative; display:flex; align-items:center;
+  justify-content:center; cursor:pointer; background:#fbfdff;
+}
+.p-cell:hover{ background:#eef5fc; }
+.p-cell.star{ background:#fff7dc; border-color:var(--点缀); cursor:default; }
+.p-cell.star .star-ico{ font-size:30px; animation:pop .35s; }
+.p-cell.star .star-label{
+  position:absolute; bottom:2px; width:100%; text-align:center; font-size:16px; font-weight:bold; color:#7a5200;
+}
+.p-cell.flash-bad{ animation:flashBad .5s; }
+@keyframes flashBad{ 0%,100%{background:#fbfdff} 40%{background:#ffd9df; border-color:var(--失误);} }
+.task-panel{ flex:1 1 250px; background:#fff; border:3px solid var(--线条); border-radius:18px; padding:14px; }
+.task-panel h3{ font-size:20px; color:var(--深色); margin-bottom:8px; }
+.task{
+  padding:10px 12px; border-radius:12px; margin-bottom:8px; font-size:22px; font-weight:bold;
+  background:var(--浅色); color:#54677a; border-left:8px solid #b9c9da; letter-spacing:1px;
+}
+.task.now{ background:#fff4d6; border-left-color:var(--点缀); color:#7a5200; transform:scale(1.03); }
+.task.done{ background:#e3f7ea; border-left-color:var(--成功); text-decoration:line-through; color:#2c6a45; font-size:18px; }
+
+/* ---------- 关卡四：阳光影院（对号入座） ---------- */
+.cinema-wrap{ display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+.hall{ flex:2 1 480px; background:#fff; border:3px solid var(--线条); border-radius:18px; padding:14px; }
+.screen-bar{
+  background:linear-gradient(180deg,#ffffff,#dbe7f5); border:3px solid var(--深色); border-radius:10px;
+  text-align:center; font-size:20px; font-weight:bold; color:var(--深色); padding:8px; margin-bottom:12px;
+  letter-spacing:8px;
+}
+.side-note{ font-size:16px; color:#54677a; text-align:center; margin-bottom:10px; }
+.crow-row{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.row-label{
+  flex:none; width:64px; text-align:center; font-size:17px; font-weight:bold; color:var(--深色);
+  background:var(--浅色); border-radius:8px; padding:4px 2px;
+}
+.seats{ display:flex; flex-wrap:wrap; gap:8px; flex:1; }
+.seat{
+  width:46px; height:44px; border-radius:9px; border:3px solid #b9c9da; background:#f4f8fc;
+  font-size:17px; font-weight:bold; color:#54677a; display:flex; align-items:center; justify-content:center;
+  position:relative;
+}
+.hall.big .seat{ width:38px; height:40px; font-size:16px; }
+.aisle{ width:34px; flex:none; display:flex; align-items:center; justify-content:center; font-size:16px; color:#9aa9ba; }
+.seat.occ{ background:#dff5e7; border-color:var(--成功); }
+.seat.occ .face{ position:absolute; font-size:20px; top:-12px; }
+.seat.picked{ background:#fff0c2; border-color:var(--点缀); transform:scale(1.08); }
+.seat.flash-bad{ animation:flashBad .5s; }
+.seat.shake{ animation:shake .4s; }
+.ticket-panel{ flex:1 1 300px; background:#fff; border:3px solid var(--线条); border-radius:18px; padding:14px; }
+.ticket-panel h3{ font-size:20px; color:var(--深色); margin-bottom:10px; }
+.ticket{
+  border:3px dashed var(--主色); border-radius:14px; padding:10px 12px; margin-bottom:10px;
+  background:var(--浅色);
+}
+.ticket .tk-who{ font-size:17px; color:#54677a; }
+.ticket .tk-seat{ font-size:24px; font-weight:bold; color:var(--深色); letter-spacing:2px; }
+.ticket.now{ background:#fff4d6; border-color:var(--点缀); transform:scale(1.03); }
+.ticket.done{ background:#e3f7ea; border-color:var(--成功); }
+.ticket.done .tk-seat{ text-decoration:line-through; }
+.office{ background:#fff; border:3px solid var(--线条); border-radius:18px; padding:14px; margin-bottom:14px; flex:1 1 300px; }
+.office h3{ font-size:20px; color:var(--深色); margin-bottom:8px; }
+.office .clue-text{ font-size:18px; background:var(--浅色); border-radius:10px; padding:10px; margin-bottom:10px; }
+.steppers{ display:flex; gap:18px; flex-wrap:wrap; margin-bottom:10px; }
+.stepper{ display:flex; align-items:center; gap:8px; }
+.st-name{ font-size:18px; font-weight:bold; color:var(--深色); }
+.st-btn{
+  width:44px; height:44px; border-radius:50%; border:none; background:var(--主色); color:#fff;
+  font-size:24px; font-weight:bold; box-shadow:0 3px 0 var(--深色);
+}
+.st-btn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--深色); }
+.st-num{
+  min-width:64px; text-align:center; font-size:30px; font-weight:bold; color:var(--深色);
+  background:var(--浅色); border-radius:10px; padding:2px 8px;
+}
+.triple-tip{ font-size:17px; color:#54677a; background:#fff4d6; border-radius:10px; padding:8px 10px; margin-bottom:8px; }
+
+/* ---------- 弹窗 / 提示条 / 彩纸 ---------- */
+.modal{
+  position:fixed; inset:0; background:rgba(23,42,64,.55); z-index:1200;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.modal-card{
+  background:#fff; border-radius:22px; border-top:10px solid var(--主色);
+  max-width:640px; width:100%; max-height:86vh; overflow:auto; padding:26px 24px; text-align:center;
+}
+.modal-card h2{ font-size:27px; color:var(--深色); margin-bottom:10px; }
+.modal-card .m-body{ font-size:18px; color:#3c4f62; text-align:left; }
+.rules-list{ text-align:left; padding-left:4px; }
+.rules-list li{ margin:10px 0; list-style:none; }
+.rules-list b{ color:var(--深色); }
+.stars-row{ font-size:42px; letter-spacing:8px; margin:8px 0; }
+.modal-btns{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:16px; }
+#toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  background:var(--深色); color:#fff; padding:12px 22px; border-radius:14px; font-size:19px;
+  opacity:0; pointer-events:none; transition:all .25s; z-index:1500; max-width:88vw; text-align:center;
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+#confetti{ position:fixed; inset:0; pointer-events:none; z-index:1400; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width:760px){
+  body{ font-size:17px; }
+  .topbtns .btn{ font-size:15px; padding:7px 10px; }
+  .seat{ width:40px; height:40px; font-size:16px; }
+  .hall.big .seat{ width:34px; height:36px; font-size:16px; }
+  .row-label{ width:52px; font-size:16px; }
+  .dpad{ grid-template-columns:repeat(3,76px); grid-template-rows:repeat(2,58px); }
+  .dpad-btn{ font-size:19px; }
+  .char{ font-size:28px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 首页：难度选择 ================= -->
+<div id="home" class="screen">
+  <div class="home-card">
+    <h1>🧭 方向与位置 · 探险乐园</h1>
+    <p class="subtitle">看地图的口诀你还记得吗？</p>
+    <div class="formula">上北 · 下南 · 左西 · 右东</div>
+    <p class="subtitle">闯过四个小关，收集十二颗星星吧！</p>
+    <div class="diff-row">
+      <button class="diff-btn" data-diff="初级">
+        <span class="d-ico">🐣</span><span class="d-name">初级 · 小小探险家</span>
+        <span class="d-desc">四个正方向摆一摆<br>短短的寻宝路线</span>
+      </button>
+      <button class="diff-btn" data-diff="中级">
+        <span class="d-ico">🦊</span><span class="d-name">中级 · 方向小达人</span>
+        <span class="d-desc">八个方位齐上阵<br>路线更长、要数排数啦</span>
+      </button>
+      <button class="diff-btn" data-diff="高级">
+        <span class="d-ico">🦉</span><span class="d-name">高级 · 寻宝大师</span>
+        <span class="d-desc">反向条件想一想<br>票务推理 + 三人连坐</span>
+      </button>
+    </div>
+    <div class="palette-note" id="paletteNote"></div>
+    <button class="ghost-btn" id="homeRulesBtn">📖 先看看规则说明</button>
+  </div>
+</div>
+
+<!-- ================= 游戏页 ================= -->
+<div id="play" class="screen hidden">
+  <header class="topbar">
+    <div class="brand">🧭 方向与位置 · 探险乐园</div>
+    <div class="hud" id="hud">⏱ 00:00　👣 0 步</div>
+    <nav class="topbtns">
+      <button class="btn plain" id="btnRules">📖 规则说明</button>
+      <button class="btn" id="btnReveal">💡 揭示答案</button>
+      <button class="btn weak" id="btnRestart">🔄 重新开始</button>
+      <button class="btn weak" id="btnBack">🏠 返回难度选择</button>
+    </nav>
+  </header>
+  <div class="level-bar">
+    <span class="diff-badge" id="diffBadge">初级</span>
+    <div class="level-dots" id="levelDots"></div>
+    <span class="level-name" id="levelName"></span>
+  </div>
+  <main id="stage"></main>
+</div>
+
+<!-- ================= 关卡完成弹窗 ================= -->
+<div id="levelModal" class="modal hidden">
+  <div class="modal-card">
+    <h2 id="levelModalTitle">🎉 本关完成！</h2>
+    <div class="stars-row" id="levelStars">⭐⭐⭐</div>
+    <p class="m-body" id="levelModalText" style="text-align:center"></p>
+    <div class="modal-btns">
+      <button class="btn" id="btnNextLevel">下一关 ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 通关弹窗 ================= -->
+<div id="winModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>🏆 全部通关，你是最棒的探险家！</h2>
+    <div class="stars-row" id="winStars"></div>
+    <p class="m-body" id="winText" style="text-align:center"></p>
+    <div class="modal-btns">
+      <button class="btn" id="btnAgain">🔁 再玩一次（新题目）</button>
+      <button class="btn plain" id="btnBackHome">🏠 返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 规则说明弹窗 ================= -->
+<div id="rulesModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>📖 规则说明</h2>
+    <div class="m-body">
+      <ul class="rules-list">
+        <li><b>🗺 辨方位口诀：</b>上北、下南、左西、右东；两个正方向之间的夹角区域，就是西北、东北、西南、东南。</li>
+        <li><b>🏘 第一关 · 彩虹小镇：</b>读左边的文字提示，把建筑卡片<b>拖</b>到中心建筑周围的正确方位格里，全部摆对就过关。</li>
+        <li><b>🧭 第二关 · 星光寻路：</b>按照"指令清单"，点击方向按钮，带小小探险家从 A 点走到宝藏 B 点。一次点一格，走完一条指令会自动亮下一条。</li>
+        <li><b>⭐ 第三关 · 摘星台：</b>数对<b>(列, 行)</b>：第一个数是从左往右数的<b>列数</b>，第二个数是从下往上数的<b>行数</b>。看当前数对卡，点击格子上正确的位置，点亮星星。</li>
+        <li><b>🎬 第四关 · 阳光影院：</b>电影院的座位<b>左边是单号、右边是双号</b>，排数从前往后数。看票面信息，点击正确的座位让小伙伴入座。</li>
+        <li><b>💡 揭示答案：</b>卡住了可以点顶部的"揭示答案"，不过用了它，本关最多只能得 1 颗星哦。</li>
+        <li><b>🎯 小目标：</b>右上角有计时和步数，四个小关共 12 颗星星，试试又快又准地收集满吧！</li>
+      </ul>
+    </div>
+    <div class="modal-btns">
+      <button class="btn" id="btnCloseRules">知道啦，出发！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 提示条 与 彩纸画布 ================= -->
+<div id="toast"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+'use strict';
+/* ============================================================
+   工具函数
+   ============================================================ */
+function 声明(sel){ return document.querySelector(sel); }
+const $ = 声明;
+function 洗牌(数组){
+  const a = 数组.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function 随机整数(最小, 最大){ return 最小 + Math.floor(Math.random() * (最大 - 最小 + 1)); }
+function 抽一个(数组){ return 数组[Math.floor(Math.random() * 数组.length)]; }
+function 建元素(标签, 类名, 文本){
+  const el = document.createElement(标签);
+  if (类名) el.className = 类名;
+  if (文本 != null) el.textContent = 文本; // 用宽松判空，兼容不传文本的调用
+  return el;
+}
+const 中文数 = ['一','二','三','四','五','六','七','八','九','十'];
+
+/* ============================================================
+   色板（每局随机主色，保证多次游玩不腻）
+   ============================================================ */
+const 色板列表 = [
+  { 名:'晴空蓝', 主:'#2f7fd6', 深:'#1b4f8a', 浅:'#e8f2fc', 点:'#ffb703' },
+  { 名:'苹果绿', 主:'#3a9d5d', 深:'#20663c', 浅:'#e9f7ee', 点:'#ff8fab' },
+  { 名:'蜜橙橙', 主:'#e8762c', 深:'#a34e14', 浅:'#fdf1e5', 点:'#2f9e6e' },
+  { 名:'葡萄紫', 主:'#7a5fd0', 深:'#4b3788', 浅:'#f0ecfb', 点:'#ffa62b' },
+  { 名:'樱桃红', 主:'#d6455d', 深:'#8f2638', 浅:'#fdeef1', 点:'#2f9e9e' },
+];
+let 本局主题 = null;
+function 应用随机配色(){
+  本局主题 = 抽一个(色板列表);
+  const r = document.documentElement.style;
+  r.setProperty('--主色', 本局主题.主);
+  r.setProperty('--深色', 本局主题.深);
+  r.setProperty('--浅色', 本局主题.浅);
+  r.setProperty('--点缀', 本局主题.点);
+  const 说明 = 声明('#paletteNote');
+  if (说明) 说明.textContent = '🎨 本局主题色：' + 本局主题.名;
+}
+
+/* ============================================================
+   全局状态
+   ============================================================ */
+const G = {
+  难度: '初级',
+  关卡序号: 0,
+  关卡列表: ['小镇', '寻路', '摘星', '影院'],
+  关卡名称: { 小镇:'🏘 彩虹小镇 · 方位摆放', 寻路:'🧭 星光寻路 · 按指令寻宝', 摘星:'⭐ 摘星台 · 数对定位', 影院:'🎬 阳光影院 · 对号入座' },
+  用时秒: 0, 步数: 0, 星星: [],
+  本关错误: 0, 本关揭示: false,
+  计时句柄: null, 开始时刻: null,
+  揭示处理: null,   // 当前关卡注册的揭示函数
+  重排处理: null,   // 当前关卡注册的窗口尺寸重排函数
+  自动走句柄: null, // 寻路关揭示时的自动行走定时器
+};
+
+/* ============================================================
+   音效（WebAudio 小合成器，零外部资源）
+   ============================================================ */
+let 音频 = null;
+function 取音频(){
+  if (!音频){
+    try { 音频 = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ 音频 = null; }
+  }
+  if (音频 && 音频.state === 'suspended') { 音频.resume(); }
+  return 音频;
+}
+function 播放音组(频率列表, 单时长){
+  const ctx = 取音频();
+  if (!ctx) return;
+  频率列表.forEach((f, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = f;
+    const t0 = ctx.currentTime + i * 单时长;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 单时长 * 0.92);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t0); osc.stop(t0 + 单时长);
+  });
+}
+function 音效(类型){
+  if (类型 === '对') 播放音组([523, 659], 0.12);
+  else if (类型 === '错') 播放音组([196], 0.2);
+  else if (类型 === '胜') 播放音组([523, 659, 784, 1047], 0.11);
+}
+
+/* ============================================================
+   提示条（toast）
+   ============================================================ */
+let 提示句柄 = null;
+function 提示(文本, 好消息){
+  const t = 声明('#toast');
+  t.textContent = (好消息 ? '🌟 ' : '💭 ') + 文本;
+  t.style.background = 好消息 ? 'var(--成功)' : 'var(--深色)';
+  t.classList.add('show');
+  clearTimeout(提示句柄);
+  提示句柄 = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+/* ============================================================
+   计时器 与 步数
+   ============================================================ */
+function 刷新HUD(){
+  const 分 = String(Math.floor(G.用时秒 / 60)).padStart(2, '0');
+  const 秒 = String(G.用时秒 % 60).padStart(2, '0');
+  let 星数 = 0;
+  G.星星.forEach(s => { 星数 += s; });
+  声明('#hud').textContent = '⏱ ' + 分 + ':' + 秒 + '　👣 ' + G.步数 + ' 步　⭐ ' + 星数 + '/12';
+}
+function 启动计时(){
+  停止计时();
+  G.开始时刻 = Date.now();
+  G.计时句柄 = setInterval(() => {
+    G.用时秒 = Math.floor((Date.now() - G.开始时刻) / 1000);
+    刷新HUD();
+  }, 500);
+}
+function 停止计时(){
+  if (G.计时句柄) { clearInterval(G.计时句柄); G.计时句柄 = null; }
+}
+function 计步(){ G.步数++; 刷新HUD(); }
+function 记错(){ G.本关错误++; }
+
+/* ============================================================
+   屏幕切换 与 流程控制
+   ============================================================ */
+function 显示首页(){
+  停止计时();
+  清理自动走();
+  声明('#play').classList.add('hidden');
+  声明('#home').classList.remove('hidden');
+  应用随机配色(); // 首页也换新装
+}
+function 开始游戏(难度){
+  G.难度 = 难度;
+  G.关卡序号 = 0;
+  G.用时秒 = 0; G.步数 = 0; G.星星 = [];
+  G.本关错误 = 0; G.本关揭示 = false;
+  应用随机配色();
+  声明('#diffBadge').textContent = 难度;
+  声明('#home').classList.add('hidden');
+  声明('#play').classList.remove('hidden');
+  启动计时();
+  刷新HUD();
+  渲染关卡圆点();
+  打开规则();     // 每局开始时先看规则（G6）
+  进入关卡();
+}
+function 渲染关卡圆点(){
+  const 盒 = 声明('#levelDots');
+  盒.innerHTML = '';
+  G.关卡列表.forEach((名, i) => {
+    const d = 建元素('span', 'dot');
+    if (i < G.关卡序号) d.classList.add('done');
+    if (i === G.关卡序号) d.classList.add('now');
+    d.title = '第' + (i + 1) + '关：' + G.关卡名称[名];
+    盒.appendChild(d);
+  });
+}
+function 进入关卡(){
+  清理自动走();
+  G.本关错误 = 0; G.本关揭示 = false;
+  G.揭示处理 = null; G.重排处理 = null;
+  声明('#btnReveal').disabled = false;
+  const 关 = G.关卡列表[G.关卡序号];
+  声明('#levelName').textContent = '第' + (G.关卡序号 + 1) + '关 / 共4关　' + G.关卡名称[关];
+  渲染关卡圆点();
+  if (关 === '小镇') 渲染小镇();
+  else if (关 === '寻路') 渲染寻路();
+  else if (关 === '摘星') 渲染摘星();
+  else 渲染影院();
+}
+function 结算星级(){
+  if (G.本关揭示) return 1;
+  if (G.本关错误 === 0) return 3;
+  if (G.本关错误 <= 4) return 2;
+  return 1;
+}
+function 完成关卡(延迟毫秒){
+  const 星 = 结算星级();
+  G.星星.push(星);
+  刷新HUD();
+  音效('胜');
+  放彩纸(2200);
+  setTimeout(() => {
+    声明('#levelStars').textContent = '⭐'.repeat(星) + '☆'.repeat(3 - 星);
+    const 是最后 = G.关卡序号 >= G.关卡列表.length - 1;
+    声明('#levelModalTitle').textContent = G.本关揭示 ? '💡 已揭示答案，本关完成' : '🎉 本关完成！';
+    let 评语 = 星 === 3 ? '一次都没走错，太厉害啦！' : (星 === 2 ? '很棒，再稳一点就是满星！' : '过关啦，多读读提示会更顺哦！');
+    if (G.本关揭示) 评语 = '这次看了答案，下一关自己试试吧！';
+    声明('#levelModalText').textContent = 评语 + '（用时 ' + G.用时秒 + ' 秒，共 ' + G.步数 + ' 步）';
+    声明('#btnNextLevel').textContent = 是最后 ? '查看战绩 🏆' : '下一关 ➜';
+    声明('#levelModal').classList.remove('hidden');
+  }, Math.max(0, 延迟毫秒 || 0));
+}
+function 下一关(){
+  声明('#levelModal').classList.add('hidden');
+  if (G.关卡序号 >= G.关卡列表.length - 1){ 全部完成(); return; }
+  G.关卡序号++;
+  进入关卡();
+}
+function 全部完成(){
+  停止计时();
+  let 总星 = 0;
+  G.星星.forEach(s => { 总星 += s; });
+  声明('#winStars').textContent = '⭐'.repeat(总星) + '☆'.repeat(Math.max(0, 12 - 总星));
+  const 分 = String(Math.floor(G.用时秒 / 60)).padStart(2, '0');
+  const 秒 = String(G.用时秒 % 60).padStart(2, '0');
+  声明('#winText').textContent = '四个小关全部通过！总星数 ' + 总星 + '/12，用时 ' + 分 + ' 分 ' + 秒 + ' 秒，共 ' + G.步数 + ' 步。' + (总星 === 12 ? '满星探险家，实至名归！' : '再玩一次可以换新题目哦！');
+  声明('#winModal').classList.remove('hidden');
+  放彩纸(6000);
+}
+function 清理自动走(){
+  if (G.自动走句柄){ clearInterval(G.自动走句柄); G.自动走句柄 = null; }
+}
+function 打开规则(){ 声明('#rulesModal').classList.remove('hidden'); }
+
+/* ============================================================
+   关卡一：彩虹小镇（拖拽建筑卡片到方位格）
+   数据来源：教参例5（红花小区）、B卷3（学校大楼）、A卷4（翠湖公园建筑）等
+   ============================================================ */
+const 小镇题库 = {
+  初级: [
+    { 名称:'阳光广场', 中心:{ 名:'音乐喷泉', 图:'⛲' },
+      条目:[
+        { 向:'北', 名:'滑梯乐园', 图:'🛝', 提示:'滑梯乐园在音乐喷泉的北面' },
+        { 向:'南', 名:'秋千架', 图:'🎠', 提示:'秋千架在音乐喷泉的南面' },
+        { 向:'东', 名:'沙池', 图:'🏖️', 提示:'沙池在音乐喷泉的东面' },
+        { 向:'西', 名:'跷跷板', 图:'⚖️', 提示:'跷跷板在音乐喷泉的西面' } ] },
+    { 名称:'动物之家', 中心:{ 名:'荷花池', 图:'🪷' },
+      条目:[
+        { 向:'北', 名:'熊猫馆', 图:'🐼', 提示:'熊猫馆在荷花池的北面' },
+        { 向:'南', 名:'百鸟园', 图:'🐦', 提示:'百鸟园在荷花池的南面' },
+        { 向:'东', 名:'猴山', 图:'🐵', 提示:'猴山在荷花池的东面' },
+        { 向:'西', 名:'鹿园', 图:'🦌', 提示:'鹿园在荷花池的西面' } ] },
+  ],
+  中级: [
+    { 名称:'红花小区', 中心:{ 名:'花园', 图:'🌸' },
+      条目:[
+        { 向:'北', 名:'大门', 图:'🚪', 提示:'大门在花园的北面' },
+        { 向:'西北', 名:'快递站', 图:'📦', 提示:'快递站在花园的西北面' },
+        { 向:'西', 名:'超市', 图:'🛒', 提示:'花园的西面是超市' },
+        { 向:'东北', 名:'1号楼', 图:'🏠', 提示:'花园的东北面是1号楼' },
+        { 向:'西南', 名:'活动中心', 图:'🎪', 提示:'活动中心在花园的西南面' },
+        { 向:'南', 名:'药店', 图:'💊', 提示:'药店在花园的南面' },
+        { 向:'东', 名:'2号楼', 图:'🏡', 提示:'2号楼在花园的东面' },
+        { 向:'东南', 名:'幼儿园', 图:'🧒', 提示:'幼儿园在花园的东南面' } ] },
+    { 名称:'翠湖公园', 中心:{ 名:'喷泉广场', 图:'⛲' },
+      条目:[
+        { 向:'北', 名:'猴山', 图:'🐵', 提示:'猴山在喷泉广场的北面' },
+        { 向:'西', 名:'鹿园', 图:'🦌', 提示:'鹿园在喷泉广场的西面' },
+        { 向:'东', 名:'金鱼池', 图:'🐠', 提示:'金鱼池在喷泉广场的东面' },
+        { 向:'南', 名:'大门', 图:'🚪', 提示:'大门在喷泉广场的南面' },
+        { 向:'西北', 名:'百鸟园', 图:'🐦', 提示:'百鸟园在喷泉广场的西北面' },
+        { 向:'东北', 名:'孔雀园', 图:'🦚', 提示:'孔雀园在喷泉广场的东北面' } ] },
+  ],
+  高级: [
+    { 名称:'学校大楼', 中心:{ 名:'教学楼', 图:'🏫' },
+      条目:[
+        { 向:'东', 名:'图书馆', 图:'📚', 提示:'图书馆在教学楼的东面' },
+        { 向:'北', 名:'实验楼', 图:'🔬', 提示:'实验楼在教学楼的北面' },
+        { 向:'西', 名:'办公楼', 图:'🏢', 提示:'教学楼的西边是办公楼' },
+        { 向:'西北', 名:'科技楼', 图:'🚀', 提示:'科技楼在教学楼的西北面' },
+        { 向:'东北', 名:'宿舍楼', 图:'🛏️', 提示:'教学楼在宿舍楼的西南面（想一想：宿舍楼在教学楼的哪一面？）' },
+        { 向:'东南', 名:'体育馆', 图:'🏀', 提示:'体育馆在教学楼的东南面' } ] },
+    { 名称:'红花小区', 中心:{ 名:'花园', 图:'🌸' },
+      条目:[
+        { 向:'北', 名:'大门', 图:'🚪', 提示:'大门在花园的北面' },
+        { 向:'西北', 名:'快递站', 图:'📦', 提示:'快递站在花园的西北面' },
+        { 向:'西', 名:'超市', 图:'🛒', 提示:'花园的西面是超市' },
+        { 向:'东北', 名:'1号楼', 图:'🏠', 提示:'花园的东北面是1号楼' },
+        { 向:'西南', 名:'活动中心', 图:'🎪', 提示:'活动中心在花园的西南面' },
+        { 向:'南', 名:'药店', 图:'💊', 提示:'药店在花园的南面' },
+        { 向:'东', 名:'2号楼', 图:'🏡', 提示:'2号楼在花园的东面' },
+        { 向:'东南', 名:'幼儿园', 图:'🧒', 提示:'幼儿园在花园的东南面' } ] },
+  ],
+};
+/* 3×3 方位格的排列（上北下南左西右东） */
+const 方位排布 = [
+  ['西北','北','东北'],
+  ['西','中','东'],
+  ['西南','南','东南'],
+];
+const 方向箭头 = { 北:'↑', 南:'↓', 西:'←', 东:'→', 西北:'↖', 东北:'↗', 西南:'↙', 东南:'↘' };
+
+function 渲染小镇(){
+  const 题 = 抽一个(小镇题库[G.难度]);
+  const 用斜角 = (G.难度 !== '初级');
+  const 名到向 = {};
+  题.条目.forEach(t => { 名到向[t.名] = t.向; });
+  const 舞台 = 声明('#stage');
+  舞台.innerHTML = '';
+
+  const 包裹 = 建元素('div', 'town-wrap');
+  // --- 左：文字提示面板 ---
+  const 提示板 = 建元素('div', 'clue-panel');
+  提示板.appendChild(建元素('h3', null, '📌 文字提示（' + 题.名称 + '）'));
+  const 提示列表 = {};
+  题.条目.forEach(t => {
+    const li = 建元素('li', 'clue', t.提示);
+    li.dataset.名 = t.名;
+    提示列表[t.名] = li;
+    提示板.appendChild(li);
+  });
+  包裹.appendChild(提示板);
+
+  // --- 右：3×3 方位格 ---
+  const 右侧 = 建元素('div', 'town-side');
+  右侧.appendChild(建元素('div', 'panel-title', '🏘 把卡片拖到正确的方位格里'));
+  右侧.appendChild(建元素('div', 'hint-line', '口诀：上北、下南、左西、右东' + (用斜角 ? '；斜角是西北、东北、西南、东南' : '') + '。'));
+  const 网格 = 建元素('div', 'town-grid');
+  const 区域表 = {}; // 方向 -> 格子元素
+  方位排布.forEach(行 => {
+    行.forEach(向 => {
+      if (向 === '中'){
+        const c = 建元素('div', 't-cell center');
+        c.appendChild(建元素('span', 'dir-tag', '中心'));
+        c.appendChild(建元素('div', 't-emoji', 题.中心.图));
+        c.appendChild(建元素('div', 't-name', 题.中心.名));
+        网格.appendChild(c);
+        return;
+      }
+      const c = 建元素('div', 't-cell');
+      c.dataset.向 = 向;
+      c.appendChild(建元素('span', 'dir-tag', 方向箭头[向] + ' ' + 向));
+      const 有此向 = 名到向 && Object.values(名到向).indexOf(向) >= 0;
+      if (有此向){
+        c.classList.add('drop');
+      } else if (!用斜角){
+        c.classList.add('decor');
+        c.appendChild(建元素('div', 't-emoji', '🌲'));
+      } else {
+        c.classList.add('decor');
+        c.appendChild(建元素('div', 't-emoji', '🌿'));
+      }
+      区域表[向] = c;
+      网格.appendChild(c);
+    });
+  });
+  右侧.appendChild(网格);
+
+  // --- 卡片托盘 ---
+  const 托盘 = 建元素('div', 'tray');
+  const 卡片区 = 建元素('div', null);
+  卡片区.style.width = '100%';
+  卡片区.style.display = 'flex';
+  卡片区.style.flexWrap = 'wrap';
+  卡片区.style.gap = '10px';
+  卡片区.style.justifyContent = 'center';
+  托盘.appendChild(卡片区);
+  右侧.appendChild(托盘);
+  包裹.appendChild(右侧);
+  舞台.appendChild(包裹);
+
+  let 已放数 = 0;
+  function 放置成功(条目){
+    const 格 = 区域表[条目.向];
+    格.classList.remove('drop', 'hover');
+    格.classList.add('filled');
+    const 片 = 建元素('div', 'placed-chip');
+    片.style.textAlign = 'center';
+    片.appendChild(建元素('div', 't-emoji', 条目.图));
+    片.appendChild(建元素('div', 't-name', 条目.名 + ' ✓'));
+    格.appendChild(片);
+    const li = 提示列表[条目.名];
+    if (li) li.classList.add('done');
+    已放数++;
+    if (已放数 >= 题.条目.length){
+      提示('全部摆对啦，小镇建成了！', true);
+      完成关卡(700);
+    }
+  }
+  function 尝试放(卡片, 格){
+    const 名 = 卡片.dataset.名;
+    const 条目 = 题.条目.find(t => t.名 === 名);
+    if (!格.classList.contains('drop') || 格.classList.contains('filled')){
+      归位(卡片);
+      提示('这里不是可以摆放的空位哦');
+      return;
+    }
+    if (名到向[名] === 格.dataset.向){
+      放置成功(条目);
+      卡片.remove();
+      音效('对');
+    } else {
+      格.classList.add('shake');
+      setTimeout(() => 格.classList.remove('shake'), 450);
+      归位(卡片);
+      记错();
+      音效('错');
+      提示('这个方位不对，再读一读提示～');
+    }
+  }
+  function 归位(卡片){
+    卡片.classList.remove('dragging');
+    卡片.style.left = ''; 卡片.style.top = '';
+    卡片区.appendChild(卡片);
+  }
+  function 找区域(x, y){
+    const 键 = Object.keys(区域表);
+    for (let i = 0; i < 键.length; i++){
+      const r = 区域表[键[i]].getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return 区域表[键[i]];
+    }
+    return null;
+  }
+  function 高亮(格){
+    Object.keys(区域表).forEach(k => 区域表[k].classList.remove('hover'));
+    if (格 && 格.classList.contains('drop') && !格.classList.contains('filled')) 格.classList.add('hover');
+  }
+  // 拖拽核心：指针事件（鼠标 + 触摸通用）
+  function 绑拖(卡片){
+    卡片.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      卡片.setPointerCapture(ev.pointerId);
+      const 矩形 = 卡片.getBoundingClientRect();
+      const 偏X = ev.clientX - 矩形.left;
+      const 偏Y = ev.clientY - 矩形.top;
+      const 移动 = (e) => {
+        卡片.classList.add('dragging');
+        卡片.style.left = (e.clientX - 偏X) + 'px';
+        卡片.style.top = (e.clientY - 偏Y) + 'px';
+        高亮(找区域(e.clientX, e.clientY));
+      };
+      const 抬起 = (e) => {
+        卡片.removeEventListener('pointermove', 移动);
+        计步();
+        高亮(null);
+        const 格 = 找区域(e.clientX, e.clientY);
+        if (格) 尝试放(卡片, 格);
+        else 归位(卡片);
+      };
+      卡片.addEventListener('pointermove', 移动);
+      卡片.addEventListener('pointerup', 抬起, { once:true });
+      卡片.addEventListener('pointercancel', () => { 卡片.removeEventListener('pointermove', 移动); 归位(卡片); }, { once:true });
+    });
+  }
+  // 生成洗牌后的卡片（反重复：每局顺序不同）
+  洗牌(题.条目).forEach(t => {
+    const c = 建元素('div', 'card');
+    c.dataset.名 = t.名;
+    c.appendChild(建元素('span', null, t.图));
+    c.appendChild(建元素('span', null, t.名));
+    绑拖(c);
+    卡片区.appendChild(c);
+  });
+
+  // 揭示答案：把剩余卡片自动放到正确位置
+  G.揭示处理 = () => {
+    const 剩余 = Array.from(卡片区.querySelectorAll('.card'));
+    剩余.forEach((卡片, i) => {
+      setTimeout(() => {
+        const 条目 = 题.条目.find(t => t.名 === 卡片.dataset.名);
+        卡片.remove();
+        放置成功(条目);
+      }, i * 260);
+    });
+  };
+}
+
+/* ============================================================
+   关卡二：星光寻路（按指令清单点击方向按钮行走）
+   每局随机生成路线（反重复机制）
+   ============================================================ */
+const 方向位移 = { 东:[1,0], 西:[-1,0], 北:[0,1], 南:[0,-1] };
+const 方向箭头2 = { 东:'→', 西:'←', 北:'↑', 南:'↓' };
+const 相反方向 = { 东:'西', 西:'东', 北:'南', 南:'北' };
+function 可走格数(向, x, y, 列数, 行数){
+  if (向 === '东') return 列数 - 1 - x;
+  if (向 === '西') return x;
+  if (向 === '北') return 行数 - 1 - y;
+  return y;
+}
+function 生成路线(列数, 行数, 段数){
+  for (let 尝试 = 0; 尝试 < 60; 尝试++){
+    let x = 0, y = 0;
+    const 段 = [];
+    let 上向 = null;
+    let 保护 = 0;
+    while (段.length < 段数 && 保护 < 200){
+      保护++;
+      const 候选 = 洗牌(['东','南','西','北']).filter(d => d !== 上向 && d !== 相反方向[上向 || '东']);
+      let 选 = null;
+      for (let i = 0; i < 候选.length; i++){
+        const d = 候选[i];
+        const 余 = 可走格数(d, x, y, 列数, 行数);
+        if (余 >= 1){ 选 = { 向:d, 长:随机整数(1, Math.min(3, 余)) }; break; }
+      }
+      if (!选) break;
+      x += 方向位移[选.向][0] * 选.长;
+      y += 方向位移[选.向][1] * 选.长;
+      段.push(选);
+      上向 = 选.向;
+    }
+    if (段.length === 段数 && (x !== 0 || y !== 0)) return { 列数, 行数, 段, 终点:{ x, y } };
+  }
+  // 兜底：一条确定的简单路线（理论上不会走到这里）
+  return { 列数, 行数, 段:[{向:'东',长:2},{向:'北',长:2},{向:'东',长:1}], 终点:{ x:3, y:2 } };
+}
+function 渲染寻路(){
+  const 配置 = { 初级:[6,5,4], 中级:[8,6,5], 高级:[10,7,6] }[G.难度];
+  const 列数 = 配置[0], 行数 = 配置[1], 段数 = 配置[2];
+  const 路 = 生成路线(列数, 行数, 段数);
+  const 舞台 = 声明('#stage');
+  舞台.innerHTML = '';
+  const 包裹 = 建盒子('route-wrap');
+  舞台.appendChild(包裹);
+
+  // --- 左：指令清单 ---
+  const 指令板 = 建元素('div', 'instr-panel');
+  指令板.appendChild(建元素('h3', null, '📜 指令清单（按顺序走）'));
+  const 指令行 = [];
+  路.段.forEach((s, i) => {
+    const li = 建元素('li', 'instr', '第' + (i + 1) + '步：向' + s.向 + ' ' + 方向箭头2[s.向] + ' 走 ' + s.长 + ' 格');
+    指令板.appendChild(li);
+    指令行.push(li);
+  });
+  包裹.appendChild(指令板);
+
+  // --- 右：棋盘 + 指北针 + 方向按钮 ---
+  const 右侧 = 建盒子('route-side');
+  const 罗盘盒 = 建元素('div', 'compass-box');
+  罗盘盒.innerHTML =
+    '<svg class="compass" viewBox="0 0 64 64" aria-hidden="true">' +
+    '<circle cx="32" cy="32" r="28" fill="#ffffff" stroke="var(--深色)" stroke-width="3"></circle>' +
+    '<polygon points="32,7 38,30 32,25 26,30" fill="var(--失误)"></polygon>' +
+    '<polygon points="32,57 38,34 32,39 26,34" fill="var(--线条)"></polygon>' +
+    '<text x="32" y="17" text-anchor="middle" font-size="12" font-weight="bold" fill="var(--失误)">北</text>' +
+    '<text x="32" y="54" text-anchor="middle" font-size="11" fill="#7c8ea1">南</text>' +
+    '<text x="12" y="36" text-anchor="middle" font-size="11" fill="#7c8ea1">西</text>' +
+    '<text x="52" y="36" text-anchor="middle" font-size="11" fill="#7c8ea1">东</text>' +
+    '</svg>';
+  罗盘盒.appendChild(建元素('div', 'compass-note', '红色指针指向北。方格图同样按"上北、下南、左西、右东"。'));
+  右侧.appendChild(罗盘盒);
+
+  const 棋盘 = 建元素('div', 'route-board');
+  const 格子表 = {};
+  for (let 行 = 行数 - 1; 行 >= 0; 行--){          // 从最上面一行开始布置
+    for (let 列 = 0; 列 < 列数; 列++){
+      const c = 建元素('div', 'route-cell');
+      格子表[列 + ',' + 行] = c;
+      if (列 === 0 && 行 === 0){
+        const m = 建元素('div', 'mark', '🚩');
+        c.appendChild(m);
+        c.appendChild(建元素('div', 'marker-label', 'A 起点'));
+      }
+      if (列 === 路.终点.x && 行 === 路.终点.y){
+        const m = 建元素('div', 'mark', '💎');
+        c.appendChild(m);
+        c.appendChild(建元素('div', 'marker-label', 'B 宝藏'));
+      }
+      棋盘.appendChild(c);
+    }
+  }
+  const 角色 = 建元素('div', 'char', '🚶');
+  棋盘.appendChild(角色);
+  右侧.appendChild(棋盘);
+
+  const 按钮区 = 建元素('div', 'dpad');
+  ['北','西','东','南'].forEach(d => {
+    const b = 建元素('button', 'dpad-btn', d + ' ' + 方向箭头2[d]);
+    b.dataset.dir = d;
+    按钮区.appendChild(b);
+  });
+  右侧.appendChild(按钮区);
+  包裹.appendChild(右侧);
+
+  // --- 布局尺寸（格宽按容器自适应） ---
+  function 重排(){
+    const 可用 = Math.min(右侧.clientWidth - 10, 720);
+    const 格宽 = Math.max(34, Math.min(62, Math.floor(可用 / 列数)));
+    棋盘.style.gridTemplateColumns = 'repeat(' + 列数 + ',' + 格宽 + 'px)';
+    棋盘.style.gridTemplateRows = 'repeat(' + 行数 + ',' + 格宽 + 'px)';
+    摆角色();
+  }
+  let 当前列 = 0, 当前行 = 0;
+  function 摆角色(){
+    角色.style.left = ((当前列 + 0.5) / 列数 * 100) + '%';
+    角色.style.top = ((行数 - 1 - 当前行 + 0.5) / 行数 * 100) + '%';
+  }
+  G.重排处理 = 重排;
+  重排();
+
+  // --- 行走逻辑 ---
+  let 段号 = 0, 段内剩 = 路.段[0].长;
+  let 已完成 = false;
+  function 刷新指令(){
+    指令行.forEach((li, i) => {
+      li.classList.toggle('done', i < 段号);
+      li.classList.toggle('now', i === 段号);
+    });
+    if (段号 < 路.段.length){
+      指令行[段号].textContent = '第' + (段号 + 1) + '步：向' + 路.段[段号].向 + ' ' + 方向箭头2[路.段[段号].向] + ' 走 ' + 路.段[段号].长 + ' 格（还剩 ' + 段内剩 + ' 格）';
+    }
+  }
+  刷新指令();
+  function 移动一步(向){
+    当前列 += 方向位移[向][0];
+    当前行 += 方向位移[向][1];
+    const 格 = 格子表[当前列 + ',' + 当前行];
+    if (格) 格.classList.add('trail');
+    摆角色();
+  }
+  function 走一步(向){
+    if (已完成) return;
+    计步();
+    const 当前段 = 路.段[段号];
+    if (!当前段) return;
+    if (向 !== 当前段.向){
+      记错();
+      音效('错');
+      角色.classList.add('shake');
+      setTimeout(() => 角色.classList.remove('shake'), 400);
+      提示('看清楚哦：当前指令是【向' + 当前段.向 + '走】');
+      return;
+    }
+    移动一步(向);
+    段内剩--;
+    if (段内剩 === 0){
+      段号++;
+      if (段号 < 路.段.length) 段内剩 = 路.段[段号].长;
+    }
+    刷新指令();
+    if (段号 >= 路.段.length){
+      已完成 = true;
+      音效('对');
+      提示('到达宝藏 B 点啦！', true);
+      完成关卡(900);
+    }
+  }
+  按钮区.querySelectorAll('.dpad-btn').forEach(b => {
+    b.addEventListener('click', () => 走一步(b.dataset.dir));
+  });
+
+  // 揭示答案：自动按指令走完剩余路程
+  G.揭示处理 = () => {
+    if (已完成) return;
+    按钮区.querySelectorAll('.dpad-btn').forEach(b => { b.disabled = true; });
+    G.自动走句柄 = setInterval(() => {
+      if (段号 >= 路.段.length){ 清理自动走(); return; }
+      移动一步(路.段[段号].向);
+      段内剩--;
+      if (段内剩 === 0){
+        段号++;
+        if (段号 < 路.段.length) 段内剩 = 路.段[段号].长;
+        刷新指令();
+      }
+      if (段号 >= 路.段.length){
+        清理自动走();
+        已完成 = true;
+        完成关卡(600);
+      }
+    }, 240);
+  };
+}
+/* 建一个带类名的 div 盒子（常用容器包装） */
+function 建盒子(类名){ return 建元素('div', 类名); }
+
+/* ============================================================
+   关卡三：摘星台（数对 (列, 行) 点击定位）
+   每局随机生成星星位置（反重复机制）
+   ============================================================ */
+function 渲染摘星(){
+  const 配置 = { 初级:{ n:5, 任务:4, 锚:2 }, 中级:{ n:6, 任务:5, 锚:2 }, 高级:{ n:6, 任务:6, 锚:1 } }[G.难度];
+  const n = 配置.n;
+  // 随机抽出不重复的格子
+  const 全格 = [];
+  for (let c = 1; c <= n; c++) for (let r = 1; r <= n; r++) 全格.push({ 列:c, 行:r });
+  const 抽出 = 洗牌(全格).slice(0, 配置.任务 + 配置.锚);
+  const 锚点 = 抽出.slice(0, 配置.锚);
+  const 任务 = 洗牌(抽出.slice(配置.锚));
+
+  const 舞台 = 声明('#stage');
+  舞台.innerHTML = '';
+  const 包裹 = 建盒子('pairs-wrap');
+
+  // --- 方格图（左列行号从下往上增大；底行列号从左往右增大） ---
+  const 网格 = 建元素('div', 'pairs-grid');
+  const 格子表 = {};
+  const 格宽基础 = Math.max(46, Math.min(66, Math.floor((Math.min(window.innerWidth, 640) - 90) / n)));
+  网格.style.gridTemplateColumns = '40px repeat(' + n + ',' + 格宽基础 + 'px)';
+  网格.style.gridTemplateRows = 'repeat(' + n + ',' + 格宽基础 + 'px) 40px';
+  for (let i = 0; i <= n; i++){           // i=0 是最上行为第 n 行
+    for (let j = 0; j <= n; j++){         // j=0 是行号列
+      if (i === n && j === 0){ 网格.appendChild(建元素('div', 'p-label', '')); continue; }
+      if (j === 0){ 网格.appendChild(建元素('div', 'p-label', String(n - i))); continue; }
+      if (i === n){ 网格.appendChild(建元素('div', 'p-label', String(j))); continue; }
+      const 行 = n - i, 列 = j;
+      const c = 建元素('div', 'p-cell');
+      c.dataset.列 = 列; c.dataset.行 = 行;
+      格子表[列 + ',' + 行] = c;
+      网格.appendChild(c);
+    }
+  }
+  // 锚点星星（已点亮，带数对标注，帮助学生读规则）
+  锚点.forEach(a => {
+    const c = 格子表[a.列 + ',' + a.行];
+    c.classList.add('star');
+    c.appendChild(建元素('div', 'star-ico', '⭐'));
+    c.appendChild(建元素('div', 'star-label', '(' + a.列 + ',' + a.行 + ')'));
+  });
+  包裹.appendChild(网格);
+
+  // --- 右：任务卡 ---
+  const 卡板 = 建元素('div', 'task-panel');
+  卡板.appendChild(建元素('h3', null, '🌟 把星星点亮到对应位置'));
+  卡板.appendChild(建元素('div', 'hint-line', '数对(列, 行)：第1个数从左往右数列，第2个数从下往上数行。'));
+  const 卡列表 = {};
+  任务.forEach(t => {
+    const 卡 = 建元素('div', 'task', '(' + t.列 + ',' + t.行 + ')');
+    卡板.appendChild(卡);
+    卡列表[t.列 + ',' + t.行] = 卡;
+  });
+  包裹.appendChild(卡板);
+  舞台.appendChild(包裹);
+
+  let 当前序 = 0;
+  function 高亮当前(){
+    任务.forEach((t, i) => {
+      const 卡 = 卡列表[t.列 + ',' + t.行];
+      卡.classList.toggle('now', i === 当前序);
+      卡.classList.toggle('done', i < 当前序);
+    });
+  }
+  高亮当前();
+  function 点亮(c, t){
+    c.classList.add('star');
+    c.appendChild(建元素('div', 'star-ico', '⭐'));
+    c.appendChild(建元素('div', 'star-label', '(' + t.列 + ',' + t.行 + ')'));
+    音效('对');
+  }
+  let 已完成 = false;
+  网格.querySelectorAll('.p-cell').forEach(c => {
+    c.addEventListener('click', () => {
+      if (已完成 || 当前序 >= 任务.length) return;
+      if (c.classList.contains('star')) { 提示('这颗星星已经亮啦'); return; }
+      计步();
+      const t = 任务[当前序];
+      if (Number(c.dataset.列) === t.列 && Number(c.dataset.行) === t.行){
+        点亮(c, t);
+        当前序++;
+        高亮当前();
+        if (当前序 >= 任务.length){
+          已完成 = true;
+          提示('满台星光，全部点亮！', true);
+          完成关卡(700);
+        }
+      } else {
+        c.classList.add('flash-bad');
+        setTimeout(() => c.classList.remove('flash-bad'), 520);
+        记错();
+        音效('错');
+        提示('再想一想：先数列（从左往右），再数行（从下往上）');
+      }
+    });
+  });
+  // 揭示答案：把剩余星星全部点亮
+  G.揭示处理 = () => {
+    let 延时 = 0;
+    for (let i = 当前序; i < 任务.length; i++){
+      const t = 任务[i];
+      setTimeout(() => {
+        const c = 格子表[t.列 + ',' + t.行];
+        点亮(c, t);
+        当前序 = i + 1;
+        高亮当前();
+        if (当前序 >= 任务.length && !已完成){ 已完成 = true; 完成关卡(500); }
+      }, 延时);
+      延时 += 260;
+    }
+  };
+}
+
+/* ============================================================
+   关卡四：阳光影院（对号入座；高级含票务推理 + 三连坐）
+   座位规律来自教参例2/练习6/B卷1：左边单号、右边双号，排数从前往后
+   ============================================================ */
+function 渲染影院(){
+  const 舞台 = 声明('#stage');
+  舞台.innerHTML = '';
+  const 包裹 = 建盒子('cinema-wrap');
+
+  const 影厅配置 = { 初级:{ 排:4, 每排:10, 显标签:4 }, 中级:{ 排:6, 每排:10, 显标签:2 }, 高级:{ 排:7, 每排:20, 显标签:2 } }[G.难度];
+
+  // --- 生成影厅座位 ---
+  const 影厅 = 建元素('div', 'hall' + (影厅配置.每排 === 20 ? ' big' : ''));
+  影厅.appendChild(建元素('div', 'screen-bar', '🎬 银 幕 🎬'));
+  const 说明 = 建元素('div', 'side-note',
+    '座位规律：左边是单号，右边是双号；排数从前往后数（一排最靠近银幕）。' +
+    (影厅配置.显标签 < 影厅配置.排 ? '影厅共 ' + 中文数[影厅配置.排 - 1] + ' 排，后面的排号要自己数一数哦。' : ''));
+  影厅.appendChild(说明);
+  const 座位表 = {}; // '排,号' -> 座位元素
+  for (let 排 = 1; 排 <= 影厅配置.排; 排++){
+    const 行盒 = 建元素('div', 'crow-row');
+    const 标签 = (排 <= 影厅配置.显标签) ? (中文数[排 - 1] + '排') : '？排';
+    行盒.appendChild(建元素('span', 'row-label', 标签));
+    const 座盒 = 建元素('div', 'seats');
+    const 单号侧 = [], 双号侧 = [];
+    for (let 号 = 1; 号 <= 影厅配置.每排; 号 += 2) 单号侧.push(号);
+    for (let 号 = 2; 号 <= 影厅配置.每排; 号 += 2) 双号侧.push(号);
+    单号侧.reverse(); // 左侧从外到内递减：…5 3 1（1 号紧挨过道）
+    单号侧.forEach(号 => 座盒.appendChild(造座(排, 号)));
+    座盒.appendChild(建元素('span', 'aisle', '过道'));
+    双号侧.forEach(号 => 座盒.appendChild(造座(排, 号)));
+    行盒.appendChild(座盒);
+    影厅.appendChild(行盒);
+  }
+  function 造座(排, 号){
+    const s = 建元素('button', 'seat', String(号));
+    s.type = 'button';
+    s.dataset.排 = 排; s.dataset.号 = 号;
+    座位表[排 + ',' + 号] = s;
+    return s;
+  }
+  包裹.appendChild(影厅);
+  舞台.appendChild(包裹);
+
+  let 完成数 = 0, 需完成数 = 0, 已通关 = false;
+  function 入座(座位, 表情){
+    座位.classList.add('occ');
+    座位.innerHTML = String(座位.dataset.号);
+    const 脸 = 建元素('span', 'face', 表情 || '😀');
+    座位.appendChild(脸);
+    音效('对');
+  }
+  function 试着通关(){
+    if (完成数 >= 需完成数 && 需完成数 > 0 && !已通关){
+      已通关 = true;
+      提示('全部对号入座，观影开始！', true);
+      完成关卡(700);
+    }
+  }
+
+  /* ---------- 初级 / 中级：直接给票，点击座位 ---------- */
+  if (G.难度 !== '高级'){
+    const 排范围 = (G.难度 === '初级') ? [1, 4] : [3, 6];
+    const 票数 = (G.难度 === '初级') ? 2 : 3;
+    const 小伙伴 = 洗牌([['小芳','👧'], ['小明','👦'], ['小光','🧒'], ['小丽','👩'], ['小军','🧑']]);
+    // 随机生成不重复的票
+    const 已用 = {};
+    const 票列表 = [];
+    let 保护 = 0;
+    while (票列表.length < 票数 && 保护 < 200){
+      保护++;
+      const 排 = 随机整数(排范围[0], 排范围[1]);
+      const 号 = (Math.random() < 0.5 ? 随机整数(0, 4) * 2 + 1 : 随机整数(1, 5) * 2);
+      if (号 > 影厅配置.每排) continue;
+      const 键 = 排 + ',' + 号;
+      if (已用[键]) continue;
+      已用[键] = true;
+      票列表.push({ 排, 号, 谁:小伙伴[票列表.length] });
+    }
+    需完成数 = 票列表.length;
+
+    const 票板 = 建元素('div', 'ticket-panel');
+    票板.appendChild(建元素('h3', null, '🎟 电影票（按票找座）'));
+    const 票卡表 = [];
+    票列表.forEach((票, i) => {
+      const 卡 = 建元素('div', 'ticket');
+      卡.appendChild(建元素('div', 'tk-who', 票.谁[0] + ' ' + 票.谁[1] + ' 的票'));
+      卡.appendChild(建元素('div', 'tk-seat', 中文数[票.排 - 1] + '排 ' + 票.号 + ' 号'));
+      票板.appendChild(卡);
+      票卡表.push(卡);
+    });
+    包裹.appendChild(票板);
+    let 当前票 = 0;
+    function 高亮票(){
+      票卡表.forEach((卡, i) => {
+        卡.classList.toggle('now', i === 当前票);
+        卡.classList.toggle('done', i < 当前票);
+      });
+    }
+    高亮票();
+    Object.keys(座位表).forEach(键 => {
+      const s = 座位表[键];
+      s.addEventListener('click', () => {
+        if (已通关 || 当前票 >= 票列表.length) return;
+        if (s.classList.contains('occ')) { 提示('这个座位已经有人坐啦'); return; }
+        计步();
+        const 票 = 票列表[当前票];
+        if (Number(s.dataset.排) === 票.排 && Number(s.dataset.号) === 票.号){
+          入座(s, 票.谁[1]);
+          完成数++;
+          当前票++;
+          高亮票();
+          试着通关();
+        } else {
+          s.classList.add('shake', 'flash-bad');
+          setTimeout(() => s.classList.remove('shake', 'flash-bad'), 520);
+          记错();
+          音效('错');
+          提示('座位不对哦：想想左单右双，再从前往后数排数');
+        }
+      });
+    });
+    // 揭示答案
+    G.揭示处理 = () => {
+      for (let i = 当前票; i < 票列表.length; i++){
+        const 票 = 票列表[i];
+        const s = 座位表[票.排 + ',' + 票.号];
+        入座(s, 票.谁[1]);
+        完成数++;
+      }
+      当前票 = 票列表.length;
+      高亮票();
+      试着通关();
+    };
+    return;
+  }
+
+  /* ---------- 高级：票务推理 + 三人连坐 ---------- */
+  // 推理票：排数比号数少 d，号数是排数的 k 倍（教参 B卷1 题型）
+  const 倍数 = 抽一个([2, 3]);
+  let 推理排 = 0, 推理号 = 0;
+  if (倍数 === 2){ 推理排 = 随机整数(3, 7); 推理号 = 推理排 * 2; }
+  else { 推理排 = 随机整数(3, 6); 推理号 = 推理排 * 3; }
+  const 差值 = 推理号 - 推理排;
+
+  // 三连坐：同一排相邻三个同侧座位，号数和唯一确定（教参练习6 题型）
+  const 连坐排 = 随机整数(4, 7);
+  const 用双号 = Math.random() < 0.5;
+  let 起号 = 0;
+  if (用双号) 起号 = 随机整数(1, 8) * 2;         // 双号侧：2,4,…,16 起，三个号 a,a+2,a+4
+  else 起号 = 随机整数(0, 7) * 2 + 1;             // 单号侧：1,3,…,15 起
+  const 连坐号组 = [起号, 起号 + 2, 起号 + 4];
+  const 号数和 = 起号 * 3 + 6;
+
+  // --- 票务台（步进器调数字，属连续调节类操作） ---
+  const 办公室 = 建元素('div', 'office');
+  办公室.appendChild(建元素('h3', null, '🎫 票务台 · 先推理出小智的票'));
+  const 线索 = 建元素('div', 'clue-text',
+    '线索：小智的电影票，排数比号数少 ' + 差值 + '，号数是排数的 ' + 倍数 + ' 倍。用下面的按钮调出【排数】和【号数】，再点"检票"。');
+  办公室.appendChild(线索);
+  const 步进盒 = 建元素('div', 'steppers');
+  const 票台 = { 排:1, 号:1 };
+  function 造步进(键, 最小, 最大){
+    const 组 = 建元素('div', 'stepper');
+    组.appendChild(建元素('span', 'st-name', 键 === '排' ? '排数' : '号数'));
+    const 减 = 建元素('button', 'st-btn', '−');
+    const 数 = 建元素('div', 'st-num', String(票台[键]));
+    const 加 = 建元素('button', 'st-btn', '＋');
+    减.type = 'button'; 加.type = 'button';
+    减.addEventListener('click', () => { 票台[键] = Math.max(最小, 票台[键] - 1); 数.textContent = String(票台[键]); });
+    加.addEventListener('click', () => { 票台[键] = Math.min(最大, 票台[键] + 1); 数.textContent = String(票台[键]); });
+    组.appendChild(减); 组.appendChild(数); 组.appendChild(加);
+    步进盒.appendChild(组);
+    return 数;
+  }
+  const 排显示 = 造步进('排', 1, 7);
+  const 号显示 = 造步进('号', 1, 20);
+  办公室.appendChild(步进盒);
+  const 检票钮 = 建元素('button', 'btn', '✅ 检票');
+  检票钮.type = 'button';
+  办公室.appendChild(检票钮);
+  包裹.appendChild(办公室);
+
+  // --- 票卡面板：小智的票 + 三连坐任务 ---
+  const 票板 = 建元素('div', 'ticket-panel');
+  票板.appendChild(建元素('h3', null, '🎟 观影任务'));
+  const 小智卡 = 建元素('div', 'ticket now');
+  小智卡.appendChild(建元素('div', 'tk-who', '🧒 小智的票（待推理）'));
+  const 小智座 = 建元素('div', 'tk-seat', '？排 ？号');
+  小智卡.appendChild(小智座);
+  票板.appendChild(小智卡);
+  const 连坐说明 = 建元素('div', 'triple-tip',
+    '👥 三人连坐：小慧、小勇和小美要坐在 ' + 中文数[连坐排 - 1] + ' 排相邻的三个' + (用双号 ? '双' : '单') +
+    '号座位（号数一个挨一个），三个座位号加起来正好是 ' + 号数和 + '。请依次点亮这三个座位！');
+  连坐说明.style.display = 'none';
+  票板.appendChild(连坐说明);
+  包裹.appendChild(票板);
+
+  需完成数 = 2; // 1 张推理票 + 1 组三连坐
+  let 已取票 = false;
+  let 小智已坐 = false;
+  let 已连坐 = false;
+  const 已选 = [];
+
+  检票钮.addEventListener('click', () => {
+    if (已取票) return;
+    计步();
+    if (票台.排 === 推理排 && 票台.号 === 推理号){
+      已取票 = true;
+      音效('胜');
+      小智卡.classList.remove('now');
+      小智卡.querySelector('.tk-who').textContent = '🧒 小智的票（已取票）';
+      小智座.textContent = 中文数[推理排 - 1] + '排 ' + 推理号 + ' 号';
+      提示('取票成功！请在影厅里点击这个座位', true);
+      连坐说明.style.display = 'block';
+    } else {
+      记错();
+      音效('错');
+      提示('这组数字不满足线索哦：排数比号数少 ' + 差值 + '，号数是排数的 ' + 倍数 + ' 倍');
+    }
+  });
+
+  function 连坐判定(){
+    if (已选.length < 3) return;
+    const 对 = 已选.every(s => Number(s.dataset.排) === 连坐排 && 连坐号组.indexOf(Number(s.dataset.号)) >= 0);
+    if (对 && 已选.length === 3){
+      已选.forEach(s => 入座(s, '😀'));
+      已连坐 = true;
+      完成数++;
+      提示('三人连坐成功！', true);
+      试着通关();
+    } else {
+      记错();
+      音效('错');
+      已选.forEach(s => s.classList.remove('picked'));
+      已选.length = 0;
+      提示('这三位不满足条件，再想想：同一排、相邻、' + (用双号 ? '双' : '单') + '号、号数和是 ' + 号数和);
+    }
+  }
+  Object.keys(座位表).forEach(键 => {
+    const s = 座位表[键];
+    s.addEventListener('click', () => {
+      if (已通关) return;
+      if (s.classList.contains('occ')) { 提示('这个座位已经有人坐啦'); return; }
+      计步();
+      // 阶段一：先在票务台推理并检票
+      if (!已取票){ 提示('先在票务台推理出小智的票并检票哦'); return; }
+      // 阶段二：带小智入座
+      if (!小智已坐){
+        if (Number(s.dataset.排) === 推理排 && Number(s.dataset.号) === 推理号){
+          小智已坐 = true;
+          入座(s, '🧒');
+          小智卡.classList.add('done');
+          完成数++;
+          提示('小智找到座位啦！接下来完成三人连坐', true);
+          试着通关();
+          return;
+        }
+        提示('先带小智入座：找 ' + 中文数[推理排 - 1] + '排 ' + 推理号 + ' 号');
+        s.classList.add('shake', 'flash-bad');
+        setTimeout(() => s.classList.remove('shake', 'flash-bad'), 520);
+        记错();
+        音效('错');
+        return;
+      }
+      // 阶段三：三连坐点选
+      if (已选.indexOf(s) >= 0){
+        s.classList.remove('picked');
+        已选.splice(已选.indexOf(s), 1);
+        return;
+      }
+      if (已选.length >= 3){ 提示('最多先选 3 个座位，点已选的可以取消'); return; }
+      s.classList.add('picked');
+      已选.push(s);
+      if (已选.length === 3) setTimeout(连坐判定, 150);
+    });
+  });
+
+  // 揭示答案：直接给出正确票与正确座位
+  G.揭示处理 = () => {
+    if (!已取票){
+      票台.排 = 推理排; 票台.号 = 推理号;
+      排显示.textContent = String(推理排);
+      号显示.textContent = String(推理号);
+      已取票 = true;
+      小智卡.querySelector('.tk-who').textContent = '🧒 小智的票（已揭示）';
+      小智座.textContent = 中文数[推理排 - 1] + '排 ' + 推理号 + ' 号';
+      连坐说明.style.display = 'block';
+    }
+    if (!已连坐){
+      const s = 座位表[推理排 + ',' + 推理号];
+      if (s && !s.classList.contains('occ')){
+        s.classList.remove('picked');
+        小智已坐 = true;
+        入座(s, '🧒');
+        小智卡.classList.add('done');
+        完成数++;
+      }
+      let 延时 = 300;
+      连坐号组.forEach(号 => {
+        const 座 = 座位表[连坐排 + ',' + 号];
+        setTimeout(() => {
+          if (座 && !座.classList.contains('occ')){
+            入座(座, '😀');
+            if (!已连坐){ 已连坐 = true; 完成数++; } // 三个座位只计一次任务完成
+            试着通关();
+          }
+        }, 延时);
+        延时 += 280;
+      });
+    }
+  };
+}
+
+/* ============================================================
+   彩纸庆祝（Canvas 实现，通关动画 G5）
+   ============================================================ */
+const 彩纸画布 = 声明('#confetti');
+const 彩笔 = 彩纸画布.getContext('2d');
+let 彩纸数组 = [];
+let 彩纸动画 = null;
+let 彩纸停止时刻 = 0;
+function 放彩纸(时长毫秒){
+  彩纸画布.width = window.innerWidth;
+  彩纸画布.height = window.innerHeight;
+  彩纸停止时刻 = Date.now() + 时长毫秒;
+  if (彩纸动画) return; // 已在播放则只延长时长
+  const 颜色组 = ['#ffb703','#2f9e5b','#d6455d','#2f7fd6','#7a5fd0','#ff8fab'];
+  function 补充(){
+    for (let i = 0; i < 14; i++){
+      彩纸数组.push({
+        x: Math.random() * 彩纸画布.width,
+        y: -20 - Math.random() * 60,
+        w: 8 + Math.random() * 8,
+        h: 6 + Math.random() * 6,
+        色: 抽一个(颜色组),
+        vy: 2.2 + Math.random() * 2.6,
+        vx: -1.4 + Math.random() * 2.8,
+        转: Math.random() * Math.PI,
+        v转: -0.16 + Math.random() * 0.32,
+      });
+    }
+  }
+  补充(); 补充();
+  function 帧(){
+    彩笔.clearRect(0, 0, 彩纸画布.width, 彩纸画布.height);
+    彩纸数组.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.转 += p.v转;
+      彩笔.save();
+      彩笔.translate(p.x, p.y);
+      彩笔.rotate(p.转);
+      彩笔.fillStyle = p.色;
+      彩笔.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      彩笔.restore();
+    });
+    彩纸数组 = 彩纸数组.filter(p => p.y < 彩纸画布.height + 30);
+    if (Date.now() < 彩纸停止时刻 && 彩纸数组.length < 260) 补充();
+    if (Date.now() < 彩纸停止时刻 || 彩纸数组.length > 0){
+      彩纸动画 = requestAnimationFrame(帧);
+    } else {
+      彩纸动画 = null;
+    }
+  }
+  彩纸动画 = requestAnimationFrame(帧);
+}
+
+/* ============================================================
+   事件绑定 与 启动
+   ============================================================ */
+document.querySelectorAll('.diff-btn').forEach(b => {
+  b.addEventListener('click', () => 开始游戏(b.dataset.diff));
+});
+声明('#homeRulesBtn').addEventListener('click', 打开规则);
+声明('#btnRules').addEventListener('click', 打开规则);
+声明('#btnCloseRules').addEventListener('click', () => 声明('#rulesModal').classList.add('hidden'));
+声明('#btnReveal').addEventListener('click', () => {
+  if (!G.揭示处理) return;
+  G.本关揭示 = true;
+  声明('#btnReveal').disabled = true;
+  提示('已揭示本关答案，观察正确做法吧');
+  G.揭示处理();
+});
+声明('#btnRestart').addEventListener('click', () => {
+  声明('#levelModal').classList.add('hidden');
+  声明('#winModal').classList.add('hidden');
+  提示('重新开始，题目已重新生成');
+  开始游戏(G.难度);
+});
+声明('#btnBack').addEventListener('click', () => {
+  声明('#levelModal').classList.add('hidden');
+  声明('#winModal').classList.add('hidden');
+  显示首页();
+});
+声明('#btnNextLevel').addEventListener('click', 下一关);
+声明('#btnAgain').addEventListener('click', () => {
+  声明('#winModal').classList.add('hidden');
+  开始游戏(G.难度);
+});
+声明('#btnBackHome').addEventListener('click', () => {
+  声明('#winModal').classList.add('hidden');
+  显示首页();
+});
+window.addEventListener('resize', () => {
+  if (G.重排处理) G.重排处理();
+});
+显示首页();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-t/g009", "name": "\u65b9\u5411\u4e0e\u4f4d\u7f6e \u00b7 \u63a2\u9669\u4e50\u56ed\uff08\u7b2c7\u8bb2 \u4e92\u52a8\u6e38\u620f\uff09", "file": "g009.html", "jiaocan": "\u7b2c7\u8bb2 \u65b9\u5411\u4e0e\u4f4d\u7f6e", "unit": "\u7b2c7\u8bb2", "grade": "2\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "T\uff1a\u5c0f\u5b66\u5965\u6570T\uff08\u5357\u4eac\u4f53\u7cfb\u8bfe\uff09", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u5b66\u5965\u6570T\uff08\u5357\u4eac\u4f53\u7cfb\u8bfe\uff09\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-t"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

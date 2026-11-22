@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>水果天平大冒险 · 推理比较（下）</title>
+<style>
+/* ============ 主题色板（每局随机挑选一个，保证常玩常新） ============ */
+:root{
+  --c1:#1e88e5; --c2:#90caf9; --bg:#f0f8ff; --ink:#17324d;
+  --ok:#2e7d32; --warn:#c62828; --chip:#ffffff;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:linear-gradient(160deg,var(--bg) 0%, #ffffff 100%);
+  color:var(--ink);
+  -webkit-tap-highlight-color:transparent;
+  overflow-x:hidden;
+}
+#app{ max-width:1120px; margin:0 auto; padding:8px 12px 90px; }
+
+/* ============ 顶部信息栏：关卡名 + 计时器 + 步数（G7） ============ */
+#hud{
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;
+  background:var(--c1); color:#fff; border-radius:16px; padding:10px 18px;
+  box-shadow:0 4px 14px rgba(0,0,0,.15); position:sticky; top:6px; z-index:50;
+}
+#hudLevelName{ font-size:22px; font-weight:800; letter-spacing:1px; }
+.hud-right{ display:flex; gap:10px; flex-wrap:wrap; }
+.hud-pill{
+  background:rgba(255,255,255,.22); border:2px solid rgba(255,255,255,.65);
+  border-radius:999px; padding:4px 14px; font-size:18px; font-weight:700;
+}
+
+/* ============ 首页：难度选择（G3） ============ */
+.screen{ display:none; }
+.screen.active{ display:block; }
+#homeHero{ text-align:center; padding:26px 8px 10px; }
+#homeHero h1{ font-size:44px; color:var(--c1); text-shadow:2px 2px 0 var(--c2); letter-spacing:2px; }
+#homeHero .sub{ font-size:20px; margin-top:10px; color:var(--ink); opacity:.85; }
+#homeHero .demoScales{ display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin:14px 0 4px; }
+#diffGrid{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin-top:18px; }
+.diffCard{
+  width:280px; border-radius:22px; padding:22px 18px; cursor:pointer; text-align:center;
+  background:#fff; border:5px solid var(--c1); box-shadow:0 8px 20px rgba(0,0,0,.12);
+  transition:transform .15s, box-shadow .15s;
+}
+.diffCard:hover{ transform:translateY(-6px) scale(1.02); box-shadow:0 14px 28px rgba(0,0,0,.18); }
+.diffCard .dname{ font-size:30px; font-weight:900; color:var(--c1); }
+.diffCard .dtag{ display:inline-block; margin-top:6px; background:var(--c2); color:var(--ink);
+  border-radius:999px; padding:3px 14px; font-size:17px; font-weight:700; }
+.diffCard .ddesc{ margin-top:12px; font-size:17px; line-height:1.6; text-align:left; }
+#homeFoot{ text-align:center; margin-top:26px; }
+
+/* ============ 通用按钮 ============ */
+.btn{
+  display:inline-block; border:none; cursor:pointer; border-radius:14px;
+  font-size:19px; font-weight:800; padding:10px 20px; color:#fff;
+  background:var(--c1); box-shadow:0 4px 0 rgba(0,0,0,.18); letter-spacing:1px;
+}
+.btn:active{ transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.18); }
+.btn.ghost{ background:#fff; color:var(--c1); border:3px solid var(--c1); }
+.btn.warnb{ background:#ef6c00; }
+.btn.small{ font-size:17px; padding:7px 14px; }
+
+/* ============ 游戏区布局 ============ */
+#taskBar{
+  margin:14px 0 10px; background:#fff; border:4px solid var(--c2); border-radius:18px;
+  padding:12px 18px; box-shadow:0 4px 12px rgba(0,0,0,.08);
+}
+#taskText{ font-size:22px; font-weight:800; line-height:1.55; }
+#taskSrc{ margin-top:6px; font-size:16px; opacity:.75; }
+.zoneTitle{
+  font-size:20px; font-weight:900; color:var(--c1); margin:16px 0 8px;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+}
+.zoneTitle .hint{ font-size:15px; font-weight:600; color:var(--ink); opacity:.7; }
+
+#gameMain{ display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+#leftCol{ flex:1 1 460px; min-width:320px; }
+#rightCol{ flex:1 1 420px; min-width:300px; }
+
+/* 天平记录卡 */
+#condZone{ display:flex; gap:14px; flex-wrap:wrap; }
+#condZone .emptyTip{ font-size:17px; color:#89a; font-weight:800; padding:8px 4px; }
+.bcard{
+  background:#fff; border:4px solid var(--c1); border-radius:16px; padding:8px 10px 10px;
+  width:250px; box-shadow:0 4px 10px rgba(0,0,0,.10); transition:transform .3s; cursor:grab;
+}
+.bcard.inchain{ border-color:var(--ok); }
+.bcard .bhead{ display:flex; justify-content:space-between; align-items:center; font-size:15px; font-weight:800; }
+.bcard .bhead .flipTip{ color:var(--c1); }
+.bcard svg{ width:100%; height:auto; display:block; }
+.bcard .tiltBadge{
+  text-align:center; font-size:16px; font-weight:800; border-radius:8px; padding:2px 6px; margin-top:2px;
+}
+.tiltBadge.leftdown{ background:#e3f2fd; color:#1565c0; }
+.tiltBadge.rightdown{ background:#fff3e0; color:#e65100; }
+.tiltBadge.even{ background:#e8f5e9; color:#2e7d32; }
+.bcard .chipsRow{ display:flex; justify-content:space-between; align-items:center; margin-top:6px; gap:4px; }
+.bcard .panChips{ display:flex; gap:4px; flex-wrap:wrap; }
+.bcard .vsMark{ font-size:15px; font-weight:900; opacity:.6; }
+.chip{
+  background:var(--chip); border:2px solid #bbb; border-radius:10px; padding:2px 7px;
+  font-size:17px; font-weight:800; display:inline-flex; align-items:center; gap:3px; white-space:nowrap;
+}
+.chip .em{ font-size:22px; }
+.chip.removable{ border-color:var(--ok); border-style:dashed; background:#f1f8e9; cursor:grab; }
+.chip.removable::after{ content:"可拿走"; font-size:12px; color:var(--ok); }
+.bcard .simplified{
+  margin-top:6px; background:#e8f5e9; color:#2e7d32; border-radius:8px;
+  font-size:15px; font-weight:800; text-align:center; padding:3px 4px;
+}
+.bcard .toRemove{
+  margin-top:6px; background:#fff8e1; color:#e65100; border-radius:8px;
+  font-size:15px; font-weight:800; text-align:center; padding:3px 4px;
+}
+
+/* 推理链（串糖葫芦） */
+#chainZone{ display:flex; gap:10px; flex-wrap: wrap; align-items:stretch; min-height:100px; }
+.chainSlot{
+  width:225px; min-height:150px; border:4px dashed var(--c2); border-radius:16px;
+  background:rgba(255,255,255,.7); display:flex; align-items:center; justify-content:center;
+  font-size:17px; font-weight:800; color:#9ab; position:relative; padding:4px;
+}
+.chainSlot .slotNo{ position:absolute; top:4px; left:8px; font-size:14px; opacity:.7; }
+.chainSlot .emptyPh{ font-size:16px; color:#9ab; font-weight:800; text-align:center; line-height:1.5; }
+.chainLink{
+  align-self:center; font-size:30px; font-weight:900; color:#ccc;
+}
+.chainLink.good{ color:var(--ok); text-shadow:0 0 8px #a5d6a7; }
+#chainMsg{ margin-top:8px; font-size:17px; font-weight:800; color:var(--ok); min-height:24px; }
+
+/* 领奖台 */
+#answerZone{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+.podSlot{
+  width:120px; min-height:130px; border:4px dashed var(--c1); border-radius:16px;
+  background:rgba(255,255,255,.75); display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:4px; position:relative; transition:transform .15s;
+}
+.podSlot .podLabel{ font-size:17px; font-weight:900; color:var(--c1); }
+.podSlot .emptyPh{ font-size:15px; color:#89a; font-weight:800; text-align:center; }
+.podSlot.shake{ animation:shk .4s; }
+@keyframes shk{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+
+/* 皇冠目标卡 */
+#crownTargets{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+.crownCard{
+  width:130px; background:#fff; border:4px solid var(--c2); border-radius:16px; padding:10px 6px;
+  text-align:center; transition:transform .15s, border-color .15s;
+}
+.crownCard .bigEm{ font-size:56px; line-height:1.1; }
+.crownCard .nm{ font-size:20px; font-weight:900; margin-top:4px; }
+.crownCard .hole{ margin-top:6px; border:3px dashed #bbb; border-radius:10px; font-size:15px; color:#99a; padding:2px; }
+.crownCard:hover{ transform:translateY(-4px); }
+.crownCard.right{ border-color:var(--ok); background:#f1f8e9; }
+.crownCard.wrong{ animation:shk .4s; border-color:var(--warn); }
+
+/* 待拖动物品托盘 */
+#paletteZone{
+  display:flex; gap:12px; flex-wrap:wrap; justify-content:center;
+  background:rgba(255,255,255,.65); border:4px solid var(--c2); border-radius:18px;
+  padding:12px; margin-top:10px; min-height:76px;
+}
+.tok{
+  background:#fff; border:4px solid var(--c1); border-radius:16px; width:104px; padding:6px 4px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  cursor:grab; user-select:none; touch-action:none; box-shadow:0 3px 8px rgba(0,0,0,.12);
+}
+.tok.small{ width:88px; padding:4px 2px; }
+.tok.small .em{ font-size:36px !important; }
+.tok .em{ font-size:46px; line-height:1.05; }
+.tok .nm{ font-size:18px; font-weight:900; }
+.tok.ball .em{
+  width:52px; height:52px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; color:#fff; font-size:24px; font-weight:900;
+}
+.tok.ball.small .em{ width:40px; height:40px; font-size:19px; }
+.tok.crownTok{ border-style:double; border-width:6px; }
+
+/* 实验天平 / 弹簧架 */
+#labWrap{ background:#fff; border:4px solid var(--c2); border-radius:18px; padding:10px; }
+#labWrap .labInner{ display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+.panDrop{
+  width:120px; min-height:110px; border:4px dashed var(--c1); border-radius:14px;
+  display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.6);
+}
+.panDrop .ph{ font-size:16px; color:#89a; font-weight:800; text-align:center; }
+#labSvgBox{ width:260px; }
+#labRead{ text-align:center; font-size:19px; font-weight:900; margin-top:6px; min-height:26px; color:var(--c1); }
+#labCount{ text-align:center; font-size:16px; opacity:.8; margin-top:2px; }
+#hookRow{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:6px; }
+.hookUnit{ width:120px; text-align:center; }
+.hookUnit .hookDrop{
+  height:44px; border:4px dashed var(--c1); border-radius:12px; margin-bottom:4px;
+  display:flex; align-items:center; justify-content:center; font-size:15px; color:#89a; font-weight:800;
+  background:rgba(255,255,255,.6);
+}
+.hookUnit svg{ width:100%; height:200px; }
+
+/* 底部按钮条（G4） */
+#btnBar{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:20px; }
+
+/* ============ 弹层通用 ============ */
+.ov{
+  display:none; position:fixed; inset:0; background:rgba(20,40,60,.55); z-index:200;
+  align-items:center; justify-content:center; padding:16px;
+}
+.ov.show{ display:flex; }
+.ovBox{
+  background:#fff; border-radius:22px; border:5px solid var(--c1); max-width:720px; width:100%;
+  max-height:88vh; overflow:auto; padding:22px 24px; box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+.ovBox h2{ font-size:28px; color:var(--c1); margin-bottom:12px; text-align:center; }
+.ovBox .sec{ font-size:18px; line-height:1.75; margin:10px 0; }
+.ovBox .sec b{ color:var(--c1); }
+.ovBox .kv{ background:var(--bg); border-radius:12px; padding:10px 14px; margin:8px 0; }
+#winStars{ text-align:center; font-size:52px; letter-spacing:6px; margin:6px 0; }
+#winTitle{ text-align:center; font-size:30px; font-weight:900; color:var(--ok); }
+#winExplain{ background:var(--bg); border-radius:14px; padding:12px 16px; margin-top:12px; font-size:18px; line-height:1.8; }
+.ovBtnRow{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:18px; }
+.rulesDemoRow{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin:8px 0; }
+.rulesDemoRow .rd{ text-align:center; font-size:16px; font-weight:800; }
+.rulesDemoRow svg{ width:210px; height:auto; }
+
+/* 轻提示 */
+#toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  background:rgba(23,50,77,.92); color:#fff; padding:10px 22px; border-radius:999px;
+  font-size:18px; font-weight:800; opacity:0; pointer-events:none; transition:.25s; z-index:300;
+  max-width:92vw; text-align:center;
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* 拖拽幽灵 */
+.drag-ghost{
+  position:fixed; z-index:400; pointer-events:none; opacity:.92; margin:0;
+  transform:scale(1.06) rotate(-3deg); box-shadow:0 12px 30px rgba(0,0,0,.3);
+}
+/* 拖拽时目标区高亮 */
+.droppable-hover{ outline:5px solid var(--ok); outline-offset:2px; border-radius:16px; }
+
+/* 彩纸画布 */
+#confetti{ position:fixed; inset:0; pointer-events:none; z-index:350; display:none; }
+
+@media (max-width:640px){
+  #homeHero h1{ font-size:32px; }
+  .diffCard{ width:min(300px,92vw); }
+  .bcard{ width:min(250px,94vw); }
+  .chainSlot{ width:min(225px,86vw); }
+  #hudLevelName{ font-size:18px; }
+  .hud-pill{ font-size:15px; padding:3px 10px; }
+  #taskText{ font-size:19px; }
+  .tok{ width:92px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶部信息栏：关卡名 + 计时 + 步数 + 进度 -->
+  <header id="hud">
+    <div class="hud-left"><span id="hudLevelName">水果天平大冒险</span></div>
+    <div class="hud-right">
+      <span class="hud-pill" id="hudTimer">计时 00:00</span>
+      <span class="hud-pill" id="hudSteps">操作 0 步</span>
+      <span class="hud-pill" id="hudProgress">关卡 -/-</span>
+    </div>
+  </header>
+
+  <!-- ============ 首页：难度选择 ============ -->
+  <section id="screenHome" class="screen active">
+    <div id="homeHero">
+      <h1>⚖️ 水果天平大冒险 ⚖️</h1>
+      <div class="sub">第1讲 推理比较（下）· 比轻重 · 串糖葫芦推理法</div>
+      <div class="demoScales" id="homeDemo"></div>
+      <div class="sub" style="margin-top:4px">天平平衡，两边一样重；天平倾斜，下沉为重、上翘为轻。</div>
+    </div>
+    <div id="diffGrid">
+      <div class="diffCard" data-diff="easy">
+        <div class="dname">初级</div>
+        <div class="dtag">小试身手</div>
+        <div class="ddesc">3 种物品，2 架天平记录。<br>学会读天平：谁沉谁重；再把它们拖上领奖台，排出从重到轻的顺序。</div>
+      </div>
+      <div class="diffCard" data-diff="mid">
+        <div class="dname">中级</div>
+        <div class="dtag">推理小达人</div>
+        <div class="ddesc">4 种物品，3 架天平记录。<br>点一点卡片翻面统一方向，把天平卡拖进推理链，像串糖葫芦一样把轻重串起来！</div>
+      </div>
+      <div class="diffCard" data-diff="hard">
+        <div class="dname">高级</div>
+        <div class="dtag">智慧领航员</div>
+        <div class="ddesc">5 种物品与组合天平。<br>把两边共同的水果各拿走一个，天平会告诉你新秘密；还能自己动手做称量实验、玩弹簧架！</div>
+      </div>
+    </div>
+    <div id="homeFoot">
+      <button class="btn ghost" id="btnRulesHome">📋 游戏规则说明</button>
+    </div>
+  </section>
+
+  <!-- ============ 游戏屏 ============ -->
+  <section id="screenGame" class="screen">
+    <div id="taskBar">
+      <div id="taskText"></div>
+      <div id="taskSrc"></div>
+    </div>
+
+    <div id="gameMain">
+      <div id="leftCol">
+        <div id="condWrap">
+          <div class="zoneTitle">🔭 天平记录卡 <span class="hint">点卡片可翻面统一方向（重的一边朝左）</span></div>
+          <div id="condZone" data-drop="condZone"></div>
+        </div>
+        <div id="chainWrap">
+          <div class="zoneTitle">🍡 推理链（串糖葫芦） <span class="hint">把卡片拖进来，相同水果碰头就连成一条链</span></div>
+          <div id="chainZone"></div>
+          <div id="chainMsg"></div>
+        </div>
+      </div>
+      <div id="rightCol">
+        <div id="labWrap" style="display:none">
+          <div class="zoneTitle" id="labTitle">🧪 实验区</div>
+          <div class="labInner" id="labInner"></div>
+          <div id="labRead"></div>
+          <div id="labCount"></div>
+        </div>
+        <div id="answerWrap">
+          <div class="zoneTitle" id="answerTitle">🏆 领奖台</div>
+          <div id="answerZone"></div>
+          <div id="crownTargetsWrap" style="display:none">
+            <div id="crownTargets"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="zoneTitle">🧺 物品托盘 <span class="hint">把物品拖到领奖台 / 实验区去探索吧</span></div>
+    <div id="paletteZone" data-drop="palette"></div>
+
+    <div id="btnBar">
+      <button class="btn ghost" id="btnRules">📋 规则说明</button>
+      <button class="btn warnb" id="btnReveal">💡 揭示答案</button>
+      <button class="btn ghost" id="btnRestart">🔄 重新开始</button>
+      <button class="btn ghost" id="btnHome">🏠 返回难度选择</button>
+    </div>
+  </section>
+</div>
+
+<!-- 规则说明弹层（G6） -->
+<div class="ov" id="rulesOv">
+  <div class="ovBox">
+    <h2>📋 游戏规则说明</h2>
+    <div class="sec"><b>一、天平怎么读（好方法：比较轻重）</b></div>
+    <div class="rulesDemoRow" id="rulesDemoRow"></div>
+    <div class="sec kv">天平<b>平衡</b>：两边一样重。天平<b>不平衡</b>：<b>下沉的一边重，上翘的一边轻</b>。</div>
+    <div class="sec"><b>二、闯关四招（全是动手操作）</b></div>
+    <div class="sec kv">1. <b>翻卡片</b>：点一点天平记录卡，卡片会翻面——把方向统一成"重的一边在左"，方便比较。</div>
+    <div class="sec kv">2. <b>串糖葫芦</b>：把天平卡拖进下方推理链，让相同的水果碰头，就连成一条从重到轻的"糖葫芦链"。链串好了，答案就藏在链里！</div>
+    <div class="sec kv">3. <b>拿走共同水果</b>：组合天平两边都有同一种水果时，把两边的水果<b>各拖走一个</b>（绿色虚线标记），天平会重新倾斜，告诉你一个新秘密！</div>
+    <div class="sec kv">4. <b>摆领奖台</b>：把物品托盘里的水果拖上领奖台。全部摆对就过关，还有彩纸庆祝！给最重的戴皇冠的关卡，把皇冠拖到它身上就行。</div>
+    <div class="sec"><b>三、教参好方法（原汁原味）</b></div>
+    <div class="sec kv">比较轻重三步走：先找<b>最重</b>和<b>最轻</b>；最重的永远在下面，最轻的永远在上面；再逐个排序比较。把每架天平的结论统一成同一个方向，就能像串糖葫芦一样串起来啦。</div>
+    <div class="sec"><b>四、高级关的实验区</b></div>
+    <div class="sec kv">没有天平记录？没关系！把物品拖到<b>实验天平</b>的两盘上亲自称一称（左边放一个、右边放一个，天平自动倾斜）；或者把球挂上<b>弹簧架</b>——物体越重，弹簧被拉得越长。动手做实验，自己找出答案！</div>
+    <div class="ovBtnRow"><button class="btn" id="btnRulesClose">明白啦，出发！</button></div>
+  </div>
+</div>
+
+<!-- 过关 / 揭示 弹层 -->
+<div class="ov" id="winOv">
+  <div class="ovBox">
+    <h2 id="winTitle">🎉 过关啦！</h2>
+    <div id="winStars"></div>
+    <div class="sec" id="winLead" style="text-align:center;font-size:20px;font-weight:800"></div>
+    <div id="winExplain"></div>
+    <div class="ovBtnRow">
+      <button class="btn ghost" id="btnAgain">🔄 再玩一次</button>
+      <button class="btn" id="btnNextLv">➡️ 下一关</button>
+      <button class="btn ghost" id="btnWinHome">🏠 返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+"use strict";
+/* =====================================================================
+   水果天平大冒险 —— 《第1讲 推理比较（下）：比轻重》互动游戏
+   核心玩法：读天平 → 翻卡片统一方向 → 串糖葫芦推理链 →
+             组合天平拿走共同水果（等量代换） → 摆领奖台 / 戴皇冠
+   全部为指针拖拽（Pointer Events）实现，兼容鼠标与触摸屏。
+   ===================================================================== */
+
+/* ---------- 小工具 ---------- */
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, html){
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (arguments.length > 2 && html !== null) n.innerHTML = html;
+  return n;
+}
+function shuffle(arr){
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function pickN(arr, n){ return shuffle(arr).slice(0, n); }
+var toastTimer = null;
+function toast(msg){
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+}
+
+/* ---------- 随机主题色板（G8：每局随机，常玩常新） ---------- */
+var THEMES = [
+  { c1:"#1e88e5", c2:"#90caf9", bg:"#f0f8ff" },   /* 天空蓝 */
+  { c1:"#43a047", c2:"#a5d6a7", bg:"#f4fbf2" },   /* 草地绿 */
+  { c1:"#f57c00", c2:"#ffcc80", bg:"#fff8ee" },   /* 阳光橙 */
+  { c1:"#8e44ad", c2:"#d7bde2", bg:"#faf4fd" },   /* 葡萄紫 */
+  { c1:"#d81b60", c2:"#f8bbd0", bg:"#fff5f8" },   /* 蜜桃粉 */
+  { c1:"#00897b", c2:"#80cbc4", bg:"#f0faf8" }    /* 湖水青 */
+];
+function applyTheme(){
+  var th = pick(THEMES);
+  var r = document.documentElement.style;
+  r.setProperty("--c1", th.c1);
+  r.setProperty("--c2", th.c2);
+  r.setProperty("--bg", th.bg);
+}
+
+/* ---------- 物品图鉴（weight 为内部隐藏重量，只用于天平倾斜与判分，绝不显示给学生） ---------- */
+var ITEMS = {
+  peach:   { name:"桃子", em:"🍑", w:0 },  pear:    { name:"梨",   em:"🍐", w:0 },
+  apple:   { name:"苹果", em:"🍎", w:0 },  grape:   { name:"葡萄", em:"🍇", w:0 },
+  orange:  { name:"橙子", em:"🍊", w:0 },  banana:  { name:"香蕉", em:"🍌", w:0 },
+  mango:   { name:"芒果", em:"🥭", w:0 },  cherry:  { name:"樱桃", em:"🍒", w:0 },
+  melon:   { name:"西瓜", em:"🍉", w:0 },  coconut: { name:"椰子", em:"🥥", w:0 },
+  pineapple:{name:"菠萝", em:"🍍", w:0 },
+  lion:    { name:"狮子", em:"🦁", w:0 },  panda:   { name:"熊猫", em:"🐼", w:0 },
+  monkey:  { name:"猴子", em:"🐵", w:0 },  squirrel:{ name:"松鼠", em:"🐿️", w:0 },
+  dog:     { name:"小狗", em:"🐶", w:0 },  pig:     { name:"猪",   em:"🐷", w:0 },
+  goat:    { name:"山羊", em:"🐐", w:0 },  cow:     { name:"奶牛", em:"🐮", w:0 },
+  elephant:{ name:"大象", em:"🐘", w:0 },
+  niuniu:  { name:"牛牛", em:"👦", w:0 },  dingding:{ name:"丁丁", em:"👧", w:0 },
+  tiantian:{ name:"田田", em:"👶", w:0 },  apu:     { name:"阿普", em:"👨", w:0 }
+};
+/* 球（弹簧关卡用）：颜色由内联样式给出 */
+var BALLS = {
+  ball1: { name:"1号球", ball:true, color:"#e53935", num:"1", w:0 },
+  ball2: { name:"2号球", ball:true, color:"#8e24aa", num:"2", w:0 },
+  ball3: { name:"3号球", ball:true, color:"#1e88e5", num:"3", w:0 },
+  ball4: { name:"4号球", ball:true, color:"#43a047", num:"4", w:0 }
+};
+function itemOf(id){ return ITEMS[id] || BALLS[id]; }
+
+/* ---------- 关卡数据池 ----------
+   卡片 card：{ L:[物品id...], R:[物品id...], common:"可各拿走一个的共有物品id"（可选） }
+   倾斜角度一律由内部重量求和计算，保证图形与结论永远一致。
+   反重复机制：每局从池中随机抽题、随机洗牌、随机镜像卡片左右。 */
+var POOLS = {
+  easy: [
+    { id:"E1", src:"改编自本讲【例4】", par:9,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ mango:6, peach:4, pear:2 },
+      cards:[ { L:["peach"], R:["pear"] }, { L:["mango"], R:["peach"] } ],
+      explain:"天平告诉我们：芒果比桃子重，桃子比梨重。串成糖葫芦：芒果 > 桃子 > 梨。" },
+    { id:"E2", src:"改编自本讲练习14", par:9,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ peach:9, pear:4, grape:2 },
+      cards:[ { L:["peach"], R:["pear","pear"] }, { L:["pear"], R:["grape"] } ],
+      explain:"第一架天平：1 个桃子比 2 个梨还重，所以 1 个桃子一定比 1 个梨重；第二架：梨比葡萄重。串起来：桃子 > 梨 > 葡萄。" },
+    { id:"E3", src:"改编自本讲练习10（同题型变式）", par:9,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ melon:7, banana:5, apple:3 },
+      cards:[ { L:["banana"], R:["apple"] }, { L:["melon"], R:["banana"] } ],
+      explain:"香蕉比苹果重，西瓜比香蕉重。串成糖葫芦：西瓜 > 香蕉 > 苹果。" },
+    { id:"E4", src:"改编自本讲练习13（简化版）", par:9,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ panda:8, monkey:5, squirrel:3 },
+      cards:[ { L:["monkey"], R:["squirrel"] }, { L:["panda"], R:["monkey"] } ],
+      explain:"猴子比松鼠重，熊猫比猴子重。串成糖葫芦：熊猫 > 猴子 > 松鼠。" },
+    { id:"E5", src:"改编自本讲练习18（同题型变式）", par:9,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ orange:6, grape:4, cherry:2 },
+      cards:[ { L:["grape"], R:["cherry"] }, { L:["orange"], R:["grape"] } ],
+      explain:"葡萄比樱桃重，橙子比葡萄重。串成糖葫芦：橙子 > 葡萄 > 樱桃。" }
+  ],
+  mid: [
+    { id:"M1", src:"改编自本讲练习11", par:13,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ grape:8, apple:6, peach:4, pear:2 },
+      cards:[ { L:["peach"], R:["pear"] }, { L:["peach"], R:["apple"] }, { L:["grape"], R:["apple"] } ],
+      explain:"天平记录：桃子>梨、桃子<苹果、葡萄>苹果。统一成同方向：桃子>梨、苹果>桃子、葡萄>苹果。像串糖葫芦一样串起来：葡萄 > 苹果 > 桃子 > 梨。" },
+    { id:"M2", src:"改编自本讲练习12", par:13,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ apple:8, peach:6, pear:4, grape:2 },
+      cards:[ { L:["apple"], R:["peach"] }, { L:["pear"], R:["grape"] }, { L:["peach"], R:["pear"] } ],
+      explain:"天平记录：桃子<苹果、梨>葡萄、桃子>梨。统一成同方向：苹果>桃子、梨>葡萄、桃子>梨。串起来：苹果 > 桃子 > 梨 > 葡萄。" },
+    { id:"M3", src:"改编自本讲练习13", par:13,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ lion:8, panda:6, monkey:4, squirrel:2 },
+      cards:[ { L:["panda"], R:["monkey"] }, { L:["lion"], R:["panda"] }, { L:["monkey"], R:["squirrel"] } ],
+      explain:"天平记录：熊猫>猴子、狮子>熊猫、松鼠<猴子。统一成同方向：熊猫>猴子、狮子>熊猫、猴子>松鼠。串起来：狮子 > 熊猫 > 猴子 > 松鼠。" },
+    { id:"M4", src:"改编自本讲【例5】", par:13,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ apu:8, niuniu:6, dingding:4, tiantian:2 },
+      cards:[ { L:["niuniu"], R:["dingding"] }, { L:["dingding"], R:["tiantian"] }, { L:["apu"], R:["niuniu"] } ],
+      explain:"天平记录：牛牛>丁丁、田田<丁丁、阿普>牛牛。统一成同方向：牛牛>丁丁、丁丁>田田、阿普>牛牛。串起来：阿普 > 牛牛 > 丁丁 > 田田。" },
+    { id:"M5", src:"改编自本讲练习18（找最重）", par:11,
+      task:{ type:"crown" },
+      weights:{ pear:10, grape:6, peach:3, orange:5 },
+      cards:[
+        { L:["pear"], R:["grape","peach"] },
+        { L:["pear","grape"], R:["pear","orange"], common:"pear" },
+        { L:["peach","peach"], R:["grape"] }
+      ],
+      explain:"第一架：梨比'葡萄+桃子'合起来还重，所以梨比葡萄重、也比桃子重；第二架两边各拿走一个梨：葡萄 > 橙子；第三架正好平衡：2 个桃子 = 1 串葡萄。所以最重的是梨，给它戴上皇冠！" }
+  ],
+  hard: [
+    { id:"H1", src:"改编自本讲练习15（扩展变式）", par:15,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ grape:8, apple:5, peach:4, cherry:2 },
+      cards:[
+        { L:["grape","apple"], R:["apple","apple"], common:"apple" },
+        { L:["apple"], R:["peach"] },
+        { L:["peach"], R:["cherry"] }
+      ],
+      explain:"组合天平两边各拿走 1 个苹果，得到：葡萄 > 苹果；再加上苹果 > 桃子、桃子 > 樱桃。串成糖葫芦：葡萄 > 苹果 > 桃子 > 樱桃。" },
+    { id:"H2", src:"改编自本讲练习17（找最重）", par:13,
+      task:{ type:"crown" },
+      weights:{ peach:9, pear:7, grape:5, apple:3 },
+      cards:[
+        { L:["grape","apple"], R:["pear","grape"], common:"grape" },
+        { L:["peach","peach"], R:["grape","peach"], common:"peach" },
+        { L:["pear"], R:["peach"] }
+      ],
+      explain:"第一架两边各拿走一串葡萄：梨 > 苹果；第二架两边各拿走一个桃子：桃子 > 葡萄；第三架：桃子 > 梨。三条结论合在一起：桃子最重，把皇冠戴给它！" },
+    { id:"H3", src:"改编自本讲【例6】（五物体链变式）", par:17,
+      task:{ type:"rank", dir:"desc" },
+      weights:{ melon:10, coconut:8, pineapple:6, apple:4, cherry:2 },
+      cards:[
+        { L:["coconut"], R:["pineapple"] }, { L:["pineapple"], R:["apple"] },
+        { L:["apple"], R:["cherry"] }, { L:["melon"], R:["coconut"] }
+      ],
+      explain:"统一成同方向：椰子>菠萝、菠萝>苹果、苹果>樱桃、西瓜>椰子。像串糖葫芦一样串起来：西瓜 > 椰子 > 菠萝 > 苹果 > 樱桃。" },
+    { id:"H4", src:"改编自本讲练习16（从轻到重）", par:17,
+      task:{ type:"rank", dir:"asc" },
+      weights:{ dog:2, pig:4, goat:6, cow:8, elephant:10 },
+      cards:[
+        { L:["goat"], R:["pig"] }, { L:["elephant"], R:["cow"] },
+        { L:["cow"], R:["goat"] }, { L:["pig"], R:["dog"] }
+      ],
+      explain:"统一成同方向：山羊>猪、大象>奶牛、奶牛>山羊、猪>小狗。题目要从轻到重排，所以答案是：小狗 < 猪 < 山羊 < 奶牛 < 大象。" },
+    { id:"H5", src:"改编自本讲练习16（自由探索版）", par:18,
+      task:{ type:"explore", dir:"asc", lab:"balance", budget:10 },
+      weights:{ dog:2, pig:4, goat:6, cow:8, elephant:10 },
+      cards:[],
+      explain:"这一关没有天平记录，要靠你自己称！参考答案：从轻到重是小狗 < 猪 < 山羊 < 奶牛 < 大象。想一想：你一共称了几次？有没有浪费的称量？" },
+    { id:"H6", src:"改编自本讲'探索知识巅峰'（弹簧）", par:12,
+      task:{ type:"explore", dir:"desc", lab:"spring" },
+      weights:{ ball1:2, ball2:5, ball3:8, ball4:11 },
+      cards:[],
+      explain:"物体越重，弹簧被拉得越长。把四个球都挂上弹簧，比一比弹簧的长短：拉得最长的最重，最短的最轻。按从重到轻排好领奖台就过关啦。" }
+  ]
+};
+
+/* ---------- 抽题（反重复：随机抽样 + 保证玩法多样） ---------- */
+function buildRun(diff){
+  var pool = POOLS[diff];
+  if (diff === "easy"){ return pickN(pool, 3); }
+  if (diff === "mid"){
+    var crown = pool.filter(function(l){ return l.task.type === "crown"; });
+    var rank = pool.filter(function(l){ return l.task.type !== "crown"; });
+    return [pick(crown)].concat(pickN(rank, 2));
+  }
+  /* 高级关：保证至少一关"组合天平拿走共同水果"，再随机配两关其他玩法 */
+  var cancel = pool.filter(function(l){ return l.id === "H1" || l.id === "H2"; });
+  var others = pool.filter(function(l){ return l.id !== "H1" && l.id !== "H2"; });
+  return [pick(cancel)].concat(pickN(others, 2));
+}
+
+/* =====================================================================
+   天平 SVG 生成器：viewBox 360x250，横梁绕中点旋转，
+   吊盘组做反向旋转保持水平；倾斜角由两侧重量和决定（数学上永远自洽）
+   ===================================================================== */
+function panWeight(list){
+  var s = 0;
+  for (var i = 0; i < list.length; i++) s += itemOf(list[i]).w;
+  return s;
+}
+function tiltAngle(L, R){
+  var wl = panWeight(L), wr = panWeight(R);
+  if (wl > wr) return -9;   /* 左沉：左端下沉 */
+  if (wl < wr) return 9;    /* 右沉：右端下沉 */
+  return 0;                 /* 平衡 */
+}
+function scaleSVG(L, R, idPrefix, small){
+  var ang = tiltAngle(L, R);
+  var cx = 180, cy = 70, half = 128;
+  var lx = cx - half, rx = cx + half;
+  var c1 = getComputedStyle(document.documentElement).getPropertyValue("--c1").trim() || "#1e88e5";
+  var beamH = 10;
+  var s = "";
+  s += '<svg viewBox="0 0 360 250" xmlns="http://www.w3.org/2000/svg">';
+  /* 底座与立柱 */
+  s += '<polygon points="140,238 220,238 205,214 155,214" fill="#8d6e63"/>';
+  s += '<rect x="172" y="' + cy + '" width="16" height="' + (214 - cy) + '" rx="4" fill="#8d6e63"/>';
+  s += '<circle cx="180" cy="' + cy + '" r="9" fill="' + c1 + '"/>';
+  /* 横梁组（旋转），吊盘组反向旋转保持竖直 */
+  s += '<g style="transform:rotate(' + ang + 'deg);transform-origin:' + cx + 'px ' + cy + 'px;transition:transform .7s cubic-bezier(.34,1.4,.5,1)">';
+  s += '<rect x="' + (cx - half) + '" y="' + (cy - beamH / 2) + '" width="' + (half * 2) + '" height="' + beamH + '" rx="5" fill="' + c1 + '"/>';
+  /* 左吊盘 */
+  s += '<g style="transform:rotate(' + (-ang) + 'deg);transform-origin:' + lx + 'px ' + cy + 'px;transition:transform .7s cubic-bezier(.34,1.4,.5,1)">';
+  s += '<line x1="' + lx + '" y1="' + cy + '" x2="' + (lx - 34) + '" y2="' + (cy + 52) + '" stroke="#666" stroke-width="2.5"/>';
+  s += '<line x1="' + lx + '" y1="' + cy + '" x2="' + (lx + 34) + '" y2="' + (cy + 52) + '" stroke="#666" stroke-width="2.5"/>';
+  s += '<path d="M ' + (lx - 42) + ' ' + (cy + 50) + ' A 42 30 0 0 0 ' + (lx + 42) + ' ' + (cy + 50) + ' Z" fill="#cfd8dc" stroke="#90a4ae" stroke-width="2.5"/>';
+  s += itemsRowSVG(L, lx, cy + 46, small);
+  s += '</g>';
+  /* 右吊盘 */
+  s += '<g style="transform:rotate(' + (-ang) + 'deg);transform-origin:' + rx + 'px ' + cy + 'px;transition:transform .7s cubic-bezier(.34,1.4,.5,1)">';
+  s += '<line x1="' + rx + '" y1="' + cy + '" x2="' + (rx - 34) + '" y2="' + (cy + 52) + '" stroke="#666" stroke-width="2.5"/>';
+  s += '<line x1="' + rx + '" y1="' + cy + '" x2="' + (rx + 34) + '" y2="' + (cy + 52) + '" stroke="#666" stroke-width="2.5"/>';
+  s += '<path d="M ' + (rx - 42) + ' ' + (cy + 50) + ' A 42 30 0 0 0 ' + (rx + 42) + ' ' + (cy + 50) + ' Z" fill="#cfd8dc" stroke="#90a4ae" stroke-width="2.5"/>';
+  s += itemsRowSVG(R, rx, cy + 46, small);
+  s += '</g>';
+  s += '</g>';
+  s += '</svg>';
+  return s;
+}
+/* 在托盘上方摆一排物品（emoji 当图形用，字号大、间隔足，互不遮挡） */
+function itemsRowSVG(list, cx, baseY, small){
+  var fs = small ? 30 : 36;
+  var gap = small ? 30 : 36;
+  var n = list.length;
+  var startX = cx - ((n - 1) * gap) / 2;
+  var s = '';
+  for (var i = 0; i < n; i++){
+    var it = itemOf(list[i]);
+    var x = startX + i * gap;
+    if (it.ball){
+      s += '<circle cx="' + x + '" cy="' + (baseY - 12) + '" r="15" fill="' + it.color + '"/>';
+      s += '<text x="' + x + '" y="' + (baseY - 6) + '" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">' + it.num + '</text>';
+    } else {
+      s += '<text x="' + x + '" y="' + baseY + '" font-size="' + fs + '" text-anchor="middle">' + it.em + '</text>';
+    }
+  }
+  return s;
+}
+function tiltBadgeHTML(L, R){
+  var a = tiltAngle(L, R);
+  if (a < 0) return '<div class="tiltBadge leftdown">⬅ 左边下沉：左边重</div>';
+  if (a > 0) return '<div class="tiltBadge rightdown">右边下沉 ➡：右边重</div>';
+  return '<div class="tiltBadge even">⚖ 平衡：两边一样重</div>';
+}
+
+/* =====================================================================
+   全局运行状态
+   ===================================================================== */
+var S = {
+  diff:null, levels:[], lvIndex:0,
+  steps:0, startTs:0, timerId:null,
+  cards:[],           /* 运行中的天平卡 */
+  chain:[],           /* 推理链槽位 -> 卡索引或空 */
+  podium:[],          /* 领奖台槽位 -> 物品id或空 */
+  palette:[],         /* 托盘里的物品id */
+  panL:null, panR:null, weighCount:0, budget:0,
+  hooks:[],           /* 弹簧架：每钩挂的球 */
+  crownPlaced:null, revealed:false, solved:false, locked:false,
+  stars:0, rulesShown:false
+};
+
+function addStep(){
+  S.steps++;
+  $("hudSteps").textContent = "操作 " + S.steps + " 步";
+}
+
+/* ---------- 计时器（G7） ---------- */
+function fmtTime(sec){
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+}
+function startTimer(){
+  S.startTs = Date.now();
+  if (S.timerId) clearInterval(S.timerId);
+  S.timerId = setInterval(function(){
+    var sec = Math.floor((Date.now() - S.startTs) / 1000);
+    $("hudTimer").textContent = "计时 " + fmtTime(sec);
+  }, 500);
+}
+
+/* =====================================================================
+   指针拖拽系统（鼠标 + 触摸统一处理，G1/G11）
+   payload: { kind:'item'|'card'|'cardItem'|'crown', ... }
+   ===================================================================== */
+var DRAG = null;
+function makeDraggable(node, payload){
+  node.classList.add("draggable");
+  node.style.touchAction = "none";
+  node.addEventListener("pointerdown", function(ev){
+    if (S.locked) return;
+    /* 阻止冒泡：卡内水果片的拖拽不会同时触发整张卡拖拽 */
+    ev.stopPropagation();
+    if (payload.kind === "cardItem" && !payload.removable){
+      toast("这个水果要留在盘里哦，先拿走两边都有的那种水果（绿色虚线标记）");
+      return;
+    }
+    ev.preventDefault();
+    var rect = node.getBoundingClientRect();
+    var ghost = node.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    ghost.classList.remove("draggable");
+    ghost.style.width = rect.width + "px";
+    ghost.style.height = rect.height + "px";
+    ghost.style.left = rect.left + "px";
+    ghost.style.top = rect.top + "px";
+    document.body.appendChild(ghost);
+    var offX = ev.clientX - rect.left;
+    var offY = ev.clientY - rect.top;
+    var moved = false;
+    DRAG = { payload:payload, ghost:ghost };
+
+    function onMove(e){
+      var dx = e.clientX - ev.clientX, dy = e.clientY - ev.clientY;
+      if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
+      ghost.style.left = (e.clientX - offX) + "px";
+      ghost.style.top = (e.clientY - offY) + "px";
+      highlightZone(e.clientX, e.clientY);
+    }
+    function onUp(e){
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      clearHighlights();
+      ghost.remove();
+      DRAG = null;
+      if (!moved){
+        if (payload.onClick) payload.onClick();
+        return;
+      }
+      var zone = zoneAt(e.clientX, e.clientY);
+      handleDrop(payload, zone);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+}
+function zoneAt(x, y){
+  var els = document.elementsFromPoint(x, y) || [];
+  for (var i = 0; i < els.length; i++){
+    var z = els[i].closest ? els[i].closest("[data-drop]") : null;
+    if (z) return z;
+  }
+  return null;
+}
+function highlightZone(x, y){
+  clearHighlights();
+  var z = zoneAt(x, y);
+  if (z) z.classList.add("droppable-hover");
+}
+function clearHighlights(){
+  var hs = document.querySelectorAll(".droppable-hover");
+  for (var i = 0; i < hs.length; i++) hs[i].classList.remove("droppable-hover");
+}
+
+/* =====================================================================
+   关卡流程
+   ===================================================================== */
+function goHome(){
+  $("screenGame").classList.remove("active");
+  $("screenHome").classList.add("active");
+  $("hudLevelName").textContent = "水果天平大冒险";
+  $("hudProgress").textContent = "关卡 -/-";
+  $("hudTimer").textContent = "计时 00:00";
+  $("hudSteps").textContent = "操作 0 步";
+  if (S.timerId) clearInterval(S.timerId);
+}
+function startDifficulty(diff){
+  applyTheme();
+  S.diff = diff;
+  S.levels = buildRun(diff);
+  S.lvIndex = 0;
+  S.stars = 0;
+  if (!S.rulesShown){
+    S.rulesShown = true;
+    showRules();
+  }
+  startLevel();
+}
+function diffName(d){
+  return d === "easy" ? "初级·小试身手" : (d === "mid" ? "中级·推理小达人" : "高级·智慧领航员");
+}
+
+function startLevel(){
+  var lv = S.levels[S.lvIndex];
+  /* 写入本关内部重量（隐藏，不展示） */
+  var ids = Object.keys(lv.weights);
+  for (var i = 0; i < ids.length; i++) itemOf(ids[i]).w = lv.weights[ids[i]];
+
+  /* 初始化运行状态：卡片随机镜像 + 洗牌（反重复） */
+  S.cards = [];
+  var cardsDef = shuffle(lv.cards);
+  for (var c = 0; c < cardsDef.length; c++){
+    var def = cardsDef[c];
+    var L = def.L.slice(), R = def.R.slice();
+    if (Math.random() < 0.5){ var t = L; L = R; R = t; } /* 随机镜像：同一信息不同画面 */
+    S.cards.push({ def:def, L:L, R:R, inChain:false, slot:-1, simplified:false, rmL:false, rmR:false });
+  }
+  S.chain = [];
+  var chainLen = 0;
+  if (lv.task.type === "rank") chainLen = S.cards.length;
+  for (var k = 0; k < chainLen; k++) S.chain.push(null);
+
+  S.podium = [];
+  var nSlots = (lv.task.type === "rank" || lv.task.type === "explore") ? ids.length : 0;
+  for (var p = 0; p < nSlots; p++) S.podium.push(null);
+  S.palette = shuffle(ids);
+  S.panL = null; S.panR = null; S.weighCount = 0; S.budget = lv.task.budget || 0;
+  S.hooks = [];
+  if (lv.task.lab === "spring"){ for (var h = 0; h < ids.length; h++) S.hooks.push(null); }
+  S.crownPlaced = null; S.revealed = false; S.solved = false; S.locked = false;
+  S.steps = 0;
+
+  /* HUD 与任务栏 */
+  $("hudLevelName").textContent = "⚖️ " + diffName(S.diff);
+  $("hudProgress").textContent = "关卡 " + (S.lvIndex + 1) + "/" + S.levels.length;
+  $("hudSteps").textContent = "操作 0 步";
+  $("screenHome").classList.remove("active");
+  $("screenGame").classList.add("active");
+  startTimer();
+  renderTaskBar();
+  renderAll();
+  toast("新关卡开始！先读一读天平记录吧");
+}
+
+function renderTaskBar(){
+  var lv = S.levels[S.lvIndex];
+  var ids = Object.keys(lv.weights);
+  var names = ids.map(function(id){ return itemOf(id).name; }).join("、");
+  var txt = "";
+  if (lv.task.type === "rank"){
+    txt = (lv.task.dir === "desc"
+      ? "请把 " + names + " 按照从重到轻的顺序摆上领奖台（最重的放第 1 位）。"
+      : "请把 " + names + " 按照从轻到重的顺序摆上领奖台（最轻的放第 1 位）。");
+  } else if (lv.task.type === "crown"){
+    txt = "看清每架天平告诉你的秘密，把皇冠拖到最重的那一个上面！";
+  } else if (lv.task.lab === "balance"){
+    txt = "这一关没有天平记录！请用实验天平自己称一称，把 " + names + " 从轻到重排上领奖台（建议不超过 " + lv.task.budget + " 次，称得越少星越多）。";
+  } else {
+    txt = "把球挂上弹簧架，观察谁把弹簧拉得最长，再按从重到轻把球摆上领奖台。";
+  }
+  $("taskText").textContent = txt;
+  $("taskSrc").textContent = "题目来源：" + lv.src + " ｜ 本关物品：" + names;
+}
+
+/* ---------- 渲染：天平记录卡 ---------- */
+function cardDom(card, idx){
+  var box = el("div", "bcard" + (card.inChain ? " inchain" : ""));
+  var head = el("div", "bhead");
+  head.appendChild(el("span", null, "记录 " + (idx + 1)));
+  head.appendChild(el("span", "flipTip", "👆点我翻面"));
+  box.appendChild(head);
+  box.insertAdjacentHTML("beforeend", scaleSVG(card.L, card.R, "c" + idx, false));
+  box.insertAdjacentHTML("beforeend", tiltBadgeHTML(card.L, card.R));
+
+  /* 组合天平：显示盘面明细，共同水果可拖走（等量代换操作）。
+     只要还没两边各拿走一个，明细行保持显示，方便继续拿另一边 */
+  if (card.def.common && !card.simplified){
+    var row = el("div", "chipsRow");
+    row.appendChild(panChipsDom(card, "L"));
+    row.appendChild(el("span", "vsMark", "对"));
+    row.appendChild(panChipsDom(card, "R"));
+    box.appendChild(row);
+    if (!card.rmL && !card.rmR){
+      box.appendChild(el("div", "toRemove", "🖐 把两边都有的" + itemOf(card.def.common).name + "各拖走一个试试！"));
+    } else {
+      box.appendChild(el("div", "toRemove", "很好！再把另一边的" + itemOf(card.def.common).name + "也拿走一个"));
+    }
+  } else if (card.simplified){
+    box.appendChild(el("div", "simplified", "🌟 已拿走共同水果，看看天平现在怎么倾斜——新结论出现啦！"));
+  }
+  makeDraggable(box, {
+    kind:"card", idx:idx,
+    onClick:function(){ flipCard(idx); }
+  });
+  return box;
+}
+function panChipsDom(card, side){
+  var wrap = el("span", "panChips");
+  var list = side === "L" ? card.L : card.R;
+  var used = false;
+  for (var i = 0; i < list.length; i++){
+    (function(id){
+      var isCommon = (id === card.def.common && !used && !card.simplified);
+      if (isCommon) used = true; /* 每边只标记一个共同水果为可拿走 */
+      var it = itemOf(id);
+      var chip = el("span", "chip" + (isCommon ? " removable" : ""),
+        '<span class="em">' + it.em + '</span>' + it.name);
+      makeDraggable(chip, {
+        kind:"cardItem", side:side, id:id, removable:isCommon,
+        cardRef:card,
+        onClick:function(){
+          if (!isCommon && card.def.common) toast("先拿走两边都有的" + itemOf(card.def.common).name + "哦");
+        }
+      });
+      wrap.appendChild(chip);
+    })(list[i]);
+  }
+  return wrap;
+}
+function flipCard(idx){
+  var card = S.cards[idx];
+  var t = card.L; card.L = card.R; card.R = t;
+  addStep();
+  renderAll();
+  toast("卡片翻面啦！统一让重的一边朝左，更好比较");
+}
+/* 拿走组合天平两边的共同水果（等量代换） */
+function tryRemoveCommon(card, side){
+  var common = card.def.common;
+  if (!common || card.simplified) return;
+  var list = side === "L" ? card.L : card.R;
+  var pos = list.indexOf(common);
+  if (pos < 0) return;
+  list.splice(pos, 1);
+  if (side === "L") card.rmL = true; else card.rmR = true;
+  addStep();
+  if (card.rmL && card.rmR){
+    card.simplified = true;
+    renderAll();
+    toast("两边各拿走一个" + itemOf(common).name + "，天平重新倾斜了——新秘密出现啦！");
+  } else {
+    renderAll();
+    toast("很好！再把另一边的" + itemOf(common).name + "也拿走一个");
+  }
+}
+
+/* ---------- 渲染：推理链 ---------- */
+function chainEndpoints(card){
+  /* 只有每边恰好是一种物品（去重后各 1 种）时，卡片才能接入推理链 */
+  var lu = uniq(card.L), ru = uniq(card.R);
+  if (lu.length === 1 && ru.length === 1) return { l:lu[0], r:ru[0] };
+  return null;
+}
+function uniq(arr){
+  var out = [];
+  for (var i = 0; i < arr.length; i++) if (out.indexOf(arr[i]) < 0) out.push(arr[i]);
+  return out;
+}
+function renderChain(){
+  var zone = $("chainZone");
+  zone.innerHTML = "";
+  var lv = S.levels[S.lvIndex];
+  if (S.chain.length === 0){
+    $("chainWrap").style.display = "none";
+    return;
+  }
+  $("chainWrap").style.display = "";
+  for (var i = 0; i < S.chain.length; i++){
+    if (i > 0){
+      var link = el("span", "chainLink", "•");
+      var bPrev = S.chain[i - 1], bCur = S.chain[i];
+      if (bPrev !== null && bCur !== null){
+        var ep1 = chainEndpoints(S.cards[bPrev]), ep2 = chainEndpoints(S.cards[bCur]);
+        if (ep1 && ep2 && ep1.r === ep2.l){
+          link.className = "chainLink good";
+          link.textContent = "🔗";
+        } else {
+          link.textContent = "❓";
+        }
+      }
+      zone.appendChild(link);
+    }
+    var slot = el("div", "chainSlot");
+    slot.setAttribute("data-drop", "chain:" + i);
+    slot.appendChild(el("span", "slotNo", "链 " + (i + 1)));
+    if (S.chain[i] !== null){
+      slot.innerHTML = "";
+      slot.appendChild(cardDom(S.cards[S.chain[i]], S.chain[i]));
+    } else {
+      slot.appendChild(el("span", "emptyPh", "把天平卡<br>拖到这里"));
+    }
+    zone.appendChild(slot);
+  }
+  evalChainMsg(lv);
+}
+function evalChainMsg(lv){
+  var msg = $("chainMsg");
+  var full = true;
+  for (var i = 0; i < S.chain.length; i++) if (S.chain[i] === null) full = false;
+  if (!full || S.chain.length === 0){ msg.textContent = ""; return; }
+  var allGood = true, covered = {};
+  for (var j = 0; j < S.chain.length; j++){
+    var c = S.cards[S.chain[j]];
+    var ep = chainEndpoints(c);
+    if (!ep){ allGood = false; continue; }
+    covered[ep.l] = true; covered[ep.r] = true;
+    if (j > 0){
+      var prev = chainEndpoints(S.cards[S.chain[j - 1]]);
+      if (!prev || prev.r !== ep.l) allGood = false;
+    }
+  }
+  var ids = Object.keys(lv.weights);
+  var coverAll = true;
+  for (var q = 0; q < ids.length; q++) if (!covered[ids[q]]) coverAll = false;
+  if (allGood && coverAll){
+    msg.textContent = "🎉 糖葫芦链串好啦！沿着链读一读轻重关系，快去摆领奖台！";
+  } else {
+    msg.textContent = "链条还没串对：让相同的水果碰头连成 🔗，试试翻一翻卡片。";
+  }
+}
+
+/* ---------- 渲染：领奖台 / 皇冠目标 ---------- */
+function renderAnswer(){
+  var lv = S.levels[S.lvIndex];
+  var zone = $("answerZone");
+  var crownWrap = $("crownTargetsWrap");
+  zone.innerHTML = "";
+  if (lv.task.type === "crown"){
+    $("answerTitle").textContent = "👑 皇冠挑战：谁最重？";
+    crownWrap.style.display = "";
+    var ct = $("crownTargets");
+    ct.innerHTML = "";
+    var ids = shuffle(Object.keys(lv.weights));
+    for (var i = 0; i < ids.length; i++){
+      (function(id){
+        var it = itemOf(id);
+        var cardEl = el("div", "crownCard");
+        cardEl.setAttribute("data-drop", "crown:" + id);
+        cardEl.appendChild(el("div", "bigEm", it.em));
+        cardEl.appendChild(el("div", "nm", it.name));
+        var hole = el("div", "hole", "把👑放这里");
+        cardEl.appendChild(hole);
+        if (S.crownPlaced === id){
+          hole.textContent = "👑 已戴上皇冠";
+          if (S.solved) cardEl.classList.add("right");
+        }
+        ct.appendChild(cardEl);
+      })(ids[i]);
+    }
+    return;
+  }
+  crownWrap.style.display = "none";
+  $("answerTitle").textContent = lv.task.dir === "desc" ? "🏆 领奖台（从重到轻）" : "🏆 领奖台（从轻到重）";
+  var n = S.podium.length;
+  for (var s = 0; s < n; s++){
+    (function(si){
+      var slot = el("div", "podSlot");
+      slot.setAttribute("data-drop", "pod:" + si);
+      var rankWord = lv.task.dir === "desc" ? "重" : "轻";
+      var medal = ["🥇", "🥈", "🥉"][si] || ("第" + (si + 1));
+      slot.appendChild(el("div", "podLabel", medal + " 第" + (si + 1) + rankWord));
+      if (S.podium[si]){
+        slot.appendChild(tokenDom(S.podium[si], false));
+      } else {
+        slot.appendChild(el("div", "emptyPh", "拖物品<br>到这里"));
+      }
+      zone.appendChild(slot);
+    })(s);
+  }
+}
+
+/* ---------- 渲染：物品托盘 ---------- */
+function tokenDom(id, inPalette){
+  var it = itemOf(id);
+  var t = el("div", "tok" + (it.ball ? " ball" : "") + (inPalette ? "" : " small"));
+  if (it.ball){
+    var b = el("span", "em", it.num);
+    b.style.background = it.color;
+    t.appendChild(b);
+  } else {
+    t.appendChild(el("span", "em", it.em));
+  }
+  t.appendChild(el("span", "nm", it.name));
+  makeDraggable(t, { kind:"item", id:id });
+  return t;
+}
+function renderPalette(){
+  var zone = $("paletteZone");
+  zone.innerHTML = "";
+  var lv = S.levels[S.lvIndex];
+  if (lv.task.type === "crown"){
+    var crown = el("div", "tok crownTok");
+    crown.appendChild(el("span", "em", "👑"));
+    crown.appendChild(el("span", "nm", "皇冠"));
+    makeDraggable(crown, { kind:"crown" });
+    zone.appendChild(crown);
+    return;
+  }
+  for (var i = 0; i < S.palette.length; i++){
+    zone.appendChild(tokenDom(S.palette[i], true));
+  }
+}
+
+/* ---------- 渲染：实验区（自由天平 / 弹簧架） ---------- */
+function renderLab(){
+  var lv = S.levels[S.lvIndex];
+  var wrap = $("labWrap");
+  if (!lv.task.lab){ wrap.style.display = "none"; return; }
+  wrap.style.display = "";
+  var inner = $("labInner");
+  inner.innerHTML = "";
+  if (lv.task.lab === "balance"){
+    $("labTitle").textContent = "🧪 实验天平（自己动手称一称）";
+    var panL = el("div", "panDrop");
+    panL.setAttribute("data-drop", "pan:L");
+    if (S.panL){ panL.appendChild(tokenDom(S.panL, false)); }
+    else panL.appendChild(el("div", "ph", "左边<br>放一个"));
+    var svgBox = el("div");
+    svgBox.id = "labSvgBox";
+    svgBox.innerHTML = scaleSVG(S.panL ? [S.panL] : [], S.panR ? [S.panR] : [], "lab", false);
+    var panR = el("div", "panDrop");
+    panR.setAttribute("data-drop", "pan:R");
+    if (S.panR){ panR.appendChild(tokenDom(S.panR, false)); }
+    else panR.appendChild(el("div", "ph", "右边<br>放一个"));
+    inner.appendChild(panL);
+    inner.appendChild(svgBox);
+    inner.appendChild(panR);
+    var read = $("labRead");
+    if (S.panL && S.panR){
+      var wl = itemOf(S.panL).w, wr = itemOf(S.panR).w;
+      if (wl > wr) read.textContent = "⬅ " + itemOf(S.panL).name + " 更重";
+      else if (wl < wr) read.textContent = itemOf(S.panR).name + " 更重 ➡";
+      else read.textContent = "⚖ 一样重";
+    } else read.textContent = "两边各放一个物品就能称量";
+    $("labCount").textContent = "已称量 " + S.weighCount + " 次（建议不超过 " + S.budget + " 次）";
+  } else if (lv.task.lab === "spring"){
+    $("labTitle").textContent = "🌀 弹簧架（越重拉得越长）";
+    var row = el("div");
+    row.id = "hookRow";
+    for (var h = 0; h < S.hooks.length; h++){
+      (function(hi){
+        var unit = el("div", "hookUnit");
+        var drop = el("div", "hookDrop");
+        drop.setAttribute("data-drop", "hook:" + hi);
+        drop.textContent = S.hooks[hi] ? "已挂上球" : "把球拖到这里";
+        unit.appendChild(drop);
+        unit.insertAdjacentHTML("beforeend", springSVG(S.hooks[hi], hi));
+        row.appendChild(unit);
+      })(h);
+    }
+    inner.appendChild(row);
+    $("labRead").textContent = "提示：挂满所有球，再比一比弹簧的长短";
+    $("labCount").textContent = "";
+  }
+}
+/* 弹簧 SVG：挂上球后按重量拉伸（重量越大拉得越长） */
+function springSVG(ballId, hi){
+  var topY = 10, maxLen = 150;
+  var len = 30;
+  if (ballId){
+    var w = itemOf(ballId).w;
+    len = Math.round(34 + w * 10);
+    if (len > maxLen) len = maxLen;
+  }
+  var s = '<svg viewBox="0 0 120 210" xmlns="http://www.w3.org/2000/svg">';
+  s += '<rect x="10" y="' + (topY - 8) + '" width="100" height="10" rx="4" fill="#8d6e63"/>';
+  var segs = 6;
+  var dy = len / segs;
+  s += '<polyline points="';
+  for (var i = 0; i <= segs; i++){
+    var x = (i % 2 === 0) ? 42 : 78;
+    s += x + ',' + Math.round(topY + i * dy) + ' ';
+  }
+  s += '" fill="none" stroke="#90a4ae" stroke-width="5" stroke-linejoin="round"/>';
+  var ballY = topY + len + 26;
+  if (ballId){
+    var it = itemOf(ballId);
+    s += '<line x1="60" y1="' + (topY + len) + '" x2="60" y2="' + (ballY - 20) + '" stroke="#666" stroke-width="3"/>';
+    s += '<circle cx="60" cy="' + ballY + '" r="20" fill="' + it.color + '"/>';
+    s += '<text x="60" y="' + (ballY + 7) + '" font-size="20" font-weight="bold" fill="#fff" text-anchor="middle">' + it.num + '</text>';
+  } else {
+    s += '<circle cx="60" cy="' + (topY + len + 18) + '" r="7" fill="none" stroke="#90a4ae" stroke-width="4"/>';
+  }
+  s += '<text x="60" y="205" font-size="15" fill="#789" text-anchor="middle">挂钩 ' + (hi + 1) + '</text>';
+  s += '</svg>';
+  return s;
+}
+
+/* ---------- 总渲染 ---------- */
+function renderAll(){
+  var lv = S.levels[S.lvIndex];
+  var condZone = $("condZone");
+  condZone.innerHTML = "";
+  for (var i = 0; i < S.cards.length; i++){
+    if (S.cards[i].inChain) continue;
+    condZone.appendChild(cardDom(S.cards[i], i));
+  }
+  if (S.cards.length === 0){
+    condZone.appendChild(el("div", "emptyTip", "这一关没有天平记录，全靠实验区动手探索！"));
+  }
+  $("condWrap").style.display = (S.cards.length > 0 || !lv.task.lab) ? "" : "none";
+  renderChain();
+  renderLab();
+  renderAnswer();
+  renderPalette();
+}
+
+/* =====================================================================
+   放置处理（所有拖拽落点的统一入口）
+   ===================================================================== */
+function handleDrop(payload, zone){
+  if (!zone){
+    /* 拖到空白处：组合天平的共同水果=拿走操作；其他物归原位 */
+    if (payload.kind === "cardItem" && payload.removable){
+      tryRemoveCommon(payload.cardRef, payload.side);
+      return;
+    }
+    renderAll();
+    return;
+  }
+  var dropId = zone.getAttribute("data-drop");
+  var parts = dropId.split(":");
+  var kind = parts[0];
+
+  if (payload.kind === "card"){
+    if (kind === "chain"){
+      dropCardToChain(payload.idx, parseInt(parts[1], 10));
+    } else if (kind === "condZone"){
+      takeCardFromChain(payload.idx);
+    } else {
+      toast("天平卡要放进推理链，或放回记录区");
+    }
+    renderAll();
+    return;
+  }
+  if (payload.kind === "cardItem"){
+    if (payload.removable){
+      tryRemoveCommon(payload.cardRef, payload.side);
+    } else {
+      renderAll();
+    }
+    return;
+  }
+  if (payload.kind === "crown"){
+    if (kind === "crown"){
+      placeCrown(parts[1]);
+    } else {
+      toast("把皇冠拖到最重的那一个的卡片上");
+      renderAll();
+    }
+    return;
+  }
+  if (payload.kind === "item"){
+    if (kind === "pod"){
+      placeToPod(payload.id, parseInt(parts[1], 10));
+    } else if (kind === "pan"){
+      placeToPan(payload.id, parts[1]);
+    } else if (kind === "hook"){
+      placeToHook(payload.id, parseInt(parts[1], 10));
+    } else if (kind === "palette"){
+      returnToPalette(payload.id);
+    } else {
+      renderAll();
+    }
+    return;
+  }
+  renderAll();
+}
+
+/* 卡片进推理链：只允许从左往右依次填充，保持链的顺序清晰 */
+function dropCardToChain(cardIdx, slotIdx){
+  var card = S.cards[cardIdx];
+  /* 链内换位：先取出旧位置，避免同一张卡在链里出现两次 */
+  if (card.inChain) takeCardFromChain(cardIdx);
+  var firstEmpty = -1;
+  for (var i = 0; i < S.chain.length; i++){
+    if (S.chain[i] === null){ firstEmpty = i; break; }
+  }
+  if (firstEmpty < 0){
+    toast("推理链已经满了，可以把卡片拖回记录区换位置");
+    return;
+  }
+  if (slotIdx !== firstEmpty){
+    toast("请先放到第 " + (firstEmpty + 1) + " 个链槽里，一节一节串");
+    return;
+  }
+  card.inChain = true;
+  card.slot = slotIdx;
+  S.chain[slotIdx] = cardIdx;
+  addStep();
+}
+function takeCardFromChain(cardIdx){
+  var card = S.cards[cardIdx];
+  if (!card.inChain) return;
+  S.chain[card.slot] = null;
+  card.inChain = false;
+  card.slot = -1;
+  /* 后面的卡片顺次前移，保持链紧凑 */
+  var compact = [];
+  for (var i = 0; i < S.chain.length; i++) if (S.chain[i] !== null) compact.push(S.chain[i]);
+  for (var j = 0; j < S.chain.length; j++) S.chain[j] = (j < compact.length) ? compact[j] : null;
+  for (var k = 0; k < S.cards.length; k++){
+    if (S.cards[k].inChain){
+      S.cards[k].slot = S.chain.indexOf(k);
+    }
+  }
+  addStep();
+}
+
+/* 领奖台放置（可互相换位、可退回托盘） */
+function placeToPod(id, slotIdx){
+  var lv = S.levels[S.lvIndex];
+  var pi = S.palette.indexOf(id);
+  if (pi >= 0) S.palette.splice(pi, 1);
+  if (S.panL === id) S.panL = null;
+  if (S.panR === id) S.panR = null;
+  var hi = S.hooks.indexOf(id);
+  if (hi >= 0) S.hooks[hi] = null;
+  for (var i = 0; i < S.podium.length; i++){
+    if (S.podium[i] === id && i !== slotIdx) S.podium[i] = null;
+  }
+  var old = S.podium[slotIdx];
+  S.podium[slotIdx] = id;
+  if (old && old !== id){
+    S.palette.push(old); /* 目标槽原有物品退回托盘 */
+  }
+  addStep();
+  renderAll();
+  checkPodium(lv);
+}
+function returnToPalette(id){
+  var pi = S.palette.indexOf(id);
+  if (pi < 0){
+    for (var i = 0; i < S.podium.length; i++){
+      if (S.podium[i] === id) S.podium[i] = null;
+    }
+    if (S.panL === id) S.panL = null;
+    if (S.panR === id) S.panR = null;
+    var hi = S.hooks.indexOf(id);
+    if (hi >= 0) S.hooks[hi] = null;
+    S.palette.push(id);
+    addStep();
+  }
+  renderAll();
+}
+
+/* 实验天平称量 */
+function placeToPan(id, side){
+  if (S.panL === id || S.panR === id) return;
+  var pi = S.palette.indexOf(id);
+  if (pi >= 0) S.palette.splice(pi, 1);
+  for (var i = 0; i < S.podium.length; i++) if (S.podium[i] === id) S.podium[i] = null;
+  var hi = S.hooks.indexOf(id);
+  if (hi >= 0) S.hooks[hi] = null;
+  if (side === "L"){ if (S.panL) S.palette.push(S.panL); S.panL = id; }
+  else { if (S.panR) S.palette.push(S.panR); S.panR = id; }
+  addStep();
+  if (S.panL && S.panR) S.weighCount++;
+  renderAll();
+  if (S.panL && S.panR){
+    toast("称量完成！看看天平往哪边沉");
+  }
+}
+/* 弹簧架挂球 */
+function placeToHook(id, hookIdx){
+  var pi = S.palette.indexOf(id);
+  if (pi >= 0) S.palette.splice(pi, 1);
+  for (var i = 0; i < S.podium.length; i++) if (S.podium[i] === id) S.podium[i] = null;
+  if (S.panL === id) S.panL = null;
+  if (S.panR === id) S.panR = null;
+  var old = S.hooks[hookIdx];
+  S.hooks[hookIdx] = id;
+  if (old && old !== id) S.palette.push(old);
+  addStep();
+  renderAll();
+  toast("球挂上了！观察弹簧被拉长的程度");
+}
+
+/* 皇冠放置与判定 */
+function placeCrown(id){
+  S.crownPlaced = id;
+  addStep();
+  var lv = S.levels[S.lvIndex];
+  var ids = Object.keys(lv.weights);
+  var heaviest = ids[0];
+  for (var i = 1; i < ids.length; i++){
+    if (itemOf(ids[i]).w > itemOf(heaviest).w) heaviest = ids[i];
+  }
+  renderAll();
+  if (id === heaviest){
+    winLevel();
+  } else {
+    var cards = document.querySelectorAll(".crownCard");
+    for (var c = 0; c < cards.length; c++){
+      if (cards[c].getAttribute("data-drop") === "crown:" + id){
+        cards[c].classList.add("wrong");
+      }
+    }
+    toast("再想一想：把每架天平的结论串起来，谁一定是最重的？");
+    S.crownPlaced = null; /* 皇冠退回，鼓励继续推理 */
+    setTimeout(function(){ renderAll(); }, 650);
+  }
+}
+
+/* 领奖台自动判分（摆满即检查） */
+function checkPodium(lv){
+  var full = true;
+  for (var i = 0; i < S.podium.length; i++) if (!S.podium[i]) full = false;
+  if (!full) return;
+  var ids = Object.keys(lv.weights);
+  var sorted = ids.slice().sort(function(a, b){
+    return lv.task.dir === "desc" ? itemOf(b).w - itemOf(a).w : itemOf(a).w - itemOf(b).w;
+  });
+  var ok = true;
+  for (var j = 0; j < sorted.length; j++){
+    if (S.podium[j] !== sorted[j]) ok = false;
+  }
+  if (ok){
+    winLevel();
+  } else {
+    var slots = document.querySelectorAll(".podSlot");
+    for (var s2 = 0; s2 < slots.length; s2++) slots[s2].classList.add("shake");
+    setTimeout(function(){
+      for (var s3 = 0; s3 < slots.length; s3++) slots[s3].classList.remove("shake");
+    }, 500);
+    toast("顺序还不对哦～再看看天平记录，翻一翻卡片、串一串推理链");
+  }
+}
+
+/* ---------- 过关庆祝（G5：彩纸 + 星级） ---------- */
+function winLevel(){
+  if (S.solved) return;
+  S.solved = true;
+  S.locked = true;
+  if (S.timerId) clearInterval(S.timerId); /* 过关后停止计时 */
+  var lv = S.levels[S.lvIndex];
+  var starN = 1;
+  if (!S.revealed) starN = (S.steps <= lv.par) ? 3 : 2;
+  S.stars += starN;
+  renderAll();
+  var lead = "";
+  var ids = Object.keys(lv.weights);
+  var sortedDesc = ids.slice().sort(function(a, b){ return itemOf(b).w - itemOf(a).w; });
+  if (lv.task.type === "crown"){
+    lead = "最重的是：" + itemOf(sortedDesc[0]).name;
+  } else if (lv.task.dir === "desc"){
+    lead = "从重到轻：" + sortedDesc.map(function(id){ return itemOf(id).name; }).join(" > ");
+  } else {
+    lead = "从轻到重：" + sortedDesc.slice().reverse().map(function(id){ return itemOf(id).name; }).join(" < ");
+  }
+  $("winTitle").textContent = S.revealed ? "📖 已揭示答案" : "🎉 过关啦，真棒！";
+  $("winStars").textContent = S.revealed ? "⭐" : (starN === 3 ? "⭐⭐⭐" : "⭐⭐");
+  $("winLead").textContent = lead;
+  $("winExplain").innerHTML = "<b>推理过程：</b>" + lv.explain +
+    "<br><b>用时：</b>" + $("hudTimer").textContent.replace("计时 ", "") +
+    "　<b>操作：</b>" + S.steps + " 步" +
+    (lv.task.lab === "balance" ? "　<b>称量：</b>" + S.weighCount + " 次" : "");
+  var isLast = S.lvIndex >= S.levels.length - 1;
+  $("btnNextLv").textContent = isLast ? "🏁 查看难度成绩" : "➡️ 下一关";
+  $("winOv").classList.add("show");
+  if (!S.revealed) launchConfetti();
+}
+
+/* ---------- 揭示答案（G4） ---------- */
+function revealAnswer(){
+  if (S.solved) return;
+  var lv = S.levels[S.lvIndex];
+  S.revealed = true;
+  var ids = Object.keys(lv.weights);
+  if (lv.task.type === "crown"){
+    var heaviest = ids[0];
+    for (var i = 1; i < ids.length; i++){
+      if (itemOf(ids[i]).w > itemOf(heaviest).w) heaviest = ids[i];
+    }
+    S.crownPlaced = heaviest;
+  } else {
+    var sorted = ids.slice().sort(function(a, b){
+      return lv.task.dir === "desc" ? itemOf(b).w - itemOf(a).w : itemOf(a).w - itemOf(b).w;
+    });
+    S.podium = sorted;
+    S.palette = [];
+  }
+  winLevel();
+}
+
+/* ---------- 彩纸庆祝（Canvas 实现，G5） ---------- */
+function launchConfetti(){
+  var cv = $("confetti");
+  cv.style.display = "block";
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  var ctx = cv.getContext("2d");
+  var colors = ["#e53935", "#f57c00", "#fdd835", "#43a047", "#1e88e5", "#8e44ad", "#ec407a"];
+  var parts = [];
+  for (var i = 0; i < 160; i++){
+    parts.push({
+      x: Math.random() * cv.width,
+      y: -20 - Math.random() * cv.height * 0.5,
+      w: 8 + Math.random() * 8,
+      h: 10 + Math.random() * 8,
+      c: colors[Math.floor(Math.random() * colors.length)],
+      vy: 2 + Math.random() * 3.5,
+      vx: -1.5 + Math.random() * 3,
+      rot: Math.random() * Math.PI * 2,
+      vr: -0.12 + Math.random() * 0.24,
+      star: Math.random() < 0.18
+    });
+  }
+  var t0 = Date.now();
+  function frame(){
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (var k = 0; k < parts.length; k++){
+      var p = parts[k];
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      if (p.star){
+        ctx.font = "22px serif";
+        ctx.fillText("★", -11, 8);
+      } else {
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      }
+      ctx.restore();
+    }
+    if (Date.now() - t0 < 3200 && parts.length){
+      requestAnimationFrame(frame);
+    } else {
+      cv.style.display = "none";
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 规则说明（G6：进入先弹一次，随时可再看） ---------- */
+function showRules(){
+  var row = $("rulesDemoRow");
+  row.innerHTML = "";
+  var demos = [
+    { L: ["peach"], R: ["peach"], cap: "平衡：一样重" },
+    { L: ["melon"], R: ["cherry"], cap: "下沉的一边重" }
+  ];
+  for (var i = 0; i < demos.length; i++){
+    (function(d){
+      var wrap = el("div", "rd");
+      wrap.insertAdjacentHTML("beforeend", scaleSVG(d.L, d.R, "demo", true));
+      wrap.appendChild(el("div", null, d.cap));
+      row.appendChild(wrap);
+    })(demos[i]);
+  }
+  $("rulesOv").classList.add("show");
+}
+
+/* =====================================================================
+   事件绑定与启动
+   ===================================================================== */
+(function init(){
+  applyTheme();
+  /* 首页演示小天平（需要先给演示物品配内部重量） */
+  itemOf("apple").w = 5; itemOf("peach").w = 4; itemOf("melon").w = 9;
+  itemOf("orange").w = 3; itemOf("cherry").w = 2;
+  var homeDemo = $("homeDemo");
+  var demoDefs = [
+    { L: ["apple"], R: ["apple"], cap: "平衡：一样重" },
+    { L: ["melon"], R: ["orange"], cap: "左沉：左边重" }
+  ];
+  for (var i = 0; i < demoDefs.length; i++){
+    (function(d){
+      var wrap = el("div", "rd");
+      wrap.style.fontSize = "16px";
+      wrap.style.fontWeight = "800";
+      wrap.insertAdjacentHTML("beforeend", scaleSVG(d.L, d.R, "home", true));
+      wrap.appendChild(el("div", null, d.cap));
+      homeDemo.appendChild(wrap);
+    })(demoDefs[i]);
+  }
+  /* 难度卡片 */
+  var cards = document.querySelectorAll(".diffCard");
+  for (var c = 0; c < cards.length; c++){
+    (function(cardEl){
+      cardEl.addEventListener("click", function(){
+        startDifficulty(cardEl.getAttribute("data-diff"));
+      });
+    })(cards[c]);
+  }
+  /* 各按钮 */
+  $("btnRulesHome").addEventListener("click", showRules);
+  $("btnRules").addEventListener("click", showRules);
+  $("btnRulesClose").addEventListener("click", function(){ $("rulesOv").classList.remove("show"); });
+  $("btnReveal").addEventListener("click", function(){
+    if (S.solved) return;
+    revealAnswer();
+    toast("已为你揭示答案，读一读推理过程吧");
+  });
+  $("btnRestart").addEventListener("click", function(){
+    startLevel();
+    toast("本关重新开始，卡片和物品重新洗牌咯");
+  });
+  $("btnHome").addEventListener("click", goHome);
+  $("btnWinHome").addEventListener("click", function(){
+    $("winOv").classList.remove("show");
+    goHome();
+  });
+  $("btnAgain").addEventListener("click", function(){
+    $("winOv").classList.remove("show");
+    startLevel();
+  });
+  /* 下一关 / 难度通关小结 / 再来一局（单一监听，状态用 data 标记） */
+  $("btnNextLv").addEventListener("click", function(){
+    var btn = $("btnNextLv");
+    if (btn.dataset.again === "1"){
+      btn.dataset.again = "";
+      $("winOv").classList.remove("show");
+      startDifficulty(S.diff);
+      return;
+    }
+    $("winOv").classList.remove("show");
+    if (S.lvIndex >= S.levels.length - 1){
+      /* 难度通关小结 */
+      $("winTitle").textContent = "🏁 " + diffName(S.diff) + " 通关！";
+      $("winStars").textContent = "共获得 " + S.stars + " 颗星";
+      $("winLead").textContent = "太厉害啦！换个难度或再玩一次，题目和画面都会重新洗牌哦～";
+      $("winExplain").innerHTML = "<b>小复习：</b>天平平衡，两边一样重；天平倾斜，下沉为重、上翘为轻。先统一方向，再像串糖葫芦一样把结论串起来，就能排出轻重顺序！";
+      btn.textContent = "🎲 再来一局（重新抽题）";
+      btn.dataset.again = "1";
+      $("winOv").classList.add("show");
+      launchConfetti();
+    } else {
+      S.lvIndex++;
+      startLevel();
+    }
+  });
+})();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g002", "name": "\u6c34\u679c\u5929\u5e73\u5927\u5192\u9669 \u00b7 \u63a8\u7406\u6bd4\u8f83\uff08\u4e0b\uff09", "file": "g002.html", "jiaocan": "\u30102\u3011\u7b2c1\u8bb2 \u63a8\u7406\u6bd4\u8f83\uff08\u4e0b\uff09", "unit": "\u7b2c1\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

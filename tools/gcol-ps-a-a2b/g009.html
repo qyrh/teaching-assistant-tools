@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<!-- 移动端适配 + 触摸操作可用 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>枚举小工匠 · 不重不漏寻宝记</title>
+<style>
+  /* ============ 全局基础样式（课堂投影：高对比、大字号、粗线条） ============ */
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --primary:#3a7bd5;        /* 主色（每局随机覆盖） */
+    --accent:#ffb84d;         /* 强调色 */
+    --bg1:#a1c4fd;            /* 背景渐变起 */
+    --bg2:#c2e9fb;            /* 背景渐变止 */
+    --card:#ffffff;           /* 卡片底色 */
+    --ink:#223;               /* 正文色 */
+    --good:#2ec27e;           /* 正确/已找到 */
+    --warn:#e66;              /* 重复/无效 */
+    --soft:#859;              /* 次要文字 */
+  }
+  html,body{ height:100%; }
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));
+    color:var(--ink);
+    min-height:100%;
+    overflow-x:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  button{ font-family:inherit; cursor:pointer; border:none; }
+
+  /* ============ 顶部信息栏 ============ */
+  #topbar{
+    position:sticky; top:0; z-index:50;
+    display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+    padding:.55rem .9rem;
+    background:rgba(255,255,255,.82);
+    backdrop-filter:blur(6px);
+    border-bottom:3px solid var(--primary);
+    box-shadow:0 3px 10px rgba(0,0,0,.08);
+  }
+  #topbar .title{ font-weight:800; font-size:1.15rem; color:var(--primary); margin-right:auto; }
+  .stat{
+    display:inline-flex; align-items:center; gap:.3rem;
+    background:var(--card); border:2px solid var(--primary);
+    border-radius:999px; padding:.3rem .8rem; font-weight:700; font-size:1rem;
+    min-height:40px;
+  }
+  .stat small{ color:var(--soft); font-weight:600; }
+  .topbtn{
+    background:var(--card); border:2px solid var(--primary); color:var(--primary);
+    border-radius:14px; padding:.4rem .8rem; font-weight:700; font-size:.95rem;
+    min-height:40px; transition:transform .12s, background .2s;
+  }
+  .topbtn:active{ transform:scale(.95); }
+  .topbtn:hover{ background:var(--primary); color:#fff; }
+
+  /* ============ 难度选择屏 ============ */
+  .screen{ padding:1.2rem; max-width:1100px; margin:0 auto; }
+  #difficultyScreen .hero{
+    text-align:center; margin:.6rem 0 1.4rem;
+  }
+  #difficultyScreen .hero h1{
+    font-size:2.1rem; color:var(--primary); letter-spacing:2px;
+    text-shadow:2px 2px 0 rgba(255,255,255,.5);
+  }
+  #difficultyScreen .hero p{ font-size:1.1rem; color:var(--ink); margin-top:.4rem; }
+  .diff-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1.1rem;
+  }
+  .diff-card{
+    background:var(--card); border:4px solid var(--primary); border-radius:24px;
+    padding:1.4rem 1.2rem; cursor:pointer; transition:transform .15s, box-shadow .2s;
+    box-shadow:0 6px 0 rgba(0,0,0,.12); position:relative; overflow:hidden;
+  }
+  .diff-card:hover{ transform:translateY(-6px); box-shadow:0 12px 0 rgba(0,0,0,.12); }
+  .diff-card:active{ transform:translateY(-2px); }
+  .diff-card .badge{ font-size:2.6rem; line-height:1; margin-bottom:.4rem; }
+  .diff-card h2{ font-size:1.5rem; color:var(--primary); margin-bottom:.3rem; }
+  .diff-card .sub{ color:var(--soft); font-weight:600; margin-bottom:.6rem; }
+  .diff-card .desc{ font-size:.98rem; line-height:1.6; }
+  .diff-card .lv{ position:absolute; top:.7rem; right:.9rem; font-weight:800; color:var(--accent); }
+
+  /* ============ 游戏主区 ============ */
+  #gameScreen{ display:none; }
+  .task-head{
+    background:var(--card); border:3px solid var(--primary); border-radius:20px;
+    padding:.9rem 1.1rem; margin-bottom:1rem; box-shadow:0 4px 0 rgba(0,0,0,.1);
+  }
+  .task-head .tag{
+    display:inline-block; background:var(--accent); color:#fff; font-weight:800;
+    border-radius:999px; padding:.15rem .8rem; font-size:.9rem; margin-bottom:.4rem;
+  }
+  .task-head .ask{ font-size:1.2rem; font-weight:700; line-height:1.5; }
+  .task-head .hint{ color:var(--soft); margin-top:.4rem; font-size:.95rem; }
+
+  /* 进度条 */
+  .progress-wrap{
+    display:flex; align-items:center; gap:.7rem; margin-bottom:.9rem; flex-wrap:wrap;
+  }
+  .progress-bar{
+    flex:1; min-width:180px; height:26px; background:#fff; border:3px solid var(--primary);
+    border-radius:999px; overflow:hidden; position:relative;
+  }
+  .progress-fill{
+    height:100%; background:linear-gradient(90deg,var(--good),#7ee8a8);
+    width:0; transition:width .35s; border-radius:999px;
+  }
+  .progress-label{ font-weight:800; font-size:1.05rem; color:var(--primary); }
+
+  /* 操作区（统一卡片） */
+  .play-card{
+    background:var(--card); border:3px dashed var(--primary); border-radius:22px;
+    padding:1.1rem; margin-bottom:1rem; min-height:160px;
+  }
+  .play-title{ font-weight:800; color:var(--primary); margin-bottom:.7rem; font-size:1.05rem; }
+
+  /* 拖拽源：数字卡片 / 硬币 */
+  .bank{ display:flex; flex-wrap:wrap; gap:.7rem; justify-content:center; padding:.5rem 0; }
+  .dcard{
+    width:64px; height:84px; border-radius:14px; font-size:2rem; font-weight:800;
+    display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg,#fffef5,#fff6d6); border:3px solid var(--accent);
+    color:var(--ink); box-shadow:0 4px 0 #d9b94a; touch-action:none; cursor:grab;
+    transition:transform .1s;
+  }
+  .dcard:active{ cursor:grabbing; transform:scale(1.05); }
+  .dcard.used{ opacity:.3; pointer-events:none; filter:grayscale(1); }
+  .ghost{ box-shadow:0 8px 18px rgba(0,0,0,.3); transform:scale(1.08) rotate(-3deg); }
+
+  .coin{
+    width:74px; height:74px; border-radius:50%; font-size:1rem; font-weight:800;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    background:radial-gradient(circle at 35% 30%,#fff4c2,#ffc94d); border:4px solid #e6a016;
+    color:#7a4e00; box-shadow:0 4px 0 #c98214; touch-action:none; cursor:grab;
+    line-height:1.1;
+  }
+  .coin:active{ cursor:grabbing; }
+  .coin.placed{ opacity:.3; pointer-events:none; }
+
+  /* 数字槽位 */
+  .slots{ display:flex; gap:.8rem; justify-content:center; margin:.6rem 0; flex-wrap:wrap; }
+  .slot{
+    width:78px; height:96px; border-radius:16px; border:3px dashed var(--primary);
+    background:#fbfdff; display:flex; align-items:center; justify-content:center;
+    font-size:2.1rem; font-weight:800; color:var(--primary); position:relative;
+    transition:border-color .2s, background .2s;
+  }
+  .slot .pos{
+    position:absolute; top:-12px; background:var(--primary); color:#fff;
+    font-size:.7rem; font-weight:700; padding:.05rem .5rem; border-radius:999px;
+  }
+  .slot.drag-over{ border-color:var(--good); background:#effff6; }
+  .slot.filled{ border-style:solid; }
+
+  .number-out{
+    text-align:center; font-size:2rem; font-weight:800; color:var(--ink); margin:.5rem 0;
+    min-height:2.4rem;
+  }
+  .number-out.bad{ color:var(--warn); }
+
+  /* 百宝箱（硬币容器） */
+  .pouch{
+    min-height:96px; border:3px dashed var(--primary); border-radius:18px;
+    background:#fbfdff; display:flex; flex-wrap:wrap; gap:.5rem; justify-content:center;
+    align-items:center; padding:.6rem; transition:border-color .2s, background .2s;
+  }
+  .pouch.drag-over{ border-color:var(--good); background:#effff6; }
+  .pouch .ph{ color:var(--soft); font-weight:600; }
+  .pouch .coin{ width:56px; height:56px; font-size:.8rem; box-shadow:0 3px 0 #c98214; }
+
+  /* 长方形：滑块 + 预览 */
+  .rect-controls{ display:flex; flex-direction:column; gap:.7rem; align-items:center; }
+  .slider-row{ display:flex; align-items:center; gap:.8rem; width:100%; max-width:520px; }
+  .slider-row label{ font-weight:800; min-width:5.5rem; color:var(--primary); }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; flex:1; height:18px; border-radius:999px;
+    background:linear-gradient(90deg,var(--primary),var(--accent)); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:34px; height:34px; border-radius:50%;
+    background:#fff; border:4px solid var(--primary); box-shadow:0 2px 6px rgba(0,0,0,.3); cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:34px; height:34px; border-radius:50%; background:#fff; border:4px solid var(--primary); cursor:pointer;
+  }
+  .rowval{ font-weight:800; font-size:1.3rem; min-width:2.5rem; text-align:center; color:var(--ink); }
+  .rect-preview{
+    margin-top:.6rem; display:grid; gap:2px; padding:6px; background:#eef3fa;
+    border-radius:10px; border:2px solid var(--primary); transition:background .2s; place-items:center;
+  }
+  .rect-preview .cell{ width:14px; height:14px; background:var(--accent); border-radius:3px; }
+  .rect-info{ font-weight:800; font-size:1.2rem; color:var(--ink); margin-top:.5rem; }
+  .rect-info.valid{ color:var(--good); }
+
+  /* 台阶 */
+  .stair-wrap{ position:relative; }
+  .stair-stage{
+    display:flex; align-items:flex-end; justify-content:center; gap:3px;
+    min-height:180px; padding:.6rem; flex-wrap:nowrap; overflow-x:auto;
+  }
+  .step{
+    width:42px; background:linear-gradient(180deg,#fff,var(--primary) 180%); color:#fff;
+    border-radius:8px 8px 0 0; display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:.3rem; font-weight:700; font-size:.8rem; border:2px solid #fff;
+    box-shadow:0 2px 4px rgba(0,0,0,.15); position:relative; flex-shrink:0;
+  }
+  .step .n{ position:absolute; top:3px; font-size:.7rem; color:#fff; opacity:.85; }
+  .runner{
+    position:absolute; font-size:1.6rem; transition:left .3s, bottom .3s;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.3));
+  }
+  .step-btns{ display:flex; gap:.7rem; justify-content:center; margin-top:.8rem; flex-wrap:wrap; }
+  .step-btn{
+    background:var(--accent); color:#fff; font-weight:800; font-size:1.1rem;
+    border-radius:16px; padding:.7rem 1.2rem; box-shadow:0 4px 0 #c98a2a; min-height:50px;
+  }
+  .step-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 #c98a2a; }
+  .route-out{ text-align:center; font-weight:800; font-size:1.2rem; margin-top:.6rem; min-height:1.6rem; color:var(--ink); }
+
+  /* 已找到列表 */
+  .found-card{
+    background:var(--card); border:3px solid var(--good); border-radius:20px;
+    padding:.8rem 1rem; margin-bottom:1rem;
+  }
+  .found-card h3{ color:var(--good); font-size:1.05rem; margin-bottom:.5rem; }
+  .found-list{ display:flex; flex-wrap:wrap; gap:.45rem; }
+  .chip{
+    background:#effff6; border:2px solid var(--good); color:#1d7d4f;
+    border-radius:999px; padding:.3rem .8rem; font-weight:700; font-size:.95rem;
+  }
+  .chip.reveal{ background:#fff7ea; border-color:var(--accent); color:#a96900; }
+
+  /* 底部操作按钮 */
+  .actions{ display:flex; gap:.7rem; flex-wrap:wrap; justify-content:center; margin:.4rem 0 1.2rem; }
+  .act{
+    border-radius:16px; padding:.75rem 1.3rem; font-weight:800; font-size:1.05rem;
+    min-height:52px; transition:transform .12s; color:#fff;
+  }
+  .act:active{ transform:scale(.96); }
+  .act-primary{ background:var(--good); box-shadow:0 5px 0 #1f9c5f; }
+  .act-warn{ background:var(--accent); box-shadow:0 5px 0 #c98a2a; }
+  .act-info{ background:var(--primary); box-shadow:0 5px 0 #2a5fa8; }
+  .act-soft{ background:#8a8aa8; box-shadow:0 5px 0 #6a6a86; }
+
+  /* 完成提示 */
+  .done-banner{
+    text-align:center; background:var(--card); border:3px solid var(--good);
+    border-radius:20px; padding:1rem; margin-bottom:1rem; display:none;
+  }
+  .done-banner.show{ display:block; }
+  .done-banner h3{ color:var(--good); font-size:1.4rem; margin-bottom:.3rem; }
+
+  /* 规则 / 弹窗 */
+  .modal-mask{
+    position:fixed; inset:0; background:rgba(20,20,40,.55); z-index:200;
+    display:none; align-items:center; justify-content:center; padding:1rem;
+  }
+  .modal-mask.show{ display:flex; }
+  .modal{
+    background:var(--card); border:5px solid var(--primary); border-radius:26px;
+    max-width:560px; width:100%; padding:1.4rem 1.3rem; max-height:88vh; overflow:auto;
+  }
+  .modal h2{ color:var(--primary); font-size:1.5rem; margin-bottom:.7rem; text-align:center; }
+  .modal ul{ margin:.5rem 0 .8rem 1.2rem; line-height:1.9; font-size:1rem; }
+  .modal ul li b{ color:var(--accent); }
+  .modal .close{
+    display:block; margin:1rem auto 0; background:var(--primary); color:#fff;
+    border-radius:14px; padding:.6rem 2rem; font-weight:800; font-size:1.05rem; min-height:48px;
+  }
+
+  /* 彩纸庆祝画布 */
+  #celebrate{ position:fixed; inset:0; pointer-events:none; z-index:300; display:none; }
+  #celebrate.show{ display:block; }
+
+  /* Toast 提示 */
+  #toast{
+    position:fixed; left:50%; bottom:8%; transform:translateX(-50%) translateY(20px);
+    background:rgba(34,34,51,.92); color:#fff; padding:.7rem 1.3rem; border-radius:14px;
+    font-weight:700; z-index:250; opacity:0; transition:opacity .25s, transform .25s;
+    pointer-events:none; max-width:90vw; text-align:center;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* 完美徽章 */
+  .perfect{ color:var(--accent); font-weight:800; }
+
+  @media (max-width:560px){
+    #topbar .title{ font-size:1rem; }
+    .stat{ font-size:.85rem; padding:.25rem .6rem; }
+    .dcard{ width:54px; height:72px; font-size:1.6rem; }
+    .slot{ width:64px; height:80px; font-size:1.7rem; }
+    .coin{ width:62px; height:62px; font-size:.85rem; }
+    #difficultyScreen .hero h1{ font-size:1.6rem; }
+    .rect-preview .cell{ width:10px; height:10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ 顶部信息栏 ============ -->
+<div id="topbar">
+  <span class="title">枚举小工匠 · 不重不漏寻宝记</span>
+  <span class="stat" id="timerStat"><small>⏱</small> <span id="timer">00:00</span></span>
+  <span class="stat"><small>👣</small> <span id="steps">0</span> <small>步</small></span>
+  <button class="topbtn" id="rulesBtn">规则说明</button>
+  <button class="topbtn" id="backBtn" style="display:none">返回选关</button>
+</div>
+
+<!-- ============ 难度选择屏 ============ -->
+<div id="difficultyScreen" class="screen">
+  <div class="hero">
+    <h1>枚举小工匠 · 不重不漏寻宝记</h1>
+    <p>枚举就是<b>先分类、有顺序、做统计</b>，做到<b>不重不漏</b>。选一个难度开始你的探险吧！</p>
+  </div>
+  <div class="diff-grid">
+    <div class="diff-card" data-diff="easy">
+      <span class="lv">★</span>
+      <div class="badge">🪙</div>
+      <h2>初级 · 星币百宝箱</h2>
+      <div class="sub">勇者试炼</div>
+      <div class="desc">把硬币拖进百宝箱，找出<b>所有不同的取法</b>。练习“固定一枚、再配一枚”的有顺序枚举。</div>
+    </div>
+    <div class="diff-card" data-diff="medium">
+      <span class="lv">★★</span>
+      <div class="badge">🔢</div>
+      <h2>中级 · 数字魔方</h2>
+      <div class="sub">智慧之门</div>
+      <div class="desc">拖动数字卡片排成三位数，<b>按百位分类</b>一枚举出来，注意 0 不能放首位哦！</div>
+    </div>
+    <div class="diff-card" data-diff="hard">
+      <span class="lv">★★★</span>
+      <div class="badge">🏗️</div>
+      <h2>高级 · 建造师挑战</h2>
+      <div class="sub">星空旅程</div>
+      <div class="desc">综合闯关：用滑块拼出<b>所有不同长方形</b>，再规划小狐狸<b>走台阶的全部走法</b>。变式综合，挑战不重不漏！</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 游戏主屏 ============ -->
+<div id="gameScreen" class="screen">
+  <div class="task-head" id="taskHead"></div>
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+    <span class="progress-label" id="progLabel">已找到 0 / 0 种</span>
+  </div>
+  <div class="play-card" id="playArea"></div>
+  <div class="actions" id="recordActions"></div>
+  <div class="found-card">
+    <h3>🏅 我的收集（不重不漏）</h3>
+    <div class="found-list" id="foundList"></div>
+  </div>
+  <div class="done-banner" id="doneBanner"></div>
+  <div class="actions">
+    <button class="act act-warn" id="revealBtn">揭示答案</button>
+    <button class="act act-info" id="restartBtn">重新开始</button>
+    <button class="act act-soft" id="backBtn2">返回选关</button>
+    <button class="act act-primary" id="nextBtn" style="display:none">下一题 →</button>
+  </div>
+</div>
+
+<!-- ============ 规则说明弹窗 ============ -->
+<div class="modal-mask" id="rulesMask">
+  <div class="modal">
+    <h2>📜 探险规则说明</h2>
+    <ul>
+      <li><b>枚举三步</b>：先分类、有顺序、做统计，目标是<b>不重不漏</b>地找全所有情况。</li>
+      <li><b>初级</b>：把硬币拖进百宝箱，凑齐指定数量后会自动记录一种取法。</li>
+      <li><b>中级</b>：拖数字卡片到“百位/十位/个位”格子排成数，点“记录此数”。首位不能是 0。</li>
+      <li><b>高级-长方形</b>：拖动“行数”滑块，当行数能整除总数时拼法成立，点“记录这种拼法”。</li>
+      <li><b>高级-台阶</b>：点“走 1 步/走 3 步”按钮规划小狐狸的路线，走到顶端自动记录一种走法。</li>
+      <li>右上角有<b>计时</b>和<b>步数</b>。重复的情况会被自动提醒，不会重复记录。</li>
+      <li>实在找不到？点<b>揭示答案</b>看完整枚举；点<b>重新开始</b>换一组新题目；点<b>返回选关</b>换难度。</li>
+      <li>找全所有情况，会有<b>彩色烟花</b>为你庆祝哦！</li>
+    </ul>
+    <button class="close" id="rulesClose">明白啦，开始探险！</button>
+  </div>
+</div>
+
+<!-- 彩纸庆祝画布 -->
+<canvas id="celebrate"></canvas>
+<!-- 轻提示 -->
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+ * 枚举小工匠 · 不重不漏寻宝记
+ * 本游戏把“枚举法”的四种典型题型（取硬币、组数、拼长方形、走台阶）
+ * 设计成“动手构造每一种情况”的操作游戏：学生必须真正拖一拖、排一排、
+ * 滑一滑、点一点，才能把所有情况一一列举出来，而不是选答案。
+ * 全部题数据来自教参《第5讲 枚举法的妙用（上）》并做了同题型变式扩展。
+ * ============================================================ */
+
+/* ---------- 配色板：每局随机选一个主色，保证多次玩不腻 ---------- */
+const PALETTES = [
+  {name:'晴空蓝', bg1:'#a1c4fd', bg2:'#c2e9fb', primary:'#3a7bd5', accent:'#ffb84d'},
+  {name:'蜜桃粉', bg1:'#ffd3e6', bg2:'#fdcbf1', primary:'#e36bae', accent:'#7ed0c4'},
+  {name:'青草绿', bg1:'#d4fc79', bg2:'#96e6a1', primary:'#3aa66b', accent:'#ff8c66'},
+  {name:'晚霞橙', bg1:'#ffecd2', bg2:'#fcb69f', primary:'#e87a3e', accent:'#5aa9e6'},
+  {name:'葡萄紫', bg1:'#cdcff6', bg2:'#e0c3fc', primary:'#7a5cc8', accent:'#ffc857'},
+  {name:'海洋青', bg1:'#c2fff9', bg2:'#4facfe', primary:'#1f7fa8', accent:'#ff7eb3'},
+];
+
+/* ---------- 题库：按难度分池，均来自教参原题与同题型变式 ---------- */
+const TASK_POOLS = {
+  // 初级：分类枚举（取硬币/纸币，取两枚）—— 对应教参 例1、练习1/2/3
+  easy:[
+    {type:'coin', label:'取硬币', coins:['1角','2角','5角'], pick:2,
+     ask:'阿普有 1角、2角、5角 的硬币各一枚，从中取出两枚，共有多少种不同的取法？',
+     hint:'先固定第一枚，再依次配第二枚，按顺序列就不会漏。'},
+    {type:'coin', label:'取纸币', coins:['1元','5元','10元','20元'], pick:2,
+     ask:'牛牛有 1元、5元、10元、20元 的纸币各一张，从中取出两张，共有多少种不同的取法？',
+     hint:'按面额从小到大，先固定较小的那张，再配后面较大的，3+2+1=6 种。'},
+    {type:'coin', label:'取硬币', coins:['1角','1角','2角','5角','1元'], pick:2,
+     ask:'田田有 1角两枚、2角、5角、1元 各一枚，从中取出两枚，共有多少种不同的取法？',
+     hint:'注意有两枚相同的 1角，“1角 + 1角”也是一种；先固定较小的一枚，再配后面较大的，3+2+1+1=7 种。'},
+  ],
+  // 中级：组数问题（数字卡片组三位数）—— 对应教参 例3、练习7/8
+  medium:[
+    {type:'digit', label:'组三位数', digits:['1','3','5'], len:3, repeatable:false,
+     ask:'用卡片 1、3、5 可以组成多少个不同的三位数？（卡片不能重复使用）',
+     hint:'按百位是 1、是 3、是 5 分类，每类再排十位、个位，2×3=6 个。'},
+    {type:'digit', label:'组三位数', digits:['0','2','4'], len:3, repeatable:false,
+     ask:'用卡片 0、2、4 可以组成多少个不同的三位数？（0 不能放首位，卡片不能重复）',
+     hint:'百位只能是 2 或 4，再排剩下两位，共 4 个。'},
+    {type:'digit', label:'组三位数', digits:['2','4','6'], len:3, repeatable:false,
+     ask:'用卡片 2、4、6 可以组成多少个不同的三位数？（卡片不能重复使用）',
+     hint:'三个数都能当首位，每个首位对应两种排法，共 6 个。'},
+  ],
+  // 高级：综合变式（拼长方形 + 走台阶）—— 对应教参 例2、练习4/6、练习10/12
+  hard:[
+    {type:'rect', label:'拼长方形', n:12,
+     ask:'把 12 个同样大小的正方形拼成一个长方形，可以拼成几种不同的长方形？（正方形也是特殊的长方形）',
+     hint:'按“排几行”分类：12=1×12=2×6=3×4，找全因数对。'},
+    {type:'rect', label:'拼长方形', n:16,
+     ask:'把 16 个同样大小的正方形拼成一个长方形，可以拼成几种不同的长方形？',
+     hint:'16=1×16=2×8=4×4，注意 4×4 是正方形也算长方形。'},
+    {type:'rect', label:'拼长方形', n:24,
+     ask:'把 24 个同样大小的正方形拼成一个长方形，可以拼成几种不同的长方形？',
+     hint:'24=1×24=2×12=3×8=4×6，按行数从小到大有序枚举。'},
+    {type:'stair', label:'走台阶', n:5, steps:[1,3],
+     ask:'小狐狸要走完 5 级台阶，每次只能走 1 级或 3 级，共有多少种不同的走法？',
+     hint:'按“第一步走几级”分类：第一步走 1 级、或走 3 级，再继续拆。'},
+    {type:'stair', label:'走台阶', n:4, steps:[1,2,3],
+     ask:'小狐狸要走完 4 级台阶，每次可以走 1 级、2 级或 3 级，共有多少种不同的走法？',
+     hint:'按第一步走 1/2/3 级分类，1+3+2+1=7 种。'},
+  ],
+};
+
+/* ---------- 全局状态 ---------- */
+const state = {
+  diff:null,        // 当前难度
+  tasks:[],         // 本局抽到的任务列表
+  idx:0,            // 当前任务序号
+  task:null,        // 当前任务对象（运行时附加 found/revealed 等字段）
+  steps:0,          // 步数
+  startTs:0,        // 计时起点
+  timerId:null,
+};
+
+/* ============ 工具函数 ============ */
+// 洗牌（反重复：每局题目顺序打乱）
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    const t=a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+// 数字前补零（计时显示）
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+// 轻提示
+let toastTid=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  if(toastTid) clearTimeout(toastTid);
+  toastTid=setTimeout(()=>el.classList.remove('show'),1400);
+}
+
+/* ============ 四种枚举“全集”生成器（用于显示总数 + 揭示答案） ============ */
+// 组数：生成所有符合条件的数（字符串）。repeatable=true 表示数字可重复使用。
+function genDigitAll(digits, len, repeatable){
+  const res=[];
+  function rec(prefix, used){
+    if(prefix.length===len){ res.push(prefix.join('')); return; }
+    for(let i=0;i<digits.length;i++){
+      if(!repeatable && used[i]) continue;
+      if(prefix.length===0 && digits[i]==='0') continue; // 首位不能是 0
+      used[i]=true;
+      rec(prefix.concat(digits[i]), used);
+      used[i]=false;
+    }
+  }
+  rec([], []);
+  return Array.from(new Set(res));
+}
+// 取硬币：生成所有“取 pick 枚”的不同取法（按面额排序后去重，兼容相同面额）
+function genCoinAll(coins, pick){
+  const res=[];
+  const idx=[];
+  function rec(start){
+    if(idx.length===pick){
+      const combo = idx.map(function(i){return coins[i];}).slice().sort().join(' + ');
+      res.push(combo);
+      return;
+    }
+    for(let i=start;i<coins.length;i++){
+      idx.push(i); rec(i+1); idx.pop();
+    }
+  }
+  rec(0);
+  return Array.from(new Set(res));
+}
+// 拼长方形：生成所有“行×列”因数对（行≤列）
+function genRectAll(n){
+  const res=[];
+  for(let r=1;r*r<=n;r++){
+    if(n%r===0){ res.push(r+' × '+(n/r)); }
+  }
+  return res;
+}
+// 走台阶：生成所有“步数序列”走法（顺序不同算不同走法）
+function genStairAll(n, steps){
+  const res=[];
+  function rec(sum, seq){
+    if(sum===n){ res.push(seq.join(' + ')); return; }
+    if(sum>n) return;
+    for(let k=0;k<steps.length;k++){
+      rec(sum+steps[k], seq.concat(steps[k]));
+    }
+  }
+  rec(0,[]);
+  return Array.from(new Set(res));
+}
+
+// 根据任务类型，计算该任务的“全集”（用于显示总数与揭示答案）
+function buildAll(task){
+  if(task.type==='coin')   return genCoinAll(task.coins, task.pick);
+  if(task.type==='digit')  return genDigitAll(task.digits, task.len, task.repeatable);
+  if(task.type==='rect')   return genRectAll(task.n);
+  if(task.type==='stair')  return genStairAll(task.n, task.steps);
+  return [];
+}
+
+/* ============ 通用拖拽系统（Pointer Events，兼容鼠标+触摸） ============ */
+// 给一个可拖元素绑定拖拽：拖动时出现幽灵副本，松手时判断落点是否是 .dropzone
+function makeDraggable(el){
+  el.addEventListener('pointerdown', function(e){
+    if(el.classList.contains('used') || el.classList.contains('placed')) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    // 创建跟随指针的幽灵副本
+    const ghost = el.cloneNode(true);
+    ghost.classList.add('ghost');
+    ghost.style.position='fixed';
+    ghost.style.left=(e.clientX - rect.width/2)+'px';
+    ghost.style.top=(e.clientY - rect.height/2)+'px';
+    ghost.style.width=rect.width+'px';
+    ghost.style.height=rect.height+'px';
+    ghost.style.margin='0';
+    ghost.style.pointerEvents='none';
+    ghost.style.zIndex=9999;
+    document.body.appendChild(ghost);
+
+    let curZone=null;
+    function move(ev){
+      ghost.style.left=(ev.clientX - rect.width/2)+'px';
+      ghost.style.top=(ev.clientY - rect.height/2)+'px';
+      // 用 elementFromPoint 找当前指针下的放置区
+      ghost.style.display='none';
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      ghost.style.display='';
+      const zone = under ? under.closest('.dropzone') : null;
+      if(zone!==curZone){
+        if(curZone) curZone.classList.remove('drag-over');
+        curZone = zone;
+        if(curZone) curZone.classList.add('drag-over');
+      }
+    }
+    function up(){
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      if(curZone) curZone.classList.remove('drag-over');
+      ghost.remove();
+      if(curZone){ handleDrop(el, curZone); }
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  });
+}
+
+/* ============ 放置分发：根据当前任务类型交给对应处理器 ============ */
+function handleDrop(el, zone){
+  const t = state.task;
+  if(t.type==='digit')  digitDrop(el, zone);
+  if(t.type==='coin')   coinDrop(el, zone);
+}
+
+/* ============================================================
+ * 中级：数字魔方 —— 把数字卡片拖到“百/十/个”位
+ * ============================================================ */
+function renderDigit(){
+  const t = state.task;
+  const play = document.getElementById('playArea');
+  // 位名（从高位到低位）
+  const posName = ['个位','十位','百位','千位','万位'];
+  const names=[];
+  for(let i=t.len-1;i>=0;i--) names.push(posName[i]);
+  // 数字库
+  const bank = t.digits.map(function(d,i){return '<div class="dcard" data-face="'+d+'">'+d+'</div>';}).join('');
+  // 槽位（按从高到低排列）
+  const slots = names.map(function(nm,k){return '<div class="slot dropzone" data-pos="'+k+'"><span class="pos">'+nm+'</span></div>';}).join('');
+  play.innerHTML =
+    '<div class="play-title">从下方卡片库里，把数字拖到对应的数位格子里，排成一个数。</div>'+
+    '<div class="slots">'+slots+'</div>'+
+    '<div class="number-out" id="numOut">把数字拖上来，看看组成什么数～</div>'+
+    '<div style="text-align:center;margin-top:.4rem;">'+
+      '<button class="act act-soft" id="clearSlots" style="min-height:44px;padding:.5rem 1.1rem;">清空格子</button>'+
+    '</div>'+
+    '<div class="play-title" style="margin-top:.9rem;">数字卡片库</div>'+
+    '<div class="bank" id="digitBank">'+bank+'</div>';
+  // 绑定拖拽
+  Array.from(play.querySelectorAll('.dcard')).forEach(makeDraggable);
+  document.getElementById('clearSlots').addEventListener('click', function(){
+    t._slots = []; for(let i=0;i<t.len;i++) t._slots.push(null); renderDigitState();
+  });
+  // 每个槽位存放的面值（null 表示空）
+  t._slots = t._slots || [];
+  while(t._slots.length < t.len) t._slots.push(null);
+  renderDigitState();
+  // 记录按钮区
+  document.getElementById('recordActions').innerHTML =
+    '<button class="act act-primary" id="recordBtn">记录此数</button>';
+  document.getElementById('recordBtn').addEventListener('click', recordDigit);
+}
+// 刷新数字模式的格子/库显示
+function renderDigitState(){
+  const t = state.task;
+  const slots = document.querySelectorAll('#playArea .slot');
+  const names=['个位','十位','百位','千位'];
+  slots.forEach(function(s,k){
+    const v = t._slots[k];
+    // 清掉除 .pos 标签外的内容
+    const lbl = s.querySelector('.pos');
+    s.textContent = (v===null ? '' : v);
+    if(lbl) s.appendChild(lbl);
+    lbl.textContent = names[t.len-1-k];
+    s.classList.toggle('filled', v!==null);
+  });
+  // 已使用的面值（非重复模式：每个面值在槽中出现就标记库中对应的卡为 used）
+  const usedFaces = {};
+  if(!t.repeatable){
+    t._slots.forEach(function(v){ if(v!==null) usedFaces[v]=(usedFaces[v]||0)+1; });
+  }
+  const cards = document.querySelectorAll('#playArea .dcard');
+  const faceCount={};
+  cards.forEach(function(c){
+    const f=c.dataset.face;
+    if(t.repeatable){ c.classList.remove('used'); return; }
+    const need = usedFaces[f]||0;
+    const seen = faceCount[f]||0;
+    faceCount[f]=seen+1;
+    c.classList.toggle('used', seen < need);
+  });
+  // 当前组成的数
+  const out = document.getElementById('numOut');
+  if(t._slots.every(function(v){return v===null;})){
+    out.textContent='把数字拖上来，看看组成什么数～'; out.classList.remove('bad'); return;
+  }
+  const filled = t._slots.map(function(v){return v===null?'_':v;}).join('');
+  if(t._slots[0]==='0'){
+    out.textContent='首位不能是 0 哦，换个数字当首位吧！'; out.classList.add('bad');
+  } else if(t._slots.some(function(v){return v===null;})){
+    out.textContent='当前：'+filled+' （把格子填满再记录）'; out.classList.remove('bad');
+  } else {
+    out.textContent='组成了：'+filled; out.classList.remove('bad');
+  }
+}
+// 数字卡片放入槽位
+function digitDrop(cardEl, zone){
+  const t = state.task;
+  const pos = parseInt(zone.dataset.pos,10);
+  const face = cardEl.dataset.face;
+  // 非重复模式：若该面值已被用完，提示
+  if(!t.repeatable){
+    const usedCount = t._slots.filter(function(v){return v===face;}).length;
+    const total = t.digits.filter(function(d){return d===face;}).length;
+    if(usedCount >= total){ toast('这张卡片已经用完啦～'); return; }
+  }
+  t._slots[pos] = face;
+  bumpStep();
+  renderDigitState();
+}
+// 记录当前组成的数
+function recordDigit(){
+  const t = state.task;
+  if(t._slots.some(function(v){return v===null;})){ toast('请把所有数位都填满～'); return; }
+  if(t._slots[0]==='0'){ toast('首位不能是 0，换个数字吧！'); return; }
+  const num = t._slots.join('');
+  tryAddFound(num);
+}
+
+/* ============================================================
+ * 初级：星币百宝箱 —— 把硬币拖进百宝箱
+ * ============================================================ */
+function renderCoin(){
+  const t = state.task;
+  const play = document.getElementById('playArea');
+  const bank = t.coins.map(function(c,i){return '<div class="coin" data-face="'+c+'">'+c+'</div>';}).join('');
+  play.innerHTML =
+    '<div class="play-title">把硬币拖到百宝箱里，凑齐 <b>'+t.pick+'</b> 枚就自动记录一种取法。</div>'+
+    '<div class="pouch dropzone" id="pouch"><span class="ph">百宝箱（请放入 '+t.pick+' 枚硬币）</span></div>'+
+    '<div style="text-align:center;margin-top:.5rem;">'+
+      '<button class="act act-soft" id="clearPouch" style="min-height:44px;padding:.5rem 1.1rem;">清空百宝箱</button>'+
+    '</div>'+
+    '<div class="play-title" style="margin-top:.9rem;">硬币库</div>'+
+    '<div class="bank" id="coinBank">'+bank+'</div>';
+  Array.from(play.querySelectorAll('.coin')).forEach(makeDraggable);
+  document.getElementById('clearPouch').addEventListener('click', function(){
+    t._pouch=[]; renderCoinState();
+  });
+  t._pouch = t._pouch || [];
+  renderCoinState();
+  document.getElementById('recordActions').innerHTML='';
+}
+function renderCoinState(){
+  const t = state.task;
+  const pouch = document.getElementById('pouch');
+  if(t._pouch.length===0){
+    pouch.innerHTML='<span class="ph">百宝箱（请放入 '+t.pick+' 枚硬币）</span>';
+  } else {
+    pouch.innerHTML = t._pouch.map(function(f){return '<div class="coin placed">'+f+'</div>';}).join('');
+  }
+  // 库中硬币：同面值按数量标记已放入
+  const usedCount={};
+  t._pouch.forEach(function(f){usedCount[f]=(usedCount[f]||0)+1;});
+  const seen={};
+  document.querySelectorAll('#playArea .coin[data-face]').forEach(function(c){
+    const f=c.dataset.face;
+    seen[f]=seen[f]||0;
+    const need=usedCount[f]||0;
+    c.classList.toggle('placed', seen[f] < need);
+    seen[f]++;
+  });
+}
+function coinDrop(cardEl, zone){
+  const t = state.task;
+  if(t._pouch.length >= t.pick){ toast('百宝箱已满，先记录或清空～'); return; }
+  const face = cardEl.dataset.face;
+  // 库里是否还有该面值可用
+  const total = t.coins.filter(function(c){return c===face;}).length;
+  const usedNow = t._pouch.filter(function(f){return f===face;}).length;
+  if(usedNow >= total){ toast('这枚硬币已经放进去了～'); return; }
+  t._pouch.push(face);
+  bumpStep();
+  renderCoinState();
+  // 放满指定数量，自动记录这一种取法
+  if(t._pouch.length===t.pick){
+    const combo = t._pouch.slice().sort().join(' + ');
+    tryAddFound(combo, true);
+  }
+}
+
+/* ============================================================
+ * 高级：长方形建造师 —— 行数滑块 + 实时预览
+ * ============================================================ */
+function renderRect(){
+  const t = state.task;
+  const play = document.getElementById('playArea');
+  play.innerHTML =
+    '<div class="play-title">拖动“行数”滑块。当<b>行数能整除 '+t.n+'</b> 时，就拼成了一种长方形，点“记录这种拼法”。</div>'+
+    '<div class="rect-controls">'+
+      '<div class="slider-row">'+
+        '<label>行数：</label>'+
+        '<input type="range" id="rowSlider" min="1" max="'+t.n+'" value="1">'+
+        '<span class="rowval" id="rowVal">1</span>'+
+      '</div>'+
+      '<div class="rect-preview" id="rectPreview"></div>'+
+      '<div class="rect-info" id="rectInfo"></div>'+
+    '</div>';
+  const slider = document.getElementById('rowSlider');
+  slider.addEventListener('input', function(){
+    bumpStep();
+    updateRectPreview(parseInt(slider.value,10));
+  });
+  updateRectPreview(1);
+  document.getElementById('recordActions').innerHTML =
+    '<button class="act act-primary" id="recordBtn">记录这种拼法</button>';
+  document.getElementById('recordBtn').addEventListener('click', recordRect);
+}
+function updateRectPreview(r){
+  const t = state.task;
+  document.getElementById('rowVal').textContent=r;
+  const c = t.n / r;
+  const valid = (t.n % r === 0) && Number.isInteger(c);
+  const prev = document.getElementById('rectPreview');
+  prev.innerHTML='';
+  if(valid){
+    // 画 r 行 c 列的小正方形（按比例缩放，避免过密）
+    const maxCell = Math.max(r, c);
+    const cellSize = Math.max(6, Math.min(22, Math.floor(240/maxCell)));
+    prev.style.gridTemplateColumns='repeat('+c+', '+cellSize+'px)';
+    prev.style.gridTemplateRows='repeat('+r+', '+cellSize+'px)';
+    let html='';
+    for(let i=0;i<r*c;i++){ html += '<div class="cell" style="width:'+cellSize+'px;height:'+cellSize+'px"></div>'; }
+    prev.innerHTML=html;
+    prev.style.background='#eafbeef';
+  } else {
+    prev.style.background='#fdeeee';
+    prev.innerHTML='<span style="color:#e66;font-weight:700;padding:.6rem;">行数 '+r+' 不能整除 '+t.n+'，拼不成完整的长方形，换一个试试～</span>';
+  }
+  const info=document.getElementById('rectInfo');
+  if(valid){
+    info.textContent='行数 '+r+' × 列数 '+c+' = '+t.n+'（成立，点“记录这种拼法”）';
+    info.classList.add('valid');
+  } else {
+    info.textContent='行数 '+r+' 不能整除 '+t.n+'，暂时拼不成';
+    info.classList.remove('valid');
+  }
+  t._curR = r;
+}
+function recordRect(){
+  const t = state.task;
+  const r = t._curR;
+  if(t.n % r !== 0){ toast('这个行数拼不成完整长方形～'); return; }
+  const lo=Math.min(r, t.n/r), hi=Math.max(r, t.n/r);
+  tryAddFound(lo+' × '+hi);
+}
+
+/* ============================================================
+ * 高级：台阶探险 —— 点击按钮规划小狐狸路线
+ * ============================================================ */
+function renderStair(){
+  const t = state.task;
+  const play = document.getElementById('playArea');
+  // 画台阶（从高到低排列显示）
+  let stepsHtml='';
+  for(let i=t.n;i>=1;i--){
+    const h = 20 + (t.n-i+1)*22; // 越靠后越高
+    stepsHtml += '<div class="step" style="height:'+h+'px;" data-step="'+i+'"><span class="n">'+i+'</span></div>';
+  }
+  const stepBtns = t.steps.map(function(s){return '<button class="step-btn" data-s="'+s+'">走 '+s+' 级</button>';}).join('');
+  play.innerHTML =
+    '<div class="play-title">小狐狸要爬到第 <b>'+t.n+'</b> 级。每步可选：'+t.steps.map(function(s){return '走 '+s+' 级';}).join(' 或 ')+'。规划路线，走到顶端自动记录一种走法。</div>'+
+    '<div class="stair-wrap">'+
+      '<div class="stair-stage" id="stairStage">'+stepsHtml+'</div>'+
+      '<div class="runner" id="runner">🦊</div>'+
+    '</div>'+
+    '<div class="route-out" id="routeOut">当前路线：（还没出发）</div>'+
+    '<div class="step-btns">'+
+      stepBtns+
+      '<button class="step-btn" id="resetRoute" style="background:#8a8aa8;box-shadow:0 4px 0 #6a6a86;">回到起点</button>'+
+    '</div>';
+  t._route=[]; t._sum=0;
+  moveRunner(0);
+  Array.from(play.querySelectorAll('.step-btn[data-s]')).forEach(function(b){
+    b.addEventListener('click', function(){ stairStep(parseInt(b.dataset.s,10)); });
+  });
+  document.getElementById('resetRoute').addEventListener('click', function(){
+    state.task._route=[]; state.task._sum=0;
+    document.getElementById('routeOut').textContent='当前路线：（还没出发）';
+    moveRunner(0); bumpStep();
+  });
+  document.getElementById('recordActions').innerHTML='';
+}
+// 让小狐狸移动到当前所在台阶级数
+function moveRunner(level){
+  const stage=document.getElementById('stairStage');
+  const runner=document.getElementById('runner');
+  if(!stage || !runner) return;
+  const target = stage.querySelector('.step[data-step="'+level+'"]');
+  const sr=stage.getBoundingClientRect();
+  if(level===0){
+    const first = stage.querySelector('.step[data-step="1"]');
+    const fr=first.getBoundingClientRect();
+    runner.style.left=(fr.left - sr.left - 8)+'px';
+    runner.style.bottom='0px';
+  } else if(target){
+    const tr=target.getBoundingClientRect();
+    runner.style.left=(tr.left - sr.left + tr.width/2 - 14)+'px';
+    runner.style.bottom=(tr.height + 4)+'px';
+  }
+}
+function stairStep(s){
+  const t=state.task;
+  const next=t._sum+s;
+  if(next>t.n){ toast('走 '+s+' 级就超过顶端啦，换一步试试～'); return; }
+  t._route.push(s); t._sum=next; bumpStep();
+  moveRunner(t._sum);
+  document.getElementById('routeOut').textContent='当前路线：'+t._route.join(' + ')+(t._sum<t.n?' （还差 '+(t.n-t._sum)+' 级）':'');
+  if(t._sum===t.n){
+    const way=t._route.join(' + ');
+    tryAddFound(way, true);
+  }
+}
+
+/* ============================================================
+ * 核心：尝试把一种情况加入“收集”，去重 + 实时统计
+ * ============================================================ */
+function tryAddFound(item, autoClear){
+  const t=state.task;
+  if(t.found.has(item)){
+    toast('这一种刚才已经记过啦，不要重复哦！');
+    return;
+  }
+  t.found.add(item);
+  t._order.push(item);
+  bumpStep();
+  toast('太棒了！又找到一种 ✦');
+  renderFound();
+  updateProgress();
+  // 硬币模式自动清空百宝箱，方便继续枚举下一种
+  if(autoClear && t.type==='coin'){ t._pouch=[]; renderCoinState(); }
+  // 台阶模式走完后自动回到起点，方便规划下一条路线
+  if(autoClear && t.type==='stair'){
+    t._route=[]; t._sum=0;
+    document.getElementById('routeOut').textContent='当前路线：（继续规划新的走法）';
+    moveRunner(0);
+  }
+  checkComplete();
+}
+
+/* ============ 收集列表 / 进度条 渲染 ============ */
+function renderFound(){
+  const t=state.task;
+  const list=document.getElementById('foundList');
+  if(t.found.size===0){
+    list.innerHTML='<span style="color:var(--soft)">还空空如也，快动动手把第一种情况找出来！</span>';
+    return;
+  }
+  const revealSet = t._revealSet || {};
+  list.innerHTML = t._order.map(function(it){
+    return '<span class="chip '+(revealSet[it]?'reveal':'')+'">'+it+'</span>';
+  }).join('');
+}
+function updateProgress(){
+  const t=state.task;
+  const got=t.found.size, tot=t.all.length;
+  document.getElementById('progFill').style.width=(tot? (got/tot*100):0)+'%';
+  document.getElementById('progLabel').textContent='已找到 '+got+' / '+tot+' 种';
+}
+
+/* ============ 一题完成判定 ============ */
+function checkComplete(){
+  const t=state.task;
+  const done = (t.found.size===t.all.length) || t.revealed;
+  const banner=document.getElementById('doneBanner');
+  const nextBtn=document.getElementById('nextBtn');
+  if(done){
+    const allBySelf = (t.found.size===t.all.length) && !t.revealed;
+    banner.classList.add('show');
+    if(state.idx >= state.tasks.length-1){
+      banner.innerHTML='<h3>🎉 全部任务完成！</h3><p>'+(allBySelf?'<span class="perfect">★★★ 完美枚举，不重不漏！</span>':'完成全部任务，继续加油做到不重不漏～')+'</p>';
+      nextBtn.style.display='none';
+      celebrate(false);
+    } else {
+      banner.innerHTML='<h3>✅ 本题完成！</h3><p>'+(allBySelf?'<span class="perfect">太棒了，自己找全了！</span>':'已记录答案，进入下一题～')+'</p>';
+      nextBtn.style.display='inline-block';
+      if(allBySelf) celebrate(true);
+    }
+  } else {
+    banner.classList.remove('show');
+    nextBtn.style.display='none';
+  }
+}
+
+/* ============ 揭示答案：把剩余全部补齐（标记为揭示色） ============ */
+function revealTask(){
+  const t=state.task;
+  t._revealSet = t._revealSet || {};
+  let added=0;
+  t.all.forEach(function(it){
+    if(!t.found.has(it)){
+      t.found.add(it); t._order.push(it);
+      t._revealSet[it]=true; added++;
+    }
+  });
+  t.revealed=true;
+  bumpStep();
+  renderFound(); updateProgress();
+  toast(added>0 ? ('已为你揭示剩余 '+added+' 种，看看完整的枚举吧') : '你已经找全啦，无需揭示');
+  checkComplete();
+}
+
+/* ============ 步数 / 计时 ============ */
+function bumpStep(){
+  state.steps++;
+  document.getElementById('steps').textContent=state.steps;
+}
+function startTimer(){
+  state.startTs=Date.now();
+  if(state.timerId) clearInterval(state.timerId);
+  state.timerId=setInterval(function(){
+    const s=Math.floor((Date.now()-state.startTs)/1000);
+    document.getElementById('timer').textContent=pad(Math.floor(s/60))+':'+pad(s%60);
+  },1000);
+}
+function stopTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
+
+/* ============ 载入一题 ============ */
+function loadTask(){
+  const t = state.tasks[state.idx];
+  // 初始化该题运行时字段
+  t.found = new Set();
+  t._order = [];
+  t._revealSet = {};
+  t.revealed = false;
+  t.all = buildAll(t);
+  state.task = t;
+
+  // 顶部题头
+  const typeName = {coin:'分类枚举',digit:'组数问题',rect:'拼长方形',stair:'走台阶'}[t.type];
+  document.getElementById('taskHead').innerHTML=
+    '<span class="tag">'+typeName+'</span>'+
+    '<div style="font-size:.85rem;color:var(--soft);font-weight:700;margin-bottom:.2rem;">第 '+(state.idx+1)+' / '+state.tasks.length+' 题 · '+t.label+'</div>'+
+    '<div class="ask">'+t.ask+'</div>'+
+    '<div class="hint">💡 枚举小窍门：'+t.hint+'</div>';
+  // 隐藏完成横幅、下一题按钮
+  document.getElementById('doneBanner').classList.remove('show');
+  document.getElementById('nextBtn').style.display='none';
+
+  // 渲染对应操作区
+  if(t.type==='coin')  renderCoin();
+  if(t.type==='digit') renderDigit();
+  if(t.type==='rect')  renderRect();
+  if(t.type==='stair') renderStair();
+
+  renderFound(); updateProgress();
+  // 台阶模式：等布局完成后再校正小狐狸位置
+  if(t.type==='stair') setTimeout(function(){moveRunner(0);},60);
+}
+
+/* ============ 开始一局（选定难度） ============ */
+function startGame(diff){
+  state.diff=diff;
+  applyPalette();
+  // 反重复：从该难度题池里随机抽 2 题（顺序打乱）
+  const pool = shuffle(TASK_POOLS[diff]);
+  state.tasks = pool.slice(0,2);
+  state.idx=0;
+  state.steps=0;
+  document.getElementById('steps').textContent='0';
+  document.getElementById('difficultyScreen').style.display='none';
+  document.getElementById('gameScreen').style.display='block';
+  document.getElementById('backBtn').style.display='inline-block';
+  startTimer();
+  loadTask();
+}
+
+/* ============ 随机配色 ============ */
+function applyPalette(){
+  const p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  const r=document.documentElement.style;
+  r.setProperty('--bg1',p.bg1); r.setProperty('--bg2',p.bg2);
+  r.setProperty('--primary',p.primary); r.setProperty('--accent',p.accent);
+}
+
+/* ============ 彩色烟花庆祝（Canvas 实现） ============ */
+function celebrate(small){
+  const cv=document.getElementById('celebrate');
+  cv.classList.add('show');
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  const ctx=cv.getContext('2d');
+  const colors=['#ff6b6b','#feca57','#48dbfb','#1dd1a1','#ff9ff3','#54a0ff','#5f27cd','#ffeaa7'];
+  const parts=[];
+  const N = small?80:200;
+  for(let i=0;i<N;i++){
+    parts.push({
+      x:cv.width/2 + (Math.random()-0.5)*120,
+      y:cv.height/2 + (Math.random()-0.5)*60,
+      vx:(Math.random()-0.5)*14,
+      vy:Math.random()*-16-4,
+      g:0.4,
+      size:Math.random()*8+4,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      life:Math.random()*60+60,
+      rot:Math.random()*Math.PI
+    });
+  }
+  let frame=0;
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    let alive=false;
+    for(let i=0;i<parts.length;i++){
+      const p=parts[i];
+      if(p.life<=0) continue;
+      alive=true;
+      p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.life--; p.rot+=0.2;
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle=p.color;
+      ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+      ctx.restore();
+    }
+    frame++;
+    if(alive && frame<260){ requestAnimationFrame(draw); }
+    else { ctx.clearRect(0,0,cv.width,cv.height); cv.classList.remove('show'); }
+  }
+  draw();
+}
+
+/* ============ 按钮事件绑定 ============ */
+function bindUI(){
+  // 难度卡片
+  document.querySelectorAll('.diff-card').forEach(function(c){
+    c.addEventListener('click', function(){ startGame(c.dataset.diff); });
+  });
+  // 规则弹窗
+  document.getElementById('rulesBtn').addEventListener('click', function(){
+    document.getElementById('rulesMask').classList.add('show');
+  });
+  document.getElementById('rulesClose').addEventListener('click', function(){
+    document.getElementById('rulesMask').classList.remove('show');
+  });
+  document.getElementById('rulesMask').addEventListener('click', function(e){
+    if(e.target.id==='rulesMask') document.getElementById('rulesMask').classList.remove('show');
+  });
+  // 返回选关（顶部与底部两处）
+  function backToDiff(){
+    stopTimer();
+    document.getElementById('gameScreen').style.display='none';
+    document.getElementById('difficultyScreen').style.display='block';
+    document.getElementById('backBtn').style.display='none';
+    document.getElementById('timer').textContent='00:00';
+    document.getElementById('steps').textContent='0';
+  }
+  document.getElementById('backBtn').addEventListener('click', backToDiff);
+  document.getElementById('backBtn2').addEventListener('click', backToDiff);
+  // 重新开始（换一局新题）
+  document.getElementById('restartBtn').addEventListener('click', function(){
+    if(state.diff){ startGame(state.diff); toast('换了一组新题，加油！'); }
+  });
+  // 揭示答案
+  document.getElementById('revealBtn').addEventListener('click', revealTask);
+  // 下一题
+  document.getElementById('nextBtn').addEventListener('click', function(){
+    if(state.idx < state.tasks.length-1){
+      state.idx++;
+      loadTask();
+    }
+  });
+  // 窗口尺寸变化时重画小狐狸位置
+  window.addEventListener('resize', function(){
+    if(state.task && state.task.type==='stair') moveRunner(state.task._sum||0);
+  });
+}
+
+/* ============ 启动 ============ */
+window.addEventListener('load', function(){
+  bindUI();
+  applyPalette();
+  // 首次进入展示规则说明（可随时通过顶部“规则说明”再次打开）
+  document.getElementById('rulesMask').classList.add('show');
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a2b/g009", "name": "\u679a\u4e3e\u5c0f\u5de5\u5320 \u00b7 \u4e0d\u91cd\u4e0d\u6f0f\u5bfb\u5b9d\u8bb0", "file": "g009.html", "jiaocan": "\u30109\u3011\u7b2c5\u8bb2 \u679a\u4e3e\u6cd5\u7684\u5999\u7528\uff08\u4e0a\uff09", "unit": "\u7b2c5\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b72\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a2b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>加减法应用初步 · 丰收小乐园</title>
+<style>
+/* ============ 全局主题（色板由 JS 每局随机注入，保证多次游玩不腻） ============ */
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+:root{--bg:#FFF6E5;--panel:#FFFFFF;--pri:#F7941D;--prid:#7A4A00;--acc:#FFD166;--txt:#33302B;--line:#E4DCC9;}
+body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;}
+
+/* ============ 顶栏（计时器 + 步数实时显示） ============ */
+#topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:10px 16px;background:var(--panel);border-bottom:4px solid var(--pri);position:sticky;top:0;z-index:50;}
+.brand{font-size:22px;font-weight:900;color:var(--prid);}
+.hud-right{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.hudchip{background:var(--bg);border:2px solid var(--pri);color:var(--prid);font-weight:700;font-size:17px;border-radius:999px;padding:4px 14px;}
+
+/* ============ 难度选择屏 ============ */
+#screen-select{max-width:960px;margin:24px auto;padding:0 14px;text-align:center;}
+.sel-title{font-size:32px;font-weight:900;color:var(--prid);margin:18px 0 6px;}
+.sel-sub{font-size:19px;color:#6b6455;margin-bottom:22px;line-height:1.6;}
+.diffcards{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;}
+.diffcard{width:260px;background:var(--panel);border:4px solid var(--pri);border-radius:22px;padding:20px 16px;cursor:pointer;transition:.18s;box-shadow:0 6px 0 var(--acc);}
+.diffcard:hover{transform:translateY(-6px);box-shadow:0 12px 0 var(--acc);}
+.diffcard:active{transform:translateY(0);}
+.diffcard h3{margin:6px 0 8px;font-size:25px;color:var(--prid);}
+.demoji{font-size:46px;}
+.diffcard p{font-size:17px;line-height:1.65;color:#5d5647;margin:8px 0 0;}
+
+/* ============ 游戏屏 ============ */
+#screen-game{max-width:1000px;margin:0 auto;padding:10px 12px 46px;}
+#story-panel{background:var(--panel);border:3px solid var(--pri);border-radius:18px;padding:12px 18px;margin:10px 0;box-shadow:0 4px 0 var(--acc);}
+#story-level{font-size:16px;font-weight:800;color:#fff;background:var(--pri);display:inline-block;border-radius:999px;padding:3px 14px;margin-right:8px;}
+#story-taskchip{font-size:16px;font-weight:800;color:var(--prid);background:var(--bg);display:inline-block;border-radius:999px;padding:3px 14px;border:2px solid var(--pri);}
+#story-text{font-size:21px;font-weight:700;line-height:1.65;margin:10px 0 4px;}
+#story-guide{font-size:18px;color:#6b6455;line-height:1.6;}
+
+/* ============ 舞台与区域 ============ */
+#stage{display:flex;flex-direction:column;align-items:center;gap:18px;padding:16px 8px;min-height:240px;}
+.row-wrap{display:flex;gap:18px;align-items:stretch;justify-content:center;flex-wrap:wrap;width:100%;}
+.zone{background:var(--panel);border:3px dashed var(--line);border-radius:18px;padding:10px 14px 14px;position:relative;min-width:132px;min-height:96px;max-width:780px;}
+.zone.active{border-color:var(--pri);box-shadow:0 0 0 5px var(--acc);}
+.zone.countzone{border-style:solid;border-color:var(--pri);animation:breathe 1.1s ease-in-out infinite;}
+.zone.donezone{opacity:.45;}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}50%{box-shadow:0 0 0 7px var(--acc);}}
+.zhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;}
+.zlabel{font-size:18px;font-weight:800;color:var(--prid);}
+.zsub{font-size:15px;color:#8a8271;}
+.zbadge{font-size:16px;font-weight:900;background:var(--bg);border:2px solid var(--pri);border-radius:999px;padding:2px 10px;color:var(--prid);}
+.zbtn{font-size:15px;font-weight:800;border:none;border-radius:999px;background:var(--pri);color:#fff;padding:5px 12px;cursor:pointer;}
+.zbtn:active{transform:scale(.94);}
+.items{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;min-height:54px;max-width:740px;margin:0 auto;}
+
+/* ============ 可拖拽图案 ============ */
+.item{position:relative;width:50px;height:50px;font-size:38px;line-height:1;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;touch-action:none;cursor:grab;border-radius:50%;}
+.item.nodrag{cursor:default;}
+.item.float{position:fixed;z-index:1000;pointer-events:none;transform:scale(1.18);filter:drop-shadow(0 10px 12px rgba(0,0,0,.28));cursor:grabbing;}
+.item.pop{animation:pop .32s;}
+@keyframes pop{0%{transform:scale(.3);}70%{transform:scale(1.25);}100%{transform:scale(1);}}
+.item.shake{animation:shake .35s;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+.item.countable{cursor:pointer;animation:countpulse 1s infinite;}
+@keyframes countpulse{0%,100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}50%{box-shadow:0 0 0 6px var(--acc);}}
+.item.gap{box-shadow:0 0 0 4px #E4572E;}
+.item.extra{box-shadow:0 0 0 4px #F6AE2D;animation:wiggle .8s infinite;}
+@keyframes wiggle{0%,100%{transform:rotate(-6deg);}50%{transform:rotate(6deg);}}
+.badge{position:absolute;top:-9px;right:-9px;min-width:26px;height:26px;border-radius:50%;background:var(--pri);color:#fff;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;border:2px solid #fff;z-index:3;}
+.divider{font-size:40px;font-weight:900;color:var(--pri);align-self:center;}
+.halves{display:flex;gap:16px;align-items:stretch;justify-content:center;flex-wrap:wrap;margin-top:6px;}
+.half{min-height:82px;min-width:112px;}
+.wholewrap{background:var(--panel);border:3px dashed var(--line);border-radius:18px;padding:10px;}
+
+/* ============ 算式条 ============ */
+#eq-strip{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;min-height:66px;background:var(--panel);border:3px solid var(--pri);border-radius:18px;padding:10px 16px;margin:0 auto;max-width:1000px;}
+.eqchip{font-size:30px;font-weight:900;padding:4px 16px;border-radius:14px;background:#fff;border:3px solid var(--pri);color:var(--prid);min-width:58px;text-align:center;}
+.eqchip.ans{background:var(--acc);border-color:var(--prid);}
+.eqchip.ans.q{animation:eqpulse 1s infinite;}
+@keyframes eqpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.12);}}
+.eqop{font-size:32px;font-weight:900;color:var(--prid);}
+.eqhint{font-size:18px;color:#8a8271;font-weight:700;}
+
+/* ============ 控制按钮 ============ */
+#control-bar{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:14px auto 0;}
+.cbtn{font-size:18px;font-weight:800;border:none;border-radius:14px;padding:12px 20px;cursor:pointer;background:var(--panel);color:var(--prid);border:3px solid var(--pri);box-shadow:0 4px 0 var(--acc);}
+.cbtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--acc);}
+.cbtn.warn{border-color:#E4572E;color:#B02318;box-shadow:0 4px 0 #F7B9A2;}
+
+/* ============ 比多少（一一对应） ============ */
+.pair-area{position:relative;display:flex;flex-direction:column;gap:58px;padding:8px 0;width:100%;}
+.pairsvg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+.prow{position:relative;z-index:2;background:var(--panel);border:3px solid var(--line);border-radius:16px;padding:8px 12px 12px;}
+.zone.prow{border-style:dashed;}
+.meter{font-size:22px;font-weight:900;color:#fff;background:var(--pri);border-radius:999px;padding:8px 26px;box-shadow:0 4px 0 var(--acc);text-align:center;max-width:92%;}
+.meter.ok{background:#3B9B5F;}
+.tasktabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+.tasktab{font-size:17px;font-weight:800;padding:6px 16px;border-radius:999px;border:3px solid var(--pri);background:#fff;color:var(--prid);}
+.tasktab.on{background:var(--pri);color:#fff;}
+.tasktab.lock{opacity:.4;}
+.dual-holder{display:flex;flex-direction:column;align-items:center;gap:18px;width:100%;}
+
+/* ============ 弹窗 / 提示 / 彩带 ============ */
+#modal-mask{position:fixed;inset:0;background:rgba(40,35,20,.55);display:none;align-items:center;justify-content:center;z-index:1500;padding:16px;}
+#modal-mask.show{display:flex;}
+#modal-card{background:var(--panel);border:4px solid var(--pri);border-radius:24px;max-width:640px;width:100%;max-height:86vh;overflow:auto;padding:24px 26px;box-shadow:0 12px 0 var(--acc);}
+.mtitle{font-size:30px;font-weight:900;color:var(--prid);text-align:center;margin-bottom:10px;}
+.mbody{font-size:19px;line-height:1.75;}
+.meq{font-size:34px;font-weight:900;text-align:center;color:var(--prid);margin:12px 0;}
+.mmethod{font-size:18px;background:var(--bg);border-radius:12px;padding:10px 14px;line-height:1.75;margin:8px 0;}
+.mstars{font-size:38px;text-align:center;letter-spacing:8px;margin:10px 0;color:#F6AE2D;}
+.mstars .off{color:#D9D2C0;}
+.mbtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px;}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--prid);color:#fff;font-size:18px;font-weight:700;padding:10px 22px;border-radius:999px;opacity:0;transition:.25s;z-index:1800;pointer-events:none;max-width:92vw;text-align:center;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:2000;}
+
+/* ============ 移动端适配 ============ */
+@media (max-width:640px){
+  .brand{font-size:17px;}
+  .hudchip{font-size:14px;padding:3px 10px;}
+  .item{width:42px;height:42px;font-size:31px;}
+  #story-text{font-size:19px;}
+  #story-guide{font-size:16px;}
+  .eqchip{font-size:24px;min-width:46px;padding:3px 12px;}
+  .eqop{font-size:26px;}
+  .meter{font-size:18px;padding:6px 18px;}
+  .diffcard{width:86%;}
+  .pair-area{gap:46px;}
+  .zlabel{font-size:16px;}
+  .sel-title{font-size:26px;}
+}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div id="toast"></div>
+
+<header id="topbar">
+  <div class="brand">🌳 丰收小乐园 · 加减法应用初步</div>
+  <div class="hud-right">
+    <span class="hudchip" id="hud-progress">选择难度开始闯关</span>
+    <span class="hudchip" id="hud-timer">⏱ 00:00</span>
+    <span class="hudchip" id="hud-steps">🖐 操作 0 次</span>
+  </div>
+</header>
+
+<!-- 难度选择屏（三档难度） -->
+<section id="screen-select">
+  <div class="sel-title">🍎 丰收小乐园 · 加减法应用初步 🧺</div>
+  <div class="sel-sub">把故事"搬"出来！拖一拖、摆一摆、数一数，算式自己长出来～<br>每一局的配色和题目都会随机换新，多玩几次不一样！</div>
+  <div class="diffcards">
+    <div class="diffcard" data-diff="easy">
+      <div class="demoji">🧺</div>
+      <h3>初级 · 合分小乐园</h3>
+      <p>两部分合起来求总数，或从总数里搬走已知的一部分求另一部分。搬一搬、数一数，加法减法一眼看懂！</p>
+    </div>
+    <div class="diffcard" data-diff="mid">
+      <div class="demoji">🍽</div>
+      <h3>中级 · 两步小剧场</h3>
+      <p>连加、连减、加减混合！按故事把图案搬进搬出，两步剧情演完，算式跟着一步步长出来。</p>
+    </div>
+    <div class="diffcard" data-diff="hard">
+      <div class="demoji">⚖️</div>
+      <h3>高级 · 比多少对对碰</h3>
+      <p>用"一一对应"摆一摆：连线配对，看多出几个、少几个，求大数、求小数，还有双任务大挑战！</p>
+    </div>
+  </div>
+</section>
+
+<!-- 游戏屏 -->
+<section id="screen-game" style="display:none;">
+  <div id="story-panel">
+    <span id="story-level">第 1 关</span><span id="story-taskchip"></span>
+    <div id="story-text"></div>
+    <div id="story-guide"></div>
+  </div>
+  <div id="stage"></div>
+  <div id="eq-strip"></div>
+  <div id="control-bar">
+    <button class="cbtn" id="btn-rules">📜 规则说明</button>
+    <button class="cbtn" id="btn-hint">💡 提示</button>
+    <button class="cbtn warn" id="btn-reveal">🔍 揭示答案</button>
+    <button class="cbtn" id="btn-restart">🔄 重新开始</button>
+    <button class="cbtn" id="btn-back">🏠 返回难度选择</button>
+  </div>
+</section>
+
+<div id="modal-mask"><div id="modal-card"></div></div>
+
+<script>
+'use strict';
+/* ==================================================================
+   丰收小乐园 · 加减法应用初步（小学一年级上 · 第3讲）
+   核心机制（与题型方法深度绑定，拒绝换皮选择题）：
+   ① 合并求总数 / 分走求部分 —— 把图案亲手"搬进大筐 / 搬进搬走筐"
+   ② 连加连减、加减混合 —— 按故事两步搬运，算式随着操作实时"长"出来
+   ③ 比多少 —— 下排自由摆放，连线自动一一配对，差距提示牌实时反馈
+   ④ 答案不是选出来的：摆对之后逐个"点数"答案区的图案，亲手数出结果
+   ================================================================== */
+
+/* ---------- 小工具 ---------- */
+function $(s,p){return (p||document).querySelector(s);}
+function div(cls,parent){const d=document.createElement('div');if(cls){d.className=cls;}if(parent){parent.appendChild(d);}return d;}
+function shuffle(a){const r=a.slice();for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=r[i];r[i]=r[j];r[j]=t;}return r;}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+
+/* ---------- 随机色板（每局换新颜色） ---------- */
+const PALETTES=[
+ {bg:'#FFF6E5',panel:'#FFFFFF',pri:'#F7941D',prid:'#7A4A00',acc:'#FFD166'},
+ {bg:'#EAFBF2',panel:'#FFFFFF',pri:'#2BB673',prid:'#0B5F3B',acc:'#A6E8C6'},
+ {bg:'#EAF3FF',panel:'#FFFFFF',pri:'#3E8EDE',prid:'#1D4E89',acc:'#AFD5FF'},
+ {bg:'#FFF0F5',panel:'#FFFFFF',pri:'#E86A92',prid:'#8E2D4F',acc:'#FFC9DA'},
+ {bg:'#F3EFFB',panel:'#FFFFFF',pri:'#8E6FD8',prid:'#47337E',acc:'#D8CCF7'},
+ {bg:'#FFFAE0',panel:'#FFFFFF',pri:'#D8A400',prid:'#6E5400',acc:'#FFE58A'}
+];
+function applyPalette(){const p=pick(PALETTES);const r=document.documentElement.style;
+ r.setProperty('--bg',p.bg);r.setProperty('--panel',p.panel);r.setProperty('--pri',p.pri);r.setProperty('--prid',p.prid);r.setProperty('--acc',p.acc);}
+
+/* ---------- 题库（取自教参第3讲，另有同题型变式补充） ---------- */
+/* 初级：合并求总数（部分 + 部分 = 整体） */
+const POOL_COMBINE=[
+ {type:'combine',title:'合并求总数',emoji:'🍃',name:'树叶',unit:'片',a:3,b:6,ans:9,
+  story:'左边有3片树叶，右边有6片树叶，一共有多少片树叶？',
+  method:'已知部分，求整体，用加法：3 + 6 = 9。',
+  hint:'把两部分合起来求"一共"，用加法。把左边、右边的树叶都搬进大筐，再逐个点数。',
+  guide:'👉 把左边、右边的树叶都拖进大筐（每边也可以点"整组搬入"），全部搬完后，逐个点数大筐里的树叶！'},
+ {type:'combine',title:'合并求总数',emoji:'🍌',name:'香蕉',unit:'根',a:7,b:3,ans:10,
+  story:'左边有7根香蕉，右边有3根香蕉，一共有多少根香蕉？',
+  method:'已知部分，求整体，用加法：7 + 3 = 10。',
+  hint:'合起来求整体用加法，把两边都搬进大筐再点数。',
+  guide:'👉 把左边、右边的香蕉都拖进大筐，搬完后逐个点数大筐里的香蕉！'},
+ {type:'combine',title:'合并求总数',emoji:'🍍',name:'菠萝',unit:'个',a:3,b:8,ans:11,
+  story:'左边有3个菠萝，右边有8个菠萝，一共有几个菠萝？',
+  method:'已知部分，求整体，用加法：3 + 8 = 11。',
+  hint:'合起来求整体用加法，把两边都搬进大筐再点数。',
+  guide:'👉 把左边、右边的菠萝都拖进大筐，搬完后逐个点数！'},
+ {type:'combine',title:'合并求总数',emoji:'✏️',name:'铅笔',unit:'支',a:10,b:9,ans:19,
+  story:'左边有10支铅笔，右边有9支铅笔，一共有几支铅笔？',
+  method:'已知部分，求整体，用加法：10 + 9 = 19。',
+  hint:'数量多的时候可以点"整组搬入"，又快又准！',
+  guide:'👉 铅笔多，推荐点每个筐上的"整组搬入"按钮！搬完后逐个点数大筐里的铅笔。'},
+ {type:'combine',title:'合并求总数',emoji:'🥕',name:'萝卜',unit:'个',a:3,b:2,ans:5,
+  story:'左边有3个萝卜，右边有2个萝卜，一共有多少个萝卜？',
+  method:'已知部分，求整体，用加法：3 + 2 = 5。',
+  hint:'合起来求整体用加法。',
+  guide:'👉 把两边的萝卜都拖进大筐，搬完后逐个点数！'},
+ {type:'combine',title:'合并求总数',emoji:'🍈',name:'葫芦',unit:'个',a:6,b:4,ans:10,
+  story:'左边有6个葫芦，右边有4个葫芦，一共有多少个葫芦？',
+  method:'已知部分，求整体，用加法：6 + 4 = 10。',
+  hint:'合起来求整体用加法。',
+  guide:'👉 把两边的葫芦都拖进大筐，搬完后逐个点数！'},
+ {type:'combine',title:'合并求总数',emoji:'🌳',name:'树',unit:'棵',a:5,b:3,ans:8,
+  story:'左边有5棵树，右边有3棵树，一共有多少棵树？',
+  method:'已知部分，求整体，用加法：5 + 3 = 8。',
+  hint:'合起来求整体用加法。',
+  guide:'👉 把两边的树都拖进大筐，搬完后逐个点数！'},
+ {type:'combine',title:'合并求总数（变式）',emoji:'🍉',name:'西瓜',unit:'个',a:8,b:4,ans:12,
+  story:'左边有8个西瓜，右边有4个西瓜，一共有多少个西瓜？',
+  method:'已知部分，求整体，用加法：8 + 4 = 12。',
+  hint:'合起来求整体用加法。',
+  guide:'👉 把两边的西瓜都拖进大筐，搬完后逐个点数！'}
+];
+/* 初级：搬走已知部分，求另一部分（整体 − 部分 = 部分） */
+const POOL_TAKEAWAY=[
+ {type:'takeaway',title:'分走求部分',emoji:'🌸',name:'花',unit:'朵',total:10,known:4,knownSide:'right',ans:6,
+  story:'一共有10朵花，右边有4朵，左边有几朵花？',
+  method:'已知整体和一部分，求另一部分，用减法：10 − 4 = 6。',
+  hint:'从总数里搬走已知的那部分，剩下的就是要求数。把右边的4朵花搬进搬走筐！',
+  guide:'👉 把右边已知的4朵花拖进"搬走筐"，再逐个点数剩下的花，左边有几朵一目了然！'},
+ {type:'takeaway',title:'分走求部分',emoji:'🕊️',name:'鸽子',unit:'只',total:10,known:3,knownSide:'right',ans:7,
+  story:'一共有10只鸽子，右边有3只，左边有几只？',
+  method:'已知整体和一部分，求另一部分，用减法：10 − 3 = 7。',
+  hint:'把右边的3只鸽子搬进搬走筐，再点数剩下的。',
+  guide:'👉 把右边已知的3只鸽子拖进"搬走筐"，再逐个点数剩下的鸽子！'},
+ {type:'takeaway',title:'分走求部分',emoji:'🧒',name:'小朋友',unit:'人',total:14,known:9,knownSide:'left',ans:5,labels:{left:'左边车上',right:'右边车上'},
+  story:'一共有14个人，左边车上有9人，右边车上有几人？',
+  method:'已知整体和一部分，求另一部分，用减法：14 − 9 = 5。',
+  hint:'把左边车上的9人搬进搬走筐，再点数右边车上的人。',
+  guide:'👉 把左边车上已知的9人拖进"搬走筐"，再逐个点数右边车上剩下的人！'},
+ {type:'takeaway',title:'分走求部分',emoji:'🌳',name:'树',unit:'棵',total:8,known:5,knownSide:'left',ans:3,
+  story:'一共有8棵树，左边有5棵，右边有多少棵树？',
+  method:'已知整体和一部分，求另一部分，用减法：8 − 5 = 3。',
+  hint:'把左边的5棵树搬进搬走筐，再点数右边的树。',
+  guide:'👉 把左边已知的5棵树拖进"搬走筐"，再逐个点数右边的树！'},
+ {type:'takeaway',title:'分走求部分',emoji:'🥕',name:'萝卜',unit:'个',total:5,known:3,knownSide:'left',ans:2,
+  story:'一共有5个萝卜，左边有3个，右边有几个？',
+  method:'已知整体和一部分，求另一部分，用减法：5 − 3 = 2。',
+  hint:'把左边的3个萝卜搬进搬走筐，再点数剩下的。',
+  guide:'👉 把左边已知的3个萝卜拖进"搬走筐"，再逐个点数剩下的萝卜！'},
+ {type:'takeaway',title:'分走求部分（变式）',emoji:'🎈',name:'气球',unit:'个',total:12,known:5,knownSide:'right',ans:7,
+  story:'一共有12个气球，右边有5个，左边有几个气球？',
+  method:'已知整体和一部分，求另一部分，用减法：12 − 5 = 7。',
+  hint:'把右边的5个气球搬进搬走筐，再点数剩下的。',
+  guide:'👉 把右边已知的5个气球拖进"搬走筐"，再逐个点数剩下的气球！'}
+];
+/* 中级：连减 */
+const POOL_CHAINSUB=[
+ {type:'chainSub',title:'连减小剧场',emoji:'🍑',name:'桃子',unit:'个',total:14,steps:[4,2],ans:8,plates:['第一次吃掉','第二次吃掉'],
+  story:'原来有14个桃子，先吃了4个，又吃了2个，还剩几个？',
+  method:'桃子越来越少，用连减：14 − 4 − 2 = 8（先吃2个再吃4个也可以）。',
+  hint:'总数不断减少用连减。把第一次吃的4个拖到"第一次吃掉"盘，第二次吃的2个拖到"第二次吃掉"盘（两个盘子互换也正确）。',
+  guide:'👉 按故事把桃子分两次拖到两个盘子里（哪次先搬都行），摆对后逐个点数大盘子里剩下的桃子！'},
+ {type:'chainSub',title:'连减小剧场',emoji:'🍎',name:'苹果',unit:'个',total:12,steps:[4,1],ans:7,plates:['第一次吃掉','第二次吃掉'],
+  story:'一共有12个苹果，先吃掉4个，又吃掉1个，还剩下几个？',
+  method:'苹果越来越少，用连减：12 − 4 − 1 = 7。',
+  hint:'先搬4个到第一个盘子，再搬1个到第二个盘子。',
+  guide:'👉 把吃掉的苹果分两次拖到两个盘子里，摆对后点数大盘子里剩下的！'},
+ {type:'chainSub',title:'连减小剧场',emoji:'🍏',name:'苹果',unit:'个',total:10,steps:[2,4],ans:4,plates:['第一次吃掉','第二次吃掉'],
+  story:'原来有10个苹果，先吃了2个，又吃了4个，还剩几个？',
+  method:'苹果越来越少，用连减：10 − 2 − 4 = 4（或 10 − 4 − 2 = 4）。',
+  hint:'第一次吃2个，第二次吃4个，分两个盘子摆好。',
+  guide:'👉 分两次把吃掉的苹果搬到盘子里，摆对后点数剩下的！'},
+ {type:'chainSub',title:'连减小剧场',emoji:'🍎',name:'苹果',unit:'个',total:12,steps:[3,4],ans:5,plates:['第一次吃掉','第二次吃掉'],
+  story:'原来有12个苹果，先吃了3个，再吃了4个，还剩几个苹果？',
+  method:'苹果越来越少，用连减：12 − 3 − 4 = 5（或 12 − 4 − 3 = 5）。',
+  hint:'第一次3个、第二次4个，分盘摆好后点数剩余。',
+  guide:'👉 分两次把吃掉的苹果搬到盘子里，摆对后点数剩下的！'},
+ {type:'chainSub',title:'连减小剧场',emoji:'🍐',name:'杨桃',unit:'个',total:9,steps:[4,2],ans:3,plates:['第一次拿走','第二次拿走'],
+  story:'原来有9个杨桃，拿走了4个，又拿走2个，还剩几个？',
+  method:'杨桃越来越少，用连减：9 − 4 − 2 = 3。',
+  hint:'拿走的分两次摆到两个盘子里，再点数剩下的。',
+  guide:'👉 把拿走的杨桃分两次拖到盘子里，摆对后点数剩下的！'},
+ {type:'chainSub',title:'连减小剧场',emoji:'🐑',name:'小动物',unit:'只',total:14,steps:[3,4],ans:7,plates:['跑走的小兔子','跑走的小绵羊'],
+  story:'草坪上有14只小动物，跑了3只小兔子，又跑走了4只小绵羊，还剩下几只小动物？',
+  method:'小动物越来越少，用连减：14 − 3 − 4 = 7。',
+  hint:'3只小兔子拖到"小兔子"盘，4只小绵羊拖到"小绵羊"盘。',
+  guide:'👉 把跑走的小兔子、小绵羊分别拖到对应的盘子，摆对后点数草坪上剩下的小动物！'},
+ {type:'chainSub',title:'连减小剧场（变式）',emoji:'🍊',name:'橘子',unit:'个',total:11,steps:[3,2],ans:6,plates:['第一次送出','第二次吃掉'],
+  story:'原来有11个橘子，送给同学3个，又吃了2个，还剩几个？',
+  method:'橘子越来越少，用连减：11 − 3 − 2 = 6。',
+  hint:'送出的3个和吃掉的2个分别放到两个盘子。',
+  guide:'👉 把送出的、吃掉的橘子分别拖到两个盘子，摆对后点数剩下的！'}
+];
+/* 中级：连加 */
+const POOL_CHAINADD=[
+ {type:'chainAdd',title:'连加小厨房',emoji:'🍍',name:'菠萝',unit:'个',total:4,steps:[3,3],ans:10,plates:['第一次放入','第二次放入'],
+  story:'原来有4个菠萝，先放入3个，接着又放入3个，现在一共有多少个？',
+  method:'菠萝越来越多，用连加：4 + 3 + 3 = 10。',
+  hint:'从备用篮里数出3个放到"第一次放入"盘，再数3个放到"第二次放入"盘。',
+  guide:'👉 从备用篮里按两次的数量分别摆到两个盘子（3个和3个），摆对后会自动倒进大盘子，再逐个点数！'},
+ {type:'chainAdd',title:'连加小厨房（变式）',emoji:'🍪',name:'饼干',unit:'块',total:5,steps:[2,4],ans:11,plates:['第一次放入','第二次放入'],
+  story:'盘子里原来有5块饼干，先放入2块，又放入4块，现在一共有多少块？',
+  method:'饼干越来越多，用连加：5 + 2 + 4 = 11。',
+  hint:'2块放第一个盘，4块放第二个盘。',
+  guide:'👉 从备用篮里把两次要放入的饼干分别摆到两个盘子，摆对后自动倒进大盘子，再点数！'},
+ {type:'chainAdd',title:'连加小厨房（变式）',emoji:'🧁',name:'纸杯蛋糕',unit:'个',total:3,steps:[4,4],ans:11,plates:['第一次放入','第二次放入'],
+  story:'原来有3个纸杯蛋糕，先放入4个，又放入4个，现在有多少个？',
+  method:'蛋糕越来越多，用连加：3 + 4 + 4 = 11。',
+  hint:'两次各放4个到对应的盘子。',
+  guide:'👉 从备用篮里按两次的数量分别摆到两个盘子，摆对后自动倒进大盘子，再点数！'}
+];
+/* 中级：加减混合 */
+const POOL_MIXED=[
+ {type:'mixed',title:'加减混合',emoji:'🌻',name:'花',unit:'朵',total:6,plus:6,minus:5,first:'+',ans:7,
+  story:'原来有6朵花，先拿过来6朵，又拿走5朵，还剩几朵花？',
+  method:'有增加有减少，是加减混合：6 + 6 − 5 = 7。',
+  hint:'把"新拿来的"6朵全部拖进托盘，再把拿走的5朵拖到拿走盘。',
+  guide:'👉 按故事两步走：先把"新拿来的"全部拖进托盘（增加），再把拿走的5朵拖到"拿走盘"（减少），然后点数托盘！'},
+ {type:'mixed',title:'加减混合',emoji:'🌷',name:'花',unit:'朵',total:10,plus:6,minus:7,first:'-',ans:9,
+  story:'原来有10朵花，拿走7朵，又放回6朵，还剩下几朵？',
+  method:'有拿走有放回，是加减混合：10 − 7 + 6 = 9。',
+  hint:'先把拿走的7朵拖到拿走盘，再把"新拿来的"6朵全部拖进托盘。',
+  guide:'👉 先把拿走的7朵拖到"拿走盘"，再把"新拿来的"6朵全部拖进托盘，然后点数托盘！'},
+ {type:'mixed',title:'加减混合',emoji:'🐱',name:'猫',unit:'只',total:10,plus:2,minus:9,first:'-',ans:3,
+  story:'原来有10只猫，走了9只，后来又回来2只，现在有多少只猫？',
+  method:'有走有回，是加减混合：10 − 9 + 2 = 3。',
+  hint:'把走的9只拖到拿走盘，把回来的2只拖进托盘。',
+  guide:'👉 先把走掉的9只拖到"拿走盘"，再把回来的2只拖进托盘，然后点数！'},
+ {type:'mixed',title:'加减混合',emoji:'🧒',name:'小朋友',unit:'名',total:5,plus:2,minus:4,first:'+',ans:3,
+  story:'草坪上原来有5个小朋友在跳绳，又来了2名小朋友，后来又走了4名小朋友，现在草坪上有几名小朋友？',
+  method:'有来有走，是加减混合：5 + 2 − 4 = 3。',
+  hint:'先把"新来的"2名拖进托盘，再把走的4名拖到拿走盘。',
+  guide:'👉 先把新来的2名拖进托盘，再把走的4名拖到"拿走盘"，然后点数托盘！'},
+ {type:'mixed',title:'加减混合（变式）',emoji:'🐚',name:'贝壳',unit:'个',total:5,plus:4,minus:2,first:'+',ans:7,
+  story:'原来有5个贝壳，又捡到4个，送给妹妹2个，现在有几个贝壳？',
+  method:'有捡有送，是加减混合：5 + 4 − 2 = 7。',
+  hint:'捡到的4个拖进托盘，送出的2个拖到拿走盘。',
+  guide:'👉 先把捡到的4个拖进托盘，再把送出的2个拖到"拿走盘"，然后点数！'}
+];
+/* 高级：比多少（一一对应摆排） */
+const POOL_PAIR=[
+ {type:'pair',title:'比多少 · 对对碰',topName:'树上的小鸟',bottomName:'空中',topItem:'🐦',bottomItem:'🐦',unit:'只',n:7,dir:'less',d:4,ans:3,
+  story:'树上有7只小鸟，空中的小鸟比树上的少4只，空中有几只小鸟？',
+  method:'空中比树上少4只，求较小数，用减法：7 − 4 = 3。',
+  hint:'先摆得和树上一样多（连线一一配对），再让树上"没连线"的正好多出4只。',
+  guide:'👉 从备用区把小鸟拖到下排，连线会自动一一配对。看中间的提示牌，让"空中比树上少 4 只"正好出现就过关！摆多了可以拖回备用区。'},
+ {type:'pair',title:'比多少 · 对对碰',topName:'水里',bottomName:'荷叶上',topItem:'🐸',bottomItem:'🐸',unit:'只',n:2,dir:'more',d:5,ans:7,
+  story:'水里有2只青蛙，荷叶上的青蛙比水里的多5只，荷叶上有几只青蛙？',
+  method:'荷叶上比水里多5只，求较大数，用加法：2 + 5 = 7。',
+  hint:'先摆得和水里一样多，再多摆5只（多出的会变成金色）。',
+  guide:'👉 把青蛙拖到下排，先和水里的一一配对，再多摆出"多 5 只"（多出的会变金色）就过关！'},
+ {type:'pair',title:'比多少 · 对对碰',topName:'大树',bottomName:'猴子',topItem:'🌳',bottomItem:'🐵',unit:'棵/只',n:11,dir:'less',d:5,ans:6,
+  story:'树有11棵，猴子的数量比树少5，猴子有几只？',
+  method:'猴子比树少5，求较小数，用减法：11 − 5 = 6。',
+  hint:'先摆得和树一样多，再让没配上对的树正好多出5棵。',
+  guide:'👉 把猴子拖到下排和树一一配对，让"猴子比大树少 5"正好出现就过关！'},
+ {type:'pair',title:'比多少 · 对对碰',topName:'鸟儿',bottomName:'花儿',topItem:'🐦',bottomItem:'🌸',unit:'只/朵',n:5,dir:'more',d:4,ans:9,
+  story:'鸟儿有5只，鸟比花儿少4只，也就是花儿比鸟儿多4朵，花儿有几朵？',
+  method:'花儿比鸟儿多4，求较大数，用加法：5 + 4 = 9。',
+  hint:'先摆得和鸟儿一样多，再多摆4朵（金色多出部分正好4朵）。',
+  guide:'👉 把花儿拖到下排，先和鸟儿配对，再多摆"多 4 朵"就过关！'},
+ {type:'pair',title:'比多少 · 对对碰',topName:'小狗',bottomName:'青蛙',topItem:'🐶',bottomItem:'🐸',unit:'只',n:13,dir:'less',d:4,ans:9,
+  story:'有13只小狗，小狗比青蛙多4只，青蛙有几只？',
+  method:'青蛙比小狗少4只，求较小数，用减法：13 − 4 = 9。',
+  hint:'青蛙摆得比小狗少4只（正好有4只小狗没配上对）。',
+  guide:'👉 把青蛙拖到下排和小狗配对，让"青蛙比小狗少 4 只"正好出现就过关！'},
+ {type:'pair',title:'比多少 · 对对碰（变式）',topName:'大熊',bottomName:'小熊',topItem:'🍯',bottomItem:'🍯',unit:'罐',n:9,dir:'less',d:3,ans:6,
+  story:'大熊有9罐蜂蜜，小熊的蜂蜜比大熊少3罐，小熊有几罐蜂蜜？',
+  method:'小熊比大熊少3罐，求较小数，用减法：9 − 3 = 6。',
+  hint:'先和大熊一样多，再少摆3罐。',
+  guide:'👉 把小熊的蜂蜜拖到下排配对，让"小熊比大熊少 3 罐"正好出现就过关！'},
+ {type:'pair',title:'比多少 · 对对碰（变式）',topName:'姐姐',bottomName:'弟弟',topItem:'📕',bottomItem:'📘',unit:'本',n:6,dir:'more',d:4,ans:10,
+  story:'姐姐有6本书，弟弟的书比姐姐多4本，弟弟有几本书？',
+  method:'弟弟比姐姐多4本，求较大数，用加法：6 + 4 = 10。',
+  hint:'先摆得和姐姐一样多，再多摆4本。',
+  guide:'👉 把弟弟的书拖到下排，先和姐姐配对，再多摆"多 4 本"就过关！'}
+];
+/* 高级：比多少 · 双任务挑战 */
+const POOL_DUAL=[
+ {type:'pairDual',title:'比多少 · 双任务挑战',unit:'根',n:14,topName:'田田',topItem:'🟠',
+  method:'比多少口诀：求大数，用加法（小数 + 差）；求小数，用减法（大数 − 差）。',
+  hint:'先把下排摆得和田田一样多（一一配对），"多出/少"的数量就一眼看出来了。',
+  guide:'👉 完成两个任务才算过关：每个任务都先把下排摆得和田田一样多，再看多出/少了几个，摆到差距正确后点数！',
+  tasks:[
+   {bottomName:'牛牛',bottomItem:'🔵',dir:'more',d:3,ans:17,
+    story:'田田有14根小棒，牛牛比田田多3根，牛牛有几根小棒？',
+    method:'牛牛多，求较大数，用加法：14 + 3 = 17。'},
+   {bottomName:'丁丁',bottomItem:'🟢',dir:'less',d:4,ans:10,
+    story:'田田有14根小棒，丁丁比田田少4根，丁丁有几根小棒？',
+    method:'丁丁少，求较小数，用减法：14 − 4 = 10。'}
+  ]},
+ {type:'pairDual',title:'比多少 · 双任务挑战',unit:'个',n:5,topName:'小兔子',topItem:'🐰',
+  method:'比多少口诀：求大数，用加法（小数 + 差）；求小数，用减法（大数 − 差）。',
+  hint:'先和上排摆得一样多，再看多出/少几个。',
+  guide:'👉 完成两个任务才算过关：每一只动物抱一个果子，先把下排摆得和小兔子一样多，再看差距！',
+  tasks:[
+   {bottomName:'小鸭子',bottomItem:'🦆',dir:'more',d:4,ans:9,
+    story:'小兔子有5个果子，小鸭子的果子比小兔子多4个，小鸭子有几个果子？',
+    method:'小鸭子多，求较大数，用加法：5 + 4 = 9。'},
+   {bottomName:'小猴子',bottomItem:'🐵',dir:'less',d:3,ans:2,
+    story:'小兔子的果子比小猴子多3个，小猴子有几个果子？',
+    method:'小猴子少，求较小数，用减法：5 − 3 = 2。'}
+  ]}
+];
+
+/* ---------- 全局状态 ---------- */
+const G={diff:null,levels:[],idx:0,stars:[],steps:0,elapsed:0,timerId:null,paused:true,modalN:0,curHint:false,curReveal:false};
+let L=null;
+const stage=$('#stage'),eqStrip=$('#eq-strip'),storyText=$('#story-text'),storyGuide=$('#story-guide'),storyLevel=$('#story-level'),storyTask=$('#story-taskchip');
+
+/* ---------- 计时器与状态栏 ---------- */
+function startTimer(){if(G.timerId){clearInterval(G.timerId);}G.timerId=setInterval(function(){if(!G.paused){G.elapsed++;}updateHud();},1000);}
+function fmt(t){const m=Math.floor(t/60),s=t%60;return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;}
+function updateHud(){$('#hud-timer').textContent='⏱ '+fmt(G.elapsed);$('#hud-steps').textContent='🖐 操作 '+G.steps+' 次';
+ if(G.diff&&G.levels.length){let st=0;for(let i=0;i<G.stars.length;i++){st+=G.stars[i]||0;}
+  $('#hud-progress').textContent='第 '+(G.idx+1)+'/'+G.levels.length+' 关 · ★'+st;}}
+
+/* ---------- 屏幕切换 / 弹窗 / 提示条 ---------- */
+function showScreen(n){$('#screen-select').style.display=(n==='select'?'block':'none');$('#screen-game').style.display=(n==='game'?'block':'none');}
+const mask=$('#modal-mask'),card=$('#modal-card');
+function openModal(html){card.innerHTML=html;mask.classList.add('show');G.modalN++;G.paused=true;}
+function closeModal(){mask.classList.remove('show');G.modalN=Math.max(0,G.modalN-1);G.paused=(G.modalN>0||L===null);}
+let toastT=null;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');if(toastT){clearTimeout(toastT);}toastT=setTimeout(function(){t.classList.remove('show');},2800);}
+
+/* ---------- 庆祝彩纸（Canvas 实现） ---------- */
+const cvs=$('#confetti'),ctx=cvs.getContext('2d');let confs=[],confRun=false;
+function confetti(n){const pc=(getComputedStyle(document.documentElement).getPropertyValue('--pri')||'#F7941D').trim();
+ const colors=[pc,'#FFD166','#E4572E','#3B9B5F','#3E8EDE','#E86A92','#FFFFFF'];
+ cvs.width=innerWidth;cvs.height=innerHeight;confs=[];
+ for(let i=0;i<n;i++){confs.push({x:Math.random()*cvs.width,y:-20-Math.random()*cvs.height*0.4,w:8+Math.random()*8,h:6+Math.random()*6,c:colors[Math.floor(Math.random()*colors.length)],vy:2.2+Math.random()*3.2,vx:-1.6+Math.random()*3.2,r:Math.random()*Math.PI,vr:-0.12+Math.random()*0.24});}
+ if(!confRun){confRun=true;requestAnimationFrame(confStep);}}
+function confStep(){ctx.clearRect(0,0,cvs.width,cvs.height);let alive=false;
+ for(let i=0;i<confs.length;i++){const f=confs[i];f.x+=f.vx;f.y+=f.vy;f.vy+=0.05;f.r+=f.vr;if(f.y<cvs.height+30){alive=true;}
+  ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.r);ctx.fillStyle=f.c;ctx.fillRect(-f.w/2,-f.h/2,f.w,f.h);ctx.restore();}
+ if(alive){requestAnimationFrame(confStep);}else{confRun=false;ctx.clearRect(0,0,cvs.width,cvs.height);}}
+
+/* ---------- 图案（可拖拽物件） ---------- */
+function makeItem(emoji,draggable){const el=document.createElement('div');el.className='item'+(draggable?'':' nodrag');el.textContent=emoji;
+ const it={el:el,emoji:emoji,draggable:!!draggable,zone:null,counted:false};el._it=it;attachGesture(it);return it;}
+function placeInto(z,it,silent){it.zone=z;z.items.appendChild(it.el);it.el.classList.remove('float');it.el.style.cssText='';
+ if(!silent){it.el.classList.remove('pop');void it.el.offsetWidth;it.el.classList.add('pop');}}
+function fillItems(z,emoji,n,draggable){const arr=[];for(let i=0;i<n;i++){arr.push(makeItem(emoji,draggable));}
+ shuffle(arr).forEach(function(it){placeInto(z,it,true);});return arr;}
+
+/* ---------- 拖拽手势（指针事件，支持触摸） ---------- */
+let ges=null;
+function attachGesture(it){it.el.addEventListener('pointerdown',function(ev){if(ges){return;}if(ev.button&&ev.button!==0){return;}
+ ev.preventDefault();ges={it:it,x0:ev.clientX,y0:ev.clientY,moved:false,started:false,offX:0,offY:0};
+ try{it.el.setPointerCapture(ev.pointerId);}catch(err){}
+ window.addEventListener('pointermove',gesMove);window.addEventListener('pointerup',gesUp);window.addEventListener('pointercancel',gesCancel);});}
+function gesMove(ev){if(!ges){return;}const dx=ev.clientX-ges.x0,dy=ev.clientY-ges.y0;
+ if(!ges.moved&&Math.sqrt(dx*dx+dy*dy)>7){ges.moved=true;}
+ if(ges.moved&&ges.it.draggable&&!ges.started){startFloat(ev);}
+ if(ges.started){ges.it.el.style.left=(ev.clientX-ges.offX)+'px';ges.it.el.style.top=(ev.clientY-ges.offY)+'px';}}
+function startFloat(ev){if(L&&L.busy){return;}const it=ges.it;const r=it.el.getBoundingClientRect();
+ ges.offX=ev.clientX-r.left;ges.offY=ev.clientY-r.top;
+ it.el.style.width=r.width+'px';it.el.style.height=r.height+'px';it.el.style.left=r.left+'px';it.el.style.top=r.top+'px';
+ it.el.classList.add('float');document.body.appendChild(it.el);ges.started=true;highlightZones(true,it);}
+function gesUp(ev){if(!ges){return;}const g=ges;cleanupGes();
+ if(g.started){dropItem(g.it,ev.clientX,ev.clientY);}else if(!g.moved){handleTap(g.it);}}
+function gesCancel(){if(!ges){return;}const g=ges;cleanupGes();if(g.started){returnHome(g.it);}}
+function cleanupGes(){window.removeEventListener('pointermove',gesMove);window.removeEventListener('pointerup',gesUp);window.removeEventListener('pointercancel',gesCancel);ges=null;highlightZones(false);}
+function highlightZones(on,it){if(!L){return;}for(let i=0;i<L.zones.length;i++){const z=L.zones[i];
+ if(!on){z.el.classList.remove('active');}else if(L.phase==='ops'&&z.accepts(it)){z.el.classList.add('active');}}}
+function dropItem(it,x,y){let target=null;
+ for(let i=0;i<L.zones.length;i++){const z=L.zones[i];const r=z.el.getBoundingClientRect();
+  if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom){target=z;break;}}
+ if(target&&target.accepts(it)&&L.phase==='ops'&&!L.busy){const from=it.zone;placeInto(target,it);G.steps++;updateHud();target.onDrop(it,from);}
+ else{returnHome(it);}}
+function returnHome(it){const z=it.zone;if(z){placeInto(z,it);}
+ it.el.classList.remove('shake');void it.el.offsetWidth;it.el.classList.add('shake');}
+
+/* ---------- 点数（把答案亲手数出来） ---------- */
+function handleTap(it){if(!L||L.phase!=='count'||it.zone!==L.countZone){return;}
+ if(it.counted){it.el.classList.remove('shake');void it.el.offsetWidth;it.el.classList.add('shake');toast('这个已经数过啦，换下一个～');return;}
+ it.counted=true;L.countNum++;G.steps++;updateHud();
+ const b=document.createElement('span');b.className='badge';b.textContent=L.countNum;it.el.appendChild(b);
+ if(L.countNum>=L.countTarget){L.phase='done';lockLevel();
+  setTimeout(function(){L.eqFilled=true;renderEq();confetti(150);setTimeout(function(){L.onDone();},850);},320);}}
+function lockLevel(){if(!L){return;}L.locked=true;
+ for(let i=0;i<L.zones.length;i++){L.zones[i].el.classList.remove('active');}
+ const els=stage.querySelectorAll('.item');
+ Array.prototype.forEach.call(els,function(e){e._it.draggable=false;e._it.el.classList.remove('countable');});
+ if(L.countZone){L.countZone.el.classList.remove('countzone');}}
+function enterCount(zone){L.phase='count';L.countZone=zone;L.countNum=0;L.countTarget=zone.count();
+ zone.el.classList.add('countzone');
+ Array.prototype.forEach.call(zone.items.children,function(e){const it=e._it;it.draggable=false;it.el.classList.remove('nodrag');it.el.classList.add('countable');});
+ toast('摆对啦！现在逐个点数高亮框里的图案，把答案"数"出来吧～');}
+
+/* ---------- 区域工厂 ---------- */
+function makeZone(parent,o){const el=div('zone '+(o.cls||''),parent);
+ const head=div('zhead',el);
+ const lab=document.createElement('span');lab.className='zlabel';lab.textContent=o.label;head.appendChild(lab);
+ if(o.sub){const s2=document.createElement('span');s2.className='zsub';s2.textContent=o.sub;head.appendChild(s2);}
+ const badge=document.createElement('span');badge.className='zbadge';badge.textContent=o.badge||'';head.appendChild(badge);
+ if(o.btn){const bt=document.createElement('button');bt.className='zbtn';bt.textContent=o.btn;bt.addEventListener('click',o.btnFn);head.appendChild(bt);}
+ const items=div('items',el);
+ const z={el:el,items:items,badge:badge,label:o.label,count:function(){return this.items.children.length;},
+  accepts:o.accepts||function(){return false;},onDrop:o.onDrop||function(){return;}};
+ L.zones.push(z);return z;}
+function setBadge(z,t){z.badge.textContent=t;}
+function batchMove(fromZ,toZ){if(L.phase!=='ops'||L.busy){return;}
+ const es=Array.prototype.slice.call(fromZ.items.children);if(!es.length){return;}
+ L.busy=true;G.steps++;updateHud();
+ es.forEach(function(e,i){setTimeout(function(){placeInto(toZ,e._it);toZ.onDrop(e._it,fromZ);},i*90);});
+ setTimeout(function(){L.busy=false;},es.length*90+80);}
+
+/* ---------- 算式条 ---------- */
+function setEq(parts,ans){L.eqParts=parts;L.eqAns=String(ans);L.eqFilled=false;renderEq();}
+function renderEq(){if(!L){eqStrip.innerHTML='';return;}
+ if(!L.eqParts){eqStrip.innerHTML='<span class="eqhint">摆对下排的图案，算式就会在这里出现～</span>';return;}
+ let h='';for(let i=0;i<L.eqParts.length;i++){const p=L.eqParts[i];
+  if(p==='□'){h+=L.eqFilled?'<span class="eqchip ans">'+L.eqAns+' ✓</span>':'<span class="eqchip ans q">？</span>';}
+  else if(p==='+'||p==='−'||p==='='){h+='<span class="eqop">'+p+'</span>';}
+  else{h+='<span class="eqchip">'+p+'</span>';}}
+ eqStrip.innerHTML=h;}
+function eqText(){if(!L||!L.eqParts){return '';}
+ return L.eqParts.map(function(p){if(p==='□'){return L.eqFilled?L.eqAns:'？';}return p;}).join(' ');}
+/* 盘子数量与故事数量的匹配（顺序可交换） */
+function chipsFor(counts,steps){const used=[false,false];const res=[];
+ for(let k=0;k<steps.length;k++){const st=steps[k];
+  for(let i=0;i<counts.length;i++){if(!used[i]&&counts[i]===st){used[i]=true;res.push(st);break;}}}
+ return res;}
+
+/* ---------- 关卡生命周期 ---------- */
+function buildLevel(spec){L={spec:spec,phase:'ops',zones:[],countZone:null,countNum:0,countTarget:0,locked:false,busy:false,
+  eqParts:null,eqAns:'？',eqFilled:false,pairCtx:null,onDone:function(){levelModal();},taskIdx:0,tabs:null,dualSpec:null,taskHolder:null,zs:null};
+ G.curHint=false;G.curReveal=false;
+ stage.innerHTML='';eqStrip.innerHTML='';renderEq();
+ storyLevel.textContent='第 '+(G.idx+1)+' 关 · '+spec.title;
+ storyText.textContent=spec.story||'';storyGuide.textContent=spec.guide||'';storyTask.textContent='';
+ switch(spec.type){
+  case 'combine':buildCombine(spec);break;
+  case 'takeaway':buildTakeaway(spec);break;
+  case 'chainSub':buildChainSub(spec);break;
+  case 'chainAdd':buildChainAdd(spec);break;
+  case 'mixed':buildMixed(spec);break;
+  case 'pair':buildPairInto(stage,spec);L.zs={pair:true};break;
+  case 'pairDual':buildDual(spec);break;}
+ updateHud();}
+
+/* ---------- 初级：合并求总数 ---------- */
+function buildCombine(s){const row=div('row-wrap');stage.appendChild(row);
+ const basket=makeZone(stage,{cls:'',kind:'basket',label:'🧺 大筐 · 合在一起',badge:'0 '+s.unit,
+  accepts:function(it){return L.phase==='ops'&&it.zone!==null&&it.zone.kind==='tray';},
+  onDrop:function(){after();}});
+ const mk=function(nm,n){const z=makeZone(row,{cls:'half',kind:'tray',label:nm,badge:n+' '+s.unit,btn:'整组搬入',
+  btnFn:function(){batchMove(z,basket);},
+  accepts:function(it){return L.phase==='ops'&&it.zone===basket;},
+  onDrop:function(){after();}});
+  fillItems(z,s.emoji,n,true);return z;};
+ const tl=mk('左边',s.a);
+ const dv=document.createElement('div');dv.className='divider';dv.textContent='+';row.appendChild(dv);
+ const tr=mk('右边',s.b);
+ setEq([String(s.a),'+',String(s.b),'=','□'],s.ans);
+ L.zs={trayL:tl,trayR:tr,basket:basket,after:after};
+ function after(){setBadge(tl,tl.count()+' '+s.unit);setBadge(tr,tr.count()+' '+s.unit);setBadge(basket,basket.count()+' '+s.unit);
+  if(L.phase==='ops'&&basket.count()>=s.ans){enterCount(basket);}}
+ after();}
+
+/* ---------- 初级：分走求部分 ---------- */
+function buildTakeaway(s){const whole=div('wholewrap');stage.appendChild(whole);
+ const head=div('zhead',whole);
+ const lab=document.createElement('span');lab.className='zlabel';lab.textContent='🧺 一共：'+s.total+' '+s.unit;head.appendChild(lab);
+ const halves=div('halves',whole);
+ const kn=s.knownSide,otherSide=(kn==='right'?'left':'right');
+ const knownName=(s.labels?s.labels[kn]:(kn==='left'?'左边':'右边'));
+ const otherName=(s.labels?s.labels[otherSide]:(otherSide==='left'?'左边':'右边'));
+ const knownHalf=makeZone(halves,{cls:'half',label:knownName+'：'+s.known+' '+s.unit});
+ const otherHalf=makeZone(halves,{cls:'half',label:otherName+'：？ '+s.unit,badge:'数一数'});
+ const ke=knownHalf.el,oe=otherHalf.el;halves.removeChild(ke);halves.removeChild(oe);
+ if(kn==='left'){halves.appendChild(oe);halves.appendChild(ke);}else{halves.appendChild(ke);halves.appendChild(oe);}
+ fillItems(knownHalf,s.emoji,s.known,true);
+ fillItems(otherHalf,s.emoji,s.ans,false);
+ const knownBox=makeZone(stage,{label:'📦 搬走筐：把'+knownName+'的'+s.known+' '+s.unit+'搬进来',badge:'已放 0 个',
+  accepts:function(it){return L.phase==='ops'&&it.zone===knownHalf;},onDrop:function(){after();}});
+ knownHalf.accepts=function(it){return L.phase==='ops'&&it.zone===knownBox;};
+ knownHalf.onDrop=function(){after();};
+ setEq([String(s.total),'−',String(s.known),'=','□'],s.ans);
+ L.zs={knownHalf:knownHalf,knownBox:knownBox,after:after};
+ function after(){setBadge(knownBox,'已放 '+knownBox.count()+' 个');
+  if(L.phase==='ops'&&knownBox.count()>=s.known){enterCount(otherHalf);}}
+ after();}
+
+/* ---------- 中级：连减 ---------- */
+function buildChainSub(s){const tray=makeZone(stage,{cls:'',kind:'tray',label:'🍽 大盘子',badge:'现在有 '+s.total+' 个',
+  accepts:function(it){return L.phase==='ops'&&(it.zone===plate1||it.zone===plate2);},
+  onDrop:function(){after();}});
+ fillItems(tray,s.emoji,s.total,true);
+ const row=div('row-wrap');stage.appendChild(row);
+ const mkP=function(nm){return makeZone(row,{cls:'half',label:nm,badge:'已放 0 个',
+  accepts:function(it){return L.phase==='ops'&&it.zone===tray;},onDrop:function(){after();}});};
+ const plate1=mkP(s.plates[0]),plate2=mkP(s.plates[1]);
+ setEq([String(s.total)],s.ans);
+ L.zs={tray:tray,plate1:plate1,plate2:plate2,after:after};
+ function after(){setBadge(tray,'现在有 '+tray.count()+' 个');
+  setBadge(plate1,'已放 '+plate1.count()+' 个');setBadge(plate2,'已放 '+plate2.count()+' 个');
+  const chips=chipsFor([plate1.count(),plate2.count()],s.steps);
+  const parts=[String(s.total)];chips.forEach(function(c){parts.push('−');parts.push(String(c));});
+  if(L.phase==='ops'&&chips.length===s.steps.length&&tray.count()===s.total-s.steps[0]-s.steps[1]){
+   parts.push('=');parts.push('□');setEq(parts,s.ans);enterCount(tray);}
+  else{L.eqParts=parts;L.eqAns=String(s.ans);L.eqFilled=false;renderEq();}}
+ after();}
+
+/* ---------- 中级：连加 ---------- */
+function buildChainAdd(s){const tray=makeZone(stage,{kind:'tray',label:'🍽 大盘子',badge:'现在有 '+s.total+' 个'});
+ fillItems(tray,s.emoji,s.total,false);
+ const row=div('row-wrap');stage.appendChild(row);
+ const mkP=function(nm){return makeZone(row,{cls:'half',label:nm,badge:'已放 0 个',
+  accepts:function(it){return L.phase==='ops'&&it.zone===supply;},onDrop:function(){after();}});};
+ const plate1=mkP(s.plates[0]),plate2=mkP(s.plates[1]);
+ const supply=makeZone(stage,{label:'🧺 备用篮（要放入的都在这里）',badge:'0 个',
+  accepts:function(it){return L.phase==='ops'&&(it.zone===plate1||it.zone===plate2);},onDrop:function(){after();}});
+ fillItems(supply,s.emoji,s.steps[0]+s.steps[1],true);
+ setEq([String(s.total)],s.ans);
+ L.zs={tray:tray,supply:supply,plate1:plate1,plate2:plate2,after:after};
+ function after(){setBadge(plate1,'已放 '+plate1.count()+' 个');setBadge(plate2,'已放 '+plate2.count()+' 个');
+  setBadge(supply,supply.count()+' 个');
+  const chips=chipsFor([plate1.count(),plate2.count()],s.steps);
+  const parts=[String(s.total)];chips.forEach(function(c){parts.push('+');parts.push(String(c));});
+  if(L.phase==='ops'&&chips.length===s.steps.length){pour();}
+  else{L.eqParts=parts;L.eqAns=String(s.ans);L.eqFilled=false;renderEq();}}
+ function pour(){L.busy=true;const es=[];
+  [plate1,plate2].forEach(function(p){const arr=Array.prototype.slice.call(p.items.children);es.push.apply(es,arr);});
+  es.forEach(function(e,i){setTimeout(function(){placeInto(tray,e._it);setBadge(tray,'现在有 '+tray.count()+' 个');},i*70);});
+  setTimeout(function(){L.busy=false;supply.el.classList.add('donezone');
+   setEq([String(s.total),'+',String(s.steps[0]),'+',String(s.steps[1]),'=','□'],s.ans);enterCount(tray);},es.length*70+180);}
+ after();}
+
+/* ---------- 中级：加减混合 ---------- */
+function buildMixed(s){const tray=makeZone(stage,{kind:'tray',label:'🧺 托盘',badge:'现在有 '+s.total+' '+s.unit,
+  accepts:function(it){return L.phase==='ops'&&(it.zone===supply||it.zone===plate);},
+  onDrop:function(){after();}});
+ fillItems(tray,s.emoji,s.total,true);
+ const row=div('row-wrap');stage.appendChild(row);
+ const supply=makeZone(row,{cls:'half',label:'➕ 新拿来的',badge:s.plus+' '+s.unit});
+ const plate=makeZone(row,{cls:'half',label:'➖ 拿走盘',badge:'已放 0 个',
+  accepts:function(it){return L.phase==='ops'&&it.zone===tray;},onDrop:function(){after();}});
+ fillItems(supply,s.emoji,s.plus,true);
+ setEq([String(s.total)],s.ans);
+ L.zs={tray:tray,supply:supply,plate:plate,after:after};
+ function after(){setBadge(tray,'现在有 '+tray.count()+' '+s.unit);setBadge(plate,'已放 '+plate.count()+' '+s.unit);
+  setBadge(supply,supply.count()+' '+s.unit);
+  const plusDone=(supply.count()===0),minusDone=(plate.count()===s.minus);
+  const parts=[String(s.total)];
+  if(s.first==='-'){if(minusDone){parts.push('−');parts.push(String(s.minus));}if(plusDone){parts.push('+');parts.push(String(s.plus));}}
+  else{if(plusDone){parts.push('+');parts.push(String(s.plus));}if(minusDone){parts.push('−');parts.push(String(s.minus));}}
+  if(L.phase==='ops'&&plusDone&&minusDone&&tray.count()===s.ans){parts.push('=');parts.push('□');setEq(parts,s.ans);enterCount(tray);}
+  else{L.eqParts=parts;L.eqAns=String(s.ans);L.eqFilled=false;renderEq();}}
+ after();}
+
+/* ---------- 高级：比多少（一一对应 + 连线 + 差距提示牌） ---------- */
+function buildPairInto(parent,t){const area=div('pair-area');parent.appendChild(area);
+ const top=div('prow');area.appendChild(top);
+ const th=div('zhead',top);
+ const tl=document.createElement('span');tl.className='zlabel';tl.textContent=t.topName+'：'+t.n+' '+t.unit+'（固定）';th.appendChild(tl);
+ const topItems=div('items');top.appendChild(topItems);
+ for(let i=0;i<t.n;i++){const it=makeItem(t.topItem,false);topItems.appendChild(it.el);}
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','pairsvg');area.appendChild(svg);
+ const bottom=makeZone(area,{cls:'prow',label:t.bottomName+'：？ '+t.unit,badge:'0 '+t.unit,
+  accepts:function(it){return L.phase==='ops'&&it.zone===supplyZ;},onDrop:function(){afterPair();}});
+ const meter=div('meter');parent.appendChild(meter);
+ const supplyZ=makeZone(parent,{label:'🧺 备用区（拖上去摆一摆）',badge:'0 '+t.unit,
+  accepts:function(it){return L.phase==='ops'&&it.zone===bottom;},onDrop:function(){afterPair();}});
+ const supN=(t.dir==='less')?t.n:(t.n+t.d+3);
+ fillItems(supplyZ,t.bottomItem,supN,true);
+ L.pairCtx={area:area,svg:svg,topItems:topItems,bottom:bottom,supply:supplyZ,meter:meter,t:t};
+ setEq(null,t.ans);
+ function afterPair(){setBadge(bottom,bottom.count()+' '+t.unit);setBadge(supplyZ,supplyZ.count()+' '+t.unit);
+  redrawPair();
+  const b=bottom.count();const okT=(t.dir==='less')?(t.n-t.d):(t.n+t.d);
+  if(L.phase==='ops'&&b===okT){
+   Array.prototype.forEach.call(bottom.items.children,function(e){e._it.draggable=false;e._it.el.classList.add('nodrag');});
+   supplyZ.el.classList.add('donezone');meter.classList.add('ok');
+   meter.textContent='摆对啦！'+t.bottomName+'比'+t.topName+'正好'+(t.dir==='less'?'少 ':'多 ')+t.d+' '+t.unit;
+   setEq([String(t.n),(t.dir==='less'?'−':'+'),String(t.d),'=','□'],t.ans);
+   enterCount(bottom);}}
+ afterPair();}
+function redrawPair(){const c=L.pairCtx;if(!c){return;}const t=c.t;
+ const ar=c.area.getBoundingClientRect();
+ const tops=Array.prototype.slice.call(c.topItems.children);
+ const bots=Array.prototype.slice.call(c.bottom.items.children);
+ const n=t.n,b=bots.length;
+ tops.forEach(function(e){e.classList.remove('gap');});
+ bots.forEach(function(e){e.classList.remove('extra');});
+ let lines='';
+ for(let i=0;i<Math.min(n,b);i++){const a1=tops[i].getBoundingClientRect(),a2=bots[i].getBoundingClientRect();
+  const x1=(a1.left+a1.width/2-ar.left).toFixed(1),y1=(a1.bottom-ar.top+2).toFixed(1);
+  const x2=(a2.left+a2.width/2-ar.left).toFixed(1),y2=(a2.top-ar.top-2).toFixed(1);
+  lines+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" style="stroke:var(--pri)" stroke-width="4" stroke-linecap="round" opacity="0.85"/>';}
+ if(b<n){for(let i=b;i<n;i++){tops[i].classList.add('gap');}}
+ else if(b>n){for(let i=n;i<b;i++){bots[i].classList.add('extra');}}
+ c.svg.innerHTML=lines;
+ const m=c.meter,unit=t.unit;
+ if(b===0){m.textContent='先从备用区把'+t.bottomName+'拖到下排试试～';}
+ else if(b<n){m.textContent=t.bottomName+'比'+t.topName+'少 '+(n-b)+' '+unit;}
+ else if(b===n){m.textContent=t.bottomName+'和'+t.topName+'一样多！';}
+ else{m.textContent=t.bottomName+'比'+t.topName+'多 '+(b-n)+' '+unit;}}
+
+/* ---------- 高级：比多少 · 双任务 ---------- */
+function buildDual(s){const tabs=div('tasktabs');stage.appendChild(tabs);
+ s.tasks.forEach(function(t,i){const tb=document.createElement('span');tb.className='tasktab'+(i===0?' on':' lock');
+  tb.textContent='任务'+(i+1)+'：'+t.bottomName;tabs.appendChild(tb);});
+ const holder=div('dual-holder');stage.appendChild(holder);
+ L.dualSpec=s;L.taskHolder=holder;L.tabs=tabs;
+ runTask(0);}
+function runTask(i){L.taskIdx=i;L.phase='ops';L.locked=false;L.zones=[];L.pairCtx=null;L.taskHolder.innerHTML='';
+ const s=L.dualSpec,t=s.tasks[i];
+ storyText.textContent=t.story;storyGuide.textContent=s.guide;
+ storyTask.textContent='任务 '+(i+1)+'/'+s.tasks.length;
+ buildPairInto(L.taskHolder,t);
+ L.onDone=taskDone;updateHud();}
+function taskDone(){const s=L.dualSpec;
+ if(L.taskIdx<s.tasks.length-1){const t=s.tasks[L.taskIdx];
+  openModal('<div class="mtitle">✅ 任务'+(L.taskIdx+1)+'完成！</div>'+
+   '<div class="meq">'+t.n+' '+(t.dir==='less'?'− ':'+ ')+t.d+' = '+t.ans+'</div>'+
+   '<div class="mmethod">📖 '+t.method+'</div>'+
+   '<div class="mbtns"><button class="cbtn" id="mb-next-task">➡️ 继续任务'+(L.taskIdx+2)+'</button></div>');
+  $('#mb-next-task').addEventListener('click',function(){closeModal();
+   const tbs=L.tabs.children;tbs[L.taskIdx].classList.remove('on');tbs[L.taskIdx+1].classList.remove('lock');tbs[L.taskIdx+1].classList.add('on');
+   runTask(L.taskIdx+1);});}
+ else{levelModal();}}
+
+/* ---------- 过关 / 通关 弹窗 ---------- */
+function starsHtml(n){let h='';for(let i=0;i<3;i++){h+='<span class="'+(i<n?'':'off')+'">★</span>';}return h;}
+function wireLevelModal(){$('#mb-replay').addEventListener('click',function(){closeModal();buildLevel(L.spec);});
+ $('#mb-next').addEventListener('click',function(){closeModal();nextLevel();});}
+function levelModal(){const star=G.curReveal?1:(G.curHint?2:3);G.stars[G.idx]=star;updateHud();
+ const s=L.spec,last=(G.idx>=G.levels.length-1);
+ const title=G.curReveal?'🔍 已揭示答案':'🎉 过关啦！';
+ openModal('<div class="mtitle">'+title+'</div>'+
+  '<div class="meq">'+eqText()+'</div>'+
+  '<div class="mmethod">📖 '+s.method+'</div>'+
+  '<div class="mstars">'+starsHtml(star)+'</div>'+
+  '<div class="mbtns"><button class="cbtn" id="mb-replay">🔄 再玩一次本关</button>'+
+  '<button class="cbtn" id="mb-next">'+(last?'🏁 查看成绩':'➡️ 下一关')+'</button></div>');
+ wireLevelModal();}
+function dualRevealModal(){G.stars[G.idx]=1;updateHud();
+ const s=L.spec,last=(G.idx>=G.levels.length-1);let eqs='';
+ s.tasks.forEach(function(t,i){eqs+='<div class="meq">任务'+(i+1)+'：'+t.n+' '+(t.dir==='less'?'− ':'+ ')+t.d+' = '+t.ans+'</div>'+
+  '<div class="mmethod">📖 '+t.method+'</div>';});
+ openModal('<div class="mtitle">🔍 已揭示答案</div>'+eqs+
+  '<div class="mmethod">💬 口诀：求大数，用加法（小数+差）；求小数，用减法（大数−差）。</div>'+
+  '<div class="mstars">'+starsHtml(1)+'</div>'+
+  '<div class="mbtns"><button class="cbtn" id="mb-replay">🔄 再玩一次本关</button>'+
+  '<button class="cbtn" id="mb-next">'+(last?'🏁 查看成绩':'➡️ 下一关')+'</button></div>');
+ wireLevelModal();}
+function nextLevel(){G.idx++;
+ if(G.idx>=G.levels.length){finalModal();}else{buildLevel(G.levels[G.idx]);}}
+function finalModal(){G.paused=true;let tot=0;
+ for(let i=0;i<G.stars.length;i++){tot+=G.stars[i]||0;}
+ openModal('<div class="mtitle">🏆 全部通关，大丰收！</div>'+
+  '<div class="mbody" style="text-align:center;">共获得 <b>'+tot+'</b> / '+(G.levels.length*3)+' 颗星<br>用时 '+fmt(G.elapsed)+' · 共操作 '+G.steps+' 次</div>'+
+  '<div class="mstars">'+starsHtml(Math.round(tot/G.levels.length))+'</div>'+
+  '<div class="mbtns"><button class="cbtn" id="mb-again">🔄 再玩一局（重新抽题）</button>'+
+  '<button class="cbtn" id="mb-home">🏠 返回难度选择</button></div>');
+ $('#mb-again').addEventListener('click',function(){closeModal();startSession(G.diff);});
+ $('#mb-home').addEventListener('click',function(){closeModal();backToSelect();});
+ confetti(220);}
+
+/* ---------- 揭示答案（自动演示摆法并给出解析） ---------- */
+function revealLevel(){if(!L||L.phase==='done'||L.busy){return;}
+ G.curReveal=true;const s=L.spec;
+ if(s.type==='pairDual'){const t=s.tasks[L.taskIdx];
+  setEq([String(t.n),(t.dir==='less'?'−':'+'),String(t.d),'=','□'],t.ans);
+  L.eqFilled=true;renderEq();L.phase='done';lockLevel();setTimeout(dualRevealModal,300);return;}
+ const zs=L.zs||{};
+ function moveAll(fromZ,toZ){Array.prototype.slice.call(fromZ.items.children).forEach(function(e){placeInto(toZ,e._it,true);});}
+ function moveN(fromZ,toZ,n){Array.prototype.slice.call(fromZ.items.children,0,n).forEach(function(e){placeInto(toZ,e._it,true);});}
+ let parts=[],ans=s.ans;
+ if(s.type==='combine'){moveAll(zs.trayL,zs.basket);moveAll(zs.trayR,zs.basket);parts=[String(s.a),'+',String(s.b),'='];}
+ else if(s.type==='takeaway'){moveN(zs.knownHalf,zs.knownBox,s.known);parts=[String(s.total),'−',String(s.known),'='];}
+ else if(s.type==='chainSub'){moveN(zs.tray,zs.plate1,s.steps[0]);moveN(zs.tray,zs.plate2,s.steps[1]);
+  parts=[String(s.total),'−',String(s.steps[0]),'−',String(s.steps[1]),'='];}
+ else if(s.type==='chainAdd'){moveN(zs.supply,zs.plate1,s.steps[0]);moveN(zs.supply,zs.plate2,s.steps[1]);
+  moveAll(zs.plate1,zs.tray);moveAll(zs.plate2,zs.tray);
+  parts=[String(s.total),'+',String(s.steps[0]),'+',String(s.steps[1]),'='];}
+ else if(s.type==='mixed'){moveAll(zs.supply,zs.tray);moveN(zs.tray,zs.plate,s.minus);
+  parts=[String(s.total)];
+  if(s.first==='-'){parts.push('−');parts.push(String(s.minus));parts.push('+');parts.push(String(s.plus));}
+  else{parts.push('+');parts.push(String(s.plus));parts.push('−');parts.push(String(s.minus));}
+  parts.push('=');}
+ else if(s.type==='pair'){const t=s;const target=(t.dir==='less')?(t.n-t.d):(t.n+t.d);const c=L.pairCtx;
+  while(c.bottom.count()<target){placeInto(c.bottom,c.supply.items.children[0]._it,true);}
+  while(c.bottom.count()>target){placeInto(c.supply,c.bottom.items.children[c.bottom.count()-1]._it,true);}
+  Array.prototype.forEach.call(c.bottom.items.children,function(e){e._it.draggable=false;});
+  c.supply.el.classList.add('donezone');c.meter.classList.add('ok');redrawPair();
+  parts=[String(t.n),(t.dir==='less'?'−':'+'),String(t.d),'='];}
+ L.phase='done';L.busy=true;
+ if(zs&&zs.after&&s.type!=='pair'){zs.after();}
+ parts.push('□');setEq(parts,ans);L.eqFilled=true;renderEq();lockLevel();L.busy=false;
+ toast('看！正确的摆法就是这样，读一读解析吧～');
+ setTimeout(levelModal,400);}
+
+/* ---------- 提示 ---------- */
+function showHint(){if(!L){return;}G.curHint=true;
+ let msg=L.spec.hint||'再想一想：故事里谁是整体，谁是部分？';
+ if(L.phase==='count'){msg='已经摆对啦！现在逐个点数高亮框里的图案，数到最后一个就是答案～';}
+ toast('💡 '+msg);}
+
+/* ---------- 抽题（每局随机，防重复） ---------- */
+function sampleEasy(){const c=pick(POOL_COMBINE),t=pick(POOL_TAKEAWAY);
+ const rest=shuffle(POOL_COMBINE.concat(POOL_TAKEAWAY)).filter(function(x){return x!==c&&x!==t;});
+ return shuffle([c,t,rest[0]]);}
+function sampleMid(){return shuffle([pick(POOL_CHAINSUB),pick(POOL_CHAINADD),pick(POOL_MIXED)]);}
+function sampleHard(){const all=shuffle(POOL_PAIR.concat(POOL_DUAL));const res=[];let dualN=0;
+ for(let i=0;i<all.length;i++){if(res.length>=3){break;}
+  const x=all[i];
+  if(x.type==='pairDual'){if(dualN>=1){continue;}dualN++;}
+  res.push(x);}
+ return res;}
+
+/* ---------- 会话流程 ---------- */
+function startSession(diff){G.diff=diff;
+ G.levels=(diff==='easy')?sampleEasy():((diff==='mid')?sampleMid():sampleHard());
+ G.idx=0;G.stars=[];G.steps=0;G.elapsed=0;L=null;
+ applyPalette();showScreen('game');G.paused=false;startTimer();
+ buildLevel(G.levels[0]);showRulesOnce();}
+function backToSelect(){L=null;G.paused=true;showScreen('select');
+ $('#hud-progress').textContent='选择难度开始闯关';}
+
+/* ---------- 规则说明 ---------- */
+let rulesShown=false;
+function showRules(){openModal('<div class="mtitle">🌳 游戏规则说明</div><div class="mbody">'+
+ '<p><b>🎮 怎么玩：</b>每一关都是一个"看图列式"的小故事。</p>'+
+ '<p>① 读一读故事，想清楚：哪些是"部分"，哪个是"整体"？谁多谁少？</p>'+
+ '<p>② 用手指或鼠标<b>拖动图案</b>，把故事"演"出来：合起来、搬走、两步搬运、一一对应摆一摆，算式会跟着一步步长出来！</p>'+
+ '<p>③ 摆对以后，<b>逐个点数</b>高亮框里的图案（每个只能点一次），数完最后一个，答案就出现啦！</p>'+
+ '<p><b>⭐ 难度：</b>初级＝合并求总数、分走求部分；中级＝连加、连减、加减混合；高级＝比多少（一一对应，还有双任务挑战）。</p>'+
+ '<p><b>💡 小贴士：</b>搬错了可以拖回原处；"提示"帮你想起下一步（用一次少一颗星）；"揭示答案"直接演示全过程（只得1颗星哦）。右上角有计时和操作次数，看看谁能又快又准！</p>'+
+ '</div><div class="mbtns"><button class="cbtn" id="mb-ok">✅ 知道啦！</button></div>');
+ $('#mb-ok').addEventListener('click',closeModal);}
+function showRulesOnce(){if(rulesShown){return;}rulesShown=true;setTimeout(showRules,200);}
+
+/* ---------- 按钮与初始化 ---------- */
+$('#btn-rules').addEventListener('click',showRules);
+$('#btn-hint').addEventListener('click',showHint);
+$('#btn-reveal').addEventListener('click',revealLevel);
+$('#btn-restart').addEventListener('click',function(){if(L){buildLevel(L.spec);}});
+$('#btn-back').addEventListener('click',backToSelect);
+const cards=document.querySelectorAll('.diffcard');
+Array.prototype.forEach.call(cards,function(c){c.addEventListener('click',function(){startSession(c.getAttribute('data-diff'));});});
+window.addEventListener('resize',function(){if(L&&L.pairCtx){redrawPair();}});
+document.addEventListener('contextmenu',function(e){if(e.target&&e.target.classList&&e.target.classList.contains('item')){e.preventDefault();}});
+applyPalette();
+updateHud();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g005", "name": "\u52a0\u51cf\u6cd5\u5e94\u7528\u521d\u6b65 \u00b7 \u4e30\u6536\u5c0f\u4e50\u56ed", "file": "g005.html", "jiaocan": "\u30105\u3011\u7b2c3\u8bb2 \u52a0\u51cf\u6cd5\u5e94\u7528\u521d\u6b65\uff08\u4e0a\uff09", "unit": "\u7b2c3\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>时光小镇大冒险——时间的认知（几时几分）</title>
+<style>
+/* ============ 全局样式：大字号、高对比度，适合课堂投影 ============ */
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+  background:var(--bg); color:#232323; -webkit-tap-highlight-color:transparent;
+  --pri:#E85D04; --dark:#8A3D00; --bg:#FFF3E4; --soft:#FFE3C2;
+  --hour:#7A3E00; --minute:#D62828; --gold:#E8A000;
+}
+#app{ max-width:1000px; margin:0 auto; padding:14px 14px 46px; }
+
+/* ---------- 顶栏：标题 + 右上角计时器/步数 ---------- */
+#topbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:10px 16px; background:#fff; border:3px solid var(--pri); border-radius:16px; box-shadow:0 4px 0 var(--soft); }
+.brand h1{ font-size:23px; color:var(--dark); }
+.brand small{ display:block; font-size:13px; color:#777; margin-top:2px; }
+#hud{ display:flex; gap:10px; }
+.hud-chip{ background:var(--soft); border:2px solid var(--pri); border-radius:12px; padding:6px 14px;
+  font-size:19px; font-weight:800; color:var(--dark); white-space:nowrap; }
+
+/* ---------- 屏幕切换 ---------- */
+section.screen{ display:none; margin-top:16px; }
+section.screen.on{ display:block; }
+
+/* ---------- 首页：难度选择 ---------- */
+.hero{ text-align:center; padding:26px 12px; background:#fff; border-radius:20px; border:3px dashed var(--pri); }
+.hero h2{ font-size:36px; color:var(--dark); letter-spacing:2px; }
+.hero p{ font-size:17px; margin-top:10px; color:#555; line-height:1.7; }
+.diff-row{ display:flex; flex-wrap:wrap; gap:18px; justify-content:center; margin-top:22px; }
+.diff-card{ flex:1 1 240px; max-width:300px; background:#fff; border:4px solid var(--pri); border-radius:18px;
+  padding:18px 14px; cursor:pointer; box-shadow:0 5px 0 var(--soft); transition:transform .12s; font-family:inherit; }
+.diff-card:hover{ transform:translateY(-4px); }
+.diff-card:active{ transform:translateY(2px); }
+.diff-card .tag{ display:inline-block; background:var(--pri); color:#fff; border-radius:10px; padding:3px 12px; font-size:15px; font-weight:800; }
+.diff-card h3{ font-size:25px; color:var(--dark); margin-top:8px; }
+.diff-card p{ font-size:15px; color:#555; margin-top:8px; line-height:1.7; }
+.home-note{ text-align:center; font-size:15px; color:#888; margin-top:18px; line-height:1.8; }
+
+/* ---------- 游戏屏 ---------- */
+.game-head{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+  background:#fff; border-radius:14px; border:3px solid var(--pri); padding:10px 16px; }
+.badge{ background:var(--pri); color:#fff; border-radius:10px; padding:4px 14px; font-size:19px; font-weight:800; }
+#g-progress{ font-size:19px; font-weight:800; color:var(--dark); }
+.pdot{ display:inline-block; width:16px; height:16px; border-radius:50%; border:3px solid var(--pri);
+  margin:0 3px; background:#fff; vertical-align:-2px; }
+.pdot.done{ background:var(--pri); }
+.pdot.cur{ background:var(--gold); }
+
+.task-card{ margin-top:14px; background:#fff; border-radius:16px; border:3px solid var(--pri);
+  padding:14px 16px; text-align:center; }
+#g-story{ font-size:18px; color:#555; line-height:1.7; }
+#g-target{ font-size:46px; font-weight:800; color:var(--dark); margin:6px 0; letter-spacing:1px; }
+#g-sub{ font-size:17px; color:var(--pri); font-weight:700; }
+
+/* ---------- 拨针区：SVG 大钟面 ---------- */
+#area-set{ margin-top:14px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+#clock-wrap{ position:relative; }
+#clock{ display:block; width:min(86vw,430px); height:min(86vw,430px); touch-action:none; cursor:grab;
+  background:#fff; border-radius:50%; border:3px solid var(--soft); box-shadow:0 6px 0 var(--soft); }
+/* 钟面部件配色直接引用主题变量，换色时自动跟随 */
+#clock .face{ fill:#FFFEFA; stroke:var(--pri); stroke-width:9; }
+#clock .tick-maj{ stroke:var(--dark); stroke-width:4; }
+#clock .tick-min{ stroke:#9AA0A6; stroke-width:2; }
+#clock .num{ fill:#2B2F36; font-size:34px; font-weight:bold; font-family:"Microsoft YaHei",sans-serif;
+  text-anchor:middle; dominant-baseline:central; }
+#clock .hand-h{ stroke:var(--hour); stroke-width:17; stroke-linecap:round; }
+#clock .hand-m{ stroke:var(--minute); stroke-width:8; stroke-linecap:round; }
+#clock .ghost{ stroke:var(--gold); stroke-linecap:round; display:none; }
+#clock .ghost.on{ display:initial; }
+#clock .grab{ fill-opacity:.2; }
+#clock .grab.active{ fill-opacity:.4; }
+#clock .cap1{ fill:var(--dark); }
+#clock .cap2{ fill:var(--gold); }
+/* 通关时的绿色光环：纯 CSS 动画 */
+#flash-ring{ position:absolute; inset:-8px; border-radius:50%; border:9px solid #2FB344;
+  opacity:0; pointer-events:none; }
+#flash-ring.play{ animation:ringout .8s ease-out both; }
+@keyframes ringout{
+  from{ transform:scale(.72); opacity:.95; }
+  to{ transform:scale(1.12); opacity:0; }
+}
+
+.legend{ display:flex; gap:20px; flex-wrap:wrap; justify-content:center; font-size:17px; font-weight:800; color:#444; }
+.legend i{ display:inline-block; width:30px; height:11px; border-radius:6px; margin-right:6px; vertical-align:middle; }
+.legend .lh{ background:var(--hour); }
+.legend .lm{ background:var(--minute); }
+
+/* ---------- 提示面板 ---------- */
+#hint-panel{ display:none; max-width:660px; margin:0 auto; background:#FFFDF2; border:3px solid var(--gold);
+  border-radius:14px; padding:12px 16px; font-size:17px; line-height:1.8; color:#6B4E00; }
+#hint-panel.on{ display:block; }
+
+/* ---------- 反馈条 ---------- */
+.feedback{ min-height:58px; font-size:20px; font-weight:800; border-radius:12px; padding:10px 16px;
+  margin:12px auto 0; max-width:680px; text-align:center; line-height:1.6; transition:transform .18s; }
+.feedback:empty{ display:none; }
+.feedback.good{ background:#E6F7E9; color:#1B7A2E; border:3px solid #37B24D; }
+.feedback.bad{ background:#FDECEC; color:#C2255C; border:3px solid #F03E3E; }
+.feedback.warn{ background:#FFF6E0; color:#9A6700; border:3px solid var(--gold); }
+
+/* ---------- 按钮区 ---------- */
+.btnrow{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:16px; }
+.btn{ font-family:inherit; font-size:20px; font-weight:800; padding:12px 24px; border-radius:14px;
+  border:3px solid var(--pri); background:#fff; color:var(--dark); box-shadow:0 4px 0 var(--soft); cursor:pointer; }
+.btn.primary{ background:var(--pri); color:#fff; }
+.btn:active{ transform:translateY(3px); box-shadow:none; }
+.btn.small{ font-size:16px; padding:9px 16px; }
+#btn-next{ display:none; background:var(--gold); border-color:var(--gold); color:#fff; }
+
+/* ---------- 读钟配对区（高级） ---------- */
+#area-match{ margin-top:14px; display:none; flex-direction:column; gap:16px; }
+#area-match.on{ display:flex; }
+#match-clocks{ display:flex; flex-wrap:wrap; gap:18px; justify-content:center; }
+.m-item{ display:flex; flex-direction:column; align-items:center; gap:10px; background:#fff;
+  border:3px solid var(--pri); border-radius:16px; padding:12px 12px 14px; }
+.m-clockwrap svg{ display:block; }
+.m-slot{ width:176px; min-height:70px; border:3px dashed var(--pri); border-radius:12px;
+  display:flex; align-items:center; justify-content:center; background:var(--bg); transition:background .15s; }
+.m-slot.over{ background:var(--gold); }
+.m-slot.ok{ border-style:solid; border-color:#37B24D; background:#E6F7E9; }
+.m-gold{ font-size:17px; font-weight:800; color:#9A6700; margin-top:8px; }
+#match-tray{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; min-height:86px;
+  background:#fff; border:3px solid var(--soft); border-radius:16px; padding:14px; }
+.m-card{ user-select:none; -webkit-user-select:none; touch-action:none; cursor:grab; background:#fff;
+  border:4px solid var(--minute); border-radius:14px; padding:10px 18px; text-align:center;
+  box-shadow:0 4px 0 var(--soft); }
+.m-card b{ font-size:27px; color:var(--dark); display:block; letter-spacing:1px; }
+.m-card span{ font-size:15px; color:#777; }
+.m-card.dragging{ position:fixed; z-index:99; pointer-events:none; box-shadow:0 10px 18px rgba(0,0,0,.28); transform:scale(1.06); }
+.m-card.bad{ border-color:#F03E3E; background:#FDECEC; }
+.m-card.ok{ border-color:#37B24D; background:#E6F7E9; }
+
+/* ---------- 规则弹窗 ---------- */
+#modal-rules{ position:fixed; inset:0; background:rgba(35,22,8,.55); display:none;
+  align-items:center; justify-content:center; z-index:200; padding:16px; }
+#modal-rules.on{ display:flex; }
+.modal-card{ background:#fff; border-radius:20px; border:4px solid var(--pri); max-width:580px; width:100%;
+  max-height:86vh; overflow:auto; padding:24px 22px; }
+.modal-card h3{ font-size:27px; color:var(--dark); margin-bottom:12px; }
+.modal-card ul{ padding-left:22px; }
+.modal-card li{ margin:9px 0; font-size:17px; line-height:1.8; color:#3A3A3A; }
+.modal-card .kw{ color:var(--pri); font-weight:800; }
+
+/* ---------- 通关屏与庆祝 ---------- */
+#scr-win{ text-align:center; }
+.win-card{ position:relative; z-index:170; display:inline-block; background:#fff; border:4px solid var(--pri);
+  border-radius:22px; padding:30px 34px; margin-top:6vh; max-width:92vw; }
+.win-card h2{ font-size:40px; color:var(--dark); }
+.win-card .pop{ display:inline-block; animation:pop .55s ease-out both; }
+@keyframes pop{ from{ transform:scale(.3); opacity:0; } to{ transform:scale(1); opacity:1; } }
+#win-stats{ margin:18px 0 6px; font-size:19px; color:#444; line-height:2.1; }
+#win-stats b{ color:var(--pri); font-size:24px; }
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:150; display:none; overflow:hidden; }
+#fx.on{ display:block; }
+/* 彩纸：下落 + 翻滚 */
+#fx .fx-confetti{ position:absolute; top:-24px; border-radius:2px; opacity:.95;
+  animation-name:fx-fall; animation-timing-function:linear; animation-iteration-count:infinite; }
+@keyframes fx-fall{
+  from{ transform:translateY(-4vh) rotate(0deg); }
+  to{ transform:translateY(108vh) rotate(720deg); }
+}
+/* 星星：五角星裁剪，缩放闪烁 */
+#fx .fx-star{ position:absolute; background:currentColor;
+  clip-path:polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  animation-name:fx-twinkle; animation-timing-function:ease-in-out; animation-iteration-count:infinite; }
+@keyframes fx-twinkle{
+  0%, 100%{ transform:scale(.4) rotate(0deg); opacity:.35; }
+  50%{ transform:scale(1.15) rotate(20deg); opacity:1; }
+}
+/* 烟花波纹：扩散淡出 */
+#fx .fx-burst{ position:absolute; width:14px; height:14px; border-radius:50%; border:5px solid #fff;
+  transform:translate(-50%, -50%); animation-name:fx-wave; animation-timing-function:ease-out;
+  animation-iteration-count:infinite; }
+@keyframes fx-wave{
+  from{ transform:translate(-50%, -50%) scale(.3); opacity:1; }
+  to{ transform:translate(-50%, -50%) scale(9); opacity:0; }
+}
+
+/* ---------- 小屏适配 ---------- */
+@media (max-width:560px){
+  .hero h2{ font-size:28px; }
+  #g-target{ font-size:36px; }
+  .btn{ font-size:18px; padding:10px 16px; }
+  .hud-chip{ font-size:16px; padding:5px 10px; }
+  .brand h1{ font-size:19px; }
+  .win-card h2{ font-size:30px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶栏：标题 + 右上角实时计时/步数 -->
+  <header id="topbar">
+    <div class="brand">
+      <h1>时光小镇大冒险</h1>
+      <small>第5讲 时间的认知（下）· 几时几分 拨针闯关</small>
+    </div>
+    <div id="hud">
+      <div class="hud-chip" id="hud-time">用时 00:00</div>
+      <div class="hud-chip" id="hud-steps">步数 0</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ 首页：难度选择 ============ -->
+    <section class="screen on" id="scr-home">
+      <div class="hero">
+        <h2>欢迎来到时光小镇！</h2>
+        <p>钟表店的大钟全都乱了套。<br>请你动手拨一拨指针、读一读钟面，<br>帮田田和丁丁把每一站的时刻都调对吧！</p>
+        <div class="diff-row">
+          <button class="diff-card" data-diff="easy">
+            <span class="tag">初级</span>
+            <h3>整点半点村</h3>
+            <p>4 个小任务。分针指向12是整时，指向6是半时。适合刚认识钟面的小朋友。</p>
+          </button>
+          <button class="diff-card" data-diff="mid">
+            <span class="tag">中级</span>
+            <h3>几时几分谷</h3>
+            <p>4 个小任务。跟着丁丁去森林探险，把钟面精确拨到几时几分。</p>
+          </button>
+          <button class="diff-card" data-diff="hard">
+            <span class="tag">高级</span>
+            <h3>智慧时刻峰</h3>
+            <p>5 个小任务：含读钟配对、时针贴近数字的大考验，还有两针重叠与一条直线的智慧挑战。</p>
+          </button>
+        </div>
+        <p class="home-note">每一次进入都会随机换主题色、随机抽题，百玩不腻！<br>点“游戏规则”按钮随时可以再看玩法说明。</p>
+      </div>
+    </section>
+
+    <!-- ============ 游戏屏 ============ -->
+    <section class="screen" id="scr-game">
+      <div class="game-head">
+        <span class="badge" id="g-diff">初级</span>
+        <span id="g-progress">第 1 / 4 关 <span id="g-dots"></span></span>
+        <span class="badge" id="g-theme" style="background:var(--gold);">主题色</span>
+      </div>
+
+      <div class="task-card">
+        <div id="g-story">任务说明</div>
+        <div id="g-target">目标</div>
+        <div id="g-sub">补充说明</div>
+      </div>
+
+      <!-- 拨针任务区：SVG 大钟面（拖动指针即操作） -->
+      <div id="area-set">
+        <div id="clock-wrap">
+          <svg id="clock" viewBox="0 0 460 460" role="img" aria-label="可拖动指针的钟面">
+            <circle class="face" cx="230" cy="230" r="221"></circle>
+            <g id="ck-ticks"></g><!-- 60 条小格刻度，由脚本生成 -->
+            <g id="ck-nums"></g><!-- 数字 1~12，由脚本生成 -->
+            <line id="ck-ghost-h" class="ghost" x1="230" y1="230" x2="230" y2="230" stroke-width="12"></line>
+            <line id="ck-ghost-m" class="ghost" x1="230" y1="230" x2="230" y2="230" stroke-width="8"></line>
+            <circle id="ck-grab-h" class="grab" r="15" fill="var(--hour)"></circle>
+            <circle id="ck-grab-m" class="grab" r="15" fill="var(--minute)"></circle>
+            <line id="ck-hand-h" class="hand-h" x1="230" y1="230" x2="230" y2="118"></line>
+            <line id="ck-hand-m" class="hand-m" x1="230" y1="230" x2="230" y2="46"></line>
+            <circle class="cap1" cx="230" cy="230" r="13"></circle>
+            <circle class="cap2" cx="230" cy="230" r="5"></circle>
+          </svg>
+          <div id="flash-ring"></div>
+        </div>
+        <div class="legend">
+          <span><i class="lh"></i>短而粗 = 时针（看大格）</span>
+          <span><i class="lm"></i>长而细 = 分针（数小格）</span>
+        </div>
+        <div id="hint-panel"></div>
+        <div class="feedback" id="fb"></div>
+      </div>
+
+      <!-- 读钟配对任务区 -->
+      <div id="area-match">
+        <div id="match-clocks"></div>
+        <div id="match-tray"></div>
+        <div class="feedback warn">读钟小口诀：先看时针走过数字几，就是几时；再数分针从12出发走了几小格，就是几分。</div>
+        <div class="feedback" id="fb"></div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn primary" id="btn-check">看看对不对</button>
+        <button class="btn" id="btn-hint">提示</button>
+        <button class="btn" id="btn-reveal">揭示答案</button>
+        <button class="btn" id="btn-next">继续</button>
+      </div>
+      <div class="btnrow">
+        <button class="btn small" id="btn-restart">重新开始</button>
+        <button class="btn small" id="btn-home">返回难度选择</button>
+        <button class="btn small" id="btn-rules2">游戏规则</button>
+      </div>
+    </section>
+
+    <!-- ============ 通关屏 ============ -->
+    <section class="screen" id="scr-win">
+      <div class="win-card">
+        <h2><span class="pop">太棒了，全部通关！</span></h2>
+        <div id="win-stats"></div>
+        <div class="btnrow">
+          <button class="btn primary" id="btn-again">再玩一次</button>
+          <button class="btn" id="btn-home2">返回难度选择</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 规则说明弹窗：进入时弹出，可随时再看 -->
+<div id="modal-rules">
+  <div class="modal-card">
+    <h3>游戏规则</h3>
+    <ul>
+      <li><span class="kw">玩法一（拨一拨）：</span>用手指或鼠标按住钟面上的指针拖动。<b>短而粗的是时针，长而细的是分针</b>。把钟面拨到目标时刻后，点“看看对不对”。</li>
+      <li><span class="kw">玩法二（连一连）：</span>高级闯关里的“四兄弟钟表店”要读钟面：把下面的时间卡片<b>拖到</b>正确的钟面上，全部配对成功才算过关。</li>
+      <li><span class="kw">好方法：</span>时针看大格，走过数字几就是几时；分针数小格，从12出发顺时针数，数到第几小格就是几分。</li>
+      <li><span class="kw">小提示：</span>时针要画在两个数字<b>之间</b>；整时分针指向12，半时分针指向6；两针完全重叠是12:00，连成一条直线是6:00。</li>
+      <li><span class="kw">需要帮忙：</span>点“提示”看方法口诀；点“揭示答案”会用金色虚线显示正确位置。</li>
+      <li><span class="kw">三档难度：</span>初级（整时与半时）· 中级（几时几分）· 高级（读钟配对＋智慧大考验）。</li>
+      <li>右上角实时显示<b>用时</b>和<b>步数</b>，每局主题色随机更换。</li>
+    </ul>
+    <div class="btnrow">
+      <button class="btn primary" id="btn-rules-ok">开始游戏</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通关庆祝动画层（CSS 彩纸＋星星＋烟花波纹） -->
+<div id="fx"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   时光小镇大冒险 —— 第5讲 时间的认知（下）：几时几分
+   核心玩法：1) 在大钟面上拖拽时针/分针拨出目标时刻（画针题的具象操作）
+            2) 读钟面，把时间卡片拖到对应钟面完成配对（读钟题的连线操作）
+   技术要点：全部图形用 SVG（属性级更新，无逐帧重绘），触屏/鼠标通用的指针事件
+   ===================================================================== */
+
+/* ---------------- 基础工具函数 ---------------- */
+var $ = function(id){ return document.getElementById(id); };
+var SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(name, attrs){
+  var e = document.createElementNS(SVG_NS, name);
+  for(var k in attrs){ e.setAttribute(k, attrs[k]); }
+  return e;
+}
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function shuffle(arr){ /* 返回打乱后的新数组（Fisher-Yates 洗牌） */
+  var a = arr.slice(), i, j, t;
+  for(i = a.length - 1; i > 0; i--){
+    j = Math.floor(Math.random() * (i + 1));
+    t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function sampleDistinct(pool, n){ /* 从题库随机抽 n 个互不重复的时刻 */
+  var s = shuffle(pool), out = [], seen = {}, i, k;
+  for(i = 0; i < s.length && out.length < n; i++){
+    k = s[i][0] + ':' + s[i][1];
+    if(!seen[k]){ seen[k] = true; out.push(s[i]); }
+  }
+  return out;
+}
+function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+function fmtE(h, m){ return h + ':' + pad2(m); }               /* 电子计时法，如 3:07 */
+function fmtC(h, m){ return m === 0 ? (h + '时整') : (h + '时' + m + '分'); } /* 中文计时法 */
+function angDiff(a, b){ /* 两个角度的最小差（0~180 度） */
+  var d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+function hourAngleOf(h, m){ return ((h % 12) + m / 60) * 30; } /* 时针角度：每小时30度，分钟还带动半度 */
+function minAngleOf(m){ return m * 6; }                        /* 分针角度：每小格6度 */
+function mmss(sec){
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' + s : '' + s);
+}
+
+/* ---------------- 随机主题色板（每局随机一种，保证多次玩不腻） ---------------- */
+var PALETTES = [
+  { name:'阳光橙', pri:'#E85D04', dark:'#8A3D00', bg:'#FFF3E4', soft:'#FFE3C2', hour:'#7A3E00', minute:'#D62828' },
+  { name:'海洋蓝', pri:'#1B6CA8', dark:'#0D3B66', bg:'#E8F4FD', soft:'#CFE8FA', hour:'#12395C', minute:'#E4572E' },
+  { name:'森林绿', pri:'#2F8F3E', dark:'#1B5E2A', bg:'#EBF7EC', soft:'#D2EFD6', hour:'#1D4D24', minute:'#E4483B' },
+  { name:'葡萄紫', pri:'#8E4EC6', dark:'#5A2A88', bg:'#F5EEFB', soft:'#E7D9F7', hour:'#4A2673', minute:'#F27B13' },
+  { name:'樱桃红', pri:'#D7263D', dark:'#8E1626', bg:'#FDEBEE', soft:'#F9D3D9', hour:'#7A1020', minute:'#1B6CA8' },
+  { name:'青柠黄', pri:'#C9A200', dark:'#7A6400', bg:'#FFFBE6', soft:'#FDF3BF', hour:'#6E5B00', minute:'#D7263D' }
+];
+var COL = {}; /* 当前主题色缓存，供配对小钟与庆祝彩纸使用 */
+function applyPalette(){
+  var p = pick(PALETTES);
+  var st = document.body.style;
+  st.setProperty('--pri', p.pri);
+  st.setProperty('--dark', p.dark);
+  st.setProperty('--bg', p.bg);
+  st.setProperty('--soft', p.soft);
+  st.setProperty('--hour', p.hour);
+  st.setProperty('--minute', p.minute);
+  COL = { pri:p.pri, dark:p.dark, hour:p.hour, minute:p.minute, gold:'#E8A000' };
+  var themeEl = $('g-theme');
+  if(themeEl){ themeEl.textContent = '主题：' + p.name; }
+}
+
+/* ---------------- 题库：时刻全部取自教参原题与参考答案 ---------------- */
+var POOL_DOCX = [
+  [5,58],[2,19],[7,36],[10,2],[11,35],[3,55],[3,0],[4,15],[6,23],[8,46],
+  [9,25],[11,39],[4,17],[3,6],[7,5],[7,26],[6,35],[9,9],[1,50],[6,32],
+  [12,43],[5,7],[10,28],[12,8],[1,7],[4,20],[8,0],[8,45],[12,0],[4,35],
+  [7,0],[7,35],[2,35],[6,5],[3,25],[1,55],[9,14],[10,26],[2,0],[4,30],
+  [12,30],[3,17],[4,11],[9,30],[11,30]
+];
+/* 高级专用：分钟很贴近整刻（时针几乎挨着数字，最容易看错的位置） */
+var POOL_TRICKY = POOL_DOCX.filter(function(t){ return t[1] >= 40 || t[1] <= 15; });
+
+/* 初级剧情：田田的一天（活动词来自教参练习14） */
+var BEGIN_ACTS = [
+  { label:'天亮啦，田田起床',            pool:[[6,0],[6,30],[7,0]] },
+  { label:'田田背起书包去上学',          pool:[[7,0],[7,30],[8,0]] },
+  { label:'中午，田田吃午饭',            pool:[[11,30],[12,0]] },
+  { label:'下午，田田放学啦',            pool:[[4,30],[5,0]] },
+  { label:'晚上，田田和家人吃晚饭',      pool:[[6,0],[6,30]] },
+  { label:'晚上，田田上床睡觉',          pool:[[8,30],[9,0]] }
+];
+/* 中级剧情：丁丁的一天·森林探险（来自教参例6） */
+var MID_STATIONS = [
+  '来到大森林，开始探险',
+  '遇到一扇石头门，拨对时刻才能通过',
+  '救助路边的小动物',
+  '翻过高高的小山坡',
+  '遇见智慧老人，听他讲时钟的秘密'
+];
+
+/* 反重复机制：每局随机组卷 */
+function buildTasks(diff){
+  var tasks = [], i, t;
+  if(diff === 'easy'){
+    var acts = shuffle(BEGIN_ACTS).slice(0, 4);
+    for(i = 0; i < acts.length; i++){
+      t = pick(acts[i].pool);
+      tasks.push({ type:'set', h:t[0], m:t[1], story:'田田的一天 · ' + acts[i].label, revealed:false });
+    }
+    return tasks;
+  }
+  if(diff === 'mid'){
+    var st = shuffle(MID_STATIONS).slice(0, 4);
+    var ts = sampleDistinct(POOL_DOCX, 4);
+    for(i = 0; i < 4; i++){
+      tasks.push({ type:'set', h:ts[i][0], m:ts[i][1], story:'丁丁的森林探险 · ' + st[i], revealed:false });
+    }
+    return tasks;
+  }
+  /* 高级：2 个贴数字拨针 + 1 个读钟配对 + 1 个重叠/直线大考验 + 1 个收官拨针 */
+  var tr = sampleDistinct(POOL_TRICKY, 2);
+  var mt = sampleDistinct(POOL_DOCX, 4);
+  var fin = sampleDistinct(POOL_DOCX, 1)[0];
+  var special = Math.random() < 0.5
+    ? { type:'special', mode:'overlap', h:12, m:0, revealed:false, story:'智慧老人的考验 · 把两根针拨到完全重叠' }
+    : { type:'special', mode:'line',    h:6,  m:0, revealed:false, story:'智慧老人的考验 · 把两根针拨成一条直线' };
+  tasks.push({ type:'set', h:tr[0][0], m:tr[0][1],
+    story:'魔法花钟 · 时针悄悄躲到了数字旁边，拨的时候要看清楚哦', revealed:false });
+  tasks.push({ type:'match', times:mt, story:'四兄弟钟表店 · 读一读每个钟面，把时间卡片拖到正确的钟上', revealed:false });
+  tasks.push({ type:'set', h:tr[1][0], m:tr[1][1],
+    story:'会跳舞的星星钟 · 分钟数很贴近整刻，小心别拨过头', revealed:false });
+  tasks.push(special);
+  tasks.push({ type:'set', h:fin[0], m:fin[1],
+    story:'获得智慧勋章前的最后一站，拨出正确的时刻吧', revealed:false });
+  return tasks;
+}
+
+/* ---------------- 全局游戏状态 ---------------- */
+var G = { diff:null, tasks:[], idx:0, steps:0, sec:0, timerId:null, independent:0, locked:false, token:0 };
+function cur(){ return G.tasks[G.idx]; }
+
+/* ---------------- 大钟面（SVG 拨针）组件 ---------------- */
+var mainCv = $('clock'); /* 实际是 <svg> 元素，沿用变量名便于阅读 */
+var CK = { hA:0, mA:0, drag:null, ghost:false };
+var CLOG = 460, CC = 230, CR = 221; /* 逻辑边长 / 圆心 / 半径 */
+var HLEN = CR * 0.50, MLEN = CR * 0.80; /* 时针/分针长度 */
+
+/* 刻度与数字一次性生成（60 小格 + 12 数字） */
+(function buildDial(){
+  var ticks = $('ck-ticks'), nums = $('ck-nums'), i, a, r1, r2, maj;
+  for(i = 0; i < 60; i++){
+    a = i * 6 * Math.PI / 180;
+    maj = (i % 5 === 0);
+    r1 = CR - (maj ? 22 : 11);
+    r2 = CR - 5;
+    ticks.appendChild(svgEl('line', {
+      x1: CC + r1 * Math.sin(a), y1: CC - r1 * Math.cos(a),
+      x2: CC + r2 * Math.sin(a), y2: CC - r2 * Math.cos(a),
+      'class': maj ? 'tick-maj' : 'tick-min'
+    }));
+  }
+  var rn = CR - 56;
+  for(i = 1; i <= 12; i++){
+    a = i * 30 * Math.PI / 180;
+    var t = svgEl('text', {
+      x: CC + rn * Math.sin(a), y: CC - rn * Math.cos(a), 'class': 'num'
+    });
+    t.textContent = '' + i;
+    nums.appendChild(t);
+  }
+})();
+
+function tipPos(angDeg, len){ /* 某角度时针尖端的坐标 */
+  var a = angDeg * Math.PI / 180;
+  return { x: CC + len * Math.sin(a), y: CC - len * Math.cos(a) };
+}
+/* 把一根针（或幽灵针、抓取圆、文字标签）摆到指定角度 */
+function setHandByAngle(line, angDeg, len){
+  var p = tipPos(angDeg, len);
+  line.setAttribute('x2', p.x.toFixed(1));
+  line.setAttribute('y2', p.y.toFixed(1));
+}
+/* 刷新大钟面视图：真实指针 + 抓取圆 + 标签 + 幽灵答案针 */
+function updateClockView(){
+  var t = cur();
+  var ghostOn = CK.ghost && t && (t.type === 'set' || t.type === 'special');
+  var gH = $('ck-ghost-h'), gM = $('ck-ghost-m');
+  if(ghostOn){
+    setHandByAngle(gH, hourAngleOf(t.h, t.m), HLEN);
+    setHandByAngle(gM, minAngleOf(t.m), MLEN);
+    gH.setAttribute('class', 'ghost on');
+    gM.setAttribute('class', 'ghost on');
+    gH.setAttribute('stroke-dasharray', '12 9');
+    gM.setAttribute('stroke-dasharray', '12 9');
+  }else{
+    gH.setAttribute('class', 'ghost');
+    gM.setAttribute('class', 'ghost');
+  }
+  setHandByAngle($('ck-hand-h'), CK.hA, HLEN);
+  setHandByAngle($('ck-hand-m'), CK.mA, MLEN);
+  /* 抓取圆跟随针尖，拖动中的针高亮 */
+  var gh = $('ck-grab-h'), gm = $('ck-grab-m');
+  var ph = tipPos(CK.hA, HLEN), pm = tipPos(CK.mA, MLEN);
+  gh.setAttribute('cx', ph.x.toFixed(1)); gh.setAttribute('cy', ph.y.toFixed(1));
+  gm.setAttribute('cx', pm.x.toFixed(1)); gm.setAttribute('cy', pm.y.toFixed(1));
+  gh.setAttribute('r', (CK.drag && CK.drag.hand === 'h') ? 21 : 15);
+  gm.setAttribute('r', (CK.drag && CK.drag.hand === 'm') ? 21 : 15);
+  gh.setAttribute('class', 'grab' + ((CK.drag && CK.drag.hand === 'h') ? ' active' : ''));
+  gm.setAttribute('class', 'grab' + ((CK.drag && CK.drag.hand === 'm') ? ' active' : ''));
+}
+
+/* ---- 大钟面指针拖拽（指针事件：鼠标与触摸通用） ---- */
+function clockPoint(e){ /* 把页面坐标换算成钟面逻辑坐标（viewBox 460） */
+  var r = mainCv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * CLOG / r.width, y: (e.clientY - r.top) * CLOG / r.height };
+}
+function pointAngle(p){ /* 以钟面圆心为原点求角度：0 度指向 12，顺时针增大 */
+  var a = Math.atan2(p.x - CC, CC - p.y) * 180 / Math.PI;
+  return ((a % 360) + 360) % 360;
+}
+function distToSeg(px, py, ax, ay, bx, by){ /* 点到线段距离，用于判断按住了哪根针 */
+  var dx = bx - ax, dy = by - ay;
+  var L2 = dx * dx + dy * dy;
+  var t = L2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function hitHand(p){ /* 距离哪根针更近就拖哪根；离两根针都太远则不响应 */
+  var hT = tipPos(CK.hA, HLEN), mT = tipPos(CK.mA, MLEN);
+  var dH = distToSeg(p.x, p.y, CC, CC, hT.x, hT.y);
+  var dM = distToSeg(p.x, p.y, CC, CC, mT.x, mT.y);
+  if(Math.min(dH, dM) > 95){ return null; }
+  return dH <= dM ? 'h' : 'm';
+}
+mainCv.addEventListener('pointerdown', function(e){
+  if(G.locked){ return; }
+  var p = clockPoint(e);
+  var hand = hitHand(p);
+  if(!hand){ return; }
+  e.preventDefault();
+  CK.drag = { hand:hand, startA: (hand === 'h' ? CK.hA : CK.mA) };
+  updateClockView();
+  try{ mainCv.setPointerCapture(e.pointerId); }catch(err){ /* 部分环境不支持捕获：仍可拖动 */ }
+});
+mainCv.addEventListener('pointermove', function(e){
+  if(!CK.drag){ return; }
+  var a = pointAngle(clockPoint(e));
+  if(CK.drag.hand === 'm'){
+    var snapped = ((Math.round(a / 6) * 6) % 360 + 360) % 360; /* 分针按小格（6度）吸附 */
+    if(snapped !== CK.mA){
+      CK.mA = snapped;
+      updateClockView();
+    }
+  }else{
+    if(angDiff(CK.hA, a) >= 1){ /* 时针连续调节：体会“两个数字之间” */
+      CK.hA = ((a % 360) + 360) % 360;
+      updateClockView();
+    }
+  }
+});
+function endDrag(){
+  if(!CK.drag){ return; }
+  var now = (CK.drag.hand === 'h') ? CK.hA : CK.mA;
+  if(angDiff(CK.drag.startA, now) >= 3){ /* 一次有效拖动记一步 */
+    G.steps++;
+    updateHud();
+  }
+  CK.drag = null;
+  updateClockView();
+}
+mainCv.addEventListener('pointerup', endDrag);
+mainCv.addEventListener('pointercancel', endDrag);
+
+/* ---------------- 读钟配对（拖卡连线）组件 ---------------- */
+var MATCH = { locked:false, times:[], dragging:null, off:{ x:0, y:0 } };
+/* 用 SVG 画配对小钟面：静态矢量，缩放清晰且渲染压力小 */
+function buildMiniClockSVG(h, m){
+  var svg = svgEl('svg', { viewBox: '0 0 152 152', width: 152, height: 152 });
+  var cx = 76, cy = 76, R = 70, i, a, r1, r2;
+  /* 表盘 */
+  svg.appendChild(svgEl('circle', { cx:cx, cy:cy, r:R, fill:'#FFFEFA', stroke:COL.pri, 'stroke-width':6 }));
+  /* 60 个小格刻度（每5格一条大格粗刻度） */
+  for(i = 0; i < 60; i++){
+    a = i * 6 * Math.PI / 180;
+    var maj = (i % 5 === 0);
+    r1 = R - (maj ? 22 : 11);
+    r2 = R - 5;
+    svg.appendChild(svgEl('line', {
+      x1: cx + r1 * Math.sin(a), y1: cy - r1 * Math.cos(a),
+      x2: cx + r2 * Math.sin(a), y2: cy - r2 * Math.cos(a),
+      stroke: maj ? COL.dark : '#9AA0A6', 'stroke-width': maj ? 4 : 2
+    }));
+  }
+  /* 数字 1~12 */
+  var rn = R - 32;
+  for(i = 1; i <= 12; i++){
+    a = i * 30 * Math.PI / 180;
+    var t = svgEl('text', {
+      x: cx + rn * Math.sin(a), y: cy - rn * Math.cos(a),
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+      fill: '#2B2F36', 'font-size': 19, 'font-weight': 'bold',
+      'font-family': 'Microsoft YaHei, sans-serif'
+    });
+    t.textContent = '' + i;
+    svg.appendChild(t);
+  }
+  /* 时针（短而粗）与分针（长而细），角度与真实钟面公式一致 */
+  var hA = hourAngleOf(h, m) * Math.PI / 180, mA = minAngleOf(m) * Math.PI / 180;
+  svg.appendChild(svgEl('line', {
+    x1: cx, y1: cy, x2: cx + R * 0.50 * Math.sin(hA), y2: cy - R * 0.50 * Math.cos(hA),
+    stroke: COL.hour, 'stroke-width': 10, 'stroke-linecap': 'round'
+  }));
+  svg.appendChild(svgEl('line', {
+    x1: cx, y1: cy, x2: cx + R * 0.80 * Math.sin(mA), y2: cy - R * 0.80 * Math.cos(mA),
+    stroke: COL.minute, 'stroke-width': 5, 'stroke-linecap': 'round'
+  }));
+  svg.appendChild(svgEl('circle', { cx:cx, cy:cy, r:8, fill:COL.dark }));
+  svg.appendChild(svgEl('circle', { cx:cx, cy:cy, r:3, fill:COL.gold }));
+  return svg;
+}
+function renderMatch(t){
+  MATCH.locked = false;
+  MATCH.times = t.times;
+  var clocksBox = $('match-clocks');
+  var tray = $('match-tray');
+  clocksBox.innerHTML = '';
+  tray.innerHTML = '';
+  var i;
+  for(i = 0; i < t.times.length; i++){
+    var item = document.createElement('div');
+    item.className = 'm-item';
+    var wrap = document.createElement('div');
+    wrap.className = 'm-clockwrap';
+    wrap.appendChild(buildMiniClockSVG(t.times[i][0], t.times[i][1])); /* 按时刻正确画出钟面 */
+    item.appendChild(wrap);
+    var slot = document.createElement('div');
+    slot.className = 'm-slot';
+    slot._card = null;
+    item.appendChild(slot);
+    clocksBox.appendChild(item);
+  }
+  /* 时间卡片顺序打乱（反重复） */
+  var cards = shuffle(t.times.slice());
+  for(i = 0; i < cards.length; i++){
+    var card = document.createElement('div');
+    card.className = 'm-card';
+    card.dataset.time = fmtE(cards[i][0], cards[i][1]);
+    card.innerHTML = '<b>' + fmtE(cards[i][0], cards[i][1]) + '</b><span>' + fmtC(cards[i][0], cards[i][1]) + '</span>';
+    bindCardDrag(card);
+    tray.appendChild(card);
+  }
+}
+function allSlots(){
+  return Array.prototype.slice.call(document.querySelectorAll('#match-clocks .m-slot'));
+}
+function toTray(card){
+  var tray = $('match-tray');
+  if(card.parentElement !== tray){ tray.appendChild(card); }
+  allSlots().forEach(function(s){ if(s._card === card){ s._card = null; } });
+}
+function bindCardDrag(card){
+  card.addEventListener('pointerdown', function(e){
+    if(MATCH.locked){ return; }
+    e.preventDefault();
+    try{ card.setPointerCapture(e.pointerId); }catch(err){ /* 部分环境不支持捕获：仍可拖动 */ }
+    var r = card.getBoundingClientRect();
+    MATCH.off = { x: e.clientX - r.left, y: e.clientY - r.top };
+    MATCH.dragging = card;
+    card.classList.add('dragging');
+    moveCard(e);
+  });
+  card.addEventListener('pointermove', function(e){
+    if(MATCH.dragging === card){ moveCard(e); }
+  });
+  function end(e){
+    if(MATCH.dragging !== card){ return; }
+    MATCH.dragging = null;
+    card.classList.remove('dragging');
+    dropCard(card, e);
+  }
+  card.addEventListener('pointerup', end);
+  card.addEventListener('pointercancel', end);
+}
+function moveCard(e){
+  var c = MATCH.dragging;
+  if(!c){ return; }
+  c.style.left = (e.clientX - MATCH.off.x) + 'px';
+  c.style.top = (e.clientY - MATCH.off.y) + 'px';
+  /* 高亮正下方的投放槽 */
+  allSlots().forEach(function(s){ s.classList.remove('over'); });
+  var el = document.elementFromPoint(e.clientX, e.clientY);
+  var slot = (el && el.closest) ? el.closest('.m-slot') : null;
+  if(slot){ slot.classList.add('over'); }
+}
+function dropCard(card, e){
+  allSlots().forEach(function(s){ s.classList.remove('over'); });
+  var el = document.elementFromPoint(e.clientX, e.clientY);
+  var slot = (el && el.closest) ? el.closest('.m-slot') : null;
+  card.style.left = '';
+  card.style.top = '';
+  if(slot){
+    if(slot._card && slot._card !== card){ toTray(slot._card); } /* 槽内已有卡：旧卡退回卡池 */
+    allSlots().forEach(function(s){ if(s._card === card && s !== slot){ s._card = null; } });
+    slot.appendChild(card);
+    slot._card = card;
+    card.classList.remove('bad');
+    G.steps++; /* 每送出一张卡记一步 */
+    updateHud();
+  }else{
+    toTray(card);
+  }
+}
+
+/* ---------------- 判定逻辑 ---------------- */
+var MIN_TOL = 4;    /* 分针容差：按小格吸附后误差极小 */
+var HOUR_TOL = 13;  /* 时针容差：约四分之一个大格，符合一年级“画在两数之间”的要求 */
+function checkTimeTask(t){
+  var targetM = minAngleOf(t.m);
+  var targetH = hourAngleOf(t.h, t.m);
+  var eM = angDiff(CK.mA, targetM);
+  var eH = angDiff(CK.hA, targetH);
+  if(eM <= MIN_TOL && eH <= HOUR_TOL){
+    return { pass:true };
+  }
+  /* 未通过：给出针对性的方法反馈（先肯定对的针，再指出要调的针） */
+  var nh = t.h % 12 + 1; /* 下一个数字 */
+  var msg;
+  if(t.type === 'special'){
+    msg = (t.mode === 'overlap')
+      ? '还差一点点！12:00 的时候，时针和分针都要指向 12，两根针完全重叠在一起。'
+      : '还差一点点！6:00 的时候，时针指向 6、分针指向 12，两根针连成一条直线。';
+  }else if(eM > MIN_TOL && eH > HOUR_TOL){
+    msg = '两根针都还要再调一调：分针从 12 出发顺时针数小格，要指向第 ' + t.m +
+          ' 小格；时针刚走过 ' + t.h + '，要画在 ' + t.h + ' 和 ' + nh + ' 之间。';
+  }else if(eM > MIN_TOL){
+    msg = '时针已经就位，真棒！分针还差一点：从 12 出发顺时针数小格，数到第 ' + t.m + ' 小格。';
+  }else{
+    msg = '分针已经就位，真棒！时针要看大格：刚走过 ' + t.h + '，画在 ' + t.h + ' 和 ' + nh +
+          ' 之间（还没有到 ' + nh + ' 哦）。';
+  }
+  return { pass:false, msg:msg };
+}
+function checkMatch(t){
+  var slots = allSlots();
+  var filled = 0, okc = 0, i;
+  for(i = 0; i < slots.length; i++){
+    if(slots[i]._card){
+      filled++;
+      if(slots[i]._card.dataset.time === fmtE(t.times[i][0], t.times[i][1])){ okc++; }
+    }
+  }
+  if(filled < slots.length){
+    feedback('warn', '还有 ' + (slots.length - filled) + ' 张时间卡没送出去，先把每张卡都拖到一个钟面上吧！');
+    return;
+  }
+  if(okc === slots.length){
+    MATCH.locked = true;
+    for(i = 0; i < slots.length; i++){
+      slots[i]._card.classList.remove('bad');
+      slots[i]._card.classList.add('ok');
+      slots[i].classList.add('ok');
+    }
+    passTask('全部配对成功！你真是读钟面的小达人！');
+    return;
+  }
+  /* 标红送错的卡，稍后自动退回卡池再试 */
+  for(i = 0; i < slots.length; i++){
+    if(slots[i]._card && slots[i]._card.dataset.time !== fmtE(t.times[i][0], t.times[i][1])){
+      slots[i]._card.classList.add('bad');
+    }
+  }
+  feedback('bad', '有 ' + (slots.length - okc) + ' 张卡送错了（红色标记）。想一想：时针走过几？分针数了几小格？');
+  var tk = ++G.token;
+  setTimeout(function(){
+    if(tk !== G.token){ return; } /* 关卡已切换则放弃后续动作 */
+    slots.forEach(function(s, k){
+      if(s._card && s._card.dataset.time !== fmtE(t.times[k][0], t.times[k][1])){
+        s._card.classList.remove('bad');
+        toTray(s._card);
+      }
+    });
+  }, 1500);
+}
+
+/* ---------------- 反馈、过关与流程 ---------------- */
+function feedback(kind, msg){
+  var fb = $('fb');
+  fb.className = 'feedback ' + kind;
+  fb.textContent = msg;
+}
+function updateHud(){
+  $('hud-time').textContent = '用时 ' + mmss(G.sec);
+  $('hud-steps').textContent = '步数 ' + G.steps;
+}
+function updateProgress(){
+  var html = '', i;
+  for(i = 0; i < G.tasks.length; i++){
+    html += '<span class="pdot ' + (i < G.idx ? 'done' : (i === G.idx ? 'cur' : '')) + '"></span>';
+  }
+  $('g-dots').innerHTML = html;
+  $('g-progress').childNodes[0].textContent = '第 ' + Math.min(G.idx + 1, G.tasks.length) + ' / ' + G.tasks.length + ' 关 ';
+}
+function passTask(msg){
+  var t = cur();
+  if(!t.revealed){ G.independent++; } /* 未看答案独立完成 */
+  G.locked = true;
+  feedback('good', msg);
+  /* 通关光环：纯 CSS 动画（重启方式：移除类后强制回流再添加） */
+  var ring = $('flash-ring');
+  ring.classList.remove('play');
+  void ring.offsetWidth;
+  ring.classList.add('play');
+  pulseFeedback();
+  var tk = ++G.token;
+  setTimeout(function(){
+    if(tk !== G.token){ return; }
+    nextTask();
+  }, 1300);
+}
+/* 轻量视觉提示：反馈条脉冲一下（不依赖音频设备，任何环境都安全） */
+function pulseFeedback(){
+  var fb = $('fb');
+  fb.style.transform = 'scale(1.03)';
+  setTimeout(function(){ fb.style.transform = 'scale(1)'; }, 180);
+}
+function nextTask(){
+  hideNext();
+  if(G.idx + 1 >= G.tasks.length){
+    finishGame();
+  }else{
+    G.idx++;
+    renderTask();
+  }
+}
+function showNext(){
+  var b = $('btn-next');
+  b.style.display = 'inline-block';
+  b.textContent = (G.idx + 1 >= G.tasks.length) ? '查看成绩' : '继续下一关';
+}
+function hideNext(){
+  $('btn-next').style.display = 'none';
+}
+function renderTask(){
+  var t = cur();
+  G.locked = false;
+  CK.ghost = false;
+  CK.drag = null;
+  MATCH.locked = false;
+  MATCH.dragging = null;
+  hideNext();
+  $('hint-panel').classList.remove('on');
+  $('hint-panel').innerHTML = '';
+  var fb = $('fb');
+  fb.className = 'feedback';
+  fb.textContent = '';
+  updateProgress();
+  $('g-story').textContent = (G.idx + 1) + '．' + t.story;
+  var isMatch = (t.type === 'match');
+  $('area-set').style.display = isMatch ? 'none' : 'flex';
+  $('area-match').classList.toggle('on', isMatch);
+  if(isMatch){
+    $('g-target').textContent = '读一读，连一连';
+    $('g-sub').textContent = '把时间卡片拖到你读出的钟面上（4 张全部配对成功即过关）';
+    renderMatch(t);
+  }else{
+    if(t.type === 'special'){
+      if(t.mode === 'overlap'){
+        $('g-target').textContent = '请拨到 12:00';
+        $('g-sub').textContent = '智慧大考验：这时时针和分针完全重叠在一起';
+      }else{
+        $('g-target').textContent = '请拨到 6:00';
+        $('g-sub').textContent = '智慧大考验：这时时针和分针连成一条直线';
+      }
+    }else{
+      $('g-target').textContent = '请拨到 ' + fmtE(t.h, t.m);
+      $('g-sub').textContent = fmtC(t.h, t.m) + '（目标用电子计时法表示）';
+    }
+    /* 开局随机摆放两针（避免与目标相同，防止“开局即通关”） */
+    var st = pick(POOL_DOCX), guard = 0;
+    while(st[0] === t.h && st[1] === t.m && guard < 30){ st = pick(POOL_DOCX); guard++; }
+    CK.hA = hourAngleOf(st[0], st[1]);
+    CK.mA = minAngleOf(st[1]);
+    updateClockView();
+  }
+}
+function startTimer(){
+  if(G.timerId){ clearInterval(G.timerId); }
+  G.timerId = setInterval(function(){
+    G.sec++;
+    updateHud();
+  }, 1000);
+}
+function stopTimer(){
+  if(G.timerId){ clearInterval(G.timerId); G.timerId = null; }
+}
+function startGame(diff){
+  applyPalette(); /* 每局随机主题色 */
+  G.diff = diff;
+  G.tasks = buildTasks(diff);
+  G.idx = 0;
+  G.steps = 0;
+  G.sec = 0;
+  G.independent = 0;
+  G.locked = false;
+  G.token++;
+  var names = { easy:'初级 · 整点半点村', mid:'中级 · 几时几分谷', hard:'高级 · 智慧时刻峰' };
+  $('g-diff').textContent = names[diff];
+  $('scr-home').classList.remove('on');
+  $('scr-win').classList.remove('on');
+  $('scr-game').classList.add('on');
+  stopFX();
+  renderTask();
+  updateHud();
+  startTimer();
+}
+function finishGame(){
+  stopTimer();
+  G.locked = true;
+  $('scr-game').classList.remove('on');
+  $('scr-win').classList.add('on');
+  $('win-stats').innerHTML =
+    '本局难度：<b>' + (G.diff === 'easy' ? '初级' : G.diff === 'mid' ? '中级' : '高级') + '</b><br>' +
+    '总用时 <b>' + mmss(G.sec) + '</b> ｜ 总步数 <b>' + G.steps + '</b><br>' +
+    '独立闯过 <b>' + G.independent + ' / ' + G.tasks.length + '</b> 关（没看答案，真厉害！）';
+  startFX();
+  pulseFeedback();
+}
+function goHome(){
+  stopTimer();
+  stopFX();
+  G.token++;
+  $('scr-game').classList.remove('on');
+  $('scr-win').classList.remove('on');
+  $('scr-home').classList.add('on');
+}
+
+/* ---------------- 提示与揭示答案 ---------------- */
+var METHOD = '好方法：时针看大格，走过数字几就是几时；分针数小格，从 12 出发顺时针数，数到第几小格就是几分。时针要短而粗，分针要长而细。';
+function onHint(){
+  var t = cur();
+  if(!t){ return; }
+  var extra = '';
+  if(t.type === 'match'){
+    extra = ' 先看时针走过数字几确定“几时”，再数分针走了几小格确定“几分”，最后找出写着这个时间的卡片。';
+  }else if(t.type === 'special'){
+    extra = (t.mode === 'overlap')
+      ? ' 重叠就是两根针指着同一个地方：都指向 12 试试看！'
+      : ' 一条直线就是两根针朝相反方向：一个指向 12，一个指向 6。';
+  }else{
+    extra = ' 目标 ' + fmtE(t.h, t.m) + '：分钟是 ' + t.m + '，就把分针拨到第 ' + t.m +
+            ' 小格；小时是 ' + t.h + '，时针要走过 ' + t.h + '，画在 ' + t.h + ' 和 ' + (t.h % 12 + 1) + ' 之间。';
+  }
+  var hp = $('hint-panel');
+  hp.innerHTML = METHOD + extra;
+  hp.classList.add('on');
+}
+function onReveal(){
+  var t = cur();
+  if(!t || G.locked){ return; }
+  t.revealed = true;
+  if(t.type === 'match'){
+    MATCH.locked = true;
+    var items = document.querySelectorAll('#match-clocks .m-item');
+    var i;
+    for(i = 0; i < items.length; i++){
+      var d = document.createElement('div');
+      d.className = 'm-gold';
+      d.textContent = '正确时间 ' + fmtE(t.times[i][0], t.times[i][1]);
+      items[i].appendChild(d);
+    }
+    feedback('warn', '已揭示答案（每个钟面下方的金色标注）。点“继续”进入下一关。');
+    showNext();
+  }else{
+    CK.ghost = true;
+    updateClockView();
+    feedback('warn', '金色虚线就是正确答案：照着拨一拨，再点“看看对不对”验证吧！');
+    showNext();
+  }
+}
+
+/* ---------------- 庆祝动画：CSS 彩纸 + 星星 + 烟花波纹（合成器动画，稳定流畅） ---------------- */
+var FXC = $('fx');
+function fxColors(){
+  return [COL.pri, COL.gold, COL.minute, '#37B24D', '#1B6CA8', '#FFD166', '#FFFFFF'];
+}
+function startFX(){
+  stopFX();
+  FXC.classList.add('on');
+  var i;
+  var cols = fxColors();
+  /* 彩纸：随机位置/颜色/时长，从屏幕顶飘落并翻滚 */
+  for(i = 0; i < 90; i++){
+    var c = document.createElement('i');
+    c.className = 'fx-confetti';
+    c.style.left = (Math.random() * 100) + '%';
+    c.style.background = pick(cols);
+    c.style.width = (8 + Math.random() * 8) + 'px';
+    c.style.height = (5 + Math.random() * 6) + 'px';
+    c.style.animationDuration = (2.6 + Math.random() * 2.8) + 's';
+    c.style.animationDelay = (Math.random() * 1.6) + 's';
+    FXC.appendChild(c);
+  }
+  /* 星星：随机位置放大缩小闪烁 */
+  for(i = 0; i < 16; i++){
+    var s = document.createElement('i');
+    s.className = 'fx-star';
+    s.style.left = (5 + Math.random() * 90) + '%';
+    s.style.top = (8 + Math.random() * 55) + '%';
+    var sz = (14 + Math.random() * 16) + 'px';
+    s.style.width = sz;
+    s.style.height = sz;
+    s.style.color = pick(['#FFD166', '#FFC300', '#FFFFFF']);
+    s.style.animationDuration = (1.6 + Math.random() * 1.8) + 's';
+    s.style.animationDelay = (Math.random() * 1.2) + 's';
+    FXC.appendChild(s);
+  }
+  /* 烟花：同心圆波纹快速扩散淡出 */
+  for(i = 0; i < 5; i++){
+    var b = document.createElement('i');
+    b.className = 'fx-burst';
+    b.style.left = (15 + Math.random() * 70) + '%';
+    b.style.top = (15 + Math.random() * 45) + '%';
+    b.style.borderColor = pick(cols);
+    b.style.animationDuration = (1.2 + Math.random() * 0.8) + 's';
+    b.style.animationDelay = (i * 0.45 + Math.random() * 0.3) + 's';
+    FXC.appendChild(b);
+  }
+}
+function stopFX(){
+  FXC.classList.remove('on');
+  FXC.innerHTML = '';
+}
+
+/* ---------------- 按钮绑定与初始化 ---------------- */
+function onCheck(){
+  var t = cur();
+  if(!t || G.locked){ return; }
+  if(t.type === 'match'){
+    checkMatch(t);
+  }else{
+    var r = checkTimeTask(t);
+    if(r.pass){
+      var msg = (t.type === 'special')
+        ? ((t.mode === 'overlap') ? '太棒了！12:00，两根针完全重叠，智慧考验成功！'
+                                  : '太棒了！6:00，两根针连成一条直线，智慧考验成功！')
+        : '太棒了！' + fmtE(t.h, t.m) + '（' + fmtC(t.h, t.m) + '）拨对啦！';
+      passTask(msg);
+    }else{
+      pulseFeedback();
+      feedback('bad', r.msg + ' 调整后再点一次“看看对不对”。');
+    }
+  }
+}
+$('btn-check').addEventListener('click', onCheck);
+$('btn-hint').addEventListener('click', onHint);
+$('btn-reveal').addEventListener('click', onReveal);
+$('btn-next').addEventListener('click', function(){
+  G.token++;
+  nextTask();
+});
+$('btn-restart').addEventListener('click', function(){
+  if(G.diff){ startGame(G.diff); } /* 重新开始：重新随机抽题换色 */
+});
+$('btn-home').addEventListener('click', goHome);
+$('btn-home2').addEventListener('click', goHome);
+$('btn-again').addEventListener('click', function(){
+  stopFX();
+  if(G.diff){ startGame(G.diff); }
+});
+$('btn-rules2').addEventListener('click', function(){ $('modal-rules').classList.add('on'); });
+$('btn-rules-ok').addEventListener('click', function(){ $('modal-rules').classList.remove('on'); });
+Array.prototype.forEach.call(document.querySelectorAll('.diff-card'), function(b){
+  b.addEventListener('click', function(){ startGame(b.dataset.diff); });
+});
+
+/* 首次进入：应用随机主题色、弹出规则说明、画好初始钟面 */
+applyPalette();
+updateClockView();
+$('modal-rules').classList.add('on');
+updateHud();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g010", "name": "\u65f6\u5149\u5c0f\u9547\u5927\u5192\u9669\u2014\u2014\u65f6\u95f4\u7684\u8ba4\u77e5\uff08\u51e0\u65f6\u51e0\u5206\uff09", "file": "g010.html", "jiaocan": "\u301010\u3011\u7b2c5\u8bb2 \u65f6\u95f4\u7684\u8ba4\u77e5\uff08\u4e0b\uff09", "unit": "\u7b2c5\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

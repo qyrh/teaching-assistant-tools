@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对数能量工坊 · 4.3 对数（互动游戏）</title>
+<style>
+/* ============ 主题变量（每局从预设色板随机抽取，保证多次游玩不腻） ============ */
+:root{
+  --bg:#EFF6FF; --panel:#DBEAFE; --ink:#111827;
+  --accent:#1D4ED8; --accent2:#BE185D;
+  --ok:#15803D; --bad:#B91C1C; --slot:#FFFFFF;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif;
+  background:var(--bg); color:var(--ink); min-height:100vh;
+}
+/* ============ 顶栏：标题 + 计时/步数/星星（右上角实时显示） ============ */
+#topbar{
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  padding:12px 18px; background:var(--accent); color:#fff; flex-wrap:wrap;
+}
+#brandMain{ font-size:26px; font-weight:800; letter-spacing:2px; }
+#brandSub{ display:block; font-size:14px; opacity:.92; margin-top:2px; }
+#hud{ display:flex; gap:10px; flex-wrap:wrap; }
+.hud-chip{
+  background:rgba(255,255,255,.18); border:2px solid rgba(255,255,255,.65);
+  border-radius:12px; padding:6px 14px; font-size:18px;
+}
+.hud-chip b{ font-size:20px; }
+/* ============ 控制条 ============ */
+#controls{
+  display:flex; gap:12px; padding:10px 18px; background:var(--panel);
+  align-items:center; flex-wrap:wrap;
+}
+.btn{
+  font-size:18px; font-weight:700; padding:10px 18px; border-radius:12px;
+  border:3px solid var(--ink); background:#fff; color:var(--ink); cursor:pointer;
+}
+.btn:hover{ transform:translateY(-2px); }
+.btn-primary{ background:var(--accent); color:#fff; }
+.btn-warn{ background:var(--accent2); color:#fff; }
+.btn-mini{ font-size:15px; padding:6px 12px; border-width:2px; }
+#paletteTag{ font-size:15px; margin-left:auto; font-weight:700; }
+/* ============ 主舞台 ============ */
+#stage{ max-width:980px; margin:0 auto; padding:18px 16px 70px; }
+.dots{ display:flex; gap:8px; justify-content:center; margin:6px 0 14px; flex-wrap:wrap; }
+.dot{ width:16px; height:16px; border-radius:50%; background:#cfd8e3; border:2px solid var(--ink); }
+.dot.cur{ background:var(--accent2); transform:scale(1.25); }
+.dot.done{ background:var(--ok); }
+.round-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.station-tag{
+  background:var(--accent2); color:#fff; font-weight:800; font-size:18px;
+  padding:6px 14px; border-radius:10px; border:2px solid var(--ink);
+}
+.round-title{ font-size:24px; font-weight:800; }
+.prompt{
+  font-size:20px; line-height:1.7; background:#fff; border:3px solid var(--accent);
+  border-radius:14px; padding:12px 16px; margin-bottom:12px;
+}
+.pouch{ margin-bottom:12px; }
+.pouch-body{
+  background:var(--panel); border:3px dashed var(--accent); border-radius:14px;
+  padding:12px 16px; font-size:19px; line-height:1.9; margin-top:8px;
+}
+.hidden{ display:none; }
+/* ============ 互化机 ============ */
+.machine{
+  display:flex; gap:16px; align-items:stretch; justify-content:center; flex-wrap:wrap;
+  background:#fff; border:4px solid var(--accent); border-radius:18px;
+  padding:18px; box-shadow:0 6px 0 var(--panel);
+}
+.machine-col{
+  background:var(--panel); border-radius:14px; padding:14px 18px;
+  min-width:250px; text-align:center; flex:1;
+}
+.m-label{ font-size:17px; font-weight:700; margin-bottom:10px; }
+.eq{
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  font-size:38px; font-weight:800; flex-wrap:wrap;
+}
+.pow{ display:inline-flex; align-items:flex-start; }
+.pow-exp{ font-size:.55em; margin-top:4px; }
+.eq-sub{ font-size:.5em; }
+.eq-arg{ margin-left:2px; }
+.eq-op{ margin:0 6px; }
+.drop-slot{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:72px; min-height:54px; padding:2px 10px;
+  border:3px dashed var(--accent); border-radius:12px;
+  background:var(--slot); vertical-align:middle;
+}
+.drop-slot.hover{ background:var(--panel); border-style:solid; box-shadow:0 0 0 4px rgba(0,0,0,.08); }
+.drop-slot.filled{ border-style:solid; border-color:var(--ok); background:#ECFDF5; }
+.drop-slot.bad-flash{ animation:badflash .45s ease; }
+@keyframes badflash{ 0%,100%{background:#fff} 40%{background:#FEE2E2; border-color:var(--bad);} }
+.chip{ font-size:24px; font-weight:800; color:var(--ok); }
+.tray-label{ text-align:center; margin-top:14px; }
+.tray{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin:12px 0; min-height:70px; }
+.card{
+  background:#fff; border:3px solid var(--ink); border-radius:14px;
+  padding:10px 16px; font-size:24px; font-weight:800; cursor:grab;
+  user-select:none; -webkit-user-select:none; box-shadow:0 4px 0 rgba(0,0,0,.15);
+}
+.card.used{ opacity:.32; cursor:default; box-shadow:none; }
+.card.block{ background:var(--panel); }
+.drag-src{ opacity:.4; }
+.ghost-card{
+  position:fixed; left:0; top:0; z-index:999; pointer-events:none;
+  transform:rotate(-3deg) scale(1.06); box-shadow:0 10px 22px rgba(0,0,0,.28);
+  cursor:grabbing;
+}
+.shake-back{ animation:shakeB .3s ease; }
+@keyframes shakeB{ 0%,100%{transform:translateX(0)} 30%{transform:translateX(-6px)} 60%{transform:translateX(6px)} }
+/* ============ 合成台 ============ */
+.target-wrap{ text-align:center; align-self:center; }
+.target-card{
+  display:inline-block; background:var(--accent); color:#fff; font-size:30px;
+  font-weight:800; border-radius:14px; padding:10px 24px; border:3px solid var(--ink);
+}
+.slot-row{
+  display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;
+  font-size:26px; font-weight:800;
+}
+.slot-row .drop-slot{ min-width:110px; min-height:58px; }
+.op{ font-size:30px; font-weight:800; }
+.op.big{ font-size:46px; align-self:center; }
+.preview{
+  margin-top:14px; background:var(--ink); color:#fff; border-radius:12px;
+  padding:12px 16px; font-size:20px; text-align:center; line-height:1.7;
+}
+.stage-out{ margin-top:10px; font-size:21px; font-weight:800; color:var(--accent); min-height:30px; }
+/* ============ 反馈与结算横幅 ============ */
+.msg{
+  min-height:36px; font-size:19px; font-weight:700; text-align:center;
+  padding:8px 10px; border-radius:10px; margin:10px 0; line-height:1.6;
+}
+.msg.ok{ color:var(--ok); }
+.msg.no{ color:var(--bad); }
+.banner-ok{
+  background:#ECFDF5; border:4px solid var(--ok); border-radius:16px;
+  padding:16px; margin-top:14px; text-align:center;
+}
+.star-row{ font-size:36px; color:#F59E0B; letter-spacing:8px; }
+.banner-msg{ font-size:22px; font-weight:800; margin:6px 0; }
+.sol-panel{
+  background:#fff; border:3px dashed var(--ok); border-radius:12px;
+  padding:12px 16px; font-size:19px; line-height:1.8; text-align:left; margin:10px 0;
+}
+.sol-title{ font-weight:800; margin-bottom:4px; }
+/* ============ 方程修复舱 ============ */
+.subst{ display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+.subst-row{
+  display:flex; gap:10px; align-items:center; font-size:20px; background:#fff;
+  border:2px solid var(--ink); border-radius:10px; padding:8px 12px; flex-wrap:wrap;
+}
+.tag-ok{ color:#fff; background:var(--ok); border-radius:8px; padding:2px 10px; font-weight:800; }
+.tag-no{ color:#fff; background:var(--bad); border-radius:8px; padding:2px 10px; font-weight:800; }
+/* ============ 香农信号塔标定尺 ============ */
+.ruler-wrap{ background:#fff; border:4px solid var(--accent); border-radius:18px; padding:18px; }
+.ruler{ position:relative; height:120px; margin:30px 14px 6px; cursor:pointer; touch-action:none; }
+.ruler-track{ position:absolute; left:0; right:0; top:74px; height:6px; background:var(--ink); border-radius:3px; }
+.tick{ position:absolute; top:60px; width:3px; height:15px; background:var(--ink); transform:translateX(-50%); }
+.tick.major{ height:26px; top:50px; }
+.tick-lb{ position:absolute; top:16px; font-size:17px; transform:translateX(-50%); font-weight:800; }
+.marker{
+  position:absolute; top:30px; width:8px; height:56px; background:var(--accent2);
+  border-radius:4px; transform:translateX(-50%); cursor:grab;
+}
+.marker::after{
+  content:''; position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+  border-top:13px solid var(--accent2);
+  border-left:9px solid transparent; border-right:9px solid transparent;
+}
+/* ============ 弹窗 ============ */
+#modalMask{
+  position:fixed; inset:0; background:rgba(15,23,42,.55);
+  display:flex; align-items:center; justify-content:center; z-index:1200; padding:16px;
+}
+#modalMask.hidden{ display:none; }
+#modalBox{
+  background:#fff; border:4px solid var(--accent); border-radius:18px;
+  max-width:720px; width:100%; max-height:86vh; overflow:auto; padding:20px 24px;
+}
+#modalBox h2{ font-size:26px; margin-bottom:10px; }
+#modalBody{ font-size:19px; line-height:1.9; }
+#modalBody p{ margin-bottom:8px; }
+.modal-foot{ text-align:center; margin-top:14px; }
+/* ============ 菜单与胜利页 ============ */
+.game-title{ font-size:44px; text-align:center; margin:26px 0 6px; }
+.game-sub{ text-align:center; font-size:19px; margin-bottom:24px; line-height:1.7; }
+.diff-row{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+.diff-card{
+  flex:1; min-width:240px; max-width:300px; background:#fff;
+  border:4px solid var(--accent); border-radius:18px; padding:18px;
+  cursor:pointer; text-align:center;
+}
+.diff-card:hover{ transform:translateY(-4px); }
+.diff-name{ font-size:25px; font-weight:800; color:var(--accent); }
+.diff-desc{ font-size:17px; margin-top:8px; line-height:1.7; }
+.menu-foot{ text-align:center; margin-top:24px; }
+.victory{
+  background:#fff; border:5px solid var(--ok); border-radius:20px;
+  padding:26px; text-align:center;
+}
+.victory h2{ font-size:36px; color:var(--ok); margin-bottom:10px; }
+.stat-row{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin:14px 0; }
+.stat-box{
+  background:var(--panel); border:3px solid var(--ink); border-radius:14px;
+  padding:12px 18px; font-size:20px; font-weight:700;
+}
+/* ============ 庆典彩带画布 ============ */
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:1000; display:none; }
+#fx.show{ display:block; }
+footer{ text-align:center; padding:14px; font-size:15px; color:#475569; }
+/* ============ 移动端适配 ============ */
+@media (max-width:720px){
+  .eq{ font-size:28px; }
+  .card{ font-size:20px; padding:8px 12px; }
+  .prompt{ font-size:18px; }
+  .game-title{ font-size:32px; }
+  .slot-row .drop-slot{ min-width:88px; min-height:52px; }
+  .btn{ font-size:16px; padding:8px 12px; }
+}
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div id="brand">
+    <span id="brandMain">对数能量工坊</span>
+    <span id="brandSub">人教版高中数学 · 第四章 4.3 对数 · 指数与对数互化探险</span>
+  </div>
+  <div id="hud">
+    <span class="hud-chip">计时 <b id="hudTime">00:00</b></span>
+    <span class="hud-chip">步数 <b id="hudSteps">0</b></span>
+    <span class="hud-chip">星星 <b id="hudStars">0</b></span>
+    <span class="hud-chip" id="hudProgress">未开始</span>
+  </div>
+</header>
+
+<nav id="controls" class="hidden">
+  <button class="btn" id="btnRules">规则说明</button>
+  <button class="btn btn-warn" id="btnReveal">揭示答案</button>
+  <button class="btn" id="btnRestart">重新开始</button>
+  <button class="btn" id="btnBack">返回难度选择</button>
+  <span id="paletteTag"></span>
+</nav>
+
+<main id="stage"></main>
+
+<!-- 规则说明弹窗（进入时自动弹出，可随时再打开） -->
+<div id="modalMask" class="hidden">
+  <div id="modalBox">
+    <h2 id="modalTitle">玩法与规则说明</h2>
+    <div id="modalBody"></div>
+    <div class="modal-foot"><button class="btn btn-primary" id="btnModalOk">我知道了，开始探险</button></div>
+  </div>
+</div>
+
+<!-- 通关庆典彩带画布 -->
+<canvas id="fx"></canvas>
+<footer>对数能量工坊 · 单文件互动游戏 · 鼠标与触屏均可拖动 · 适合课堂投影</footer>
+
+<script>
+'use strict';
+/* ==================================================================
+   对数能量工坊 —— 4.3 对数 互动游戏
+   四个工位：
+   1) 互化车间：拖"能量珠"补齐 指数式<->对数式 的空槽（a^b=N <=> log_a N=b）
+   2) 合成台 / 链式合成轨道：拖积木做 同底相加 / 换底接力 乘法
+   3) 方程修复舱：拖候选 x 卡代入检修，辨析真数为正与增根
+   4) 香农信号塔：算增幅，把指针拖到标定尺对应位置后锁定
+   ================================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+function $(sel){ return document.querySelector(sel); }
+function $all(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+function shuffle(arr){
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function fmtTime(sec){
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' + s : '' + s);
+}
+function logb(b, x){ return Math.log(x) / Math.log(b); }
+function fmtVal(v){ return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(4); }
+function fmtX(v){ return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(2); }
+function subHTML(base){ return '<sub class="eq-sub">' + base + '</sub>'; }
+
+/* ---------------- 随机色板（每局随机抽取） ---------------- */
+var PALETTES = [
+  { name:'活力橙', bg:'#FFF7ED', panel:'#FFEDD5', accent:'#EA580C', accent2:'#0369A1' },
+  { name:'森林绿', bg:'#F0FDF4', panel:'#DCFCE7', accent:'#15803D', accent2:'#B45309' },
+  { name:'海洋蓝', bg:'#EFF6FF', panel:'#DBEAFE', accent:'#1D4ED8', accent2:'#BE185D' },
+  { name:'葡萄紫', bg:'#FAF5FF', panel:'#F3E8FF', accent:'#6D28D9', accent2:'#047857' },
+  { name:'玫瑰红', bg:'#FFF1F2', panel:'#FFE4E6', accent:'#BE123C', accent2:'#0E7490' }
+];
+var currentPalette = PALETTES[2];
+function applyPalette(){
+  currentPalette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  var r = document.documentElement.style;
+  r.setProperty('--bg', currentPalette.bg);
+  r.setProperty('--panel', currentPalette.panel);
+  r.setProperty('--accent', currentPalette.accent);
+  r.setProperty('--accent2', currentPalette.accent2);
+  $('#paletteTag').textContent = '本局主题色：' + currentPalette.name;
+}
+
+/* ---------------- 全局状态 ---------------- */
+var S = {
+  diff: null, rounds: [], idx: 0, steps: 0, stars: 0,
+  t0: 0, timer: null, playing: false, roundLock: false, revealed: false
+};
+function cur(){ return S.rounds[S.idx]; }
+function bumpSteps(){ S.steps++; $('#hudSteps').textContent = S.steps; }
+function updateHud(){
+  $('#hudSteps').textContent = S.steps;
+  $('#hudStars').textContent = S.stars;
+  if (S.playing && cur()) {
+    $('#hudProgress').textContent = '第 ' + (S.idx + 1) + ' / ' + S.rounds.length + ' 关 · ' + cur().station;
+  }
+}
+
+/* ---------------- 通用拖拽核心（鼠标 + 触屏，Pointer 事件实现） ---------------- */
+var drag = null;
+function enableDrag(el, payload, tryDrop){
+  el.style.touchAction = 'none';
+  el.addEventListener('pointerdown', function(ev){
+    if (S.roundLock || el.classList.contains('used') || drag) return;
+    ev.preventDefault();
+    var rect = el.getBoundingClientRect();
+    var ghost = el.cloneNode(true);
+    ghost.className = el.className + ' ghost-card';
+    ghost.style.width = rect.width + 'px';
+    ghost.style.height = rect.height + 'px';
+    document.body.appendChild(ghost);
+    drag = { el: el, payload: payload, ghost: ghost, tryDrop: tryDrop,
+             dx: ev.clientX - rect.left, dy: ev.clientY - rect.top };
+    el.classList.add('drag-src');
+    try { el.setPointerCapture(ev.pointerId); } catch (e) { /* 指针捕获失败不影响拖拽 */ }
+    moveGhost(ev.clientX, ev.clientY);
+  });
+  el.addEventListener('pointermove', function(ev){
+    if (!drag || drag.el !== el) return;
+    ev.preventDefault();
+    moveGhost(ev.clientX, ev.clientY);
+    hoverSlot(ev.clientX, ev.clientY);
+  });
+  el.addEventListener('pointerup', function(ev){
+    if (!drag || drag.el !== el) return;
+    finishDrag(ev.clientX, ev.clientY);
+  });
+  el.addEventListener('pointercancel', function(){
+    if (!drag || drag.el !== el) return;
+    cancelDrag();
+  });
+}
+function moveGhost(x, y){
+  drag.ghost.style.left = (x - drag.dx) + 'px';
+  drag.ghost.style.top = (y - drag.dy) + 'px';
+}
+function hoverSlot(x, y){
+  $all('.drop-slot').forEach(function(s){ s.classList.remove('hover'); });
+  var slot = slotAt(x, y);
+  if (slot) slot.classList.add('hover');
+}
+function slotAt(x, y){
+  var el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  var slot = el.closest ? el.closest('.drop-slot') : null;
+  if (slot && !slot.classList.contains('filled') && slot.classList.contains('ready')) return slot;
+  return null;
+}
+function finishDrag(x, y){
+  var d = drag; drag = null;
+  d.ghost.remove();
+  d.el.classList.remove('drag-src');
+  $all('.drop-slot').forEach(function(s){ s.classList.remove('hover'); });
+  if (S.roundLock) return;
+  var slot = slotAt(x, y);
+  bumpSteps(); /* 每次放置尝试计一步操作 */
+  var consumed = false;
+  if (slot) consumed = d.tryDrop(slot, d.payload, d.el);
+  if (!consumed) {
+    d.el.classList.add('shake-back');
+    setTimeout(function(){ d.el.classList.remove('shake-back'); }, 350);
+  }
+}
+function cancelDrag(){
+  if (drag) { drag.ghost.remove(); drag.el.classList.remove('drag-src'); }
+  drag = null;
+  $all('.drop-slot').forEach(function(s){ s.classList.remove('hover'); });
+}
+
+/* ---------------- 槽位填充 / 取出 ---------------- */
+function fillSlot(slot, html, payload, cardEl, onRemove){
+  slot.classList.add('filled');
+  var chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.innerHTML = html;
+  slot.appendChild(chip);
+  /* 把拖入的数据对象与卡片元素记录到槽上（供合成计算、取回与标记已用） */
+  slot._payload = payload || null;
+  slot._card = cardEl || null;
+  if (cardEl) cardEl.classList.add('used');
+  if (onRemove) {
+    chip.addEventListener('click', function(){
+      if (S.roundLock) return;
+      clearSlot(slot);
+      onRemove();
+    });
+  }
+}
+function clearSlot(slot){
+  slot.classList.remove('filled');
+  slot.innerHTML = '';
+  if (slot._card) slot._card.classList.remove('used');
+  slot._card = null;
+  slot._payload = null;
+}
+
+/* ---------------- 关卡公共部件 ---------------- */
+function dotsHTML(){
+  var h = '<div class="dots">';
+  S.rounds.forEach(function(r, i){
+    var cls = 'dot';
+    if (i < S.idx) cls += ' done';
+    if (i === S.idx) cls += ' cur';
+    h += '<span class="' + cls + '"></span>';
+  });
+  return h + '</div>';
+}
+function roundHeader(r){
+  return '<div class="round-head"><span class="station-tag">' + r.station +
+         '</span><span class="round-title">' + r.title + '</span></div>';
+}
+var POUCH = {
+  conv: '互化公式：a<sup>b</sup> = N ⇔ log<sub>a</sub>N = b（a&gt;0 且 a≠1，N&gt;0）。底数仍是底数；幂 N 变成真数；指数 b 变成对数的值。常用结论：log<sub>a</sub>1 = 0，log<sub>a</sub>a = 1，负数和 0 没有对数。',
+  merge: '运算性质：log<sub>a</sub>(MN) = log<sub>a</sub>M + log<sub>a</sub>N；log<sub>a</sub>(M÷N) = log<sub>a</sub>M − log<sub>a</sub>N；log<sub>a</sub>M<sup>n</sup> = n·log<sub>a</sub>M。换底接力：log<sub>a</sub>b × log<sub>b</sub>c = log<sub>a</sub>c（后一块的底数 = 前一块的真数）。',
+  two: '换底小助手：log<sub>4</sub>3 = ½log<sub>2</sub>3，log<sub>8</sub>3 = ⅓log<sub>2</sub>3，log<sub>9</sub>2 = ½log<sub>3</sub>2（底数开平方，对数变一半）。不同底相加，先把它们换到同一个底。',
+  repair: '解对数方程两步走：第一步 化同底，把对数式改写成幂的等式解出 x；第二步 检验每个真数必须大于 0，负数或 0 对应的根是增根，必须舍去。',
+  tower: '香农公式：C = W·log<sub>2</sub>(1 + S/N)。换底：log<sub>2</sub>x = lg x ÷ lg 2。附：lg 2 ≈ 0.3010，lg 5 ≈ 0.699，lg 1000 = 3。'
+};
+function pouchHTML(r){
+  var body = POUCH[r.type] || POUCH.conv;
+  return '<div class="pouch"><button class="btn btn-mini" id="btnPouch">打开知识锦囊</button>' +
+         '<div class="pouch-body hidden" id="pouchBody">' + body + '</div></div>';
+}
+function wirePouch(){
+  var b = $('#btnPouch');
+  if (!b) return;
+  b.addEventListener('click', function(){
+    var p = $('#pouchBody');
+    p.classList.toggle('hidden');
+    b.textContent = p.classList.contains('hidden') ? '打开知识锦囊' : '收起知识锦囊';
+  });
+}
+function setFeedback(t, cls){
+  var el = $('#msg');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'msg';
+    var wrap = $('#feedbackWrap');
+    if (wrap) wrap.parentNode.insertBefore(el, wrap);
+    else $('#stage').appendChild(el);
+  }
+  el.innerHTML = t;
+  el.className = 'msg ' + (cls || '');
+}
+function starStr(n){
+  var s = '';
+  for (var i = 0; i < 3; i++) s += (i < n ? '★' : '☆');
+  return s;
+}
+/* 通关横幅：计星、展示详解、出现"下一关"按钮 */
+function finishRound(r, solHTML){
+  S.roundLock = true;
+  var st = S.revealed ? 0 : (r.fails === 0 ? 3 : (r.fails <= 2 ? 2 : 1));
+  S.stars += st;
+  updateHud();
+  var last = (S.idx === S.rounds.length - 1);
+  $('#feedbackWrap').innerHTML =
+    '<div class="banner-ok">' +
+      '<div class="star-row">' + starStr(st) + '</div>' +
+      '<div class="banner-msg">' + (S.revealed ? '已揭示答案，本关不计星星' : '本关通过，干得漂亮！') + '</div>' +
+      '<div class="sol-panel"><div class="sol-title">本关详解</div>' + solHTML + '</div>' +
+      '<button class="btn btn-primary" id="btnNext">' + (last ? '查看战绩' : '下一关') + '</button>' +
+    '</div>';
+  var nb = $('#btnNext');
+  nb.addEventListener('click', nextRound);
+  nb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function nextRound(){
+  S.idx++;
+  if (S.idx >= S.rounds.length) { celebrate(); return; }
+  renderRound();
+}
+
+/* ==================================================================
+   关卡数据（每次开局随机抽样、打乱顺序与卡片次序）
+   ================================================================== */
+function convRound(o){
+  return { type:'conv', station:'互化车间', title:'指数式 ⇄ 对数式',
+    a:o.a, b:o.b, N:o.N, dir:o.dir, blanks:o.blanks,
+    extras:o.extras, prompt:o.prompt, sol:o.sol, fails:0 };
+}
+function mergeRound(o){
+  o.blocks.forEach(function(b){ b.num = logb(b.base, b.arg); });
+  o.type = 'merge'; o.fails = 0;
+  return o;
+}
+function mkFn(code){ return new Function('x', 'return ' + code + ';'); }
+function repairRound(o){
+  o.type = 'repair'; o.fails = 0;
+  o.terms.forEach(function(t){ t.fn = mkFn(t.code); });
+  return o;
+}
+
+/* ---- 互化车间题库（取自教参例1及同型变式） ---- */
+function R_c1(){ return convRound({ a:'2', b:'3', N:'8', dir:'e2l', blanks:['N','b'], extras:['6','5'],
+  prompt:'已知左边的指数式：2 的 3 次幂等于 8。请把它翻译成右边的对数式：从能量珠里选出正确的两颗，拖进对数式的空槽（拖对才会嵌入）。',
+  sol:'互化要点：底数仍是 2；幂 8 在对数式里叫真数；指数 3 就是对数的值，所以 log<sub>2</sub>8 = 3。' }); }
+function R_c2(){ return convRound({ a:'5', b:'2', N:'25', dir:'e2l', blanks:['N','b'], extras:['10','125'],
+  prompt:'已知指数式：5 的 2 次幂等于 25。请翻译成对数式：把正确的两颗能量珠拖进空槽。',
+  sol:'因为 5<sup>2</sup> = 25，所以 log<sub>5</sub>25 = 2。' }); }
+function R_c3(){ return convRound({ a:'3', b:'3', N:'27', dir:'l2e', blanks:['b','N'], extras:['2','9'],
+  prompt:'已知对数式 log<sub>3</sub>27 = 3（读作：以 3 为底 27 的对数等于 3）。请把它翻译成指数式：把正确的两颗能量珠拖进指数式的空槽。',
+  sol:'log<sub>3</sub>27 = 3 说明 3 的 3 次幂等于 27，即 3<sup>3</sup> = 27。' }); }
+function R_c4(){ return convRound({ a:'3', b:'1', N:'3', dir:'e2l', blanks:['N','b'], extras:['0','27'],
+  prompt:'已知指数式：3 的 1 次幂等于 3（教参例1 选项 D 的原型）。请翻译成对数式。',
+  sol:'3<sup>1</sup> = 3 ⇒ log<sub>3</sub>3 = 1（底数的对数等于 1）。' }); }
+function R_c5(){ return convRound({ a:'2', b:'2', N:'4', dir:'l2e', blanks:['b','N'], extras:['16','8'],
+  prompt:'已知对数式 log<sub>2</sub>4 = 2（教参例1 选项 B 的原型）。请把它翻译成指数式。',
+  sol:'log<sub>2</sub>4 = 2 ⇒ 2<sup>2</sup> = 4。' }); }
+function R_c6(){ return convRound({ a:'2', b:'−2', N:'1/4', dir:'e2l', blanks:['N','b'], extras:['4','1/2'],
+  prompt:'进阶挑战：已知指数式 2 的 −2 次幂等于 1/4（负指数表示取倒数）。请翻译成对数式。',
+  sol:'2<sup>−2</sup> = 1/4 ⇒ log<sub>2</sub>(1/4) = −2（负指数 = 取倒数）。' }); }
+function R_c7(){ return convRound({ a:'e', b:'0', N:'1', dir:'e2l', blanks:['N','b'], extras:['e','10'],
+  prompt:'已知指数式 e 的 0 次幂等于 1（教参例1 选项 A 的原型，e ≈ 2.71828 是自然对数的底）。请翻译成自然对数式 ln。',
+  sol:'e<sup>0</sup> = 1 ⇒ ln 1 = 0（1 的对数等于 0；ln 是以 e 为底的自然对数）。' }); }
+function R_c8(){ return convRound({ a:'10', b:'−1', N:'1/10', dir:'e2l', blanks:['N','b'], extras:['10','1/100'],
+  prompt:'已知指数式 10 的 −1 次幂等于 1/10。请翻译成常用对数式 lg（以 10 为底）。',
+  sol:'10<sup>−1</sup> = 1/10 ⇒ lg(1/10) = −1（lg 是以 10 为底的常用对数）。' }); }
+function R_c9(){ return convRound({ a:'4', b:'−1/2', N:'1/2', dir:'l2e', blanks:['b','N'], extras:['2','1/4'],
+  prompt:'高难翻译：已知对数式 log<sub>4</sub>(1/2) = −1/2。请把它翻译成指数式（分数指数也是指数！）。',
+  sol:'log<sub>4</sub>(1/2) = −1/2 ⇒ 4<sup>−1/2</sup> = 1/√4 = 1/2。' }); }
+function R_c10(){ return convRound({ a:'27', b:'1/3', N:'3', dir:'e2l', blanks:['N','b'], extras:['9','1/9'],
+  prompt:'已知指数式 27 的 1/3 次幂等于 3（开立方对应指数 1/3）。请翻译成对数式。',
+  sol:'27<sup>1/3</sup> = 3 ⇒ log<sub>27</sub>3 = 1/3。' }); }
+
+/* ---- 合成台 / 链式合成轨道题库（教参例2 同型） ---- */
+function R_m1(){ return mergeRound({ station:'合成台', title:'加法合成器', mode:'add', slots:2,
+  blocks:[
+    { id:'lg2', label:'lg 2', base:10, arg:2 },
+    { id:'lg5', label:'lg 5', base:10, arg:5 },
+    { id:'lg3', label:'lg 3', base:10, arg:3 }
+  ],
+  correct:['lg2','lg5'], target:1, targetLabel:'1',
+  prompt:'加法合成器启动！同底对数相加 = 真数相乘：log<sub>a</sub>M + log<sub>a</sub>N = log<sub>a</sub>(MN)。请从积木中选两块放进合成器，让合成值恰好等于目标 1。',
+  sol:'lg 2 + lg 5 = lg(2×5) = lg 10 = 1。这正是常用对数的基本结论 lg 10 = 1 的运用。' }); }
+function R_m2(){ return mergeRound({ station:'链式合成轨道', title:'链式乘法合成器', mode:'chain', slots:2,
+  blocks:[
+    { id:'l23', label:'log<sub>2</sub>3', base:2, arg:3 },
+    { id:'l34', label:'log<sub>3</sub>4', base:3, arg:4 },
+    { id:'l35', label:'log<sub>3</sub>5', base:3, arg:5 }
+  ],
+  correct:['l23','l34'], target:2, targetLabel:'2',
+  prompt:'链式合成轨道开通！换底接力公式：log<sub>a</sub>b × log<sub>b</sub>c = log<sub>a</sub>c（后一块的底数必须等于前一块的真数，链条才能接上）。请选两块积木接成链条，使乘积等于 2（教参例2 同型）。',
+  sol:'log<sub>2</sub>3 × log<sub>3</sub>4 = log<sub>2</sub>4 = 2。前一块的真数 3 恰好是后一块的底数 3，换底"约分"成功。' }); }
+function R_m3(){ return mergeRound({ station:'链式合成轨道', title:'链式乘法合成器', mode:'chain', slots:2,
+  blocks:[
+    { id:'l48', label:'log<sub>4</sub>8', base:4, arg:8 },
+    { id:'l84', label:'log<sub>8</sub>4', base:8, arg:4 },
+    { id:'l26', label:'log<sub>2</sub>6', base:2, arg:6 }
+  ],
+  correct:['l48','l84'], target:1, targetLabel:'1',
+  prompt:'再接一节链条：选出两块积木相乘，让乘积等于目标 1。想一想 log<sub>4</sub>8 与 log<sub>8</sub>4 的数值分别是多少（3/2 和 2/3）？',
+  sol:'log<sub>4</sub>8 × log<sub>8</sub>4 = log<sub>4</sub>4 = 1。数值上正是 3/2 × 2/3 = 1，这就是换底公式的"约分"推论：log<sub>a</sub>b × log<sub>b</sub>a = 1。' }); }
+function R_m4(){ return mergeRound({ station:'链式合成轨道', title:'三节长链挑战', mode:'chain', slots:3,
+  blocks:[
+    { id:'l23', label:'log<sub>2</sub>3', base:2, arg:3 },
+    { id:'l34', label:'log<sub>3</sub>4', base:3, arg:4 },
+    { id:'l48', label:'log<sub>4</sub>8', base:4, arg:8 },
+    { id:'l35', label:'log<sub>3</sub>5', base:3, arg:5 }
+  ],
+  correct:['l23','l34','l48'], target:3, targetLabel:'3',
+  prompt:'三节长链来啦！选出三块积木依次接力（前一块的真数 = 后一块的底数），让整条链的乘积等于 3。托盘里有一块积木是接不上的干扰项。',
+  sol:'log<sub>2</sub>3 × log<sub>3</sub>4 × log<sub>4</sub>8 = log<sub>2</sub>8 = 3。三节链条一路"约分"接力到底：2 → 3 → 4 → 8。' }); }
+function R_m5(){ return mergeRound({ station:'合成台', title:'附加条件 · 整体思想', mode:'add', slots:2,
+  blocks:[
+    { id:'lg2', label:'lg 2', base:10, arg:2 },
+    { id:'lg5', label:'lg 5', base:10, arg:5 },
+    { id:'lg3', label:'lg 3', base:10, arg:3 }
+  ],
+  correct:['lg2','lg5'], target:1, targetLabel:'1',
+  prompt:'综合挑战（教参考点4 同型）：已知 2<sup>a</sup> = 5<sup>b</sup> = 10。由 a = log<sub>2</sub>10 换底得 1/a = lg 2；同理 1/b = lg 5。请把正确的两块积木放进加法合成器，合成出 1/a + 1/b 的值（目标 1）。',
+  sol:'a = log<sub>2</sub>10 = lg 10 ÷ lg 2 ⇒ 1/a = lg 2；同理 b = log<sub>5</sub>10 ⇒ 1/b = lg 5。所以 1/a + 1/b = lg 2 + lg 5 = lg 10 = 1（化为同底对数，再用整体思想求值，答案为 1）。' }); }
+
+/* ---- 双层合成塔（教参例2 第(4)题原型：(log₄3+log₈3)(log₃2+log₉2) = 5/4） ---- */
+function R_m6(){ return mergeRound({ station:'双层合成塔', title:'双层合成塔 · 换底归一', mode:'two', slots:4,
+  blocks:[
+    { id:'l43', label:'log<sub>4</sub>3', base:4, arg:3 },
+    { id:'l83', label:'log<sub>8</sub>3', base:8, arg:3 },
+    { id:'l32', label:'log<sub>3</sub>2', base:3, arg:2 },
+    { id:'l92', label:'log<sub>9</sub>2', base:9, arg:2 },
+    { id:'l34', label:'log<sub>3</sub>4', base:3, arg:4 }
+  ],
+  correctA:['l43','l83'], correctB:['l32','l92'], target:1.25, targetLabel:'5/4',
+  prompt:'双层合成塔（教参例2 第(4)题原型）：台A 与台B 各放两块积木分别"相加化简"（提示：不同底相加，先用换底公式归到同一个底），再把两台的结果相乘，目标是 5/4。托盘共 5 块积木，其中 1 块是干扰项。',
+  sol:'台A：log<sub>4</sub>3 + log<sub>8</sub>3 = ½log<sub>2</sub>3 + ⅓log<sub>2</sub>3 = 5/6·log<sub>2</sub>3；台B：log<sub>3</sub>2 + log<sub>9</sub>2 = log<sub>3</sub>2 + ½log<sub>3</sub>2 = 3/2·log<sub>3</sub>2 = 3/2 ÷ log<sub>2</sub>3。相乘：5/6 × 3/2 = 5/4（log<sub>2</sub>3 与它的倒数恰好相消）。' }); }
+
+/* ---- 方程修复舱题库（教参例3 同型，突出真数为正与增根辨析） ---- */
+function R_e1(){ return repairRound({ station:'方程修复舱', title:'方程检修站',
+  eqHTML:'log<sub>3</sub>(x+2) = 2', rhs:2, rhsLabel:'2', solX:7,
+  terms:[ { base:3, code:'x+2', disp:'x+2', sign:1, html:'log<sub>3</sub>(x+2)' } ],
+  cards:[ { v:'7', x:7 }, { v:'1', x:1 }, { v:'−11', x:-11 } ],
+  prompt:'检修任务：log<sub>3</sub>(x+2) = 2。把候选 x 卡拖到检修口：机器会先检查真数 x+2 是否大于 0，再检查方程两边是否相等。三张卡里只有一张是真正的解！',
+  sol:'第一步：x+2 = 3<sup>2</sup> = 9，得 x = 7。第二步检验：x = 1 时 log<sub>3</sub>3 = 1 ≠ 2；x = −11 时真数 x+2 = −9 &lt; 0，负数没有对数，直接舍去。所以方程的解是 x = 7。' }); }
+function R_e2(){ return repairRound({ station:'方程修复舱', title:'增根辨析 · 双真数检验',
+  eqHTML:'log<sub>5</sub>(x+1) − log<sub>5</sub>(x−3) = 1', rhs:1, rhsLabel:'1', solX:4,
+  terms:[
+    { base:5, code:'x+1', disp:'x+1', sign:1, html:'log<sub>5</sub>(x+1)' },
+    { base:5, code:'x-3', disp:'x−3', sign:-1, html:'log<sub>5</sub>(x−3)' }
+  ],
+  cards:[ { v:'4', x:4 }, { v:'−2', x:-2 } ],
+  prompt:'检修任务（教参例3 原题）：log<sub>5</sub>(x+1) − log<sub>5</sub>(x−3) = 1。注意：两个真数 x+1 与 x−3 都必须大于 0！其中一张卡是"增根"陷阱，把它拖进去看看会发生什么。',
+  sol:'原方程化为 log<sub>5</sub>[(x+1)(x−3)] = log<sub>5</sub>5，即 (x+1)(x−3) = 5，x<sup>2</sup> − 2x − 8 = 0，解得 x = 4 或 x = −2。检验：x = −2 时真数 x+1 = −1、x−3 = −5 都小于 0，是增根，舍去。所以方程的解是 x = 4。' }); }
+function R_e3(){ return repairRound({ station:'方程修复舱', title:'增根辨析 · 常用对数版',
+  eqHTML:'lg x + lg(x−3) = 1', rhs:1, rhsLabel:'1', solX:5,
+  terms:[
+    { base:10, code:'x', disp:'x', sign:1, html:'lg x' },
+    { base:10, code:'x-3', disp:'x−3', sign:1, html:'lg(x−3)' }
+  ],
+  cards:[ { v:'5', x:5 }, { v:'−2', x:-2 } ],
+  prompt:'检修任务（例3 同型变式）：lg x + lg(x−3) = 1。同样要检查两个真数是否都为正，增根要果断舍去。lg 10 = 1 是你的好帮手。',
+  sol:'化为 lg[x(x−3)] = lg 10，即 x<sup>2</sup> − 3x − 10 = 0，解得 x = 5 或 x = −2。检验：x = −2 时两个真数都是负数，舍去。所以方程的解是 x = 5。' }); }
+
+/* ---- 香农信号塔（教参例5：信噪比 1000 → 5000，增幅约 23%） ---- */
+function R_t1(){
+  return { type:'tower', station:'香农信号塔', title:'5G 速率增幅标定', curPct:0, fails:0,
+    prompt:'中国的 5G 技术领先世界，其数学原理之一是著名的香农公式：C = W·log<sub>2</sub>(1 + S/N)，其中 C 是最大信息传送速率，W 是信道带宽，S/N 是信噪比（教参例5 原题）。现在不改变带宽 W，把信噪比 S/N 从 1000 提升到 5000，传送速率 C 大约增加了百分之几？（附：lg 2 ≈ 0.3010，lg 5 ≈ 0.699，lg 1000 = 3）请先动笔算一算，再把粉色增幅指针拖到标定尺上对应的位置，按"锁定读数"完成标定。标定尺上每 10% 一条大刻度、每 5% 一条小刻度。',
+    sol:'增幅 = log<sub>2</sub>5001 ÷ log<sub>2</sub>1001 − 1。lg 1001 ≈ 3.0004，lg 5001 ≈ 3.6991；换底：log<sub>2</sub>1001 = 3.0004 ÷ 0.3010 ≈ 9.97，log<sub>2</sub>5001 = 3.6991 ÷ 0.3010 ≈ 12.29。增幅 ≈ 12.29 ÷ 9.97 − 1 ≈ 23.3%，即约 23%（例5 的答案是选项 B：23%）。你看：信噪比扩大 5 倍，速率只增加约 23%——对数增长"稳而慢"，这正是对数的魅力。' };
+}
+
+/* ---- 组卷：按难度随机抽样 + 打乱 ---- */
+function buildRounds(diff){
+  var rs = [];
+  if (diff === 'easy') {
+    /* 初级：互化车间 5 连发（顺序随机） */
+    rs = shuffle([ R_c1(), R_c2(), R_c3(), R_c4(), R_c5() ]);
+  } else if (diff === 'mid') {
+    /* 中级：互化 2 关（随机）+ 合成 3 关（随机）+ 检修 1 关 */
+    var cs = shuffle([ R_c6(), R_c7() ]);
+    var ms = shuffle([ R_m1(), R_m2(), R_m3() ]);
+    rs = cs.concat(ms, [ R_e1() ]);
+  } else {
+    /* 高级：互化随机抽 2 关 + 合成 3 关（随机）+ 检修 2 关（随机）+ 信号塔压轴 */
+    var cs2 = shuffle([ R_c8(), R_c9(), R_c10() ]).slice(0, 2);
+    var ms2 = shuffle([ R_m4(), R_m5(), R_m6() ]);
+    var es = shuffle([ R_e2(), R_e3() ]);
+    rs = cs2.concat(ms2, es, [ R_t1() ]);
+  }
+  rs.forEach(function(r){ r.fails = 0; });
+  return rs;
+}
+
+/* ==================================================================
+   渲染器 1：互化车间
+   ================================================================== */
+function slotSpan(key){ return '<span class="drop-slot ready" data-key="' + key + '"></span>'; }
+function expHTML(r, blanks){
+  var a = blanks.indexOf('a') >= 0 ? slotSpan('a') : '<b>' + r.a + '</b>';
+  var b = blanks.indexOf('b') >= 0 ? slotSpan('b') : r.b;
+  var N = blanks.indexOf('N') >= 0 ? slotSpan('N') : '<b>' + r.N + '</b>';
+  return '<span class="pow"><span class="pow-base">' + a + '</span><span class="pow-exp">' + b + '</span></span>' +
+         '<span class="eq-op">=</span>' + N;
+}
+function logHTML(r, blanks){
+  var base;
+  if (r.a === 'e') base = '<span>ln</span>';
+  else if (r.a === '10') base = '<span>lg</span>';
+  else base = '<span>log</span>' + subHTML(r.a);
+  var N = blanks.indexOf('N') >= 0 ? slotSpan('N') : '<b>' + r.N + '</b>';
+  var b = blanks.indexOf('b') >= 0 ? slotSpan('b') : '<b>' + r.b + '</b>';
+  return base + '<span class="eq-arg">' + N + '</span><span class="eq-op">=</span>' + b;
+}
+function keyName(k, r){
+  if (k === 'a') return '底数';
+  if (k === 'b') return (r.dir === 'e2l') ? '对数的值（原指数）' : '指数（原对数的值）';
+  return '真数（原幂）';
+}
+function keyHint(k){
+  if (k === 'a') return '底数不变还是底数，而且必须 a&gt;0 且 a≠1。';
+  if (k === 'b') return '指数 b 翻译过来就是对数的值；反过来，对数的值翻译回去就是指数。';
+  return '幂 N 在对数式里叫真数，真数必须大于 0。';
+}
+function renderConv(r){
+  var knownIsExp = (r.dir === 'e2l');
+  var knownHTML = knownIsExp ? expHTML(r, []) : logHTML(r, []);
+  var targetHTML = knownIsExp ? logHTML(r, r.blanks) : expHTML(r, r.blanks);
+  $('#stage').innerHTML = dotsHTML() + roundHeader(r) +
+    '<div class="prompt">' + r.prompt + '</div>' + pouchHTML(r) +
+    '<div class="machine">' +
+      '<div class="machine-col"><div class="m-label">已知 · ' + (knownIsExp ? '指数式' : '对数式') + '</div>' +
+        '<div class="eq">' + knownHTML + '</div></div>' +
+      '<div class="op big">⇄</div>' +
+      '<div class="machine-col"><div class="m-label">目标 · ' + (knownIsExp ? '对数式' : '指数式') + '（补齐两个空槽）</div>' +
+        '<div class="eq">' + targetHTML + '</div></div>' +
+    '</div>' +
+    '<div class="m-label tray-label">能量珠托盘（按住拖到上方空槽，拖对才会嵌入）</div>' +
+    '<div class="tray" id="tray"></div>' +
+    '<div class="msg" id="msg"></div><div id="feedbackWrap"></div>';
+  wirePouch();
+  /* 生成能量珠：两颗正确 + 两颗干扰，随机排列 */
+  var cards = r.blanks.map(function(k){ return { v: String(r[k]) }; })
+    .concat(r.extras.map(function(v){ return { v: v }; }));
+  var tray = $('#tray');
+  shuffle(cards).forEach(function(c){
+    var el = document.createElement('div');
+    el.className = 'card pearl';
+    el.textContent = c.v;
+    tray.appendChild(el);
+    enableDrag(el, c, function(slot, payload){
+      var key = slot.getAttribute('data-key');
+      if (String(r[key]) === String(payload.v)) {
+        fillSlot(slot, payload.v, null, el, null);
+        setFeedback('嵌入了！' + keyName(key, r) + '就是 ' + payload.v + '——两个式子说的是同一件事。', 'ok');
+        var full = $all('#stage .drop-slot').every(function(s){ return s.classList.contains('filled'); });
+        if (full) finishRound(r, r.sol);
+        return true;
+      }
+      slot.classList.add('bad-flash');
+      setTimeout(function(){ slot.classList.remove('bad-flash'); }, 480);
+      setFeedback(keyName(key, r) + '不是 ' + payload.v + '。' + keyHint(key), 'no');
+      r.fails++;
+      return false;
+    });
+  });
+  r.reveal = function(){
+    $all('#stage .drop-slot').forEach(function(slot){
+      if (!slot.classList.contains('filled')) {
+        var key = slot.getAttribute('data-key');
+        var want = String(r[key]);
+        $all('#tray .pearl').forEach(function(p){
+          if (!p.classList.contains('used') && p.textContent === want) p.classList.add('used');
+        });
+        fillSlot(slot, want, null, null, null);
+      }
+    });
+    setFeedback('答案已放入空槽，看看下面的详解吧。', 'ok');
+    finishRound(r, r.sol);
+  };
+}
+
+/* ==================================================================
+   渲染器 2：合成台 / 链式合成轨道
+   ================================================================== */
+function renderMerge(r){
+  var join = r.mode === 'add' ? '+' : '×';
+  var slotsHtml = '';
+  for (var i = 0; i < r.slots; i++) {
+    slotsHtml += (i > 0 ? '<span class="op">' + join + '</span>' : '') +
+      '<span class="drop-slot ready" data-i="' + i + '"></span>';
+  }
+  $('#stage').innerHTML = dotsHTML() + roundHeader(r) +
+    '<div class="prompt">' + r.prompt + '</div>' + pouchHTML(r) +
+    '<div class="machine">' +
+      '<div class="target-wrap"><div class="m-label">合成目标</div><div class="target-card">' + r.targetLabel + '</div></div>' +
+      '<div class="machine-col"><div class="m-label">' +
+        (r.mode === 'add' ? '加法合成器（同底对数相加 = 真数相乘）' : '链式乘法合成器（换底接力）') +
+      '</div><div class="slot-row">' + slotsHtml + '</div></div>' +
+    '</div>' +
+    '<div class="preview" id="preview">把积木拖进合成器，这里会实时显示合成进度。</div>' +
+    '<div class="m-label tray-label">积木托盘（点已放入的积木可取回重放）</div>' +
+    '<div class="tray" id="tray"></div>' +
+    '<div class="msg" id="msg"></div><div id="feedbackWrap"></div>';
+  wirePouch();
+  var tray = $('#tray');
+  shuffle(r.blocks.slice()).forEach(function(b){
+    var el = document.createElement('div');
+    el.className = 'card block';
+    el.innerHTML = b.label;
+    el._blockId = b.id;
+    tray.appendChild(el);
+    enableDrag(el, b, function(slot, payload){
+      fillSlot(slot, payload.label, payload, el, function(){ mergeRefresh(r); });
+      mergeRefresh(r);
+      return true;
+    });
+  });
+  r.reveal = function(){ revealMerge(r); };
+}
+function placedOf(){
+  return $all('#stage .drop-slot').map(function(s){ return s._payload; }).filter(Boolean);
+}
+function mergeRefresh(r){
+  var placed = placedOf();
+  var pv = $('#preview');
+  if (!placed.length) { pv.innerHTML = '把积木拖进合成器，这里会实时显示合成进度。'; return; }
+  var join = r.mode === 'add' ? ' + ' : ' × ';
+  var txt = placed.map(function(p){ return p.label; }).join(join);
+  if (r.mode === 'add') {
+    var sum = placed.reduce(function(s, p){ return s + p.num; }, 0);
+    var same = placed.every(function(p){ return p.base === placed[0].base; });
+    var extra = same
+      ? ' → 同底！真数相乘：log' + subHTML(placed[0].base) + '(' + placed.map(function(p){ return p.arg; }).join('×') + ')'
+      : ' → 底数不同，只能直接数值相加';
+    pv.innerHTML = txt + extra + ' ≈ ' + sum.toFixed(4) + '（目标 ' + r.targetLabel + '）';
+  } else {
+    var chainOk = true, note = '';
+    for (var i = 1; i < placed.length; i++) {
+      if (placed[i].base !== placed[i - 1].arg) {
+        chainOk = false;
+        note = '（第' + (i + 1) + '块的底数 ' + placed[i].base + ' ≠ 前一块真数 ' + placed[i - 1].arg + '，链条断开）';
+        break;
+      }
+    }
+    if (chainOk && placed.length > 1) {
+      var v = logb(placed[0].base, placed[placed.length - 1].arg);
+      note = '（接力成功 → log' + subHTML(placed[0].base) + ' ' + placed[placed.length - 1].arg + ' = ' + fmtVal(v) + '）';
+    }
+    pv.innerHTML = txt + ' ' + note;
+  }
+  if (placed.length === r.slots) evalMerge(r, placed);
+}
+function evalMerge(r, placed){
+  if (r.mode === 'add') {
+    var sum = placed.reduce(function(s, p){ return s + p.num; }, 0);
+    if (Math.abs(sum - r.target) < 1e-6) {
+      setFeedback('合成成功！合成值 = ' + r.targetLabel + '。', 'ok');
+      finishRound(r, r.sol);
+    } else {
+      r.fails++;
+      setFeedback('合成值 ≈ ' + sum.toFixed(4) + '，不等于目标 ' + r.targetLabel + '。点积木取回，换一换再试。', 'no');
+    }
+  } else {
+    var ok = true;
+    for (var i = 1; i < placed.length; i++) {
+      if (placed[i].base !== placed[i - 1].arg) { ok = false; break; }
+    }
+    if (!ok) {
+      r.fails++;
+      setFeedback('链条断开！换底接力要求：后一块的底数 = 前一块的真数。', 'no');
+      return;
+    }
+    var v = logb(placed[0].base, placed[placed.length - 1].arg);
+    if (Math.abs(v - r.target) < 1e-6) {
+      setFeedback('接力成功！log' + subHTML(placed[0].base) + ' ' + placed[placed.length - 1].arg + ' = ' + r.targetLabel + '。', 'ok');
+      finishRound(r, r.sol);
+    } else {
+      r.fails++;
+      setFeedback('链条接上了，但结果 ≈ ' + fmtVal(v) + ' ≠ 目标 ' + r.targetLabel + '，换块积木调整链条。', 'no');
+    }
+  }
+}
+function revealMerge(r){
+  $all('#stage .drop-slot').forEach(function(s){ clearSlot(s); });
+  r.correct.forEach(function(id, i){
+    var b = null;
+    r.blocks.forEach(function(x){ if (x.id === id) b = x; });
+    var cardEl = null;
+    $all('#tray .card').forEach(function(c){
+      if (!c.classList.contains('used') && c._blockId === id) cardEl = c;
+    });
+    fillSlot($all('#stage .drop-slot')[i], b.label, b, cardEl, null);
+  });
+  mergeRefresh(r);
+}
+
+/* ==================================================================
+   渲染器 3：双层合成塔（两台加法化简，再相乘）
+   ================================================================== */
+function slotsOfGroup(g){
+  return $all('#stage .drop-slot[data-g="' + g + '"]').map(function(s){ return s._payload; }).filter(Boolean);
+}
+function matchSet(placed, ids){
+  if (placed.length !== ids.length) return false;
+  var a = placed.map(function(p){ return p.id; }).sort().join(',');
+  var b = ids.slice().sort().join(',');
+  return a === b;
+}
+function renderTwo(r){
+  $('#stage').innerHTML = dotsHTML() + roundHeader(r) +
+    '<div class="prompt">' + r.prompt + '</div>' + pouchHTML(r) +
+    '<div class="machine">' +
+      '<div class="machine-col"><div class="m-label">台A · 加法化简（放 2 块）</div>' +
+        '<div class="slot-row"><span class="drop-slot ready" data-g="A"></span><span class="op">+</span><span class="drop-slot ready" data-g="A"></span></div>' +
+        '<div class="stage-out" id="outA">待合成</div></div>' +
+      '<div class="op big">×</div>' +
+      '<div class="machine-col"><div class="m-label">台B · 加法化简（放 2 块）</div>' +
+        '<div class="slot-row"><span class="drop-slot ready" data-g="B"></span><span class="op">+</span><span class="drop-slot ready" data-g="B"></span></div>' +
+        '<div class="stage-out" id="outB">待合成</div></div>' +
+      '<div class="target-wrap"><div class="m-label">合成目标</div><div class="target-card">' + r.targetLabel + '</div></div>' +
+    '</div>' +
+    '<div class="preview" id="preview">两台各自化简后，两台的乘积会显示在这里（目标 5/4 = 1.25）。</div>' +
+    '<div class="m-label tray-label">积木托盘（点已放入的积木可取回重放）</div>' +
+    '<div class="tray" id="tray"></div>' +
+    '<div class="msg" id="msg"></div><div id="feedbackWrap"></div>';
+  wirePouch();
+  var tray = $('#tray');
+  shuffle(r.blocks.slice()).forEach(function(b){
+    var el = document.createElement('div');
+    el.className = 'card block';
+    el.innerHTML = b.label;
+    el._blockId = b.id;
+    tray.appendChild(el);
+    enableDrag(el, b, function(slot, payload){
+      fillSlot(slot, payload.label, payload, el, function(){ twoRefresh(r); });
+      twoRefresh(r);
+      return true;
+    });
+  });
+  r.reveal = function(){
+    $all('#stage .drop-slot').forEach(function(s){ clearSlot(s); });
+    var byId = {};
+    r.blocks.forEach(function(b){ byId[b.id] = b; });
+    function cardOf(id){
+      var found = null;
+      $all('#tray .card').forEach(function(c){
+        if (!c.classList.contains('used') && c._blockId === id) found = c;
+      });
+      return found;
+    }
+    var sa = $all('#stage .drop-slot[data-g="A"]');
+    var sb = $all('#stage .drop-slot[data-g="B"]');
+    r.correctA.forEach(function(id, i){ fillSlot(sa[i], byId[id].label, byId[id], cardOf(id), null); });
+    r.correctB.forEach(function(id, i){ fillSlot(sb[i], byId[id].label, byId[id], cardOf(id), null); });
+    twoRefresh(r);
+  };
+}
+function twoRefresh(r){
+  var a = slotsOfGroup('A'), b = slotsOfGroup('B');
+  var sumA = null, sumB = null;
+  if (a.length === 2) {
+    sumA = a[0].num + a[1].num;
+    var exA = matchSet(a, r.correctA) ? '5/6·log<sub>2</sub>3' : '';
+    $('#outA').innerHTML = (exA ? exA + ' ≈ ' : '≈ ') + sumA.toFixed(4);
+  } else {
+    $('#outA').textContent = '待合成';
+  }
+  if (b.length === 2) {
+    sumB = b[0].num + b[1].num;
+    var exB = matchSet(b, r.correctB) ? '3/2·log<sub>3</sub>2' : '';
+    $('#outB').innerHTML = (exB ? exB + ' ≈ ' : '≈ ') + sumB.toFixed(4);
+  } else {
+    $('#outB').textContent = '待合成';
+  }
+  if (sumA !== null && sumB !== null) {
+    var prod = sumA * sumB;
+    $('#preview').innerHTML = '两台乘积 ≈ ' + prod.toFixed(4) + '（目标 5/4 = 1.25）';
+    if (Math.abs(prod - r.target) < 1e-3) {
+      setFeedback('双层合成成功！乘积 = 5/4。', 'ok');
+      finishRound(r, r.sol);
+    } else {
+      r.fails++;
+      setFeedback('乘积 ≈ ' + prod.toFixed(4) + ' ≠ 1.25。调整两台的积木组合（点积木可取回）。', 'no');
+    }
+  } else {
+    $('#preview').innerHTML = '两台各自化简后，两台的乘积会显示在这里（目标 5/4 = 1.25）。';
+  }
+}
+
+/* ==================================================================
+   渲染器 4：方程修复舱
+   ================================================================== */
+function substPanel(r, x){
+  var rows = [], allPos = true;
+  r.terms.forEach(function(t){
+    var val = t.fn(x);
+    var pos = val > 0;
+    if (!pos) allPos = false;
+    rows.push({ t: t, val: val, pos: pos });
+  });
+  var h = '<div class="subst">';
+  rows.forEach(function(row){
+    h += '<div class="subst-row"><span>' + row.t.html + '：真数 ' + row.t.disp + ' = ' + fmtX(row.val) + '，</span>' +
+      (row.pos ? '<span class="tag-ok">为正，可以取对数</span>' : '<span class="tag-no">不超过 0，负数和 0 没有对数</span>') +
+      '</div>';
+  });
+  var lhs = 0, eq = false;
+  if (allPos) {
+    rows.forEach(function(row){ lhs += row.t.sign * logb(row.t.base, row.val); });
+    eq = Math.abs(lhs - r.rhs) < 1e-6;
+    h += '<div class="subst-row"><span>代入后：左边 = ' + fmtVal(lhs) + '，右边 = ' + r.rhsLabel + '</span>' +
+      (eq ? '<span class="tag-ok">两边相等，方程成立</span>' : '<span class="tag-no">两边不相等</span>') + '</div>';
+  }
+  return { html: h + '</div>', allPos: allPos, eq: eq };
+}
+function renderRepair(r){
+  $('#stage').innerHTML = dotsHTML() + roundHeader(r) +
+    '<div class="prompt">' + r.prompt + '</div>' + pouchHTML(r) +
+    '<div class="machine">' +
+      '<div class="machine-col"><div class="m-label">待检修的方程</div><div class="eq">' + r.eqHTML + '</div></div>' +
+      '<div class="machine-col"><div class="m-label">检修口（把候选 x 卡拖到这里）</div>' +
+        '<div class="eq">x =<span class="drop-slot ready"></span></div></div>' +
+    '</div>' +
+    '<div id="substWrap"></div>' +
+    '<div class="m-label tray-label">候选检修卡</div>' +
+    '<div class="tray" id="tray"></div>' +
+    '<div class="msg" id="msg"></div><div id="feedbackWrap"></div>';
+  wirePouch();
+  var tray = $('#tray');
+  shuffle(r.cards.slice()).forEach(function(c){
+    var el = document.createElement('div');
+    el.className = 'card pearl';
+    el.textContent = 'x = ' + c.v;
+    tray.appendChild(el);
+    enableDrag(el, c, function(slot, payload){
+      var res = substPanel(r, payload.x);
+      $('#substWrap').innerHTML = res.html;
+      if (!res.allPos) {
+        r.fails++;
+        setFeedback('x = ' + payload.v + ' 让真数变成负数啦——负数和 0 没有对数，这样的根叫"增根"，必须舍去！换一张卡试试。', 'no');
+        return false;
+      }
+      if (res.eq) {
+        setFeedback('x = ' + payload.v + ' 让真数都为正，而且方程两边相等——正是方程的解，检修完成！', 'ok');
+        finishRound(r, r.sol);
+        return true;
+      }
+      r.fails++;
+      setFeedback('x = ' + payload.v + ' 能让真数为正，但方程两边不相等，它不是解。再换一张试试。', 'no');
+      return false;
+    });
+  });
+  r.reveal = function(){
+    var sol = null;
+    r.cards.forEach(function(c){ if (c.x === r.solX) sol = c; });
+    var cardEl = null;
+    $all('#tray .card').forEach(function(el2){
+      if (!el2.classList.contains('used') && el2.textContent === 'x = ' + sol.v) cardEl = el2;
+    });
+    fillSlot($('#stage .drop-slot'), sol.v, null, cardEl, null);
+    $('#substWrap').innerHTML = substPanel(r, r.solX).html;
+    setFeedback('正确的解是 x = ' + sol.v + '，看下面的代入检验与详解。', 'ok');
+    finishRound(r, r.sol);
+  };
+}
+
+/* ==================================================================
+   渲染器 5：香农信号塔（增幅标定尺）
+   ================================================================== */
+function renderTower(r){
+  var ticks = '';
+  for (var p = 0; p <= 60; p += 5) {
+    var left = (p / 60 * 100).toFixed(2);
+    var major = (p % 10 === 0);
+    ticks += '<div class="tick' + (major ? ' major' : '') + '" style="left:' + left + '%"></div>';
+    if (major) ticks += '<div class="tick-lb" style="left:' + left + '%">' + p + '%</div>';
+  }
+  $('#stage').innerHTML = dotsHTML() + roundHeader(r) +
+    '<div class="prompt">' + r.prompt + '</div>' + pouchHTML(r) +
+    '<div class="ruler-wrap">' +
+      '<div class="m-label">增幅标定尺（按住粉色指针左右拖动，再按"锁定读数"；锁定前不显示数字，请先计算）</div>' +
+      '<div class="ruler" id="ruler">' + ticks +
+        '<div class="ruler-track"></div>' +
+        '<div class="marker" id="marker" style="left:0%"></div>' +
+      '</div>' +
+      '<div class="msg" id="msg">指针已就位，随时可以拖动标定。</div>' +
+      '<div style="text-align:center;margin-top:12px;"><button class="btn btn-primary" id="lockBtn">锁定读数</button></div>' +
+    '</div>' +
+    '<div id="feedbackWrap"></div>';
+  wirePouch();
+  var ruler = $('#ruler'), marker = $('#marker');
+  var dragging = false;
+  function setByEvent(ev){
+    var rect = ruler.getBoundingClientRect();
+    var ratio = (ev.clientX - rect.left) / rect.width;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+    r.curPct = ratio * 60;
+    marker.style.left = (ratio * 100).toFixed(2) + '%';
+  }
+  ruler.addEventListener('pointerdown', function(ev){
+    if (S.roundLock) return;
+    dragging = true;
+    try { ruler.setPointerCapture(ev.pointerId); } catch (e) { /* 捕获失败也能拖 */ }
+    setByEvent(ev);
+  });
+  ruler.addEventListener('pointermove', function(ev){
+    if (dragging && !S.roundLock) { ev.preventDefault(); setByEvent(ev); }
+  });
+  ruler.addEventListener('pointerup', function(){ dragging = false; });
+  ruler.addEventListener('pointercancel', function(){ dragging = false; });
+  $('#lockBtn').addEventListener('click', function(){
+    if (S.roundLock) return;
+    bumpSteps();
+    var truth = (logb(2, 5001) / logb(2, 1001) - 1) * 100; /* 约 23.3% */
+    var p = r.curPct;
+    if (Math.abs(p - truth) <= 1.5) {
+      setFeedback('你标定 ' + p.toFixed(1) + '%，正确答案 ≈ ' + truth.toFixed(1) + '%，标定成功！', 'ok');
+      finishRound(r, r.sol);
+    } else {
+      r.fails++;
+      var extra = r.fails >= 2 ? ' 额外提示：log<sub>2</sub>1001 ≈ 9.97，log<sub>2</sub>5001 ≈ 12.29。' : '';
+      setFeedback('你标定 ' + p.toFixed(1) + '%，还不够准确。先算一算：增幅 = log<sub>2</sub>5001 ÷ log<sub>2</sub>1001 − 1。' + extra, 'no');
+    }
+  });
+  r.reveal = function(){
+    var truth = (logb(2, 5001) / logb(2, 1001) - 1) * 100;
+    r.curPct = truth;
+    marker.style.left = (truth / 60 * 100).toFixed(2) + '%';
+    setFeedback('正确增幅 ≈ ' + truth.toFixed(1) + '%，指针已标到位。', 'ok');
+    finishRound(r, r.sol);
+  };
+}
+
+/* ---------------- 轮次调度 ---------------- */
+function renderRound(){
+  S.roundLock = false;
+  S.revealed = false;
+  var r = cur();
+  r.fails = 0;
+  updateHud();
+  if (r.type === 'conv') renderConv(r);
+  else if (r.type === 'merge' && r.mode === 'two') renderTwo(r);
+  else if (r.type === 'merge') renderMerge(r);
+  else if (r.type === 'repair') renderRepair(r);
+  else if (r.type === 'tower') renderTower(r);
+  window.scrollTo(0, 0);
+}
+
+/* ---------------- 通关庆典（彩带 + 战绩） ---------------- */
+function celebrate(){
+  S.playing = false;
+  clearInterval(S.timer);
+  var sec = Math.floor((Date.now() - S.t0) / 1000);
+  var maxStars = S.rounds.length * 3;
+  $('#stage').innerHTML =
+    '<div class="victory">' +
+      '<h2>全部通关，庆典开始！</h2>' +
+      '<div class="star-row" id="bigStars"></div>' +
+      '<div class="stat-row">' +
+        '<div class="stat-box">难度：' + diffName(S.diff) + '</div>' +
+        '<div class="stat-box">总用时：' + fmtTime(sec) + '</div>' +
+        '<div class="stat-box">总步数：' + S.steps + '</div>' +
+        '<div class="stat-box">获得星星：' + S.stars + ' / ' + maxStars + '</div>' +
+      '</div>' +
+      '<p style="font-size:19px;line-height:1.8;">你已经掌握了：指数式与对数式互化、对数运算性质、换底接力、真数必须为正与增根舍去、香农公式的对数计算。去告诉同学：对数增长"稳而慢"，这正是它的魅力！</p>' +
+      '<div class="stat-row">' +
+        '<button class="btn btn-primary" id="btnAgain">再玩一次（重新随机）</button>' +
+        '<button class="btn" id="btnMenu2">换难度挑战</button>' +
+      '</div>' +
+    '</div>';
+  var bs = $('#bigStars');
+  var n = Math.max(1, Math.min(S.stars, 12));
+  for (var i = 0; i < n; i++) bs.textContent += '★';
+  $('#btnAgain').addEventListener('click', function(){ start(S.diff); });
+  $('#btnMenu2').addEventListener('click', showMenu);
+  $('#hudProgress').textContent = '全部通关';
+  confetti();
+}
+/* 彩带粒子（Canvas 实现，颜色取自本局色板）。
+   用 setTimeout 限速（约 30 帧/秒）并设硬性帧数上限，
+   保证在无垂直同步/后台环境里也不会高速空转占满 CPU。 */
+function confetti(){
+  var cv = $('#fx');
+  cv.classList.add('show');
+  cv.width = window.innerWidth;
+  cv.height = window.innerHeight;
+  var ctx = cv.getContext('2d');
+  var cols = [currentPalette.accent, currentPalette.accent2, '#F59E0B', '#10B981', '#3B82F6', '#EF4444'];
+  var parts = [];
+  for (var i = 0; i < 150; i++) {
+    parts.push({
+      x: Math.random() * cv.width,
+      y: -20 - Math.random() * cv.height * 0.6,
+      w: 8 + Math.random() * 10, h: 8 + Math.random() * 8,
+      vx: -1.5 + Math.random() * 3, vy: 2 + Math.random() * 3.5,
+      rot: Math.random() * Math.PI, vr: -0.12 + Math.random() * 0.24,
+      c: cols[i % cols.length], round: Math.random() < 0.3
+    });
+  }
+  var frames = 0;
+  var MAXF = 210; /* 最多约 210 帧（约 7 秒），到点自动收尾 */
+  function frame(){
+    frames++;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    parts.forEach(function(p){
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if (p.y > cv.height + 30) { p.y = -20; p.x = Math.random() * cv.width; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      if (p.round) {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      }
+      ctx.restore();
+    });
+    if (frames < MAXF && cv.classList.contains('show')) {
+      setTimeout(frame, 33);
+    } else {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      cv.classList.remove('show');
+    }
+  }
+  frame();
+}
+
+/* ---------------- 难度菜单与开局 ---------------- */
+function diffName(d){
+  if (d === 'easy') return '初级 · 彩虹桥';
+  if (d === 'mid') return '中级 · 智慧之门';
+  return '高级 · 星空旅程';
+}
+function showMenu(){
+  S.playing = false;
+  clearInterval(S.timer);
+  $('#controls').classList.add('hidden');
+  $('#hudProgress').textContent = '未开始';
+  $('#hudTime').textContent = '00:00';
+  $('#hudSteps').textContent = '0';
+  $('#hudStars').textContent = '0';
+  $('#stage').innerHTML =
+    '<div>' +
+      '<h1 class="game-title">对数能量工坊</h1>' +
+      '<p class="game-sub">人教版高中数学 · 第四章 4.3 对数<br>在工坊里玩转"指数 ⇄ 对数"互化、对数合成、方程检修与香农信号塔标定</p>' +
+      '<div class="diff-row">' +
+        '<button class="diff-card" data-diff="easy">' +
+          '<div class="diff-name">初级 · 彩虹桥</div>' +
+          '<div class="diff-desc">例题级 · 5 关<br>互化车间：把指数式与对数式互相翻译，能量珠拖进空槽即通关</div>' +
+        '</button>' +
+        '<button class="diff-card" data-diff="mid">' +
+          '<div class="diff-name">中级 · 智慧之门</div>' +
+          '<div class="diff-desc">练习级 · 6 关<br>互化进阶 + 加法/链式合成台 + 方程检修初体验</div>' +
+        '</button>' +
+        '<button class="diff-card" data-diff="hard">' +
+          '<div class="diff-name">高级 · 星空旅程</div>' +
+          '<div class="diff-desc">综合级 · 8 关<br>三节长链与双层合成塔、附加条件整体思想、增根辨析、香农信号塔压轴</div>' +
+        '</button>' +
+      '</div>' +
+      '<div class="menu-foot"><button class="btn btn-primary" id="btnRules2">玩法与规则说明</button></div>' +
+    '</div>';
+  $all('.diff-card').forEach(function(b){
+    b.addEventListener('click', function(){ start(b.getAttribute('data-diff')); });
+  });
+  $('#btnRules2').addEventListener('click', openRules);
+}
+function start(diff){
+  applyPalette(); /* 每局重新随机主题色 */
+  S.diff = diff;
+  S.rounds = buildRounds(diff); /* 每局重新随机抽题与排序 */
+  S.idx = 0; S.steps = 0; S.stars = 0;
+  S.playing = true;
+  $('#controls').classList.remove('hidden');
+  clearInterval(S.timer);
+  S.t0 = Date.now();
+  S.timer = setInterval(function(){
+    if (S.playing) $('#hudTime').textContent = fmtTime(Math.floor((Date.now() - S.t0) / 1000));
+  }, 1000);
+  renderRound();
+}
+
+/* ---------------- 规则弹窗 ---------------- */
+function openRules(){
+  $('#modalTitle').textContent = '玩法与规则说明';
+  $('#modalBody').innerHTML =
+    '<p><b>欢迎来到对数能量工坊！</b>这里的一切都围绕一个核心等式运转：<b>a<sup>b</sup> = N ⇔ log<sub>a</sub>N = b</b>（a&gt;0 且 a≠1，N&gt;0）。</p>' +
+    '<p><b>1. 互化车间：</b>屏幕上有一个指数式和一个对数式，它们说的是同一件事。把正确的"能量珠"拖进空槽，拖对才会嵌入，全部嵌对即通关。</p>' +
+    '<p><b>2. 合成台 / 链式合成轨道：</b>同底对数相加 = 真数相乘：log<sub>a</sub>M + log<sub>a</sub>N = log<sub>a</sub>(MN)；换底接力：log<sub>a</sub>b × log<sub>b</sub>c = log<sub>a</sub>c（后一块的底数要等于前一块的真数）。拖积木进合成器，预览屏实时显示合成进度，凑出目标值即通关。</p>' +
+    '<p><b>3. 方程修复舱：</b>把候选 x 卡拖到检修口，机器自动代入检查：先看每个真数是否大于 0（负数和 0 没有对数，那样的根叫增根，要舍去），再看方程两边是否相等。</p>' +
+    '<p><b>4. 香农信号塔：</b>按 C = W·log<sub>2</sub>(1 + S/N) 算出增幅，把粉色指针拖到标定尺上对应的位置，按"锁定读数"。</p>' +
+    '<p><b>操作提示：</b>按住卡片拖动（鼠标和手指都可以）；点已放入的积木可以取回重放。每关都能点"知识锦囊"看公式卡片。</p>' +
+    '<p><b>计分：</b>右上角有计时、步数和星星；一次拖对得 3 星，多次尝试得 2 星或 1 星；点"揭示答案"能看详解但本关不计星星。全部通关有庆典彩带！</p>';
+  $('#modalMask').classList.remove('hidden');
+}
+function closeModal(){ $('#modalMask').classList.add('hidden'); }
+
+/* ---------------- 控制按钮接线 ---------------- */
+$('#btnRules').addEventListener('click', openRules);
+$('#btnModalOk').addEventListener('click', closeModal);
+$('#btnReveal').addEventListener('click', function(){
+  if (!S.playing || S.roundLock) return;
+  var r = cur();
+  if (!r || !r.reveal) return;
+  S.revealed = true;
+  r.reveal();
+});
+$('#btnRestart').addEventListener('click', function(){ if (S.diff) start(S.diff); });
+$('#btnBack').addEventListener('click', showMenu);
+
+/* ---------------- 启动 ---------------- */
+applyPalette();
+showMenu();
+openRules(); /* 进入时先弹出规则说明 */
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-h/g003", "name": "\u5bf9\u6570\u80fd\u91cf\u5de5\u574a \u00b7 4.3 \u5bf9\u6570\uff08\u4e92\u52a8\u6e38\u620f\uff09", "file": "g003.html", "jiaocan": "\u301015\u3011\u7b2c\u56db\u7ae0 \u6307\u6570\u51fd\u6570\u4e0e\u5bf9\u6570\u51fd\u6570\uff1a4.3 \u5bf9 \u6570", "unit": "", "grade": "", "stage": "\u9ad8\u4e2d", "series": "H\uff1a\u6559\u6750\u63d0\u70bc2-\u9ad8\u4e2d\u6570\u5b66\uff08\u4eba\u6559\u7248\uff09", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u63d0\u70bc2-\u9ad8\u4e2d\u6570\u5b66\uff08\u4eba\u6559\u7248\uff09\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-h"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>叠加覆盖大冒险 · 第6讲 叠加覆盖问题（下）</title>
+<style>
+  /* ========== 全局样式（单文件自包含，零外部依赖） ========== */
+  :root{
+    --c-bg:#FFF6E7; --c-main:#F97316; --c-accent:#0FB5A6;
+    --c-ink:#33302B; --c-soft:#FFE3C2; --c-paper:#FFFDF8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    background:var(--c-bg); color:var(--c-ink); -webkit-tap-highlight-color:transparent;
+  }
+  #app{max-width:1080px;margin:0 auto;padding:10px 14px 18px;display:flex;flex-direction:column;min-height:100vh;}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 4px 10px;}
+  .logo{width:54px;height:54px;flex:0 0 auto;}
+  .titleWrap h1{font-size:26px;letter-spacing:1px;}
+  .titleWrap .subtitle{font-size:16px;font-weight:700;opacity:.75;margin-top:2px;}
+  .hud{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .chip{background:#fff;border:3px solid var(--c-ink);border-radius:14px;padding:5px 14px;font-weight:800;font-size:20px;white-space:nowrap;}
+  .chip b{color:var(--c-main);}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;}
+  button{
+    font-family:inherit;font-size:19px;font-weight:800;padding:9px 16px;border-radius:14px;
+    border:3px solid var(--c-ink);background:#fff;color:var(--c-ink);cursor:pointer;
+    box-shadow:0 4px 0 var(--c-ink);transition:transform .06s;
+  }
+  button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--c-ink);}
+  button.primary{background:var(--c-main);color:#fff;}
+  button.go{background:var(--c-accent);color:#fff;}
+  main{flex:1;display:flex;flex-direction:column;}
+  /* ---------- 首页（难度选择） ---------- */
+  #screen-home{display:flex;flex-direction:column;gap:14px;}
+  .introBox{background:var(--c-paper);border:4px solid var(--c-ink);border-radius:18px;padding:16px 20px;font-size:19px;line-height:1.75;}
+  .introBox .tips{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;}
+  .tipPill{background:var(--c-soft);border:3px solid var(--c-ink);border-radius:999px;padding:4px 14px;font-size:17px;font-weight:800;}
+  .diffRow{display:flex;gap:16px;flex-wrap:wrap;}
+  .dcard{
+    flex:1 1 260px;background:var(--c-paper);border:4px solid var(--c-ink);border-radius:20px;
+    padding:18px 18px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 6px 0 var(--c-ink);
+  }
+  .dcard h2{font-size:24px;}
+  .dcard .lv{font-size:20px;font-weight:800;color:#fff;background:var(--c-main);border-radius:10px;padding:3px 12px;align-self:flex-start;}
+  .dcard p{font-size:17px;line-height:1.65;flex:1;}
+  .dcard button{width:100%;}
+  /* ---------- 游戏区 ---------- */
+  #screen-game{display:flex;flex-direction:column;gap:10px;}
+  #stageWrap{position:relative;width:100%;background:var(--c-paper);border:4px solid var(--c-ink);border-radius:18px;overflow:hidden;}
+  #gameCanvas{display:block;width:100%;touch-action:none;cursor:grab;}
+  #hintBar{
+    background:var(--c-soft);border:3px solid var(--c-ink);border-radius:14px;
+    padding:10px 16px;font-size:19px;font-weight:800;line-height:1.55;
+  }
+  /* ---------- 弹窗 ---------- */
+  .modal{position:fixed;inset:0;background:rgba(45,42,60,.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px;}
+  .modal .card{
+    background:#fff;border:4px solid var(--c-ink);border-radius:20px;max-width:660px;width:100%;
+    padding:22px 26px;font-size:19px;line-height:1.75;max-height:86vh;overflow:auto;
+    box-shadow:0 8px 0 var(--c-ink);
+  }
+  .modal h2{font-size:25px;margin-bottom:10px;color:var(--c-main);}
+  .modal h3{font-size:20px;margin:12px 0 4px;}
+  .modal .big{font-size:22px;font-weight:800;}
+  .modal .btnRow{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;}
+  .stars{font-size:40px;letter-spacing:10px;margin:8px 0;}
+  .stars .st{color:#CFCAC2;}
+  .stars .st.on{color:#F5B301;text-shadow:0 2px 0 #A97C00;}
+  #fxCanvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:55;}
+  @media (max-width:640px){
+    .titleWrap h1{font-size:20px;}
+    .chip{font-size:17px;padding:4px 10px;}
+    button{font-size:17px;padding:8px 12px;}
+    #hintBar{font-size:17px;}
+    .modal .card{font-size:17px;padding:16px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="30" fill="var(--c-accent)"></circle>
+      <g transform="rotate(45 32 32)">
+        <rect x="16" y="26" width="30" height="12" rx="2" fill="#FFE9A8" stroke="#33302B" stroke-width="2.5"></rect>
+        <polygon points="46,26 56,32 46,38" fill="#F2C894" stroke="#33302B" stroke-width="2.5"></polygon>
+        <polygon points="53,29.5 58.5,32 53,34.5" fill="#4A4A4A"></polygon>
+        <rect x="12" y="26" width="4" height="12" fill="#C9CED6" stroke="#33302B" stroke-width="2"></rect>
+        <rect x="5" y="26" width="7" height="12" rx="2.5" fill="#F5A3B7" stroke="#33302B" stroke-width="2"></rect>
+      </g>
+    </svg>
+    <div class="titleWrap">
+      <h1>叠加覆盖大冒险</h1>
+      <div class="subtitle">第6讲 叠加覆盖问题（下） · 一年级 · 互动游戏工坊</div>
+    </div>
+    <div class="hud" id="hud" style="display:none;">
+      <div class="chip">时间 <b id="hudTime">00:00</b></div>
+      <div class="chip">步数 <b id="hudSteps">0</b></div>
+    </div>
+    <div class="btns" id="gameBtns" style="display:none;">
+      <button id="btnRules">规则</button>
+      <button id="btnReveal">揭示答案</button>
+      <button id="btnRestart">重新开始</button>
+      <button id="btnBack">返回难度</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 首页：难度选择 -->
+    <section id="screen-home">
+      <div class="introBox">
+        欢迎来到<b>铅笔叠叠乐工坊</b>！这里的铅笔堆里藏着三个小秘密：
+        谁在最上面、轮流取铅笔谁会获胜、卡片翻转后会变成什么样。
+        选一个难度开始闯关吧，每一关都要<b>动手操作</b>才能通过哦！
+        <div class="tips">
+          <span class="tipPill">好方法：标序号</span>
+          <span class="tipPill">从上到下，有序寻找</span>
+          <span class="tipPill">最上面的一定是完整图形</span>
+          <span class="tipPill">翻转：左右相反、上下不变</span>
+        </div>
+      </div>
+      <div class="diffRow">
+        <div class="dcard">
+          <span class="lv">初级</span>
+          <h2>叠叠排序场</h2>
+          <p>看一看铅笔堆：能看全的在最上面，被遮住一截的在下面。把铅笔卡片<b>拖</b>进层数格子，从第1层（最上面）排到最后一层（最下面）！</p>
+          <button class="primary" data-mode="1">开始挑战</button>
+        </div>
+        <div class="dcard">
+          <span class="lv">中级</span>
+          <h2>取铅笔友谊赛</h2>
+          <p>两人轮流取铅笔，每次取1支，不能碰倒别的铅笔。先把<b>奖杯拖给</b>你猜的获胜者，再亲自取铅笔验证：谁会赢呢？</p>
+          <button class="primary" data-mode="2">开始挑战</button>
+        </div>
+        <div class="dcard">
+          <span class="lv">高级</span>
+          <h2>翻转之门</h2>
+          <p><b>拖动卡片</b>穿过神奇的翻转门：穿过左右门，左右相反、上下不变；穿过上下门，上下相反、左右不变。把卡片变成目标样子放进相框！</p>
+          <button class="primary" data-mode="3">开始挑战</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 游戏区 -->
+    <section id="screen-game" style="display:none;">
+      <div id="stageWrap"><canvas id="gameCanvas"></canvas></div>
+      <div id="hintBar">加载中……</div>
+    </section>
+  </main>
+
+  <!-- 规则弹窗 -->
+  <div id="rulesModal" class="modal" style="display:none;">
+    <div class="card" id="rulesCard"></div>
+  </div>
+  <!-- 关卡结算弹窗 -->
+  <div id="overlay" class="modal" style="display:none;">
+    <div class="card" id="overlayCard"></div>
+  </div>
+  <canvas id="fxCanvas"></canvas>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   叠加覆盖大冒险 —— 第6讲 叠加覆盖问题（下）互动游戏
+   内容来源：好方法4 叠加覆盖(4) / 好方法5 叠加覆盖(5) / 好方法6 翻转问题
+   结构：工具 → 画布 → 绘图原语 → 三个游戏模式 → 弹窗与庆祝 → 主循环
+   ===================================================================== */
+
+/* ---------------- 一、通用工具 ---------------- */
+function $(s){ return document.querySelector(s); }
+function rand(n){ return Math.floor(Math.random()*n); }
+function randRange(a,b){ return a+Math.random()*(b-a); }
+function pick(arr){ return arr[rand(arr.length)]; }
+function shuffle(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=rand(i+1); const t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function clamp(v,a,b){ return Math.min(b,Math.max(a,v)); }
+function ptInRect(p,r){ return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h; }
+function pad2(n){ return (n<10?'0':'')+n; }
+
+/* 轻快提示音（WebAudio 本地合成，失败则静默） */
+let audioCtx=null;
+function beep(freq,dur,kind){
+  try{
+    if(!audioCtx){ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type=kind||'sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.12,audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+(dur||0.12));
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime+(dur||0.12)+0.02);
+  }catch(err){ /* 声音失败不影响游戏 */ }
+}
+
+/* ---------------- 二、色板（每局随机主色，G8） ---------------- */
+const PALETTES=[
+  {name:'阳光橙', bg:'#FFF6E7', main:'#F97316', accent:'#0FB5A6', ink:'#33302B', soft:'#FFE3C2', paper:'#FFFDF8'},
+  {name:'晴空蓝', bg:'#EAF5FF', main:'#2E9BE6', accent:'#F59E0B', ink:'#28323E', soft:'#CBE7FF', paper:'#FCFEFF'},
+  {name:'草地绿', bg:'#F0FBEA', main:'#43A047', accent:'#F4623A', ink:'#2C3A2C', soft:'#CDEBC4', paper:'#FCFFF8'},
+  {name:'葡萄紫', bg:'#F5EFFB', main:'#8E5BD9', accent:'#F5A623', ink:'#37303F', soft:'#E0D0F5', paper:'#FDFBFF'},
+  {name:'樱花粉', bg:'#FFF0F4', main:'#E85D9E', accent:'#1FAE93', ink:'#402B33', soft:'#FFD3E0', paper:'#FFFBFD'},
+  {name:'蜜瓜黄', bg:'#FFFBE6', main:'#D99A05', accent:'#4C7DE0', ink:'#3D3620', soft:'#FFEBAD', paper:'#FFFDF4'}
+];
+let PAL=PALETTES[0];
+function applyPalette(){
+  PAL=pick(PALETTES);
+  const r=document.documentElement.style;
+  r.setProperty('--c-bg',PAL.bg); r.setProperty('--c-main',PAL.main);
+  r.setProperty('--c-accent',PAL.accent); r.setProperty('--c-ink',PAL.ink);
+  r.setProperty('--c-soft',PAL.soft); r.setProperty('--c-paper',PAL.paper);
+}
+
+/* 铅笔颜色池（含中文名，随机抽样保证互不相同） */
+const PEN_COLORS=[
+  {c:'#E5484D',n:'红色'},{c:'#F76B15',n:'橙色'},{c:'#FFC53D',n:'黄色'},{c:'#43A047',n:'绿色'},
+  {c:'#00A2C7',n:'青色'},{c:'#3E63DD',n:'蓝色'},{c:'#8E4EC6',n:'紫色'},{c:'#D6409F',n:'粉色'}
+];
+const PATTERNS=['纯色','条纹','圆点','波浪'];
+function makePens(n){
+  const cs=shuffle(PEN_COLORS).slice(0,n);
+  const ls=shuffle(['A','B','C','D','E','F','G','H']).slice(0,n);
+  const ps=shuffle(PATTERNS);
+  const out=[];
+  for(let i=0;i<n;i++){
+    out.push({letter:ls[i],color:cs[i].c,colorName:cs[i].n,pattern:ps[i%ps.length]});
+  }
+  return out;
+}
+
+/* ---------------- 三、全局状态与画布 ---------------- */
+const CFG={W:960,H:540};
+const cv=$('#gameCanvas'), ctx=cv.getContext('2d');
+const G={screen:'home',mode:0,modeObjRef:null,level:1,stars:[0,0,0],timer:0,steps:0,revealed:false,overlayOpen:false,rulesOpen:false};
+
+function fitCanvas(){
+  const wrap=$('#stageWrap');
+  const w=wrap.clientWidth||960;
+  const h=w*CFG.H/CFG.W;
+  const dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  cv.style.height=h+'px';
+}
+window.addEventListener('resize',fitCanvas);
+
+function setSteps(n){ G.steps=n; $('#hudSteps').textContent=String(n); }
+function addStep(){ setSteps(G.steps+1); }
+function fmtTime(){ return pad2(Math.floor(G.timer/60))+':'+pad2(G.timer%60); }
+
+/* 画布指针坐标换算 */
+function evPos(e){
+  const r=cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*CFG.W/r.width, y:(e.clientY-r.top)*CFG.H/r.height};
+}
+
+/* ---------------- 四、绘图原语 ---------------- */
+function rr(c,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);
+  c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+}
+/* 字母徽章：白底圆 + 粗描边 + 大字母（字号≥16，课堂投影友好） */
+function badge(c,cx,cy,r,letter,fontPx){
+  c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2);
+  c.fillStyle='#FFFFFF'; c.fill();
+  c.lineWidth=3; c.strokeStyle=PAL.ink; c.stroke();
+  c.fillStyle=PAL.ink;
+  c.font='800 '+fontPx+'px "Microsoft YaHei",sans-serif';
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillText(letter,cx,cy+1);
+}
+/* 木质笔杆 + 图案（条纹/圆点/波浪） */
+function penBody(c,x,y,w,h,pen){
+  rr(c,x,y,w,h,7);
+  c.fillStyle=pen.color; c.fill();
+  c.lineWidth=2.5; c.strokeStyle=PAL.ink; c.stroke();
+  c.save();
+  rr(c,x,y,w,h,7); c.clip();
+  c.strokeStyle='rgba(255,255,255,.75)'; c.lineWidth=3;
+  if(pen.pattern==='条纹'){
+    for(let i=16;i<w-8;i+=28){
+      c.beginPath(); c.moveTo(x+i,y-4); c.lineTo(x+i-13,y+h+4); c.stroke();
+    }
+  }else if(pen.pattern==='圆点'){
+    c.fillStyle='rgba(255,255,255,.8)';
+    for(let i=18;i<w-8;i+=30){
+      c.beginPath(); c.arc(x+i,y+h/2,3.4,0,Math.PI*2); c.fill();
+    }
+  }else if(pen.pattern==='波浪'){
+    c.beginPath();
+    for(let i=8;i<w;i+=8){ c.lineTo(x+i, y+h/2+((i/8)%2===0?-5:5)); }
+    c.stroke();
+  }
+  c.restore();
+}
+/* 横放铅笔：橡皮头在左，笔尖在右；badgeX/badgeY 为字母徽章中心 */
+function drawPencilH(c,x,y,L,T,pen,badgeX,badgeY,badgeR,fontPx){
+  const eb=Math.max(10,T*0.34), mb=Math.max(8,T*0.26), tip=Math.max(14,T*0.85);
+  /* 橡皮头 */
+  rr(c,x,y,eb,T,eb/2); c.fillStyle='#F5A3B7'; c.fill();
+  c.lineWidth=2.5; c.strokeStyle=PAL.ink; c.stroke();
+  /* 金属箍 */
+  c.fillStyle='#C9CED6';
+  c.fillRect(x+eb,y,mb,T); c.strokeRect(x+eb,y,mb,T);
+  /* 笔杆 */
+  penBody(c,x+eb+mb,y,L-eb-mb-tip,T,pen);
+  /* 笔尖 */
+  const tx=x+L-tip;
+  c.beginPath(); c.moveTo(tx,y); c.lineTo(x+L,y+T/2); c.lineTo(tx,y+T); c.closePath();
+  c.fillStyle='#F0CE96'; c.fill(); c.strokeStyle=PAL.ink; c.lineWidth=2.5; c.stroke();
+  c.beginPath(); c.moveTo(x+L-7,y+T/2-3); c.lineTo(x+L,y+T/2); c.lineTo(x+L-7,y+T/2+3); c.closePath();
+  c.fillStyle='#4A4A4A'; c.fill();
+  /* 字母徽章（放在没被遮挡的位置；未传坐标则不画徽章） */
+  if(badgeX!=null){
+    badge(c,badgeX,badgeY,badgeR,pen.letter,fontPx);
+  }
+}
+/* 斜放铅笔的“半段”绘制（用于互相压住的圈圈，两段式绘制解决循环遮挡） */
+function drawPencilHalf(c,mid,ang,halfLen,T,pen,half){
+  c.save();
+  c.translate(mid.x,mid.y); c.rotate(ang);
+  /* 局部坐标：x 轴正方向指向“压住别人”的一端（over 端） */
+  const from = half==='under' ? -halfLen : 0;
+  const to   = half==='under' ? 0 : halfLen;
+  const w=to-from;
+  if(half==='under'){
+    /* under 端画橡皮头（先画，会被别人的 over 半段盖住） */
+    const eb=Math.max(10,T*0.34), mb=Math.max(8,T*0.26);
+    rr(c,from,-T/2,eb,T,6); c.fillStyle='#F5A3B7'; c.fill();
+    c.lineWidth=2.5; c.strokeStyle=PAL.ink; c.stroke();
+    c.fillStyle='#C9CED6'; c.fillRect(from+eb,-T/2,mb,T);
+    penBody(c,from+eb+mb,-T/2,w-eb-mb,T,pen);
+  }else{
+    const tip=Math.max(14,T*0.85);
+    penBody(c,from,-T/2,w-tip,T,pen);
+    const txv=to-tip;
+    c.beginPath(); c.moveTo(txv,-T/2); c.lineTo(to,0); c.lineTo(txv,T/2); c.closePath();
+    c.fillStyle='#F0CE96'; c.fill(); c.strokeStyle=PAL.ink; c.lineWidth=2.5; c.stroke();
+    c.beginPath(); c.moveTo(to-6,-2.5); c.lineTo(to,0); c.lineTo(to-6,2.5); c.closePath();
+    c.fillStyle='#4A4A4A'; c.fill();
+    /* 字母徽章画在 over 半段中间，永远可见 */
+    badge(c,from+w*0.5,0,Math.max(11,T*0.32),pen.letter,17);
+  }
+  c.restore();
+}
+/* 五角星 */
+function drawStar(c,cx,cy,r,color){
+  c.beginPath();
+  for(let i=0;i<10;i++){
+    const rad=i%2===0?r:r*0.45;
+    const a=-Math.PI/2+i*Math.PI/5;
+    const x=cx+rad*Math.cos(a), y=cy+rad*Math.sin(a);
+    if(i===0){ c.moveTo(x,y); } else { c.lineTo(x,y); }
+  }
+  c.closePath();
+  c.fillStyle=color; c.fill();
+  c.lineWidth=2.5; c.strokeStyle=PAL.ink; c.stroke();
+}
+/* 画布背景装饰 */
+function drawBackground(c){
+  c.fillStyle=PAL.paper; c.fillRect(0,0,CFG.W,CFG.H);
+  c.save(); c.globalAlpha=0.14; c.fillStyle=PAL.accent;
+  c.beginPath(); c.arc(60,500,90,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(920,40,70,0,Math.PI*2); c.fill();
+  c.restore();
+}
+
+/* ---------------- 五、庆祝彩纸（Canvas 实现，G5） ---------------- */
+const fxCv=$('#fxCanvas'), fxCtx=fxCv.getContext('2d');
+const FX={parts:[],running:false,raf:0,end:0};
+function fxSize(){ fxCv.width=window.innerWidth; fxCv.height=window.innerHeight; }
+window.addEventListener('resize',fxSize); fxSize();
+function fxBurst(big){
+  const colors=[PAL.main,PAL.accent,'#FFC53D','#E5484D','#8E4EC6','#2AB7A9'];
+  const n=big?170:70;
+  for(let i=0;i<n;i++){
+    FX.parts.push({
+      x:rand(fxCv.width), y:-20-rand(160),
+      vx:randRange(-1.6,1.6), vy:randRange(2,5),
+      rot:randRange(0,Math.PI*2), vr:randRange(-0.2,0.2),
+      w:randRange(7,14), h:randRange(10,20),
+      color:pick(colors), shape:rand(3)
+    });
+  }
+  FX.end=performance.now()+3200;
+  if(!FX.running){ FX.running=true; fxLoop(performance.now()); }
+}
+function fxLoop(t){
+  fxCtx.clearRect(0,0,fxCv.width,fxCv.height);
+  for(const p of FX.parts){
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.rot+=p.vr;
+    fxCtx.save(); fxCtx.translate(p.x,p.y); fxCtx.rotate(p.rot);
+    fxCtx.fillStyle=p.color;
+    if(p.shape===0){ fxCtx.fillRect(-p.w/2,-p.h/2,p.w,p.h); }
+    else if(p.shape===1){ fxCtx.beginPath(); fxCtx.arc(0,0,p.w/2,0,Math.PI*2); fxCtx.fill(); }
+    else{ fxCtx.beginPath(); fxCtx.moveTo(0,-p.h/2); fxCtx.lineTo(p.w/2,p.h/2); fxCtx.lineTo(-p.w/2,p.h/2); fxCtx.closePath(); fxCtx.fill(); }
+    fxCtx.restore();
+  }
+  FX.parts=FX.parts.filter(function(p){ return p.y<fxCv.height+30; });
+  if(performance.now()<FX.end&&FX.parts.length>0){ FX.raf=requestAnimationFrame(fxLoop); }
+  else{ FX.running=false; FX.parts=[]; fxCtx.clearRect(0,0,fxCv.width,fxCv.height); }
+}
+
+/* ---------------- 六、弹窗与流程 ---------------- */
+function setHint(t){ $('#hintBar').innerHTML=t; }
+function starsHtml(n){
+  let s='<div class="stars">';
+  for(let i=1;i<=3;i++){ s+='<span class="st '+(i<=n?'on':'')+'">★</span>'; }
+  return s+'</div>';
+}
+function showOverlay(html){
+  G.overlayOpen=true;
+  $('#overlayCard').innerHTML=html;
+  $('#overlay').style.display='flex';
+}
+function hideOverlay(){
+  G.overlayOpen=false;
+  $('#overlay').style.display='none';
+}
+/* 关卡结算 */
+function levelClear(stars,title,lines,isFinal){
+  const total=G.stars[0]+G.stars[1]+G.stars[2];
+  let html='<h2>'+title+'</h2>'+starsHtml(stars);
+  html+='<div>'+lines.join('<br>')+'</div>';
+  html+='<div class="btnRow">';
+  if(isFinal){
+    fxBurst(true); beep(880,.15); setTimeout(function(){beep(1175,.2);},160);
+    html+='<div class="big" style="width:100%;">全部通关！本难度共获得 '+total+' / 9 颗星！</div>';
+    html+='<button class="primary" id="ovAgain">再玩一次</button>';
+    html+='<button id="ovHome">返回难度选择</button>';
+  }else{
+    if(stars>=3){ fxBurst(false); }
+    beep(660,.12); setTimeout(function(){beep(880,.12);},130);
+    html+='<button class="primary" id="ovNext">下一关</button>';
+    html+='<button id="ovRetry">再玩本关</button>';
+  }
+  html+='</div>';
+  showOverlay(html);
+  if(isFinal){
+    $('#ovAgain').onclick=function(){ hideOverlay(); startMode(G.mode); };
+    $('#ovHome').onclick=function(){ hideOverlay(); goHome(); };
+  }else{
+    $('#ovNext').onclick=function(){ hideOverlay(); G.level++; startLevel(); };
+    $('#ovRetry').onclick=function(){ hideOverlay(); applyPalette(); startLevel(); };
+  }
+}
+/* 规则弹窗（进入时弹出，可随时再看，G6） */
+const RULES={
+  1:{title:'初级 · 叠叠排序场 —— 玩法与好方法',
+     body:'<h3>玩法</h3>左边是<b>铅笔堆</b>，下面是打乱的<b>铅笔卡片</b>。用手指或鼠标把卡片<b>拖</b>到右边的层数格子里：第1层=最上面，最后一层=最下面。全部放好后自动检查，排错会摇一摇退回卡片。'+
+       '<h3>好方法（叠加覆盖）</h3>第一步：给每支铅笔标上序号（字母）。第二步：从上到下，有序寻找。记住小口诀：<b>最上面的一定是完整图形（能看全）；被遮住一截的，就在遮住它的那支下面</b>。'+
+       '<h3>小目标</h3>零失误=3颗星！'},
+  2:{title:'中级 · 取铅笔友谊赛 —— 玩法与好方法',
+     body:'<h3>比赛规则</h3>两人轮流取铅笔，每次取<b>1支</b>；只能取<b>没被压住</b>的铅笔；如果取的时候碰倒了别的铅笔，就输掉这一局。'+
+       '<h3>玩法</h3>第一步：把<b>金色奖杯拖给</b>你猜的获胜选手。第二步：轮到你时，<b>点击</b>没被压住的铅笔把它取走；点错会碰倒铅笔哦。'+
+       '<h3>好方法（有序思考）</h3>先数一数能安全取走的铅笔有几支，两人轮流各取1支；剩下的铅笔互相压住（例如 A压B、B压C、C又压A），取哪支都会碰倒别的——<b>谁先面对这个圈，谁就麻烦了</b>。'+
+       '<h3>小目标</h3>猜对获胜者+完美操作=3颗星！'},
+  3:{title:'高级 · 翻转之门 —— 玩法与好方法',
+     body:'<h3>玩法</h3><b>拖动卡片</b>穿过神奇的门：<b>左右翻转门</b>（竖着的门）穿过去，卡片左右相反、上下不变；<b>上下翻转门</b>（横着的门）穿过去，卡片上下相反、左右不变。把卡片变成<b>右边相框里的目标样子</b>并放进相框，就过关啦！门可以反复穿过。'+
+       '<h3>好方法（翻转问题）</h3>向左（右）翻转：左右相反，上下不变；向上（下）翻转：上下相反，左右不变。观察绳子的挂法、贴纸和字母的方向，就知道翻转对不对。'+
+       '<h3>小目标</h3>用最少的穿门次数=3颗星！'}
+};
+function openRules(mode,fresh){
+  G.rulesOpen=true;
+  const r=RULES[mode];
+  $('#rulesCard').innerHTML='<h2>'+r.title+'</h2>'+r.body+
+    '<div class="btnRow"><button class="go" id="ruleGo">'+(fresh?'开始闯关':'继续游戏')+'</button></div>';
+  $('#rulesModal').style.display='flex';
+  $('#ruleGo').onclick=function(){
+    $('#rulesModal').style.display='none'; G.rulesOpen=false;
+    if(fresh){ startLevel(); }
+  };
+}
+function goHome(){
+  G.screen='home';
+  if(G.modeObjRef&&G.modeObjRef.timeouts){ G.modeObjRef.timeouts.forEach(clearTimeout); }
+  G.modeObjRef=null;
+  $('#screen-game').style.display='none';
+  $('#screen-home').style.display='flex';
+  $('#hud').style.display='none'; $('#gameBtns').style.display='none';
+  hideOverlay();
+}
+function startMode(m){
+  applyPalette();           /* 每局随机主色 */
+  G.mode=m; G.level=1; G.stars=[0,0,0];
+  $('#screen-home').style.display='none';
+  $('#screen-game').style.display='flex';
+  $('#hud').style.display='flex'; $('#gameBtns').style.display='flex';
+  G.screen='game';
+  G.modeObjRef = m===1?M1 : m===2?M2 : M3;
+  fitCanvas();
+  openRules(m,true);
+}
+function startLevel(){
+  G.revealed=false; G.timer=0; $('#hudTime').textContent='00:00';
+  setSteps(0);
+  hideOverlay();
+  G.modeObjRef.enter(G.level);
+}
+/* 计时器（弹窗打开时暂停） */
+setInterval(function(){
+  if(G.screen==='game'&&!G.overlayOpen&&!G.rulesOpen){
+    G.timer++; $('#hudTime').textContent=fmtTime();
+  }
+},1000);
+
+/* =====================================================================
+   模式一：初级 · 叠叠排序场（拖卡片排“从上到下”的顺序）
+   题型来源：例4 / 练习1-4、练习10（叠加覆盖：谁在最上面）
+   ===================================================================== */
+const M1={
+  enter(level){
+    const n=level+2;               /* 第1关3支、第2关4支、第3关5支 */
+    this.n=n;
+    this.layers=makePens(n);       /* layers[k] = 第k层的铅笔（k=0 最上面） */
+    /* ---- 铅笔堆几何：每支只被紧邻的上一支遮住上边缘一截 ---- */
+    const T=46,dy=32,L=430;
+    this.T=T; this.dy=dy; this.L=L;
+    const boxX=34,boxY=62,boxW=576,boxH=340;
+    const topY=boxY+(boxH-(T+(n-1)*dy))/2;
+    this.penRect=[];
+    for(let k=0;k<n;k++){
+      const off=(k%2===0?0:38)+randRange(-6,6);
+      this.penRect.push({x:boxX+24+off,y:topY+k*dy});
+    }
+    this.box={x:boxX,y:boxY,w:boxW,h:boxH};
+    /* ---- 右侧层数格子 ---- */
+    this.slots=[];
+    const sw=286,sh=52,gap=14;
+    const sy=64+(388-(n*sh+(n-1)*gap))/2;
+    for(let k=0;k<n;k++){
+      this.slots.push({r:{x:648,y:sy+k*(sh+gap),w:sw,h:sh},letter:null,locked:false,shakeT:0});
+    }
+    /* ---- 下方卡片托盘（打乱） ---- */
+    this.tray=[];
+    const idxs=shuffle(this.layers.map(function(p,i){return i;}));
+    const cw=136,ch=64,totW=n*cw+(n-1)*16;
+    const tx=(CFG.W-totW)/2, ty=448;
+    for(let s=0;s<n;s++){
+      const pen=this.layers[idxs[s]];
+      this.tray.push({pen:pen,r:{x:tx+s*(cw+16),y:ty,w:cw,h:ch},slot:-1});
+    }
+    this.drag=null; this.locked=false; this.mistakes=0; this.checking=false;
+    setHint('把下面的铅笔卡片<b>拖</b>进右边格子：第1层=最上面。口诀：<b>能看全的在最上面，被遮住一截的在下面</b>！');
+  },
+  down(p){
+    if(this.locked||this.checking){ return; }
+    /* 从托盘拿起卡片 */
+    for(const card of this.tray){
+      if(card.slot===-1&&ptInRect(p,card.r)){
+        this.drag={card:card,x:p.x,y:p.y}; cv.style.cursor='grabbing'; return;
+      }
+    }
+    /* 从格子里拿回卡片（未锁定时） */
+    for(let k=0;k<this.slots.length;k++){
+      const s=this.slots[k];
+      if(s.letter&&!s.locked&&ptInRect(p,s.r)){
+        let card=null;
+        for(const cc of this.tray){ if(cc.slot===k){ card=cc; break; } }
+        if(card){ card.slot=-1; s.letter=null; this.drag={card:card,x:p.x,y:p.y}; cv.style.cursor='grabbing'; }
+        return;
+      }
+    }
+  },
+  move(p){
+    if(this.drag){ this.drag.x=p.x; this.drag.y=p.y; }
+  },
+  up(p){
+    if(!this.drag){ return; }
+    const card=this.drag.card;
+    let placed=false;
+    for(let k=0;k<this.slots.length;k++){
+      const s=this.slots[k];
+      if(!s.letter&&ptInRect(p,s.r)){
+        s.letter=card.pen.letter; card.slot=k; placed=true; break;
+      }
+    }
+    this.drag=null; cv.style.cursor='grab';
+    if(placed){
+      addStep(); beep(520,.07);
+      let all=true;
+      for(const s of this.slots){ if(!s.letter){ all=false; } }
+      if(all){
+        this.checking=true;
+        const self=this;
+        setTimeout(function(){ self.evaluate(); },300);
+      }
+    }
+  },
+  evaluate(){
+    const now=performance.now();
+    let allOk=true;
+    for(let k=0;k<this.slots.length;k++){
+      const s=this.slots[k];
+      if(s.letter===this.layers[k].letter){ s.locked=true; }
+      else{ allOk=false; s.shakeT=now; }
+    }
+    if(allOk){
+      this.locked=true;
+      beep(660,.1); setTimeout(function(){beep(880,.14);},120);
+      const order=this.layers.map(function(p){return p.colorName+p.letter;}).join(' → ');
+      setTimeout(()=>{
+        const stars=G.revealed?0:(this.mistakes===0?3:this.mistakes===1?2:1);
+        G.stars[G.level-1]=stars;
+        levelClear(stars,'排对啦！',
+          ['从上到下的顺序：<b>'+order+'</b>',
+           '最上面的铅笔<b>能看全</b>（完整图形）；',
+           '被遮住一截的铅笔，就在遮住它的那支的<b>下面一层</b>。'],G.level>=3);
+      },800);
+    }else{
+      this.mistakes++; beep(220,.18,'square');
+      setTimeout(()=>{
+        for(let k=0;k<this.slots.length;k++){
+          const s=this.slots[k];
+          if(!s.locked&&s.shakeT){
+            for(const cc of this.tray){ if(cc.slot===k){ cc.slot=-1; } }
+            s.letter=null; s.shakeT=0;
+          }
+        }
+        this.checking=false;
+        setHint('有的层数不对哦！看看：<b>能看全</b>的那支在最上面，<b>被谁遮住</b>就在谁的下面一层。');
+      },520);
+    }
+  },
+  reveal(){
+    if(this.locked){ return; }
+    G.revealed=true;
+    for(let k=0;k<this.slots.length;k++){
+      this.slots[k].letter=this.layers[k].letter;
+      this.slots[k].locked=true; this.slots[k].shakeT=0;
+      for(const cc of this.tray){ if(cc.pen.letter===this.layers[k].letter){ cc.slot=k; } }
+    }
+    this.locked=true; this.drag=null; this.checking=false;
+    const order=this.layers.map(function(p){return p.colorName+p.letter;}).join(' → ');
+    setHint('答案已揭示：从上到下是 '+order+'。想一想为什么，然后点“重新开始”再挑战一次！');
+    setTimeout(()=>{
+      G.stars[G.level-1]=0;
+      levelClear(0,'答案已揭示',['从上到下依次是：<b>'+order+'</b>','<b>能看全</b>的排最上面；被遮住一截的在遮住它的那支下面。','点“再玩本关”重新随机挑战吧！'],G.level>=3);
+    },600);
+  },
+  draw(c,t){
+    /* 场景框 + 标题 */
+    rr(c,this.box.x,this.box.y,this.box.w,this.box.h,16);
+    c.fillStyle='#FFFFFF'; c.fill(); c.lineWidth=3.5; c.strokeStyle=PAL.ink; c.stroke();
+    c.fillStyle=PAL.ink; c.textAlign='center'; c.textBaseline='middle';
+    c.font='800 20px "Microsoft YaHei",sans-serif';
+    c.fillText('铅笔堆 · 谁在上面？',this.box.x+this.box.w/2,this.box.y+20);
+    /* 从最下层往上画（上层压住下层） */
+    for(let k=this.n-1;k>=0;k--){
+      const rc=this.penRect[k];
+      const badgeX=rc.x+this.L*0.45, badgeY=rc.y+this.T-15;
+      drawPencilH(c,rc.x,rc.y,this.L,this.T,this.layers[k],badgeX,badgeY,14,20);
+    }
+    /* 右侧层数格子 */
+    c.font='800 18px "Microsoft YaHei",sans-serif';
+    for(let k=0;k<this.slots.length;k++){
+      const s=this.slots[k];
+      let ox=0;
+      if(s.shakeT&&t-s.shakeT<420){ ox=Math.sin((t-s.shakeT)*0.045)*6; }
+      rr(c,s.r.x+ox,s.r.y,s.r.w,s.r.h,12);
+      c.fillStyle=s.locked?'#E4F8E2':PAL.soft; c.fill();
+      c.lineWidth=3; c.strokeStyle=s.locked?'#3E9B44':PAL.ink;
+      if(!s.locked){ c.setLineDash([8,6]); } c.stroke(); c.setLineDash([]);
+      const label=(k===0?'第1层（最上面）':k===this.n-1?'第'+this.n+'层（最下面）':'第'+(k+1)+'层');
+      c.fillStyle=PAL.ink; c.textAlign='left';
+      c.fillText(label,s.r.x+ox+12,s.r.y+s.r.h/2);
+      if(s.letter){
+        let pen=this.layers[k];
+        for(const cc of this.tray){ if(cc.slot===k){ pen=cc.pen; } }
+        drawPencilH(c,s.r.x+ox+166,s.r.y+14,112,24,pen,null,null,0,0);
+        badge(c,s.r.x+ox+166+112*0.5,s.r.y+26,12,pen.letter,17);
+        if(s.locked){ drawStar(c,s.r.x+ox+s.r.w-18,s.r.y+s.r.h/2,11,'#FFC53D'); }
+      }
+    }
+    /* 托盘卡片（轻微浮动，吸引拖拽） */
+    for(let i=0;i<this.tray.length;i++){
+      const card=this.tray[i];
+      if(card.slot!==-1){ continue; }
+      const bob=Math.sin(t/520+i*1.3)*2.5;
+      this.drawCard(c,card.r.x,card.r.y+bob,card.pen,false);
+    }
+    /* 拖拽中的卡片 */
+    if(this.drag){
+      this.drawCard(c,this.drag.x-68,this.drag.y-32,this.drag.card.pen,true);
+    }
+  },
+  drawCard(c,x,y,pen,lift){
+    c.save();
+    if(lift){ c.shadowColor='rgba(0,0,0,.35)'; c.shadowBlur=14; c.shadowOffsetY=8; }
+    rr(c,x,y,136,64,12);
+    c.fillStyle='#FFFFFF'; c.fill();
+    c.lineWidth=3; c.strokeStyle=lift?PAL.main:PAL.ink; c.stroke();
+    c.restore();
+    drawPencilH(c,x+10,y+20,96,24,pen,null,null,0,0);
+    badge(c,x+10+96*0.5,y+32,12,pen.letter,17);
+  }
+};
+
+/* =====================================================================
+   模式二：中级 · 取铅笔友谊赛（预测获胜者 + 轮流安全取铅笔）
+   题型来源：例5 / 练习11-15（取铅笔对策：奇偶 + 互相压住的圈）
+   ===================================================================== */
+const M2={
+  enter(level){
+    /* 关卡配置：链条（能安全取的）与圈（互相压住）的支数均随机（反重复） */
+    const chainN=[2+rand(2),3+rand(2),4+rand(2)][level-1];
+    const cycN=level===3?4:3;
+    this.level=level; this.chainN=chainN; this.cycN=cycN;
+    const pens=makePens(chainN+cycN);
+    this.chain=pens.slice(0,chainN);        /* chain[0] 最上面（没被压住） */
+    this.cyc=pens.slice(chainN);
+    /* 链条几何：纵向小堆 */
+    const T=38,dy=24,L=300;
+    this.T=T; this.dy=dy; this.L=L;
+    this.chainRect=[];
+    for(let i=0;i<chainN;i++){
+      const off=(i%2===0?0:26)+randRange(-5,5);
+      this.chainRect.push({x:64+off,y:88+i*dy});
+    }
+    /* 圈几何：三角形 / 菱形，每支压住下一支 */
+    const CC={x:660,y:248}, R=cycN===3?118:100;
+    this.cc=CC;
+    const pts=[];
+    for(let i=0;i<cycN;i++){
+      const a=(-90+i*(360/cycN))*Math.PI/180;
+      pts.push({x:CC.x+R*Math.cos(a),y:CC.y+R*Math.sin(a)});
+    }
+    this.cycGeom=[];
+    for(let k=0;k<cycN;k++){
+      const p1=pts[k], p2=pts[(k+1)%cycN];
+      const dx=p2.x-p1.x, dy2=p2.y-p1.y;
+      const len=Math.sqrt(dx*dx+dy2*dy2);
+      const ux=dx/len, uy=dy2/len, ext=30;
+      const start={x:p1.x-ux*ext,y:p1.y-uy*ext};
+      const end={x:p2.x+ux*ext,y:p2.y+uy*ext};
+      const mid={x:(start.x+end.x)/2,y:(start.y+end.y)/2};
+      const ang=Math.atan2(end.y-start.y,end.x-start.x);
+      const half=(len+2*ext)/2;
+      this.cycGeom.push({start:start,end:end,mid:mid,ang:ang,half:half,corner:p2});
+    }
+    /* 比赛状态 */
+    this.taken=0; this.takenBy=[[],[]];
+    this.first=rand(2); this.turn=this.first;
+    this.me=0; this.robot=1;
+    this.names=['我',pick(['牛牛','乐乐','田田','丁丁','阿普'])];
+    this.phase='predict'; this.prediction=-1;
+    this.trophy={x:480,y:478,drag:false};
+    this.msg='第一步：把金色奖杯拖给你猜的获胜选手！';
+    this.mistakes=0; this.fall=null; this.timeouts=[]; this.revealing=false;
+    this.panel=[{x:64,y:432,w:280,h:88},{x:616,y:432,w:280,h:88}];
+    setHint('规则：轮流取铅笔，每次1支，<b>只能取没被压住的</b>；碰倒别的铅笔就输。圈上的标签告诉你谁压谁！');
+  },
+  freeCount(){ return this.chainN-this.taken; },
+  parityWinner(){ return this.freeCount()%2===1?this.first:1-this.first; },
+  chainHit(p){
+    for(let i=this.chainN-1;i>=this.taken;i--){
+      const rc=this.chainRect[i];
+      if(p.x>=rc.x-6&&p.x<=rc.x+this.L+6&&p.y>=rc.y-6&&p.y<=rc.y+this.T+6){ return i; }
+    }
+    return -1;
+  },
+  cycHit(p){
+    for(let k=0;k<this.cycN;k++){
+      const g=this.cycGeom[k];
+      /* 点到线段距离 */
+      const ax=g.start.x, ay=g.start.y, bx=g.end.x, by=g.end.y;
+      const abx=bx-ax, aby=by-ay;
+      const tt=clamp(((p.x-ax)*abx+(p.y-ay)*aby)/(abx*abx+aby*aby),0,1);
+      const cx=ax+abx*tt, cy=ay+aby*tt;
+      const d=Math.sqrt((p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy));
+      if(d<this.T/2+8){ return k; }
+    }
+    return -1;
+  },
+  down(p){
+    if(this.phase==='over'||this.phase==='anim'){ return; }
+    /* 预测阶段：拖奖杯 */
+    if(this.phase==='predict'){
+      if(Math.abs(p.x-this.trophy.x)<46&&Math.abs(p.y-this.trophy.y)<46){
+        this.trophy.drag=true; cv.style.cursor='grabbing';
+      }else{
+        this.msg='先把金色奖杯拖到你和你对手的名字框上，做出预测！';
+        beep(300,.08,'triangle');
+      }
+      return;
+    }
+    /* 轮到学生操作 */
+    if(this.phase==='play'&&this.turn===this.me){
+      const ci=this.chainHit(p);
+      if(ci===this.taken){ this.takePen(this.me,false); addStep(); return; }
+      if(ci>this.taken){ this.toppleBy(this.chain[ci]); return; }
+      const k=this.cycHit(p);
+      if(k>=0){ this.toppleBy(this.cyc[k]); return; }
+    }
+    /* 末局：学生面对圈，只能点圈里的铅笔（必倒） */
+    if(this.phase==='end'&&this.turn===this.me){
+      const k=this.cycHit(p);
+      if(k>=0){ this.toppleBy(this.cyc[k]); }
+    }
+  },
+  move(p){
+    if(this.trophy.drag){ this.trophy.x=p.x; this.trophy.y=p.y; }
+  },
+  up(p){
+    if(this.trophy.drag){
+      this.trophy.drag=false; cv.style.cursor='grab';
+      for(let i=0;i<2;i++){
+        if(ptInRect(p,this.panel[i])){
+          this.prediction=i; this.phase='play';
+          this.msg='预测完成！找一找：现在哪支铅笔没被压住？点击把它取走。';
+          beep(700,.1);
+          if(this.turn===this.robot){ this.robotTurn(); }
+          return;
+        }
+      }
+      this.trophy.x=480; this.trophy.y=478;
+    }
+  },
+  takePen(player,scripted){
+    const i=this.taken, pen=this.chain[i];
+    const rc=this.chainRect[i];
+    this.taken++;
+    const target={x:this.panel[player].x+150,y:this.panel[player].y+44};
+    this.flight={pen:pen,t0:performance.now(),from:{x:rc.x,y:rc.y},to:target};
+    beep(620,.08);
+    this.turn=1-player;
+    const self=this;
+    this.timeouts.push(setTimeout(function(){
+      self.flight=null; self.takenBy[player].push(pen);
+      if(!scripted){ self.afterMove(); }
+    },430));
+  },
+  afterMove(){
+    if(this.taken>=this.chainN){
+      this.phase='end';
+      if(this.turn===this.robot){
+        this.msg='剩下的铅笔互相压住：'+this.names[this.robot]+' 取哪支都会碰倒别的！';
+        const self=this;
+        this.timeouts.push(setTimeout(function(){ self.toppleCycle(self.robot); },1600));
+      }else{
+        this.msg='轮到你了！剩下的铅笔互相压住（看圈上的“压”字标签），点一支试试看？';
+      }
+    }else if(this.turn===this.robot){
+      this.robotTurn();
+    }else{
+      this.msg='又轮到你了！找一找：现在哪支铅笔没被压住？';
+    }
+  },
+  robotTurn(){
+    this.phase='anim';
+    this.msg=this.names[this.robot]+' 正在想……';
+    const self=this;
+    this.timeouts.push(setTimeout(function(){
+      self.phase='play';
+      self.takePen(self.robot,false);
+    },950));
+  },
+  /* 学生点错（点到被压住的铅笔）：碰倒 → 学生告负 */
+  toppleBy(pen){
+    let affected;
+    if(this.chain.indexOf(pen)>=0){
+      const i=this.chain.indexOf(pen);
+      affected=this.chain.slice(this.taken,i+1);
+    }else{
+      affected=this.cyc.slice();
+    }
+    this.doTopple(this.me,affected,'哎呀，碰倒了铅笔！');
+  },
+  /* 末局：面对圈的一方必然碰倒 */
+  toppleCycle(loser){
+    this.doTopple(loser,this.cyc.slice(),'铅笔圈倒啦！');
+  },
+  doTopple(loser,affected,headline){
+    this.phase='anim';
+    this.mistakes++;
+    this.fall={t0:performance.now(),pens:affected,headline:headline};
+    beep(180,.3,'sawtooth');
+    const self=this;
+    this.timeouts.push(setTimeout(function(){ self.finish(loser,true); },1400));
+  },
+  finish(loser,byTopple){
+    this.phase='over';
+    const winner=1-loser;
+    const pw=this.parityWinner();          /* 数学上的获胜者（奇偶分析） */
+    const predOk=this.prediction===pw;
+    let stars=0, lines=[];
+    const chainList=this.chain.map(function(p){return p.colorName+p.letter;}).join('、');
+    const cycText=this.cyc.map(function(p){return p.letter;}).join('压');
+    lines.push('能安全取走的铅笔有 <b>'+this.chainN+'</b> 支：'+chainList+'。');
+    lines.push('两人轮流各取1支，'+this.chainN+' 是<b>'+(this.chainN%2===1?'奇':'偶')+'数</b>，最后面对铅笔圈的是 <b>'+this.names[1-pw]+'</b>。');
+    lines.push('剩下的 '+this.cyc.map(function(p){return p.colorName+p.letter;}).join('、')+' 互相压住（'+cycText+'），取哪支都会碰倒别的。');
+    lines.push('所以数学答案是：<b>'+this.names[pw]+' 获胜</b>！');
+    if(predOk){ lines.push('你的预测和数学答案一致，真棒！'); stars++; }
+    else{ lines.push('你的预测不是数学答案，没关系，再想想口诀！'); }
+    let title;
+    if(byTopple&&loser===this.me&&this.taken<this.chainN){
+      title='碰倒了铅笔，本局告负';
+      lines.unshift('只有<b>没被压住</b>的铅笔才能安全取走——被压住的铅笔一抽，上面的就会滚落。');
+    }else{
+      title=(winner===this.me?'你赢啦！':this.names[this.robot]+' 获胜！');
+      if(winner===pw){ stars++; }
+      if(this.mistakes===0){ stars++; lines.push('全程零失误，操作完美！'); }
+    }
+    if(G.revealed){ stars=0; lines.push('（本局已看过答案，不记星星）'); }
+    G.stars[G.level-1]=stars;
+    const isFinal=G.level>=3;
+    levelClear(stars,title,lines,isFinal);
+  },
+  reveal(){
+    if(this.phase==='over'){ return; }
+    G.revealed=true;
+    this.timeouts.forEach(clearTimeout); this.timeouts=[];
+    this.revealing=true; this.phase='anim'; this.trophy.drag=false;
+    if(this.prediction<0){ this.prediction=this.parityWinner(); }
+    this.msg='答案演示：按从上到下的顺序轮流取……';
+    const self=this;
+    let t=300;
+    for(let i=0;i<this.chainN;i++){
+      const pl=(this.first+i)%2;
+      this.timeouts.push(setTimeout(function(){ self.takePen(pl,true); },t));
+      t+=650;
+    }
+    const loser=this.parityWinner()===0?1:0;   /* 面对圈的一方 = 输家 */
+    this.timeouts.push(setTimeout(function(){ self.doTopple(loser,self.cyc.slice(),'演示：面对铅笔圈的一方碰倒了铅笔！'); },t+700));
+  },
+  draw(c,t){
+    const self=this;
+    c.textAlign='center'; c.textBaseline='middle';
+    /* ---- 链条（可安全取走的铅笔堆） ---- */
+    c.font='800 17px "Microsoft YaHei",sans-serif';
+    c.fillStyle=PAL.ink;
+    c.fillText('可以按从上到下的顺序取',215,74);
+    for(let i=this.chainN-1;i>=this.taken;i--){
+      const rc=this.chainRect[i];
+      const free=i===this.taken;
+      if(free){
+        c.save(); c.globalAlpha=0.35+0.25*Math.sin(t/260);
+        rr(c,rc.x-8,rc.y-6,this.L+16,this.T+12,14);
+        c.fillStyle='#7BD98B'; c.fill(); c.restore();
+      }
+      drawPencilH(c,rc.x,rc.y,this.L,this.T,this.chain[i],rc.x+this.L*0.45,rc.y+this.T-13,12,17);
+    }
+    /* 取走中的飞行铅笔 */
+    if(this.flight){
+      const f=this.flight, p=clamp((t-f.t0)/430,0,1);
+      const x=f.from.x+(f.to.x-f.from.x-140)*p;
+      const y=f.from.y+(f.to.y-f.from.y)*p;
+      c.save(); c.globalAlpha=1-clamp(p-0.6,0,1)*0.8;
+      drawPencilH(c,x,y,this.L*0.6,this.T*0.7,f.pen,null,null,0,0);
+      c.restore();
+    }
+    /* ---- 圈（互相压住的铅笔） ---- */
+    const cyc=this.cyc, g=this.cycGeom;
+    /* 底层段（under 半段）：先画 */
+    for(let k=0;k<this.cycN;k++){ drawPencilHalf(c,g[k].mid,g[k].ang,g[k].half,this.T,cyc[k],'under'); }
+    /* 上层段（over 半段）：后画 → 看起来压在下面那支上 */
+    for(let k=0;k<this.cycN;k++){ drawPencilHalf(c,g[k].mid,g[k].ang,g[k].half,this.T,cyc[k],'over'); }
+    /* “压”标签：谁压谁，一目了然 */
+    for(let k=0;k<this.cycN;k++){
+      const corner=g[k].corner;
+      const ox=corner.x-this.cc.x, oy=corner.y-this.cc.y;
+      const ol=Math.sqrt(ox*ox+oy*oy);
+      const lx=corner.x+ox/ol*40, ly=corner.y+oy/ol*40;
+      const txt=cyc[k].letter+'压'+cyc[(k+1)%this.cycN].letter;
+      c.font='800 16px "Microsoft YaHei",sans-serif';
+      const w=c.measureText(txt).width+18;
+      rr(c,lx-w/2,ly-14,w,28,14);
+      c.fillStyle='#FFFFFF'; c.fill(); c.lineWidth=2.5; c.strokeStyle=cyc[k].color; c.stroke();
+      c.fillStyle=PAL.ink; c.fillText(txt,lx,ly+1);
+    }
+    /* 末局高亮圈 */
+    if(this.phase==='end'){
+      c.save();
+      c.globalAlpha=0.4+0.3*Math.sin(t/220);
+      c.beginPath(); c.arc(this.cc.x,this.cc.y,this.cycN===3?165:150,0,Math.PI*2);
+      c.lineWidth=7; c.strokeStyle='#E5484D'; c.setLineDash([14,10]); c.stroke();
+      c.restore();
+    }
+    /* 碰倒动画：受影响的铅笔旋转滚落 */
+    if(this.fall){
+      const p=clamp((t-this.fall.t0)/1300,0,1);
+      c.save(); c.globalAlpha=1-p*0.6;
+      this.fall.pens.forEach(function(pen,idx){
+        const ci=self.cyc.indexOf(pen);
+        const isCyc=ci>=0;
+        let base, rectInfo=null, geom=null;
+        if(isCyc){
+          geom=self.cycGeom[ci]; base=geom.mid;
+        }else{
+          const i=self.chain.indexOf(pen);
+          rectInfo=self.chainRect[i];
+          base={x:rectInfo.x+self.L/2,y:rectInfo.y+self.T/2};
+        }
+        c.save();
+        c.translate(p*90*(idx%2===0?1:-1),p*p*120);
+        c.rotate(p*1.4*(idx%2===0?1:-1));
+        if(isCyc){
+          c.translate(base.x,base.y); c.rotate(geom.ang);
+          penBody(c,-geom.half,-self.T/2,geom.half*2,self.T,pen);
+        }else{
+          c.translate(base.x,base.y);
+          drawPencilH(c,-self.L/2,-self.T/2,self.L,self.T,pen,null,null,0,0);
+        }
+        c.restore();
+      });
+      c.restore();
+    }
+    /* ---- 提示语 ---- */
+    c.font='800 19px "Microsoft YaHei",sans-serif';
+    const mw=c.measureText(this.msg).width;
+    rr(c,(CFG.W-mw)/2-16,392,mw+32,32,16);
+    c.fillStyle=PAL.soft; c.fill(); c.lineWidth=2.5; c.strokeStyle=PAL.ink; c.stroke();
+    c.fillStyle=PAL.ink; c.fillText(this.msg,CFG.W/2,409);
+    /* ---- 选手面板 ---- */
+    for(let i=0;i<2;i++){
+      const pn=this.panel[i];
+      const active=(this.turn===i&&this.phase!=='over'&&this.phase!=='predict');
+      rr(c,pn.x,pn.y,pn.w,pn.h,14);
+      c.fillStyle=active?'#FFF3D6':'#FFFFFF'; c.fill();
+      c.lineWidth=active?5:3; c.strokeStyle=active?PAL.main:PAL.ink; c.stroke();
+      c.fillStyle=PAL.ink; c.textAlign='left';
+      c.font='800 23px "Microsoft YaHei",sans-serif';
+      c.fillText(this.names[i],pn.x+14,pn.y+24);
+      c.font='800 16px "Microsoft YaHei",sans-serif';
+      c.fillStyle='#7A7468';
+      c.fillText(i===this.me?'（你）':'（小伙伴）',pn.x+14,pn.y+48);
+      if(this.prediction===i){
+        drawTrophy(c,pn.x+pn.w-26,pn.y+24,17);
+        c.fillStyle='#B8860B'; c.font='800 16px "Microsoft YaHei",sans-serif';
+        c.textAlign='right'; c.fillText('我的预测',pn.x+pn.w-52,pn.y+64);
+      }
+      /* 已取走的铅笔（迷你显示） */
+      const got=this.takenBy[i];
+      for(let j=0;j<got.length;j++){
+        const gx=pn.x+96+j*40;
+        drawPencilH(c,gx,pn.y+44,36,14,got[j],null,null,0,0);
+      }
+      if(active&&this.turn===this.robot){
+        c.fillStyle=PAL.main; c.textAlign='center';
+        c.font='800 16px "Microsoft YaHei",sans-serif';
+        c.fillText('思考中……',pn.x+pn.w/2,pn.y+72);
+      }
+    }
+    /* 奖杯（预测阶段可拖） */
+    if(this.phase==='predict'){
+      const bob=this.trophy.drag?0:Math.sin(t/300)*3;
+      drawTrophy(c,this.trophy.x,this.trophy.y+bob,24);
+      c.fillStyle=PAL.ink; c.textAlign='center';
+      c.font='800 17px "Microsoft YaHei",sans-serif';
+      c.fillText('拖动奖杯 → 放到会获胜的选手框上',480,532);
+    }
+  }
+};
+
+/* 金色奖杯 */
+function drawTrophy(c,cx,cy,r){
+  c.save();
+  c.translate(cx,cy);
+  c.fillStyle='#F5B301'; c.strokeStyle='#8A6300'; c.lineWidth=3;
+  c.beginPath(); c.moveTo(-r*0.7,-r); c.lineTo(r*0.7,-r);
+  c.quadraticCurveTo(r*0.62,r*0.5,0,r*0.62);
+  c.quadraticCurveTo(-r*0.62,r*0.5,-r*0.7,-r);
+  c.closePath(); c.fill(); c.stroke();
+  c.beginPath(); c.arc(-r*0.82,-r*0.35,r*0.32,-Math.PI/2,Math.PI/2); c.stroke();
+  c.beginPath(); c.arc(r*0.82,-r*0.35,r*0.32,-Math.PI/2,Math.PI/2); c.stroke();
+  c.fillStyle='#F5B301'; c.fillRect(-r*0.22,r*0.55,r*0.44,r*0.45);
+  c.beginPath(); c.ellipse(0,r*1.1,r*0.62,r*0.2,0,0,Math.PI*2); c.fill(); c.stroke();
+  c.fillStyle='#FFF6D8';
+  c.font='800 '+Math.max(13,Math.round(r*0.6))+'px "Microsoft YaHei",sans-serif';
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillText('赢',0,-r*0.25);
+  c.restore();
+}
+
+/* =====================================================================
+   模式三：高级 · 翻转之门（拖卡片穿门做镜像变换）
+   题型来源：例6 / 练习16-18（翻转：左右相反上下不变；上下相反左右不变）
+   ===================================================================== */
+const M3={
+  enter(level){
+    this.level=level;
+    /* 目标状态：第1关翻1次；第2关翻2次；第3关随机（含 0 次的“观察关”） */
+    let target;
+    if(level===1){ target=rand(2)===0?{fx:-1,fy:1}:{fx:1,fy:-1}; }
+    else if(level===2){ target={fx:-1,fy:-1}; }
+    else{
+      const opts=[{fx:1,fy:1},{fx:-1,fy:1},{fx:1,fy:-1},{fx:-1,fy:-1}];
+      target=pick(opts);
+    }
+    this.target=target;
+    this.card={x:150,y:rand(2)===0?150:410,fx:1,fy:1};
+    this.dragging=false;
+    this.cross=0;
+    this.flipAnim={x:0,y:0};        /* 翻转压缩动画起始时间 */
+    this.flashes=[];
+    this.done=false; this.auto=null;
+    this.minimal=(target.fx!==1?1:0)+(target.fy!==1?1:0);
+    this.features={rope:true,star:true,tri:level>=2,letterF:level>=3};
+    this.goal={x:700,y:104,w:232,h:326};
+    setHint('拖动卡片穿过<b>左右门</b>（竖线）→左右相反、上下不变；穿过<b>上下门</b>（横线）→上下相反、左右不变。变成目标样子放进相框！');
+  },
+  gate(){ return {vx:470,hy:280}; },
+  cardRect(){ return {x:this.card.x-95,y:this.card.y-65,w:190,h:130}; },
+  moveCardTo(nx,ny){
+    if(this.done){ return; }
+    const g=this.gate();
+    const prev={x:this.card.x,y:this.card.y};
+    /* 穿过左右门（竖线）：左右翻转 */
+    if((prev.x-g.vx)*(nx-g.vx)<0){
+      this.card.fx*=-1; this.cross++; addStep();
+      this.flipAnim.x=performance.now();
+      this.flash('左右翻转：左右相反，上下不变',nx,ny-84);
+      beep(740,.1);
+    }
+    /* 穿过上下门（横线）：上下翻转 */
+    if((prev.y-g.hy)*(ny-g.hy)<0){
+      this.card.fy*=-1; this.cross++;
+      this.flipAnim.y=performance.now();
+      this.flash('上下翻转：上下相反，左右不变',nx,ny-84);
+      beep(560,.1);
+    }
+    this.card.x=nx; this.card.y=ny;
+  },
+  flash(text,x,y){ this.flashes.push({text:text,x:x,y:y,t0:performance.now()}); },
+  down(p){
+    if(this.done){ return; }
+    const r=this.cardRect();
+    if(ptInRect(p,r)){ this.dragging=true; cv.style.cursor='grabbing'; }
+  },
+  move(p){
+    if(this.dragging){
+      const nx=clamp(p.x,40,CFG.W-40), ny=clamp(p.y,36,CFG.H-36);
+      this.moveCardTo(nx,ny);
+    }
+  },
+  up(){
+    if(!this.dragging){ return; }
+    this.dragging=false; cv.style.cursor='grab';
+    const gc={x:this.goal.x+this.goal.w/2,y:this.goal.y+this.goal.h/2+10};
+    const inside=Math.abs(this.card.x-gc.x)<95&&Math.abs(this.card.y-gc.y)<125;
+    if(inside){
+      this.card.x=gc.x; this.card.y=gc.y;
+      if(this.card.fx===this.target.fx&&this.card.fy===this.target.fy){
+        this.win();
+      }else{
+        beep(240,.2,'square');
+        this.flash('方向还不对，再穿过翻转门试试！',gc.x,gc.y-110);
+      }
+    }
+  },
+  win(){
+    this.done=true;
+    beep(660,.12); setTimeout(function(){beep(880,.12);},120); setTimeout(function(){beep(1100,.16);},240);
+    const stars=G.revealed?0:(this.cross===this.minimal?3:this.cross<=this.minimal+2?2:1);
+    G.stars[G.level-1]=stars;
+    const self=this;
+    setTimeout(function(){
+      const lines=[
+        '你用了 <b>'+self.cross+'</b> 次穿门（最少需要 '+self.minimal+' 次）。',
+        '左右翻转：左右相反，上下不变；上下翻转：上下相反，左右不变。',
+        '看看绳子的挂法和图案方向，翻转的秘密就藏在细节里！'
+      ];
+      if(self.minimal===0){ lines.unshift('这一关其实<b>一次都不用翻</b>——先观察再动手，观察也是本领！'); }
+      levelClear(stars,'卡片变好啦！',lines,self.level>=3);
+    },800);
+  },
+  reveal(){
+    if(this.done){ return; }
+    G.revealed=true;
+    /* 自动演示：依次穿过需要的门，再放进相框 */
+    const pts=[{x:this.card.x,y:this.card.y}];
+    if(this.target.fx!==1){ pts.push({x:566,y:this.card.y}); }
+    if(this.target.fy!==1){ pts.push({x:566,y:384}); }
+    pts.push({x:this.goal.x+this.goal.w/2,y:this.goal.y+this.goal.h/2+10});
+    this.auto={pts:pts,seg:0,t0:performance.now(),finished:false};
+    this.dragging=false;
+  },
+  drawCardShape(c,cx,cy,fx,fy,feat,alpha,sq){
+    c.save();
+    c.globalAlpha=alpha;
+    c.translate(cx,cy);
+    let sx=fx, sy=fy;
+    if(sq&&sq.x!==null){ sx*=Math.abs(Math.cos(Math.PI*sq.x)); }
+    if(sq&&sq.y!==null){ sy*=Math.abs(Math.cos(Math.PI*sq.y)); }
+    c.scale(sx,sy);
+    const w=190,h=130;
+    /* 卡底 */
+    rr(c,-w/2,-h/2,w,h,12);
+    c.fillStyle='#FFFFFF'; c.fill();
+    c.lineWidth=4; c.strokeStyle=PAL.ink; c.stroke();
+    /* 角上三角贴纸 */
+    if(feat.tri){
+      c.beginPath(); c.moveTo(w/2-50,-h/2); c.lineTo(w/2,-h/2); c.lineTo(w/2,-h/2+50); c.closePath();
+      c.fillStyle=PAL.accent; c.fill(); c.lineWidth=2.5; c.strokeStyle=PAL.ink; c.stroke();
+    }
+    /* 星星贴纸 */
+    if(feat.star){ drawStar(c,-w/2+36,h/2-30,19,'#FFC53D'); }
+    /* 字母 F（翻转后方向相反，一眼可见） */
+    if(feat.letterF){
+      c.fillStyle=PAL.ink;
+      c.font='800 46px Georgia,serif';
+      c.textAlign='center'; c.textBaseline='middle';
+      c.fillText('F',28,-6);
+    }
+    /* 绳子：系点在顶边偏左，绕到卡片前面，垂到下边缘外并带挂钩 */
+    c.strokeStyle='#8A5A2B'; c.lineWidth=6; c.lineCap='round';
+    c.beginPath();
+    c.moveTo(-58,-h/2);
+    c.bezierCurveTo(-104,-28,-58,26,-6,34);
+    c.bezierCurveTo(42,42,64,56,66,96);
+    c.stroke();
+    c.beginPath(); c.arc(64,110,14,-Math.PI*0.2,Math.PI*0.95); c.stroke();
+    c.fillStyle='#8A5A2B';
+    c.beginPath(); c.arc(-58,-h/2,7,0,Math.PI*2); c.fill();
+    c.restore();
+  },
+  draw(c,t){
+    const g=this.gate();
+    c.textAlign='center'; c.textBaseline='middle';
+    /* ---- 翻转门 ---- */
+    const dash=(t/60)%26;
+    c.save();
+    c.strokeStyle=PAL.main; c.lineWidth=5; c.setLineDash([16,10]); c.lineDashOffset=-dash;
+    c.beginPath(); c.moveTo(g.vx,44); c.lineTo(g.vx,502); c.stroke();
+    c.strokeStyle=PAL.accent;
+    c.beginPath(); c.moveTo(40,g.hy); c.lineTo(668,g.hy); c.stroke();
+    c.restore();
+    c.fillStyle=PAL.main; c.font='800 19px "Microsoft YaHei",sans-serif';
+    c.fillText('左右翻转门',g.vx,26);
+    c.font='800 16px "Microsoft YaHei",sans-serif';
+    c.fillText('穿过：左右相反·上下不变',g.vx+4,506);
+    c.fillStyle=PAL.accent;
+    c.font='800 19px "Microsoft YaHei",sans-serif';
+    c.textAlign='left';
+    c.fillText('上下翻转门',56,g.hy-40);
+    c.font='800 16px "Microsoft YaHei",sans-serif';
+    c.fillText('穿过：上下相反·左右不变',56,g.hy+30);
+    /* ---- 状态牌 ---- */
+    c.textAlign='left';
+    const sx1='左右：'+(this.card.fx===1?'未翻':'已翻');
+    const sx2='上下：'+(this.card.fy===1?'未翻':'已翻');
+    const sx3='穿门 '+this.cross+' 次';
+    c.font='800 17px "Microsoft YaHei",sans-serif';
+    let bx=36,by=56;
+    const chips=[[sx1,PAL.main],[sx2,PAL.accent],[sx3,'#7A7468']];
+    for(const it of chips){
+      const w=c.measureText(it[0]).width+20;
+      rr(c,bx,by,w,30,15); c.fillStyle='#FFFFFF'; c.fill();
+      c.lineWidth=2.5; c.strokeStyle=it[1]; c.stroke();
+      c.fillStyle=it[1]; c.fillText(it[0],bx+10,by+16);
+      bx+=w+10;
+    }
+    /* ---- 目标相框 ---- */
+    const gc={x:this.goal.x+this.goal.w/2,y:this.goal.y+this.goal.h/2+10};
+    rr(c,this.goal.x,this.goal.y,this.goal.w,this.goal.h,16);
+    c.fillStyle='#FFFDF5'; c.fill();
+    c.lineWidth=4; c.strokeStyle=this.done?'#3E9B44':PAL.ink;
+    c.setLineDash(this.done?[]:[12,8]); c.stroke(); c.setLineDash([]);
+    c.fillStyle=PAL.ink; c.textAlign='center';
+    c.font='800 19px "Microsoft YaHei",sans-serif';
+    c.fillText('目标样子',gc.x,this.goal.y+20);
+    this.drawCardShape(c,gc.x,gc.y+8,this.target.fx,this.target.fy,this.features,0.45,null);
+    /* ---- 卡片本体 ---- */
+    const sq={x:null,y:null};
+    if(this.flipAnim.x&&t-this.flipAnim.x<280){ sq.x=(t-this.flipAnim.x)/280; }
+    if(this.flipAnim.y&&t-this.flipAnim.y<280){ sq.y=(t-this.flipAnim.y)/280; }
+    if(this.dragging){
+      c.save(); c.globalAlpha=0.18; c.fillStyle='#000';
+      c.beginPath(); c.ellipse(this.card.x+10,this.card.y+72,95,20,0,0,Math.PI*2); c.fill(); c.restore();
+    }
+    this.drawCardShape(c,this.card.x,this.card.y,this.card.fx,this.card.fy,this.features,1,sq);
+    if(this.done){
+      drawStar(c,gc.x+74,this.goal.y+22,15,'#3E9B44');
+    }
+    /* ---- 演示动画（揭示答案） ---- */
+    if(this.auto){
+      const a=this.auto, per=520;
+      const p=clamp((t-a.t0)/per,0,1);
+      const from=a.pts[a.seg], to=a.pts[a.seg+1];
+      const nx=from.x+(to.x-from.x)*p, ny=from.y+(to.y-from.y)*p;
+      this.moveCardTo(nx,ny);
+      if(p>=1){
+        a.seg++; a.t0=t;
+        if(a.seg>=a.pts.length-1){
+          this.auto=null;
+          this.win();
+        }
+      }
+    }
+    /* ---- 漂浮提示文字 ---- */
+    this.flashes=this.flashes.filter(function(f){ return t-f.t0<1100; });
+    for(const f of this.flashes){
+      const p=(t-f.t0)/1100;
+      c.save(); c.globalAlpha=1-p;
+      c.fillStyle=PAL.main;
+      c.font='800 20px "Microsoft YaHei",sans-serif';
+      c.textAlign='center';
+      c.fillText(f.text,clamp(f.x,170,CFG.W-170),f.y-p*36);
+      c.restore();
+    }
+  }
+};
+
+/* ---------------- 七、主循环与事件路由 ---------------- */
+function loop(t){
+  if(G.screen==='game'&&G.modeObjRef){
+    ctx.setTransform(cv.width/CFG.W,0,0,cv.height/CFG.H,0,0);
+    ctx.clearRect(0,0,CFG.W,CFG.H);
+    drawBackground(ctx);
+    G.modeObjRef.draw(ctx,t);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+cv.addEventListener('pointerdown',function(e){
+  if(G.overlayOpen||G.rulesOpen||!G.modeObjRef){ return; }
+  try{ cv.setPointerCapture(e.pointerId); }catch(err){ /* 捕获失败不影响点击 */ }
+  G.modeObjRef.down(evPos(e));
+});
+cv.addEventListener('pointermove',function(e){
+  if(!G.modeObjRef){ return; }
+  G.modeObjRef.move(evPos(e));
+});
+cv.addEventListener('pointerup',function(e){
+  if(!G.modeObjRef){ return; }
+  G.modeObjRef.up(evPos(e));
+});
+cv.addEventListener('pointercancel',function(){
+  if(G.modeObjRef&&G.modeObjRef.drag){ G.modeObjRef.drag=null; }
+});
+
+/* 顶部按钮 */
+$('#btnRules').onclick=function(){ if(G.mode){ openRules(G.mode,false); } };
+$('#btnReveal').onclick=function(){
+  if(G.modeObjRef&&!G.overlayOpen&&!G.rulesOpen){ G.modeObjRef.reveal(); }
+};
+$('#btnRestart').onclick=function(){
+  if(G.modeObjRef){ applyPalette(); startLevel(); }
+};
+$('#btnBack').onclick=function(){ goHome(); };
+
+/* 首页难度入口 */
+document.querySelectorAll('.dcard button').forEach(function(b){
+  b.addEventListener('click',function(){ startMode(parseInt(b.dataset.mode,10)); });
+});
+
+/* 初始化 */
+applyPalette();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g012", "name": "\u53e0\u52a0\u8986\u76d6\u5927\u5192\u9669 \u00b7 \u7b2c6\u8bb2 \u53e0\u52a0\u8986\u76d6\u95ee\u9898\uff08\u4e0b\uff09", "file": "g012.html", "jiaocan": "\u301012\u3011\u7b2c6\u8bb2 \u53e0\u52a0\u8986\u76d6\u95ee\u9898\uff08\u4e0b\uff09", "unit": "\u7b2c6\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

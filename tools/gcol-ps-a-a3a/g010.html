@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>星辉数塔·除法竖式建造工坊</title>
+<style>
+/* ============ 全局变量与主题（配色随机化由 JS 注入） ============ */
+:root{
+  --primary:#6366f1; --primary-dark:#4f46e5; --primary-light:#eef2ff;
+  --accent:#f59e0b; --bg1:#eef2ff; --bg2:#fdf4ff;
+  --card:#ffffff; --text:#1e293b; --muted:#64748b;
+  --ok:#16a34a; --ok-light:#dcfce7; --bad:#dc2626; --bad-light:#fee2e2;
+  --warn:#d97706; --warn-light:#fef3c7; --line:#cbd5e1;
+  --shadow:0 10px 30px rgba(30,41,59,.14);
+  --radius:18px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  color:var(--text); background:linear-gradient(135deg,var(--bg1),var(--bg2));
+  min-height:100vh; overflow-x:hidden; line-height:1.5;
+}
+.hidden{display:none !important;}
+
+/* ============ 顶部状态栏（计时器+步数） ============ */
+.topbar{
+  position:sticky; top:0; z-index:50; display:flex; align-items:center;
+  justify-content:space-between; gap:10px; padding:10px 18px;
+  background:rgba(255,255,255,.85); backdrop-filter:blur(8px);
+  border-bottom:3px solid var(--primary); box-shadow:0 2px 10px rgba(0,0,0,.05);
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;color:var(--primary-dark);}
+.brand .logo{width:34px;height:34px;border-radius:10px;background:var(--primary);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;}
+.hud{display:flex;gap:10px;flex-wrap:wrap;}
+.hud .chip{background:var(--primary-light);border:2px solid var(--primary);
+  border-radius:999px;padding:6px 14px;font-weight:700;font-size:15px;color:var(--primary-dark);}
+.hud .chip b{font-size:17px;}
+.btn{cursor:pointer;border:none;border-radius:12px;font-family:inherit;font-weight:700;
+  padding:10px 16px;font-size:15px;transition:transform .12s, box-shadow .12s;}
+.btn:active{transform:scale(.95);}
+.btn-ghost{background:#fff;color:var(--primary-dark);border:2px solid var(--primary);}
+.btn-ghost:hover{background:var(--primary-light);}
+.btn-main{background:var(--primary);color:#fff;box-shadow:0 4px 0 var(--primary-dark);}
+.btn-main:hover{filter:brightness(1.05);}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 4px 0 #b45309;}
+.btn-ok{background:var(--ok);color:#fff;box-shadow:0 4px 0 #15803d;}
+
+/* ============ 屏幕容器 ============ */
+.screen{max-width:860px;margin:0 auto;padding:18px 16px 60px;}
+.hero{text-align:center;padding:18px 6px 6px;}
+.hero h1{margin:0 0 6px;font-size:30px;color:var(--primary-dark);}
+.hero p{margin:0;color:var(--muted);font-size:16px;}
+
+/* ============ 难度选择卡片 ============ */
+.diff-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:22px;}
+.diff-card{background:var(--card);border-radius:var(--radius);padding:22px 18px;cursor:pointer;
+  box-shadow:var(--shadow);border:3px solid transparent;transition:transform .15s,border-color .15s;text-align:center;}
+.diff-card:hover{transform:translateY(-4px);border-color:var(--primary);}
+.diff-card .icon{font-size:46px;}
+.diff-card h3{margin:10px 0 4px;font-size:22px;color:var(--primary-dark);}
+.diff-card .tag{display:inline-block;background:var(--primary-light);color:var(--primary-dark);
+  border-radius:999px;padding:3px 12px;font-size:13px;font-weight:700;margin-bottom:8px;}
+.diff-card p{margin:0;color:var(--muted);font-size:14px;min-height:42px;}
+.diff-card .ex{margin-top:10px;font-size:13px;color:var(--text);background:#f8fafc;
+  border:1px dashed var(--line);border-radius:10px;padding:8px;}
+
+/* ============ 游戏面板 ============ */
+.progress{display:flex;align-items:center;gap:10px;margin:6px 0 14px;flex-wrap:wrap;}
+.progress .pip{font-size:14px;color:var(--muted);}
+.progress .bar{flex:1;min-width:140px;height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden;}
+.progress .bar i{display:block;height:100%;width:0;background:var(--primary);transition:width .3s;}
+
+.board{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px;}
+.board h2{margin:0 0 12px;font-size:20px;color:var(--primary-dark);display:flex;align-items:center;gap:8px;}
+
+/* 竖式框架 */
+.vertical{display:flex;justify-content:center;}
+.vframe{font-family:"Consolas","Courier New",monospace;display:inline-block;}
+.vrow{display:flex;align-items:flex-end;justify-content:flex-end;gap:0;}
+.qslots{display:flex;gap:6px;justify-content:flex-end;min-height:54px;margin-bottom:4px;flex-wrap:wrap;}
+.qslot{width:42px;height:50px;border:2px dashed var(--line);border-radius:10px;display:flex;
+  align-items:center;justify-content:center;font-size:30px;font-weight:800;background:#f8fafc;}
+.qslot.filled{background:var(--primary-light);border:2px solid var(--primary);color:var(--primary-dark);}
+.qslot.active{border:3px solid var(--accent);background:var(--warn-light);
+  animation:pulse 1.1s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.5);}50%{box-shadow:0 0 0 8px rgba(245,158,11,0);}}
+.dvline{display:flex;align-items:center;justify-content:flex-end;gap:8px;font-size:30px;font-weight:800;}
+.dvline .dv{background:var(--primary);color:#fff;padding:2px 12px;border-radius:8px;}
+.dvline .paren{font-size:36px;color:var(--primary-dark);font-weight:900;}
+.ddigits{display:flex;gap:6px;justify-content:flex-end;margin-left:10px;}
+.ddig{width:38px;height:44px;display:flex;align-items:center;justify-content:center;font-size:28px;
+  font-weight:800;background:#fff;border:2px solid var(--line);border-radius:8px;}
+.ddig.glow{border-color:var(--accent);background:var(--warn-light);
+  animation:pulse 1.1s infinite;cursor:pointer;}
+.ddig.glow:hover{transform:scale(1.08);}
+.ddig.used{opacity:.45;}
+
+/* 运算台 */
+.bench{margin-top:16px;background:#f8fafc;border:2px solid var(--line);border-radius:14px;padding:14px;min-height:120px;}
+.bench .bk{font-size:14px;color:var(--muted);margin-bottom:4px;}
+.bench .work{font-size:30px;font-weight:800;color:var(--primary-dark);font-family:"Consolas",monospace;}
+.minicalc{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;font-family:"Consolas",monospace;}
+.minicalc .mv{font-size:24px;font-weight:800;}
+.minicalc .mline{text-align:right;}
+.minicalc .mline div{font-size:22px;font-weight:700;}
+.minicalc .bar2{width:60px;height:3px;background:var(--text);margin:2px 0;}
+.feedback{margin-top:10px;font-size:17px;font-weight:800;padding:8px 12px;border-radius:10px;}
+.feedback.ok{background:var(--ok-light);color:var(--ok);}
+.feedback.bad{background:var(--bad-light);color:var(--bad);}
+.feedback.warn{background:var(--warn-light);color:var(--warn);}
+.feedback.info{background:var(--primary-light);color:var(--primary-dark);}
+
+/* 数字托盘 */
+.tray-wrap{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px;}
+.tray-wrap h3{margin:0 0 12px;font-size:18px;color:var(--primary-dark);}
+.tray{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;}
+.digit{width:62px;height:62px;border-radius:16px;background:linear-gradient(145deg,var(--primary),var(--primary-dark));
+  color:#fff;font-size:32px;font-weight:800;display:flex;align-items:center;justify-content:center;
+  cursor:grab;user-select:none;touch-action:none;box-shadow:0 5px 0 var(--primary-dark),var(--shadow);
+  transition:transform .1s;}
+.digit:hover{transform:translateY(-2px);}
+.digit:active{cursor:grabbing;transform:translateY(2px);box-shadow:0 2px 0 var(--primary-dark);}
+.drag-ghost{position:fixed;z-index:9999;width:62px;height:62px;border-radius:16px;pointer-events:none;
+  background:linear-gradient(145deg,var(--accent,#f59e0b),#b45309);color:#fff;font-size:32px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%) scale(1.1);
+  box-shadow:0 8px 20px rgba(0,0,0,.3);}
+.tray-tip{text-align:center;color:var(--muted);font-size:14px;margin-top:10px;}
+
+/* 验算区 */
+.verify{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px;}
+.verify h3{margin:0 0 6px;color:var(--primary-dark);font-size:19px;}
+.verify .vdesc{color:var(--muted);font-size:14px;margin-bottom:14px;}
+.eqn{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:22px;font-weight:800;}
+.slot{width:78px;height:60px;border:3px dashed var(--primary);border-radius:12px;display:flex;
+  align-items:center;justify-content:center;font-size:24px;background:#f8fafc;color:var(--primary-dark);min-width:78px;}
+.slot.drop{animation:pulse 1.1s infinite;border-color:var(--accent);background:var(--warn-light);}
+.slot.filled{background:var(--primary-light);border-style:solid;}
+.op{font-size:26px;color:var(--primary-dark);font-weight:900;}
+.vcards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px;}
+.vcard{padding:12px 18px;border-radius:14px;background:linear-gradient(145deg,var(--accent),#b45309);
+  color:#fff;font-size:24px;font-weight:800;cursor:grab;user-select:none;touch-action:none;
+  box-shadow:0 5px 0 #b45309;min-width:70px;text-align:center;}
+.vcard .lab{display:block;font-size:12px;font-weight:600;opacity:.9;}
+.vcard.used{opacity:.35;cursor:default;}
+.balance{display:flex;justify-content:center;align-items:flex-end;gap:30px;margin-top:16px;height:90px;}
+.pan{width:130px;height:10px;background:var(--primary);border-radius:6px;position:relative;transition:transform .4s;}
+.pan:before{content:"";position:absolute;top:-4px;left:50%;width:4px;height:30px;background:var(--primary-dark);transform:translateX(-50%);}
+.pan.l{transform:rotate(-6deg);}
+.pan.r{transform:rotate(6deg);}
+.pan.level{transform:rotate(0);}
+.bcheck{text-align:center;margin-top:12px;font-size:18px;font-weight:800;min-height:26px;}
+
+/* 动作按钮组 */
+.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px;}
+
+/* ============ 规则面板 / 胜利覆盖 ============ */
+.modal{position:fixed;inset:0;z-index:200;background:rgba(30,41,59,.55);
+  display:flex;align-items:center;justify-content:center;padding:18px;}
+.modal .box{background:#fff;border-radius:20px;max-width:560px;width:100%;padding:24px;
+  box-shadow:var(--shadow);max-height:88vh;overflow:auto;}
+.modal h2{margin:0 0 10px;color:var(--primary-dark);}
+.modal .rule{background:#f8fafc;border-left:5px solid var(--primary);padding:10px 12px;
+  border-radius:8px;margin:8px 0;font-size:15px;}
+.modal .rule b{color:var(--primary-dark);}
+.overlay{position:fixed;inset:0;z-index:300;background:rgba(15,23,42,.7);
+  display:flex;align-items:center;justify-content:center;padding:18px;text-align:center;}
+.overlay .card{background:#fff;border-radius:24px;padding:30px;max-width:440px;box-shadow:var(--shadow);}
+.overlay h2{margin:0 0 8px;font-size:30px;color:var(--ok);}
+.overlay .stars{font-size:38px;margin:6px 0;}
+.overlay p{color:var(--muted);font-size:16px;margin:6px 0;}
+#confetti{position:fixed;inset:0;z-index:250;pointer-events:none;}
+
+/* 关卡完成小庆祝 */
+.pop{position:fixed;z-index:180;background:#fff;border-radius:16px;padding:18px 22px;
+  box-shadow:var(--shadow);text-align:center;left:50%;top:40%;transform:translate(-50%,-50%);
+  border:3px solid var(--ok);}
+.pop h3{margin:0 0 6px;color:var(--ok);}
+
+@media(max-width:520px){
+  .hero h1{font-size:24px;}
+  .digit{width:52px;height:52px;font-size:26px;}
+  .qslot{width:36px;height:42px;font-size:24px;}
+  .ddig{width:32px;height:38px;font-size:22px;}
+  .bench .work{font-size:24px;}
+  .topbar{padding:8px 10px;}
+  .brand{font-size:16px;}
+  .brand .logo{width:28px;height:28px;font-size:16px;}
+  .hud .chip{font-size:13px;padding:5px 10px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ====== 顶部状态栏 ====== -->
+<header class="topbar">
+  <div class="brand"><span class="logo">数</span><span>星辉数塔·除法竖式建造工坊</span></div>
+  <div class="hud">
+    <span class="chip" id="chip-level">难度 —</span>
+    <span class="chip">用时 <b id="chip-time">0</b> 秒</span>
+    <span class="chip">试商 <b id="chip-steps">0</b> 次</span>
+    <button class="btn btn-ghost" id="btn-rules-top">规则说明</button>
+  </div>
+</header>
+
+<!-- ====== 难度选择界面 ====== -->
+<section id="screen-diff" class="screen">
+  <div class="hero">
+    <h1>欢迎来到星辉数塔</h1>
+    <p>你是数塔建造师！把每一道除法竖式一步一步"建造"出来，每放对一位商，就点亮一颗星。先选择今天的探险难度吧。</p>
+  </div>
+  <div class="diff-grid">
+    <div class="diff-card" data-level="easy">
+      <div class="icon">🌅</div>
+      <h3>初级·晨光试炼</h3>
+      <span class="tag">入门</span>
+      <p>两位数、三位数除以两位数，刚好整除，先熟悉"试商"的手感。</p>
+      <div class="ex">例如 65÷13、105÷21</div>
+    </div>
+    <div class="diff-card" data-level="mid">
+      <div class="icon">🌌</div>
+      <h3>中级·星云挑战</h3>
+      <span class="tag">进阶</span>
+      <p>多位数除法，商中间或末尾可能出现 0，要小心数位对齐哦。</p>
+      <div class="ex">例如 515÷5、9375÷15</div>
+    </div>
+    <div class="diff-card" data-level="hard">
+      <div class="icon">🚀</div>
+      <h3>高级·银河征程</h3>
+      <span class="tag">挑战</span>
+      <p>大数除法且带有余数，最后还要用天平验算：商×除数+余数。</p>
+      <div class="ex">例如 9788÷44、99465÷23</div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 游戏界面 ====== -->
+<section id="screen-game" class="screen hidden">
+  <div class="progress">
+    <span class="pip">第 <b id="pg-now">1</b> / <b id="pg-all">3</b> 题</span>
+    <div class="bar"><i id="pg-bar"></i></div>
+    <span class="pip" id="pg-title">—</span>
+  </div>
+
+  <!-- 竖式框架 -->
+  <div class="board">
+    <h2>🏗️ 竖式建造台 <span style="font-size:14px;color:var(--muted);font-weight:600;">把数字石块拖进亮闪闪的商位</span></h2>
+    <div class="vertical" id="vertical"></div>
+    <div class="bench" id="bench">
+      <div class="bk">运算台</div>
+      <div class="work" id="bench-work">准备开始…</div>
+      <div id="bench-detail"></div>
+    </div>
+  </div>
+
+  <!-- 数字托盘 -->
+  <div class="tray-wrap">
+    <h3>🧱 数字石块托盘（拖动到上方亮起的商位）</h3>
+    <div class="tray" id="tray"></div>
+    <div class="tray-tip">提示：先看"运算台"里的当前数，想一想要试商几。试错了也没关系，运算台会告诉你积是太大还是太小。</div>
+  </div>
+
+  <!-- 验算区（题目做完后显示） -->
+  <div class="verify hidden" id="verify">
+    <h3>⚖️ 验算天平</h3>
+    <div class="vdesc">把下面的数字卡拖到正确的位置，验证：商 × 除数 + 余数 = 被除数</div>
+    <div class="eqn" id="eqn"></div>
+    <div class="balance"><div class="pan l level" id="pan-l"></div><div class="pan r level" id="pan-r"></div></div>
+    <div class="bcheck" id="bcheck">把卡片拖到等式里 →</div>
+    <div class="vcards" id="vcards"></div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-ghost" id="btn-reveal">揭示答案</button>
+    <button class="btn btn-ghost" id="btn-restart">重新开始</button>
+    <button class="btn btn-ghost" id="btn-back">返回难度选择</button>
+    <button class="btn btn-ghost" id="btn-rules">规则说明</button>
+  </div>
+</section>
+
+<!-- ====== 规则说明面板 ====== -->
+<div id="panel-rules" class="modal hidden">
+  <div class="box">
+    <h2>📚 怎么玩 · 建造规则</h2>
+    <div class="rule"><b>① 试商（核心操作）：</b>看运算台里的"当前数"，从下方托盘把数字石块<em>拖</em>到竖式上方亮起的商位。运算台马上会算出积和差，告诉你这位商是"太大""太小"还是"刚刚好"。</div>
+    <div class="rule"><b>② 太大/太小怎么办：</b>积超过当前数 = 商太大了，换小一点的；差还大于等于除数 = 商太小了，换大一点的。这就是"试商"的过程。</div>
+    <div class="rule"><b>③ 落下一位：</b>这一位商对后，被除数里下一个数字会亮起来，<em>点一下</em>它，把它"落"下来，和余数拼成新的当前数，继续试商。</div>
+    <div class="rule"><b>④ 中间或末尾的 0：</b>如果当前数比除数还小（不够除），就要商 0 占位，别忘了！</div>
+    <div class="rule"><b>⑤ 验算天平：</b>全部商位填完后，把数字卡拖到等式里，使<b>商×除数+余数=被除数</b>，天平平衡就通关啦。</div>
+    <div class="rule"><b>🌟 商的位数小窍门：</b>被除数首位≥除数，商的位数=被除数位数；被除数首位＜除数，商的位数=被除数位数−1。先数一数上面有几个商位，心里就有数啦！</div>
+    <div style="text-align:center;margin-top:14px;">
+      <button class="btn btn-main" id="btn-rules-close">明白啦，开始建造！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 胜利覆盖 ====== -->
+<div id="screen-win" class="overlay hidden">
+  <div class="card">
+    <h2>🎉 数塔建成！</h2>
+    <div class="stars" id="win-stars">⭐⭐⭐</div>
+    <p id="win-msg">你成功建造了全部竖式，星辉数塔亮起来了！</p>
+    <p style="font-size:14px;">用时 <b id="win-time">0</b> 秒 · 共试商 <b id="win-steps">0</b> 次</p>
+    <div class="actions" style="margin-top:14px;">
+      <button class="btn btn-main" id="btn-again">再玩一局（新题目）</button>
+      <button class="btn btn-ghost" id="btn-home">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+"use strict";
+/* =====================================================================
+   星辉数塔·除法竖式建造工坊
+   核心机制：学生通过"拖数字试商 + 落下一位 + 天平验算"完整复现除法竖式，
+   操作本身即思考过程，不是选择题换皮。
+   ===================================================================== */
+
+/* ---------- 一、题库（答案均经人工逐一验算，见校验报告） ---------- */
+// 每道题只存"被除数 n"和"除数 d"，商与余数由 trace() 实时算出，杜绝答案写错。
+var POOLS = {
+  easy: [ // 初级：2~3 位数除以 1~2 位数，整除
+    {n:65,  d:13}, {n:105, d:21}, {n:96,  d:12}, {n:84, d:14},
+    {n:78,  d:13}, {n:91,  d:13}, {n:72,  d:12}, {n:108,d:18}
+  ],
+  mid: [ // 中级：多位数，可能出现中间0/末尾0
+    {n:560,   d:7},  {n:515,  d:5},  {n:12660, d:15}, {n:9019, d:29},
+    {n:9375,  d:15}, {n:56784,d:12}, {n:1240,  d:4},  {n:9606, d:6}
+  ],
+  hard: [ // 高级：大数带余数
+    {n:743,   d:2},  {n:3886, d:14}, {n:9788,  d:44}, {n:9945, d:14},
+    {n:99465, d:23}, {n:833,  d:3},  {n:388,   d:7},  {n:353,  d:7}
+  ]
+};
+var LEVEL_NAME = {easy:"初级·晨光试炼", mid:"中级·星云挑战", hard:"高级·银河征程"};
+
+/* ---------- 二、长除法步骤追踪（竖式的"标准解法路径"） ---------- */
+// 把 n÷d 拆成逐步的试商过程，返回每一步的：当前数、正确商、积、差、要落下的下一位。
+function trace(n, d){
+  var s = String(n);
+  var steps = [];
+  var quotient = "";
+  var working = 0;
+  var i = 0;
+  // 取首段：从首位开始落下数字，直到当前数 ≥ 除数（或数字用完）
+  while(i < s.length){
+    working = working*10 + parseInt(s[i],10);
+    i++;
+    if(working >= d) break;
+  }
+  // 逐位试商
+  while(true){
+    var q = Math.floor(working / d);     // 这一位正确的商
+    var prod = q * d;                     // 商×除数
+    var rem = working - prod;             // 本步余数（差）
+    quotient += String(q);
+    var step = {working:working, q:q, prod:prod, rem:rem, bringDown:null};
+    if(i >= s.length){ steps.push(step); break; } // 没有下一位了，结束
+    step.bringDown = parseInt(s[i],10);            // 记录要落下的下一位
+    steps.push(step);
+    working = rem*10 + parseInt(s[i],10);          // 落下一位，拼成新的当前数
+    i++;
+  }
+  var lastRem = steps[steps.length-1].rem;
+  return {quotient:quotient, remainder:lastRem, steps:steps, n:n, d:d};
+}
+
+/* ---------- 三、主题色板（每局随机一个，保证不腻） ---------- */
+var THEMES = [
+  {p:"#6366f1",pd:"#4f46e5",pl:"#eef2ff",b1:"#eef2ff",b2:"#fdf4ff"},
+  {p:"#10b981",pd:"#047857",pl:"#d1fae5",b1:"#ecfdf5",b2:"#ecfeff"},
+  {p:"#f97316",pd:"#c2410c",pl:"#ffedd5",b1:"#fff7ed",b2:"#fffbeb"},
+  {p:"#ec4899",pd:"#be185d",pl:"#fce7f3",b1:"#fdf2f8",b2:"#f5f3ff"},
+  {p:"#3b82f6",pd:"#1d4ed8",pl:"#dbeafe",b1:"#eff6ff",b2:"#f0f9ff"},
+  {p:"#8b5cf6",pd:"#6d28d9",pl:"#ede9fe",b1:"#f5f3ff",b2:"#fdf4ff"},
+  {p:"#0ea5e9",pd:"#0369a1",pl:"#e0f2fe",b1:"#f0f9ff",b2:"#ecfeff"}
+];
+function applyRandomTheme(){
+  var t = THEMES[Math.floor(Math.random()*THEMES.length)];
+  var r = document.documentElement.style;
+  r.setProperty("--primary", t.p);
+  r.setProperty("--primary-dark", t.pd);
+  r.setProperty("--primary-light", t.pl);
+  r.setProperty("--bg1", t.b1);
+  r.setProperty("--bg2", t.b2);
+}
+
+/* ---------- 四、全局游戏状态 ---------- */
+var G = {
+  level:null, problems:[], pIndex:0,
+  tr:null, stepIdx:0, attempts:0, revealed:false,
+  startTime:0, timerInt:null, slotFilled:0, // 当前题已锁定几位商
+};
+
+/* ---------- 五、工具函数 ---------- */
+function $(id){return document.getElementById(id);}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function show(id){$(id).classList.remove("hidden");}
+function hide(id){$(id).classList.add("hidden");}
+function showScreen(id){
+  var list=["screen-diff","screen-game"];
+  for(var k=0;k<list.length;k++){ if(list[k]===id) show(list[k]); else hide(list[k]); }
+}
+
+/* ---------- 六、计时器 ---------- */
+function startTimer(){
+  G.startTime=Date.now();
+  stopTimer();
+  G.timerInt=setInterval(function(){
+    $("chip-time").textContent=Math.floor((Date.now()-G.startTime)/1000);
+  },500);
+}
+function stopTimer(){ if(G.timerInt){clearInterval(G.timerInt);G.timerInt=null;} }
+function elapsedSec(){return Math.floor((Date.now()-G.startTime)/1000);}
+
+/* ---------- 七、开始一局 ---------- */
+function startSession(level){
+  G.level=level;
+  G.attempts=0;
+  // 从对应题库随机抽 3 道（不足则全用）
+  var pool=POOLS[level];
+  G.problems=shuffle(pool).slice(0, Math.min(3, pool.length));
+  G.pIndex=0;
+  $("chip-level").textContent=LEVEL_NAME[level];
+  $("pg-all").textContent=G.problems.length;
+  startTimer();
+  loadProblem(0);
+  showScreen("screen-game");
+}
+
+/* ---------- 八、加载某道题 ---------- */
+function loadProblem(idx){
+  G.pIndex=idx;
+  var p=G.problems[idx];
+  G.tr=trace(p.n, p.d);
+  G.stepIdx=0;
+  G.attempts=0;        // 每题重置试商计数（HUD 显示本题试商次数）
+  G.slotFilled=0;
+  G.revealed=false;
+  $("chip-steps").textContent="0";
+  $("pg-now").textContent=idx+1;
+  $("pg-title").textContent=p.n+" ÷ "+p.d;
+  $("pg-bar").style.width=(idx/G.problems.length*100)+"%";
+  hide("verify");
+  renderVertical();
+  renderTray();
+  updateBenchInit();
+}
+
+/* ---------- 九、渲染竖式框架 ---------- */
+function renderVertical(){
+  var tr=G.tr;
+  var html="";
+  // 商位（数量 = 商的位数 = steps 长度）
+  var qslots="";
+  for(var i=0;i<tr.steps.length;i++){
+    var cls="qslot";
+    if(i<G.slotFilled) cls+=" filled";
+    if(i===G.stepIdx) cls+=" active";
+    qslots+='<div class="'+cls+'" '+(i===G.stepIdx?'id="trial-slot"':'')+'>'+
+            (i<G.slotFilled?tr.steps[i].q:'')+'</div>';
+  }
+  html+='<div class="vframe">';
+  html+='<div class="qslots">'+qslots+'</div>';
+  // 除号 + 被除数
+  var ddigs="";
+  var s=String(tr.n);
+  // 计算下一个要落下的数字位于被除数的第几位
+  var nextPos=-1;
+  if(G.stepIdx<tr.steps.length){
+    // 已落下的位数 = 当前 stepIdx 对应已经处理到被除数的某个位置
+    // stepIdx 步开始时，被除数中前 (首段位数 + stepIdx) 位已经参与，下一个待落下的是 该位置
+    var used = firstSegLen(tr) + G.stepIdx; // 已用到的被除数位数（含首段）
+    if(used < s.length) nextPos = used; // 下一个要落下的索引
+  }
+  for(var k=0;k<s.length;k++){
+    var dc="ddig";
+    if(k< (firstSegLen(tr)+G.slotFilled) ) dc+=" used"; // 已经参与运算的
+    if(k===nextPos && tr.steps[G.stepIdx] && tr.steps[G.stepIdx].bringDown!==null) dc+=" glow";
+    ddigs+='<div class="'+dc+'" '+(k===nextPos?'id="bring-digit" data-pos="'+k+'"':'')+'>'+s[k]+'</div>';
+  }
+  html+='<div class="dvline"><span class="dv">'+tr.d+'</span><span class="paren">) </span><span style="display:flex;gap:6px;">'+ddigs+'</span></div>';
+  html+='</div>';
+  $("vertical").innerHTML=html;
+  // 绑定落下一位的点击
+  var bd=$("bring-digit");
+  if(bd){ bd.addEventListener("click", bringDownNext); bd.addEventListener("touchend", function(e){e.preventDefault();bringDownNext();}); }
+}
+// 计算首段占被除数多少位
+function firstSegLen(tr){
+  var s=String(tr.n); var w=0; var c=0;
+  for(var i=0;i<s.length;i++){ w=w*10+parseInt(s[i],10); c++; if(w>=tr.d) break; }
+  return c;
+}
+
+/* ---------- 十、渲染数字托盘（0~9 可拖） ---------- */
+function renderTray(){
+  var html="";
+  for(var i=0;i<=9;i++){
+    html+='<div class="digit" data-d="'+i+'">'+i+'</div>';
+  }
+  $("tray").innerHTML=html;
+  var ds=document.querySelectorAll(".digit");
+  for(var j=0;j<ds.length;j++){
+    bindDrag(ds[j], parseInt(ds[j].getAttribute("data-d"),10));
+  }
+}
+
+/* ---------- 十一、拖拽系统（兼容鼠标 + 触摸） ---------- */
+var drag={active:false, digit:null, ghost:null};
+function getPoint(e){
+  if(e.touches && e.touches.length) return {x:e.touches[0].clientX, y:e.touches[0].clientY};
+  if(e.changedTouches && e.changedTouches.length) return {x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY};
+  return {x:e.clientX, y:e.clientY};
+}
+function bindDrag(el, digit){
+  el.addEventListener("mousedown", function(e){ beginDrag(e,digit,"mouse"); });
+  el.addEventListener("touchstart", function(e){ beginDrag(e,digit,"touch"); }, {passive:false});
+}
+function beginDrag(e, digit, type){
+  if(G.revealed) return;                  // 揭示答案后不允许再操作
+  if(G.stepIdx>=G.tr.steps.length) return; // 当前题已完成试商
+  if(drag.active) return;
+  e.preventDefault();
+  drag.active=true; drag.digit=digit;
+  var g=document.createElement("div");
+  g.className="drag-ghost"; g.textContent=digit;
+  document.body.appendChild(g); drag.ghost=g;
+  moveGhost(e);
+  if(type==="mouse"){
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }else{
+    document.addEventListener("touchmove", onTouchMove, {passive:false});
+    document.addEventListener("touchend", onTouchEnd);
+  }
+}
+function moveGhost(e){ var p=getPoint(e); drag.ghost.style.left=p.x+"px"; drag.ghost.style.top=p.y+"px"; }
+function onMouseMove(e){ if(!drag.active) return; e.preventDefault(); moveGhost(e); }
+function onMouseUp(e){ endDrag(e); }
+function onTouchMove(e){ if(!drag.active) return; e.preventDefault(); moveGhost(e); }
+function onTouchEnd(e){ endDrag(e); }
+function endDrag(e){
+  if(!drag.active) return;
+  var digit=drag.digit;
+  var p=getPoint(e);
+  var slot=$("trial-slot");
+  var dropped=false;
+  if(slot){
+    var r=slot.getBoundingClientRect();
+    if(p.x>=r.left && p.x<=r.right && p.y>=r.top && p.y<=r.bottom) dropped=true;
+  }
+  cleanupDrag();
+  if(dropped) handleTrialDrop(digit);
+}
+function cleanupDrag(){
+  if(drag.ghost && drag.ghost.parentNode) drag.ghost.parentNode.removeChild(drag.ghost);
+  drag.active=false; drag.digit=null; drag.ghost=null;
+  document.removeEventListener("mousemove", onMouseMove);
+  document.removeEventListener("mouseup", onMouseUp);
+  document.removeEventListener("touchmove", onTouchMove);
+  document.removeEventListener("touchend", onTouchEnd);
+}
+
+/* ---------- 十二、试商判定（核心数学反馈） ---------- */
+function handleTrialDrop(digit){
+  var st=G.tr.steps[G.stepIdx];
+  G.attempts++;
+  $("chip-steps").textContent=G.attempts;
+  var prod=digit*G.tr.d;
+  var diff=st.working-prod;
+  var box=$("bench");
+  if(diff<0){
+    // 商太大：积超过了当前数
+    setBench(st.working, digit, prod, diff, "bad",
+      "这位商太大啦！"+digit+"×"+G.tr.d+"="+prod+"，超过了当前数 "+st.working+"，换一个更小的试试。");
+    bumpBad();
+  }else if(diff>=G.tr.d){
+    // 商太小：余数还大于等于除数，说明还能再商
+    setBench(st.working, digit, prod, diff, "warn",
+      "还能再大一点哦！"+st.working+"−"+prod+"="+diff+"，剩下的 "+diff+" 里还能再分出 "+G.tr.d+"，换更大的商试试。");
+    bumpBad();
+  }else{
+    // 正确
+    setBench(st.working, digit, prod, diff, "ok",
+      "太棒了！"+digit+"×"+G.tr.d+"="+prod+"，"+st.working+"−"+prod+"="+diff+"，这一位商就是 "+digit+"！");
+    lockDigit(digit);
+  }
+}
+function bumpBad(){
+  var b=$("bench"); b.style.transition="transform .08s";
+  b.style.transform="translateX(-6px)";
+  setTimeout(function(){ b.style.transform="translateX(6px)"; },80);
+  setTimeout(function(){ b.style.transform="translateX(0)"; },160);
+}
+
+/* ---------- 十三、锁定正确商位 ---------- */
+function lockDigit(digit){
+  // 把商位填上
+  var slots=document.querySelectorAll(".qslot");
+  if(slots[G.stepIdx]){
+    slots[G.stepIdx].textContent=digit;
+    slots[G.stepIdx].classList.add("filled");
+    slots[G.stepIdx].classList.remove("active");
+    slots[G.stepIdx].removeAttribute("id");
+  }
+  G.slotFilled++;
+  G.stepIdx++;
+  // 延迟一下，让学生看清运算过程
+  setTimeout(function(){
+    if(G.stepIdx>=G.tr.steps.length){
+      // 商全部填完，进入验算
+      startVerify();
+    }else{
+      renderVertical();   // 刷新，让下一位高亮
+      var st=G.tr.steps[G.stepIdx];
+      setInfo("当前数变成 "+st.working+"，继续试商吧！被除数里亮起的数字点一下可以落下来。");
+    }
+  }, 850);
+}
+
+/* ---------- 十四、落下一位（点击高亮的被除数数字） ---------- */
+function bringDownNext(){
+  var st=G.tr.steps[G.stepIdx];
+  if(!st || st.bringDown===null) return;
+  var bd=$("bring-digit");
+  if(bd){
+    bd.classList.remove("glow");
+    bd.classList.add("used");
+  }
+  setInfo("落下 "+st.bringDown+"，和余数拼成新的当前数 "+st.working+"，继续试商！");
+}
+
+/* ---------- 十五、运算台显示 ---------- */
+function updateBenchInit(){
+  var st=G.tr.steps[0];
+  setBench(st.working, null, null, null, "info",
+    "看当前数 "+st.working+"，从托盘拖一个数字到亮起的商位，试试 "+st.working+" 里有几个 "+G.tr.d+"。");
+}
+function setInfo(msg){
+  var d=$("bench-detail");
+  d.innerHTML='<div class="feedback info">'+msg+'</div>';
+  $("bench-work").textContent="当前数："+G.tr.steps[Math.min(G.stepIdx,G.tr.steps.length-1)].working;
+}
+function setBench(working, digit, prod, diff, kind, msg){
+  $("bench-work").textContent="当前数："+working;
+  var d=$("bench-detail");
+  var calc="";
+  if(digit!==null){
+    calc='<div class="minicalc">'+
+           '<div class="mv">'+working+'</div>'+
+           '<div class="mline"><div>− '+prod+'</div><div class="bar2"></div><div>'+diff+'</div></div>'+
+           '<div style="font-size:15px;color:var(--muted);max-width:180px;">'+digit+' × '+G.tr.d+' = '+prod+'</div>'+
+         '</div>';
+  }
+  d.innerHTML=calc+'<div class="feedback '+kind+'">'+msg+'</div>';
+}
+
+/* ---------- 十六、验算天平（拖卡填等式） ---------- */
+var V = {cards:[], placed:{}};
+function startVerify(){
+  show("verify");
+  V.placed={};
+  var tr=G.tr;
+  // 四张卡：商、除数、余数、被除数（打乱顺序）
+  var arr=[
+    {key:"q", val:tr.quotient, lab:"商"},
+    {key:"d", val:tr.d,        lab:"除数"},
+    {key:"r", val:tr.remainder,lab:"余数"},
+    {key:"n", val:tr.n,        lab:"被除数"}
+  ];
+  V.cards=shuffle(arr);
+  // 渲染等式：商 × 除数 + 余数 = 被除数
+  var eqn=
+    '<div class="slot" data-accept="q" id="vs-q"></div>'+
+    '<span class="op">×</span>'+
+    '<div class="slot" data-accept="d" id="vs-d"></div>'+
+    '<span class="op">+</span>'+
+    '<div class="slot" data-accept="r" id="vs-r"></div>'+
+    '<span class="op">=</span>'+
+    '<div class="slot" data-accept="n" id="vs-n"></div>';
+  $("eqn").innerHTML=eqn;
+  // 标记可放置（全部 drop 状态）
+  var slots=document.querySelectorAll("#eqn .slot");
+  for(var i=0;i<slots.length;i++) slots[i].classList.add("drop");
+  // 渲染卡片
+  var ch="";
+  for(var k=0;k<V.cards.length;k++){
+    var c=V.cards[k];
+    ch+='<div class="vcard" data-key="'+c.key+'" data-val="'+c.val+'">'+c.val+'<span class="lab">'+c.lab+'</span></div>';
+  }
+  $("vcards").innerHTML=ch;
+  var cards=document.querySelectorAll(".vcard");
+  for(var j=0;j<cards.length;j++) bindCardDrag(cards[j]);
+  $("bcheck").textContent="把卡片拖到正确的位置 →";
+  setPan(0);
+}
+function bindCardDrag(el){
+  el.addEventListener("mousedown", function(e){ beginCardDrag(e,el,"mouse"); });
+  el.addEventListener("touchstart", function(e){ beginCardDrag(e,el,"touch"); }, {passive:false});
+}
+var cdrag={active:false, el:null, ghost:null, key:null, val:null};
+function beginCardDrag(e, el, type){
+  if(cdrag.active) return;
+  if(el.classList.contains("used")) return;
+  e.preventDefault();
+  cdrag.active=true; cdrag.el=el;
+  cdrag.key=el.getAttribute("data-key");
+  cdrag.val=el.getAttribute("data-val");
+  var g=document.createElement("div");
+  g.className="drag-ghost"; g.style.width="auto"; g.style.padding="10px 16px";
+  g.textContent=cdrag.val;
+  document.body.appendChild(g); cdrag.ghost=g;
+  moveCardGhost(e);
+  if(type==="mouse"){ document.addEventListener("mousemove", onCardMouseMove); document.addEventListener("mouseup", onCardMouseUp); }
+  else{ document.addEventListener("touchmove", onCardTouchMove, {passive:false}); document.addEventListener("touchend", onCardTouchEnd); }
+}
+function moveCardGhost(e){ var p=getPoint(e); cdrag.ghost.style.left=p.x+"px"; cdrag.ghost.style.top=p.y+"px"; }
+function onCardMouseMove(e){ if(!cdrag.active) return; e.preventDefault(); moveCardGhost(e); }
+function onCardTouchMove(e){ if(!cdrag.active) return; e.preventDefault(); moveCardGhost(e); }
+function onCardMouseUp(e){ endCardDrag(e); }
+function onCardTouchEnd(e){ endCardDrag(e); }
+function endCardDrag(e){
+  if(!cdrag.active) return;
+  var p=getPoint(e);
+  var hitSlot=null;
+  var slots=document.querySelectorAll("#eqn .slot");
+  for(var i=0;i<slots.length;i++){
+    if(slots[i].classList.contains("filled")) continue;
+    var r=slots[i].getBoundingClientRect();
+    if(p.x>=r.left && p.x<=r.right && p.y>=r.top && p.y<=r.bottom){ hitSlot=slots[i]; break; }
+  }
+  cleanupCardDrag();
+  if(hitSlot) handleCardDrop(hitSlot);
+}
+function cleanupCardDrag(){
+  if(cdrag.ghost && cdrag.ghost.parentNode) cdrag.ghost.parentNode.removeChild(cdrag.ghost);
+  cdrag.active=false; cdrag.el=null; cdrag.ghost=null;
+  document.removeEventListener("mousemove", onCardMouseMove);
+  document.removeEventListener("mouseup", onCardMouseUp);
+  document.removeEventListener("touchmove", onCardTouchMove);
+  document.removeEventListener("touchend", onCardTouchEnd);
+}
+function handleCardDrop(slot){
+  var accept=slot.getAttribute("data-accept");
+  if(accept!==cdrag.key){
+    // 放错位置
+    $("bcheck").innerHTML='<span style="color:var(--bad);">这张卡应该放在"'+labelOf(accept)+'"的位置哦，再试试。</span>';
+    bumpVerify();
+    return;
+  }
+  // 放对了
+  slot.textContent=cdrag.val;
+  slot.classList.add("filled");
+  slot.classList.remove("drop");
+  V.placed[cdrag.key]=cdrag.val;
+  cdrag.el.classList.add("used");
+  $("bcheck").innerHTML='<span style="color:var(--ok);">'+labelOf(accept)+'放对啦！</span>';
+  // 检查是否四张都放好
+  if(Object.keys(V.placed).length>=4){
+    finishVerify();
+  }
+}
+function labelOf(key){ return {q:"商",d:"除数",r:"余数",n:"被除数"}[key]; }
+function bumpVerify(){ var v=$("verify"); v.style.transition="transform .08s"; v.style.transform="translateX(-6px)"; setTimeout(function(){v.style.transform="translateX(6px)";},80); setTimeout(function(){v.style.transform="translateX(0)";},160); }
+function setPan(deg){ $("pan-l").style.transform="rotate("+(-deg)+"deg)"; $("pan-r").style.transform="rotate("+deg+"deg)"; }
+function finishVerify(){
+  var tr=G.tr;
+  var left=tr.quotient*tr.d+tr.remainder;
+  var ok=(left===tr.n);
+  // 天平动画
+  setPan(10);
+  setTimeout(function(){ setPan(0); $("pan-l").classList.add("level"); $("pan-r").classList.add("level"); }, 450);
+  if(ok){
+    $("bcheck").innerHTML='<span style="color:var(--ok);font-size:20px;">✅ 验算通过：'+tr.quotient+'×'+tr.d+'+'+tr.remainder+' = '+left+' = 被除数，天平平衡！</span>';
+  }else{
+    $("bcheck").innerHTML='<span style="color:var(--bad);">验算未平衡，请再检查（理论上应相等）。</span>';
+  }
+  setTimeout(problemComplete, 900);
+}
+
+/* ---------- 十七、单题完成 ---------- */
+function problemComplete(){
+  if(G.pIndex<G.problems.length-1){
+    // 弹出小庆祝，进入下一题
+    var pop=document.createElement("div");
+    pop.className="pop";
+    pop.innerHTML="<h3>🌟 又建好一层！</h3><p>"+G.tr.n+"÷"+G.tr.d+"="+G.tr.quotient+(G.tr.remainder?("……"+G.tr.remainder):"")+"</p><p style='font-size:13px;color:var(--muted);'>准备下一题…</p>";
+    document.body.appendChild(pop);
+    burstConfetti(40);
+    setTimeout(function(){ pop.parentNode.removeChild(pop); loadProblem(G.pIndex+1); }, 1500);
+  }else{
+    // 全部完成
+    sessionWin();
+  }
+}
+
+/* ---------- 十八、全部通关 ---------- */
+function sessionWin(){
+  stopTimer();
+  $("pg-bar").style.width="100%";
+  $("win-time").textContent=elapsedSec();
+  $("win-steps").textContent=G.attempts;
+  // 星级：按试商效率
+  var totalDigits=0; for(var i=0;i<G.problems.length;i++) totalDigits+=trace(G.problems[i].n,G.problems[i].d).steps.length;
+  var rate=G.attempts/ Math.max(1,totalDigits);
+  var stars = rate<=1.3 ? "⭐⭐⭐" : (rate<=1.8 ? "⭐⭐" : "⭐");
+  $("win-stars").textContent=stars;
+  $("win-msg").textContent="你成功建造了全部 "+G.problems.length+" 道竖式，星辉数塔闪耀点亮！";
+  show("screen-win");
+  burstConfetti(160);
+}
+
+/* ---------- 十九、揭示答案 / 重启 / 返回 ---------- */
+function revealAnswer(){
+  G.revealed=true;
+  var tr=G.tr;
+  // 把所有商位填满
+  G.stepIdx=tr.steps.length;
+  G.slotFilled=tr.steps.length;
+  renderVertical();
+  var detail="";
+  for(var i=0;i<tr.steps.length;i++){
+    var s=tr.steps[i];
+    detail+="第"+(i+1)+"位：当前数 "+s.working+"，商 "+s.q+"，"+s.q+"×"+tr.d+"="+s.prod+"，余 "+s.rem+"; ";
+  }
+  $("bench-work").textContent="答案：商 = "+tr.quotient+(tr.remainder?("，余数 = "+tr.remainder):"（整除）");
+  $("bench-detail").innerHTML='<div class="feedback ok">'+detail+'</div><div class="feedback info">已揭示完整答案。可点"重新开始"再练一次。</div>';
+  hide("verify");
+}
+function restartProblem(){ loadProblem(G.pIndex); }
+function backToDiff(){ stopTimer(); hide("screen-win"); showScreen("screen-diff"); }
+
+/* ---------- 二十、彩纸庆祝动画（Canvas） ---------- */
+var cvs,ctx,parts=[],raf=null;
+function initConfetti(){
+  cvs=$("confetti"); ctx=cvs.getContext("2d");
+  resizeConfetti();
+  window.addEventListener("resize", resizeConfetti);
+}
+function resizeConfetti(){ cvs.width=window.innerWidth; cvs.height=window.innerHeight; }
+function burstConfetti(n){
+  var cols=["#f43f5e","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ec4899","#facc15"];
+  for(var i=0;i<n;i++){
+    parts.push({
+      x:Math.random()*cvs.width, y:-20-Math.random()*cvs.height*0.3,
+      vx:(Math.random()-0.5)*3, vy:2+Math.random()*4,
+      size:6+Math.random()*8, rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3,
+      col:cols[Math.floor(Math.random()*cols.length)], shape:Math.random()<0.5?0:1
+    });
+  }
+  if(!raf) raf=requestAnimationFrame(stepConfetti);
+}
+function stepConfetti(){
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  for(var i=parts.length-1;i>=0;i--){
+    var p=parts[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.rot+=p.vr;
+    if(p.y>cvs.height+30){ parts.splice(i,1); continue; }
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+    ctx.fillStyle=p.col;
+    if(p.shape===0){ ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6); }
+    else{ ctx.beginPath(); ctx.arc(0,0,p.size/2,0,6.28); ctx.fill(); }
+    ctx.restore();
+  }
+  if(parts.length>0){ raf=requestAnimationFrame(stepConfetti); }
+  else{ ctx.clearRect(0,0,cvs.width,cvs.height); raf=null; }
+}
+
+/* ---------- 二十一、事件绑定 ---------- */
+function bindUI(){
+  var cards=document.querySelectorAll(".diff-card");
+  for(var i=0;i<cards.length;i++){
+    (function(c){
+      c.addEventListener("click", function(){ applyRandomTheme(); startSession(c.getAttribute("data-level")); });
+    })(cards[i]);
+  }
+  $("btn-reveal").addEventListener("click", revealAnswer);
+  $("btn-restart").addEventListener("click", restartProblem);
+  $("btn-back").addEventListener("click", backToDiff);
+  $("btn-rules").addEventListener("click", function(){ show("panel-rules"); });
+  $("btn-rules-top").addEventListener("click", function(){ show("panel-rules"); });
+  $("btn-rules-close").addEventListener("click", function(){ hide("panel-rules"); });
+  $("btn-again").addEventListener("click", function(){ hide("screen-win"); applyRandomTheme(); startSession(G.level); });
+  $("btn-home").addEventListener("click", function(){ hide("screen-win"); showScreen("screen-diff"); });
+}
+
+/* ---------- 二十二、启动 ---------- */
+function init(){
+  applyRandomTheme();
+  initConfetti();
+  bindUI();
+  showScreen("screen-diff");
+}
+init();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3a/g010", "name": "\u661f\u8f89\u6570\u5854\u00b7\u9664\u6cd5\u7ad6\u5f0f\u5efa\u9020\u5de5\u574a", "file": "g010.html", "jiaocan": "\u301010\u3011\u7b2c5\u8bb2 \u7a81\u7834\u9664\u6cd5\u7ad6\u5f0f\uff08\u4e0b\uff09", "unit": "\u7b2c5\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

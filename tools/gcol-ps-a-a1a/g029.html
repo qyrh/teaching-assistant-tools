@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>对称魔法城堡 · 感受对称之美（上）探险</title>
+<style>
+/* ====== 全局配色（每局随机更换主色） ====== */
+:root{ --main:#e2436f; --deep:#a91444; --sky:#ffeff4; --accent:#ff9f1c; --ink:#4a2030; }
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+[hidden]{ display:none !important; }
+body{
+  margin:0; min-height:100vh; color:var(--ink);
+  font-family:'Microsoft YaHei','PingFang SC','Hiragino Sans GB',sans-serif;
+  background:linear-gradient(180deg, var(--sky) 0%, #ffffff 72%);
+}
+#app{ max-width:920px; margin:0 auto; padding:10px 12px 34px; }
+/* ====== 顶栏 ====== */
+.topbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 4px 10px; flex-wrap:wrap; }
+.topbar h1{ font-size:26px; margin:0; color:var(--deep); letter-spacing:2px; }
+/* ====== 按钮 ====== */
+.btn{
+  border:none; border-radius:14px; padding:10px 18px; font-size:20px; font-weight:bold;
+  color:#fff; background:var(--main); cursor:pointer; user-select:none;
+  box-shadow:0 3px 0 var(--deep); font-family:inherit;
+}
+.btn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--deep); }
+.btn.ghost{ background:#fff; color:var(--main); border:3px solid var(--main); box-shadow:0 3px 0 rgba(0,0,0,.14); }
+.btn.gold{ background:var(--accent); box-shadow:0 3px 0 #c97b00; }
+.btn.active{ outline:4px solid var(--accent); outline-offset:2px; }
+/* ====== 难度选择 ====== */
+.bigTitle{ font-size:30px; color:var(--deep); text-align:center; margin:8px 0 14px; letter-spacing:2px; }
+.kb{ background:#fff; border:3px dashed var(--accent); border-radius:14px; padding:12px 18px; margin:0 0 16px; }
+.kb h3{ margin:4px 0 8px; color:var(--deep); font-size:21px; }
+.kb li{ font-size:18px; line-height:1.7; margin:4px 0; }
+.grid3{ display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; }
+.levelCard{
+  background:#fff; border:4px solid var(--main); border-radius:18px; padding:18px 14px;
+  cursor:pointer; text-align:center; box-shadow:0 4px 0 rgba(0,0,0,.10);
+}
+.levelCard:active{ transform:translateY(2px); }
+.levelCard h2{ margin:0 0 8px; font-size:23px; color:var(--deep); }
+.levelCard p{ margin:0; font-size:18px; line-height:1.6; color:#555; }
+/* ====== 游戏区 ====== */
+.hud{
+  display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:center; align-items:center;
+  font-size:20px; font-weight:bold; background:#fff; border-radius:14px;
+  padding:8px 10px; border:3px dashed var(--main); margin-bottom:8px;
+}
+.hud .starMark{ color:var(--accent); }
+.goal{ font-size:22px; font-weight:bold; text-align:center; margin:10px 4px; color:var(--deep); }
+#stageBox{ display:flex; justify-content:center; }
+canvas#gameCanvas{
+  background:#fff; border:4px solid var(--main); border-radius:16px;
+  touch-action:none; max-width:100%; display:block;
+}
+.caption{ text-align:center; font-size:17px; margin:8px 2px; color:#555; line-height:1.5; }
+.controls{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; align-items:center; margin:10px 0 2px; }
+.navrow{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; margin-top:12px; }
+/* ====== 提示条 ====== */
+#toast{
+  position:fixed; left:50%; bottom:36px; transform:translateX(-50%) translateY(20px);
+  background:rgba(40,30,60,.9); color:#fff; font-size:18px; padding:10px 20px;
+  border-radius:12px; opacity:0; pointer-events:none; transition:all .25s; z-index:60; max-width:88vw;
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+/* ====== 遮罩弹窗 ====== */
+.overlay{
+  position:fixed; inset:0; background:rgba(35,25,60,.55); display:flex;
+  align-items:center; justify-content:center; z-index:40; padding:14px;
+}
+.modal{
+  background:#fff; border-radius:20px; border:5px solid var(--main); padding:20px 22px;
+  max-width:640px; width:100%; max-height:86vh; overflow:auto;
+}
+.modal h2{ margin:0 0 10px; color:var(--deep); font-size:24px; }
+.modal p, .modal li{ font-size:18px; line-height:1.7; margin:6px 0; }
+.stars{ font-size:42px; text-align:center; color:var(--accent); letter-spacing:8px; margin:10px 0; }
+#confettiCanvas{ position:fixed; inset:0; pointer-events:none; z-index:50; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 顶栏：标题 + 规则按钮（随时可看） -->
+  <div class="topbar">
+    <h1>对称魔法城堡</h1>
+    <button class="btn ghost" id="btnRules">规则说明</button>
+  </div>
+
+  <!-- 屏幕1：难度选择 -->
+  <section id="screenMenu">
+    <div class="bigTitle">选一个难度，开始对称探险吧！</div>
+    <div class="kb">
+      <h3>知识小课堂</h3>
+      <ul>
+        <li><b>轴对称图形：</b>沿着一条直线对折，直线两旁的部分能完全重合，这条直线叫<b>对称轴</b>。</li>
+        <li><b>照镜子：</b>上下不变，左右相反。</li>
+        <li><b>两个图形成轴对称：</b>两个一模一样的图形面对面站立，沿中间的直线对折能完全重合。</li>
+      </ul>
+    </div>
+    <div class="grid3">
+      <div class="levelCard" data-level="easy">
+        <h2>初级 · 彩虹桥</h2>
+        <p>镜像小画家<br>在镜子线右边涂出图案的倒影</p>
+      </div>
+      <div class="levelCard" data-level="mid">
+        <h2>中级 · 星空旅程</h2>
+        <p>对称轴探索家<br>拖动小棒，点亮图形的全部对称轴</p>
+      </div>
+      <div class="levelCard" data-level="hard">
+        <h2>高级 · 智慧之门</h2>
+        <p>面对面魔法师<br>翻转并搬动图形，让两个图形成轴对称</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 屏幕2：游戏区 -->
+  <section id="screenGame" hidden>
+    <div class="hud">
+      <span id="hudLevel"></span>
+      <span id="hudRound"></span>
+      <span id="hudTime"></span>
+      <span id="hudSteps"></span>
+      <span id="hudStars" class="starMark"></span>
+    </div>
+    <div class="goal" id="goalText"></div>
+    <div id="stageBox"><canvas id="gameCanvas"></canvas></div>
+    <div class="caption" id="captionText"></div>
+    <div class="controls">
+      <span id="easyBrushBox">
+        <button class="btn" id="btnBrush">涂色笔</button>
+        <button class="btn ghost" id="btnEraser">橡皮擦</button>
+      </span>
+      <span id="hardFlipBox" hidden>
+        <button class="btn gold" id="btnFlip">左右翻转</button>
+      </span>
+    </div>
+    <div class="navrow">
+      <button class="btn ghost" id="btnReveal">揭示答案</button>
+      <button class="btn ghost" id="btnRestart">重新开始</button>
+      <button class="btn ghost" id="btnBack">返回难度选择</button>
+    </div>
+  </section>
+</div>
+
+<!-- 规则说明弹窗（进入时弹出，可随时再看） -->
+<div class="overlay" id="rulesOverlay">
+  <div class="modal">
+    <h2>游戏规则说明</h2>
+    <p>欢迎来到对称魔法城堡！每段旅程有 3 个关卡，每关不看提示完成就能赢得一颗星星：</p>
+    <ul>
+      <li><b>初级 · 镜像小画家：</b>照着左边的图案，在镜子线右边涂出它的倒影。口诀：<b>上下不变，左右相反</b>！按住涂色笔拖动涂色，涂错了换橡皮擦擦掉。</li>
+      <li><b>中级 · 对称轴探索家：</b>按住金色小棒拖动，让它绕图形中心旋转。当小棒正好落在对称轴上，就会点亮变绿。横、竖、斜方向都要试一试，点亮全部对称轴就过关！</li>
+      <li><b>高级 · 面对面魔法师：</b>中间有一条镜子线。如果右边的图形和左边不是面对面，先点【左右翻转】让它翻个身，再把它拖进虚线框，让两个图形面对面成轴对称！</li>
+    </ul>
+    <p>右上角会显示用时、步数和星星。祝小探险家玩得开心！</p>
+    <div style="text-align:center; margin-top:12px;">
+      <button class="btn" id="btnRulesClose">开始探险</button>
+    </div>
+  </div>
+</div>
+
+<!-- 单关通过弹窗 -->
+<div class="overlay" id="roundOverlay" hidden>
+  <div class="modal" style="text-align:center;">
+    <h2 class="bigTitle" id="roundTitle" style="margin-top:0;"></h2>
+    <p id="roundNote"></p>
+    <button class="btn" id="roundNextBtn">进入下一关</button>
+  </div>
+</div>
+
+<!-- 全部通关弹窗 -->
+<div class="overlay" id="finalOverlay" hidden>
+  <div class="modal" style="text-align:center;">
+    <h2 class="bigTitle" style="margin-top:0;">闯关成功！</h2>
+    <div class="stars" id="finalStars"></div>
+    <p id="finalStats"></p>
+    <p>你已经是小小的对称魔法师啦！</p>
+    <div class="navrow" style="margin-top:6px;">
+      <button class="btn" id="finalReplay">再玩一次</button>
+      <button class="btn ghost" id="finalBack">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confettiCanvas"></canvas>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   对称魔法城堡 —— 第15讲《感受对称之美（上）》互动游戏
+   三档难度对应三种"真操作"玩法：
+     初级：画布拖动涂色，补全镜像倒影（上下不变，左右相反）
+     中级：拖动探轴小棒旋转，点亮图形的全部对称轴
+     高级：左右翻转 + 自由拖拽，让两个图形成轴对称（面对面）
+   ===================================================================== */
+
+/* ---------- 小工具函数 ---------- */
+function $(id){ return document.getElementById(id); }
+function randInt(n){ return Math.floor(Math.random() * n); }
+function pickRandom(arr){ return arr[randInt(arr.length)]; }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = randInt(i + 1);
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+/* 角度按"直线方向"归一到 0~180 度（0=水平线，90=竖直线） */
+function angNorm(a){ return ((a % 180) + 180) % 180; }
+function angDiff(a, b){
+  const d = Math.abs(angNorm(a) - angNorm(b));
+  return Math.min(d, 180 - d);
+}
+function roundRectPath(c2, x, y, w, h, r){
+  c2.beginPath();
+  c2.moveTo(x + r, y);
+  c2.arcTo(x + w, y, x + w, y + h, r);
+  c2.arcTo(x + w, y + h, x, y + h, r);
+  c2.arcTo(x, y + h, x, y, r);
+  c2.arcTo(x, y, x + w, y, r);
+  c2.closePath();
+}
+
+/* ---------- 配色板：每局随机选一套，多次玩不腻 ---------- */
+const PALETTES = [
+  { name:'草莓园',   main:'#e2436f', deep:'#a91444', sky:'#ffeff4', accent:'#ff9f1c', ink:'#4a2030' },
+  { name:'森林溪',   main:'#2f9e63', deep:'#1b6f45', sky:'#eafaf0', accent:'#f6a01e', ink:'#14402a' },
+  { name:'星空蓝',   main:'#3f6fd8', deep:'#28509f', sky:'#eef3ff', accent:'#ffb020', ink:'#20305c' },
+  { name:'葡萄园',   main:'#8a5cd6', deep:'#623ca8', sky:'#f5eeff', accent:'#ff8a4d', ink:'#36255e' },
+  { name:'蜜橘阳光', main:'#ef7d24', deep:'#c25a0d', sky:'#fff4e2', accent:'#2a9d8f', ink:'#5c3708' }
+];
+
+/* ---------- 全局状态 ---------- */
+const state = {
+  levelKey:null,      /* 当前难度 easy / mid / hard */
+  plan:[],            /* 本局的关卡数据（随机抽样生成） */
+  round:0, roundsTotal:3,
+  steps:0, stars:0,
+  startTs:0, timerId:null,
+  busy:false,         /* 过关动画/弹窗期间禁止操作 */
+  palette:PALETTES[0],
+  revealed:false      /* 本关是否用了"揭示答案" */
+};
+const ROUNDS_TOTAL = 3;
+
+/* ---------- 主画布尺寸自适应 ---------- */
+const canvas = $('gameCanvas');
+const ctx = canvas.getContext('2d');
+let cssW = 600, cssH = 400;
+function fitCanvas(ratio){
+  const stage = $('stageBox');
+  const w = Math.max(260, Math.min(stage.clientWidth - 8, 860));
+  const h = Math.round(w / ratio);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cssW = w; cssH = h;
+}
+function ptrPos(e){
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function applyRandomPalette(){
+  state.palette = pickRandom(PALETTES);
+  const st = document.documentElement.style;
+  st.setProperty('--main', state.palette.main);
+  st.setProperty('--deep', state.palette.deep);
+  st.setProperty('--sky', state.palette.sky);
+  st.setProperty('--accent', state.palette.accent);
+  st.setProperty('--ink', state.palette.ink);
+}
+
+/* =====================================================================
+   数据池（反重复：每局随机抽样，图案/数值/顺序都打乱）
+   ===================================================================== */
+
+/* 初级像素图案：只定义"左半边"（列 0~5，行 0~9），右半边由学生照镜子涂出 */
+const COLS = 12, ROWS = 10;
+const PIXEL_POOL = [
+  { name:'花蝴蝶', rows:{ 1:[5], 2:[3,4,5], 3:[1,2,3,4,5], 4:[1,2,3,4,5], 5:[3,4,5], 6:[4,5] } },
+  { name:'小房子', rows:{ 1:[5], 2:[4,5], 3:[3,4,5], 4:[2,3,4,5], 5:[2,3], 6:[2,3], 7:[2,3,4,5] } },
+  { name:'爱心',   rows:{ 2:[3,4], 3:[2,3,4,5], 4:[1,2,3,4,5], 5:[1,2,3,4,5], 6:[2,3,4,5], 7:[3,4,5], 8:[4,5] } },
+  { name:'小树',   rows:{ 1:[5], 2:[4,5], 3:[3,4,5], 4:[2,3,4,5], 5:[2,3,4,5], 7:[4,5], 8:[4,5] } },
+  { name:'小帆船', rows:{ 1:[5], 2:[4,5], 3:[3,4,5], 4:[2,3,4,5], 6:[2,3,4,5], 7:[3,4] } },
+  { name:'魔法城堡', rows:{ 1:[3,5], 2:[3,4,5], 3:[3,4,5], 4:[3,4,5], 5:[2,3,4,5], 6:[2,3], 7:[2,3] } }
+];
+function leftSetOf(def){
+  const s = new Set();
+  for(const r in def.rows){
+    for(const c of def.rows[r]){ s.add(r + ',' + c); }
+  }
+  return s;
+}
+function mirroredSet(s){
+  const out = new Set();
+  for(const k of s){
+    const parts = k.split(',');
+    out.add(parts[0] + ',' + (COLS - 1 - Number(parts[1])));
+  }
+  return out;
+}
+
+/* 中级图形池：axes 为对称轴方向（度，0=水平 90=竖直）；圆的对称轴有无数条，点亮 3 条即过关 */
+const SHAPE_POOL = [
+  { name:'等腰三角形', draw:'isoTri', axes:[90],        tip:'提示：竖着的那条藏对称轴！' },
+  { name:'长方形',     draw:'rect',   axes:[0,90],      tip:'提示：横着、竖着都要试一试！' },
+  { name:'正方形',     draw:'square', axes:[0,45,90,135], tip:'提示：横、竖、斜一个都不能漏！' },
+  { name:'等边三角形', draw:'eqTri',  axes:[30,90,150], tip:'提示：三条边一样长，藏着 3 条！' },
+  { name:'圆',         draw:'circle', axes:null, need:3, tip:'圆有无数条对称轴，点亮任意 3 条就赢！' },
+  { name:'小线段',     draw:'seg',    axes:[0,90],      tip:'提示：有一条对称轴就藏在它自己身上！' },
+  { name:'小菱形',     draw:'diamond', axes:[0,90],     tip:'提示：横一条、竖一条，认真找！' },
+  { name:'五角星',     draw:'star',   axes:[18,54,90,126,162], tip:'提示：每个角的顶点都能引出一条！' }
+];
+
+/* 高级图形池：均为"不是轴对称图形"的个体，和它的镜像面对面摆放，就组成"两个图形成轴对称" */
+const PAIR_POOL = [
+  { name:'字母F',  lines:[ [[0.3,-0.85],[0.3,0.85]], [[0.3,-0.85],[-0.5,-0.85]], [[0.3,-0.2],[-0.35,-0.2]] ] },
+  { name:'字母L',  lines:[ [[0.3,-0.85],[0.3,0.6],[-0.5,0.6]] ] },
+  { name:'字母Z',  lines:[ [[-0.45,-0.8],[0.45,-0.8],[-0.45,0.8],[0.45,0.8]] ] },
+  { name:'小箭头', polys:[ [[0.9,0],[0.25,-0.5],[0.25,-0.2],[-0.9,-0.2],[-0.9,0.2],[0.25,0.2],[0.25,0.5]] ] },
+  { name:'小旗子', lines:[ [[-0.45,-0.85],[-0.45,0.85]] ], polys:[ [[-0.45,-0.85],[0.55,-0.5],[-0.45,-0.15]] ] }
+];
+function buildPlan(key){
+  const defs = [];
+  if(key === 'easy'){
+    for(const p of shuffle(PIXEL_POOL).slice(0, ROUNDS_TOTAL)){ defs.push({ data:p }); }
+  }else if(key === 'mid'){
+    for(const p of shuffle(SHAPE_POOL).slice(0, ROUNDS_TOTAL)){ defs.push({ data:p }); }
+  }else{
+    for(const p of shuffle(PAIR_POOL).slice(0, ROUNDS_TOTAL)){ defs.push({ data:p }); }
+  }
+  return defs;
+}
+
+/* =====================================================================
+   初级：镜像小画家（画布拖动涂色，补全倒影）
+   ===================================================================== */
+const easyGame = {
+  pic:null, left:null, target:null, user:new Set(),
+  painting:false, erase:false, revealMode:false, solved:false,
+  start(def){
+    this.pic = def.data;
+    this.left = leftSetOf(def.data);
+    this.target = mirroredSet(this.left);   /* 唯一正确答案：左半边的镜像 */
+    this.user = new Set();
+    this.painting = false;
+    this.erase = false;
+    this.revealMode = false;
+    this.solved = false;
+    syncBrush();
+  },
+  beginStroke(p){
+    if(this.solved) return;
+    this.painting = true;
+    state.steps++;
+    this.applyAt(p);
+  },
+  endStroke(){ this.painting = false; },
+  applyAt(p){
+    if(this.solved) return;
+    const s = cssW / COLS;
+    const c = Math.floor(p.x / s), r = Math.floor(p.y / s);
+    if(c < 0 || c >= COLS || r < 0 || r >= ROWS) return;
+    if(c < COLS / 2){ toast('小画家，请在镜子线的右边涂色哦！'); return; }
+    const key = r + ',' + c;
+    let changed = false;
+    if(this.erase){
+      if(this.user.has(key)){ this.user.delete(key); changed = true; }
+    }else{
+      if(!this.user.has(key)){ this.user.add(key); changed = true; }
+    }
+    if(changed){
+      render();
+      this.checkDone();
+    }
+  },
+  /* 严格精确匹配：涂的格子必须与镜像答案完全一致 */
+  checkDone(){
+    if(this.user.size !== this.target.size) return;
+    for(const k of this.target){
+      if(!this.user.has(k)) return;
+    }
+    this.solved = true;
+    setTimeout(roundSuccess, 450);
+  },
+  draw(){
+    ctx.clearRect(0, 0, cssW, cssH);
+    const s = cssW / COLS;
+    /* 浅色网格 */
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1;
+    for(let c = 0; c <= COLS; c++){
+      ctx.beginPath(); ctx.moveTo(c * s, 0); ctx.lineTo(c * s, cssH); ctx.stroke();
+    }
+    for(let r = 0; r <= ROWS; r++){
+      ctx.beginPath(); ctx.moveTo(0, r * s); ctx.lineTo(cssW, r * s); ctx.stroke();
+    }
+    ctx.restore();
+    /* 左半边题目图案 */
+    ctx.save();
+    ctx.fillStyle = state.palette.main;
+    for(const k of this.left){
+      const parts = k.split(',');
+      const c = Number(parts[1]), r = Number(parts[0]);
+      roundRectPath(ctx, c * s + 2, r * s + 2, s - 4, s - 4, Math.min(6, s * 0.12));
+      ctx.fill();
+    }
+    ctx.restore();
+    /* 学生涂的倒影（揭示答案时用金色） */
+    ctx.save();
+    ctx.fillStyle = this.revealMode ? '#f5a300' : state.palette.deep;
+    for(const k of this.user){
+      const parts = k.split(',');
+      const c = Number(parts[1]), r = Number(parts[0]);
+      roundRectPath(ctx, c * s + 2, r * s + 2, s - 4, s - 4, Math.min(6, s * 0.12));
+      ctx.fill();
+    }
+    ctx.restore();
+    /* 中央镜子线 */
+    ctx.save();
+    ctx.strokeStyle = state.palette.accent;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([14, 10]);
+    ctx.beginPath(); ctx.moveTo(6 * s, 4); ctx.lineTo(6 * s, cssH - 4); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = state.palette.accent;
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('镜子线', 6 * s - 8, 22);
+    ctx.restore();
+  }
+};
+
+/* =====================================================================
+   中级：对称轴探索家（拖动小棒旋转，点亮全部对称轴）
+   ===================================================================== */
+const midGame = {
+  shape:null, found:[], angle:90, lastLock:-999,
+  dragging:false, canLock:true, solved:false,
+  start(def){
+    this.shape = def.data;
+    this.found = [];
+    this.angle = 90;
+    this.lastLock = -999;
+    this.dragging = false;
+    this.canLock = true;
+    this.solved = false;
+  },
+  need(){ return this.shape.axes ? this.shape.axes.length : this.shape.need; },
+  beginDrag(p){
+    if(this.solved) return;
+    this.dragging = true;
+    state.steps++;
+    this.moveTo(p);
+  },
+  moveTo(p){
+    const cx = cssW / 2, cy = cssH / 2;
+    let deg = Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI;
+    this.angle = angNorm(deg);
+    if(!this.canLock && angDiff(this.angle, this.lastLock) > 16){
+      this.canLock = true;   /* 离开上一条轴足够远，才允许点亮下一条 */
+    }
+    if(this.canLock) this.tryLock();
+    render();
+  },
+  endDrag(){ this.dragging = false; },
+  tryLock(){
+    if(this.shape.axes){
+      for(const a of this.shape.axes){
+        if(this.found.indexOf(a) < 0 && angDiff(this.angle, a) <= 8){
+          this.lockAt(a);
+          return;
+        }
+      }
+    }else{
+      /* 圆：任意方向都算，但两条已点亮的轴之间至少间隔 25 度 */
+      let okA = true;
+      for(const f of this.found){
+        if(angDiff(this.angle, f) < 25){ okA = false; break; }
+      }
+      if(okA) this.lockAt(angNorm(this.angle));
+    }
+  },
+  lockAt(a){
+    this.found.push(a);
+    this.angle = a;
+    this.lastLock = a;
+    this.canLock = false;
+    state.steps++;
+    confettiBurst(14);
+    if(this.found.length >= this.need()){
+      this.solved = true;
+      setTimeout(roundSuccess, 450);
+    }
+  },
+  draw(){
+    ctx.clearRect(0, 0, cssW, cssH);
+    const cx = cssW / 2, cy = cssH / 2;
+    const R = Math.min(cssW, cssH) * 0.30;
+    /* 已点亮的对称轴（绿色虚线） */
+    for(const a of this.found){ drawAxisLine(a, '#1fae72', false); }
+    /* 图形本体 */
+    ctx.save();
+    ctx.translate(cx, cy);
+    if(this.shape.draw === 'seg'){
+      ctx.strokeStyle = state.palette.main;
+      ctx.lineWidth = 16;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.92, 0); ctx.lineTo(R * 0.92, 0);
+      ctx.stroke();
+    }else{
+      shapePath(this.shape.draw, R);
+      ctx.fillStyle = hexToRgba(state.palette.main, 0.14);
+      ctx.fill();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = state.palette.main;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+    ctx.restore();
+    /* 金色探轴小棒 + 手柄圆点 */
+    drawAxisLine(this.angle, '#f5a300', true);
+    /* 中心点 */
+    ctx.save();
+    ctx.fillStyle = state.palette.ink;
+    ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+};
+/* 按图形名生成路径 */
+function shapePath(kind, R){
+  ctx.beginPath();
+  if(kind === 'isoTri'){
+    ctx.moveTo(0, -R * 1.02);
+    ctx.lineTo(R, R * 0.75);
+    ctx.lineTo(-R, R * 0.75);
+    ctx.closePath();
+  }else if(kind === 'eqTri'){
+    const angs = [-90, 30, 150];
+    for(let i = 0; i < 3; i++){
+      const th = angs[i] * Math.PI / 180;
+      const px = Math.cos(th) * R * 1.02, py = Math.sin(th) * R * 1.02;
+      if(i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }else if(kind === 'rect'){
+    ctx.rect(-R * 1.35, -R * 0.7, R * 2.7, R * 1.4);
+  }else if(kind === 'square'){
+    ctx.rect(-R * 0.95, -R * 0.95, R * 1.9, R * 1.9);
+  }else if(kind === 'circle'){
+    ctx.arc(0, 0, R * 0.95, 0, Math.PI * 2);
+  }else if(kind === 'diamond'){
+    ctx.moveTo(R * 1.1, 0);
+    ctx.lineTo(0, R * 0.62);
+    ctx.lineTo(-R * 1.1, 0);
+    ctx.lineTo(0, -R * 0.62);
+    ctx.closePath();
+  }else if(kind === 'star'){
+    for(let i = 0; i < 10; i++){
+      const rr = (i % 2 === 0) ? R : R * 0.44;
+      const th = (-90 + i * 36) * Math.PI / 180;
+      const px = Math.cos(th) * rr, py = Math.sin(th) * rr;
+      if(i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+}
+/* 画一条过中心的直线（deg：0=水平 90=竖直）；isProbe 时带拖动手柄 */
+function drawAxisLine(deg, color, isProbe){
+  const cx = cssW / 2, cy = cssH / 2;
+  const L = Math.min(cssW, cssH) * 0.42;
+  const rad = deg * Math.PI / 180;
+  const dx = Math.cos(rad), dy = Math.sin(rad);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 5;
+  if(!isProbe) ctx.setLineDash([12, 9]);
+  ctx.beginPath();
+  ctx.moveTo(cx - dx * L, cy - dy * L);
+  ctx.lineTo(cx + dx * L, cy + dy * L);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if(isProbe){
+    for(const s of [-1, 1]){
+      ctx.beginPath();
+      ctx.arc(cx + dx * L * s, cy + dy * L * s, 12, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+    }
+  }else{
+    ctx.fillStyle = color;
+    for(const s of [-1, 1]){
+      ctx.beginPath();
+      ctx.arc(cx + dx * L * s, cy + dy * L * s, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
+/* =====================================================================
+   高级：面对面魔法师（左右翻转 + 拖拽，让两个图形成轴对称）
+   ===================================================================== */
+const hardGame = {
+  item:null, flipped:false, fx:0, fy:0,
+  dragging:false, offx:0, offy:0, solved:false,
+  start(def){
+    this.item = def.data;
+    /* 一半概率初始就是镜像（只需搬动），一半概率需要先翻转，随机出现 */
+    this.flipped = Math.random() < 0.5;
+    this.solved = false;
+    this.dragging = false;
+    this.fx = cssW * 0.80 + (Math.random() * 40 - 20);
+    this.fy = cssH * 0.5 + (Math.random() * 60 - 30);
+  },
+  leftX(){ return cssW * 0.24; },
+  cy(){ return cssH * 0.5; },
+  targetX(){ return cssW - this.leftX(); },
+  s(){ return Math.min(cssW, cssH) * 0.22; },
+  beginDrag(p){
+    if(this.solved) return;
+    const s = this.s();
+    const dx = p.x - this.fx, dy = p.y - this.fy;
+    if(Math.abs(dx) <= s * 1.5 && Math.abs(dy) <= s * 1.3){
+      this.dragging = true;
+      this.offx = dx; this.offy = dy;
+      state.steps++;
+    }else{
+      toast('用手指拖动右边的小图形，把它放进虚线框里！');
+    }
+  },
+  moveTo(p){
+    if(!this.dragging) return;
+    this.fx = clamp(p.x - this.offx, 30, cssW - 30);
+    this.fy = clamp(p.y - this.offy, 30, cssH - 30);
+    render();
+  },
+  endDrag(){
+    if(!this.dragging) return;
+    this.dragging = false;
+    this.evaluate(true);
+  },
+  flip(){
+    if(this.solved) return;
+    this.flipped = !this.flipped;
+    state.steps++;
+    render();
+    this.evaluate(true);
+  },
+  /* 成功条件：已翻转成镜像 且 搬进了虚线框（条件完整、答案唯一） */
+  evaluate(allowHint){
+    if(this.solved) return;
+    const near = Math.abs(this.fx - this.targetX()) <= 26 && Math.abs(this.fy - this.cy()) <= 20;
+    if(!near) return;
+    if(this.flipped){
+      this.fx = this.targetX();
+      this.fy = this.cy();
+      this.solved = true;
+      render();
+      setTimeout(roundSuccess, 500);
+    }else if(allowHint){
+      toast('两个图形还没面对面哦！先点【左右翻转】，再放进虚线框');
+    }
+  },
+  draw(){
+    ctx.clearRect(0, 0, cssW, cssH);
+    const s = this.s(), cy = this.cy(), mx = cssW / 2;
+    /* 镜子线 + 柔光带 */
+    ctx.save();
+    ctx.fillStyle = hexToRgba(state.palette.accent, 0.12);
+    ctx.fillRect(mx - 16, 14, 32, cssH - 28);
+    ctx.strokeStyle = state.palette.deep;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([14, 10]);
+    ctx.beginPath(); ctx.moveTo(mx, 14); ctx.lineTo(mx, cssH - 14); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    /* 目标虚线框（只标位置，不提示方向，需要自己判断翻转） */
+    ctx.save();
+    ctx.strokeStyle = state.palette.accent;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([10, 8]);
+    roundRectPath(ctx, this.targetX() - s * 1.25, cy - s * 1.15, s * 2.5, s * 2.3, 14);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    /* 左图（原样，固定不动） */
+    drawFigure(this.item, this.leftX(), cy, s, false, state.palette.main);
+    /* 右图（按翻转状态绘制，可拖动） */
+    drawFigure(this.item, this.fx, this.fy, s, this.flipped, state.palette.deep);
+  }
+};
+/* 绘制一个图形：局部坐标约在 -1~1 之间，s 为缩放，flip 为左右镜像 */
+function drawFigure(fig, cx, cy, s, flip, color){
+  ctx.save();
+  ctx.translate(cx, cy);
+  if(flip) ctx.scale(-1, 1);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  if(fig.lines){
+    ctx.lineWidth = Math.max(8, s * 0.26);
+    for(const ln of fig.lines){
+      ctx.beginPath();
+      for(let i = 0; i < ln.length; i++){
+        const x = ln[i][0] * s, y = ln[i][1] * s;
+        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+  if(fig.polys){
+    for(const poly of fig.polys){
+      ctx.beginPath();
+      for(let i = 0; i < poly.length; i++){
+        const x = poly[i][0] * s, y = poly[i][1] * s;
+        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* =====================================================================
+   流程控制：选难度 → 逐关闯 → 庆祝 → 结算
+   ===================================================================== */
+const RATIOS = { easy:1.2, mid:1.35, hard:1.7 };
+function startLevel(key){
+  applyRandomPalette();          /* 每局换主色 */
+  state.levelKey = key;
+  state.plan = buildPlan(key);   /* 随机抽样本局关卡 */
+  state.round = 0;
+  state.stars = 0;
+  state.steps = 0;
+  state.roundsTotal = state.plan.length;
+  state.busy = false;
+  $('screenMenu').hidden = true;
+  $('screenGame').hidden = false;
+  setControls(key);
+  startTimer();
+  nextRound();
+}
+function setControls(key){
+  $('easyBrushBox').hidden = key !== 'easy';
+  $('hardFlipBox').hidden = key !== 'hard';
+}
+function nextRound(){
+  state.round++;
+  state.revealed = false;
+  state.busy = false;
+  fitCanvas(RATIOS[state.levelKey]);
+  const def = state.plan[state.round - 1];
+  if(state.levelKey === 'easy') easyGame.start(def);
+  else if(state.levelKey === 'mid') midGame.start(def);
+  else hardGame.start(def);
+  $('goalText').textContent = goalText();
+  updateHud();
+  render();
+}
+function goalText(){
+  const d = state.plan[state.round - 1].data;
+  if(state.levelKey === 'easy'){
+    return '第' + state.round + '关：照着左边的「' + d.name + '」，在镜子线右边涂出它的倒影！';
+  }
+  if(state.levelKey === 'mid'){
+    return '第' + state.round + '关：拖动金色小棒，点亮「' + d.name + '」的全部对称轴！';
+  }
+  return '第' + state.round + '关：让右边的「' + d.name + '」翻个身、搬进虚线框，和左边面对面！';
+}
+function render(){
+  if(!state.levelKey) return;
+  if(state.levelKey === 'easy'){
+    easyGame.draw();
+    $('captionText').textContent = '图案：' + easyGame.pic.name + ' · 左边是题目，请在镜子线右边涂出倒影（上下不变，左右相反）';
+  }else if(state.levelKey === 'mid'){
+    midGame.draw();
+    $('captionText').textContent = '图案：' + midGame.shape.name + ' · 已点亮 ' + midGame.found.length + ' / ' + midGame.need() + ' 条对称轴 · ' + midGame.shape.tip;
+  }else{
+    hardGame.draw();
+    $('captionText').textContent = '图形：' + hardGame.item.name + ' · 小贴士：面对面 = 沿镜子线对折能完全重合';
+  }
+}
+/* 单关通过 */
+function roundSuccess(){
+  if(state.busy) return;
+  state.busy = true;
+  confettiBurst(90);
+  if(!state.revealed) state.stars++;
+  updateHud();
+  setTimeout(function(){
+    if(state.round >= state.roundsTotal){
+      showFinal();
+    }else{
+      $('roundTitle').textContent = '太棒了！第 ' + state.round + ' 关完成';
+      $('roundNote').textContent = state.revealed
+        ? '这一关用了【揭示答案】，没拿到星星，下一关靠自己的本领赢回来吧！'
+        : '你赢得一颗星星，继续加油！';
+      $('roundNextBtn').textContent = '进入第 ' + (state.round + 1) + ' 关';
+      $('roundOverlay').hidden = false;
+    }
+  }, 700);
+}
+function showFinal(){
+  stopTimer();
+  $('finalStars').textContent = '★'.repeat(state.stars) + '☆'.repeat(state.roundsTotal - state.stars);
+  $('finalStats').textContent = '用时 ' + timeStr() + ' ｜ 步数 ' + state.steps;
+  confettiBurst(160);
+  $('finalOverlay').hidden = false;
+}
+function toMenu(){
+  stopTimer();
+  state.levelKey = null;
+  state.busy = false;
+  $('screenGame').hidden = true;
+  $('finalOverlay').hidden = true;
+  $('roundOverlay').hidden = true;
+  $('screenMenu').hidden = false;
+}
+
+/* ---------- 计时器与记分 ---------- */
+function startTimer(){
+  stopTimer();
+  state.startTs = Date.now();
+  state.timerId = setInterval(updateTime, 500);
+  updateTime();
+}
+function stopTimer(){
+  if(state.timerId){ clearInterval(state.timerId); state.timerId = null; }
+}
+function timeStr(){
+  const sec = Math.floor((Date.now() - state.startTs) / 1000);
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+function updateTime(){ $('hudTime').textContent = '用时 ' + timeStr(); }
+function updateHud(){
+  $('hudLevel').textContent = { easy:'初级', mid:'中级', hard:'高级' }[state.levelKey] || '';
+  $('hudRound').textContent = '关卡 ' + state.round + '/' + state.roundsTotal;
+  $('hudSteps').textContent = '步数 ' + state.steps;
+  $('hudStars').textContent = '星星 ' + '★'.repeat(state.stars) + '☆'.repeat(Math.max(0, state.roundsTotal - state.stars));
+  updateTime();
+}
+
+/* ---------- 提示条 ---------- */
+let toastTimer = null;
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+/* ---------- 彩纸庆祝动画 ---------- */
+const confCanvas = $('confettiCanvas');
+const confCtx = confCanvas.getContext('2d');
+let confParts = [];
+let confRunning = false;
+function confettiBurst(n){
+  const W = confCanvas.width = window.innerWidth;
+  const H = confCanvas.height = window.innerHeight;
+  const cols = [state.palette.main, state.palette.accent, '#ffd166', '#06d6a0', '#ef476f', '#8ecae6'];
+  for(let i = 0; i < n; i++){
+    confParts.push({
+      x: W / 2 + (Math.random() - 0.5) * W * 0.7,
+      y: -20 - Math.random() * H * 0.25,
+      vx: (Math.random() - 0.5) * 3,
+      vy: 2 + Math.random() * 3.5,
+      w: 6 + Math.random() * 7,
+      h: 10 + Math.random() * 8,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.25,
+      color: cols[randInt(cols.length)]
+    });
+  }
+  if(!confRunning){
+    confRunning = true;
+    requestAnimationFrame(confLoop);
+  }
+}
+function confLoop(){
+  const W = confCanvas.width, H = confCanvas.height;
+  confCtx.clearRect(0, 0, W, H);
+  confParts = confParts.filter(function(p){
+    p.x += p.vx; p.y += p.vy; p.vy += 0.03; p.rot += p.vr;
+    return p.y < H + 30;
+  });
+  for(const p of confParts){
+    confCtx.save();
+    confCtx.translate(p.x, p.y);
+    confCtx.rotate(p.rot);
+    confCtx.fillStyle = p.color;
+    confCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    confCtx.restore();
+  }
+  if(confParts.length){
+    requestAnimationFrame(confLoop);
+  }else{
+    confRunning = false;
+    confCtx.clearRect(0, 0, W, H);
+  }
+}
+
+/* =====================================================================
+   事件绑定
+   ===================================================================== */
+/* 难度卡片点击 */
+const cards = document.querySelectorAll('.levelCard');
+for(const card of cards){
+  card.addEventListener('click', function(){
+    startLevel(card.getAttribute('data-level'));
+  });
+}
+/* 画布指针操作（鼠标 / 触摸通用） */
+canvas.addEventListener('pointerdown', function(e){
+  if(state.busy || !state.levelKey) return;
+  try{ canvas.setPointerCapture(e.pointerId); }catch(err){ /* 部分浏览器无需捕获，忽略即可 */ }
+  const p = ptrPos(e);
+  if(state.levelKey === 'easy') easyGame.beginStroke(p);
+  else if(state.levelKey === 'mid') midGame.beginDrag(p);
+  else hardGame.beginDrag(p);
+});
+canvas.addEventListener('pointermove', function(e){
+  if(state.busy || !state.levelKey) return;
+  const p = ptrPos(e);
+  if(state.levelKey === 'easy' && easyGame.painting) easyGame.applyAt(p);
+  else if(state.levelKey === 'mid' && midGame.dragging) midGame.moveTo(p);
+  else if(state.levelKey === 'hard' && hardGame.dragging) hardGame.moveTo(p);
+});
+function canvasPointerEnd(){
+  if(state.levelKey === 'easy') easyGame.endStroke();
+  else if(state.levelKey === 'mid') midGame.endDrag();
+  else if(state.levelKey === 'hard') hardGame.endDrag();
+}
+canvas.addEventListener('pointerup', canvasPointerEnd);
+canvas.addEventListener('pointercancel', canvasPointerEnd);
+
+/* 涂色笔 / 橡皮擦 */
+function syncBrush(){
+  $('btnBrush').classList.toggle('active', !easyGame.erase);
+  $('btnEraser').classList.toggle('active', easyGame.erase);
+}
+$('btnBrush').addEventListener('click', function(){ easyGame.erase = false; syncBrush(); });
+$('btnEraser').addEventListener('click', function(){ easyGame.erase = true; syncBrush(); });
+/* 左右翻转 */
+$('btnFlip').addEventListener('click', function(){
+  if(state.busy || !state.levelKey) return;
+  hardGame.flip();
+});
+/* 揭示答案（用了提示就不拿本关星星） */
+$('btnReveal').addEventListener('click', function(){
+  if(state.busy || !state.levelKey) return;
+  state.revealed = true;
+  state.steps++;
+  if(state.levelKey === 'easy'){
+    easyGame.revealMode = true;
+    easyGame.user = new Set(easyGame.target);
+    easyGame.solved = true;
+    render();
+  }else if(state.levelKey === 'mid'){
+    midGame.found = midGame.shape.axes ? midGame.shape.axes.slice() : [10, 70, 130];
+    midGame.solved = true;
+    render();
+  }else{
+    hardGame.flipped = true;
+    hardGame.fx = hardGame.targetX();
+    hardGame.fy = hardGame.cy();
+    hardGame.solved = true;
+    render();
+  }
+  setTimeout(roundSuccess, 600);
+});
+/* 重新开始本难度（重新随机抽样关卡） */
+$('btnRestart').addEventListener('click', function(){
+  if(!state.levelKey) return;
+  startLevel(state.levelKey);
+});
+/* 返回难度选择 */
+$('btnBack').addEventListener('click', toMenu);
+$('finalBack').addEventListener('click', toMenu);
+$('finalReplay').addEventListener('click', function(){
+  $('finalOverlay').hidden = true;
+  startLevel(state.levelKey);
+});
+/* 单关通过 → 下一关 */
+$('roundNextBtn').addEventListener('click', function(){
+  $('roundOverlay').hidden = true;
+  nextRound();
+});
+/* 规则说明 */
+$('btnRules').addEventListener('click', function(){ $('rulesOverlay').hidden = false; });
+$('btnRulesClose').addEventListener('click', function(){ $('rulesOverlay').hidden = true; });
+/* 窗口尺寸变化：重排画布并重绘 */
+window.addEventListener('resize', function(){
+  if(!state.levelKey) return;
+  fitCanvas(RATIOS[state.levelKey]);
+  if(state.levelKey === 'hard'){
+    hardGame.fx = clamp(hardGame.fx, 30, cssW - 30);
+    hardGame.fy = clamp(hardGame.fy, 30, cssH - 30);
+  }
+  render();
+});
+
+/* ---------- 启动：随机配色 + 弹出规则 ---------- */
+applyRandomPalette();
+updateHud();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g029", "name": "\u5bf9\u79f0\u9b54\u6cd5\u57ce\u5821 \u00b7 \u611f\u53d7\u5bf9\u79f0\u4e4b\u7f8e\uff08\u4e0a\uff09\u63a2\u9669", "file": "g029.html", "jiaocan": "\u301029\u3011\u7b2c15\u8bb2 \u611f\u53d7\u5bf9\u79f0\u4e4b\u7f8e\uff08\u4e0a\uff09", "unit": "\u7b2c15\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

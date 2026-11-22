@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>方格中的秘密 · 数字精灵救援队</title>
+<style>
+/* ============ 主题变量（每局随机换色） ============ */
+:root{
+  --main:#1565c0; --deep:#0d47a1; --soft:#e3f2fd; --soft2:#bbdefb;
+  --accent:#ffb300; --bg1:#eaf4ff; --bg2:#f8fbff;
+  --ink:#263238; --line:#90a4ae;
+  --cell: clamp(62px, 20vw, 88px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0;}
+body{
+  font-family:'Microsoft YaHei','PingFang SC','Segoe UI',sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  color:var(--ink); min-height:100vh;
+  display:flex; flex-direction:column; align-items:center;
+}
+.hidden{display:none !important;}
+
+/* ============ 顶部栏：标题 + 右上角计时/步数 ============ */
+header{
+  width:100%; max-width:640px; display:flex; justify-content:space-between;
+  align-items:center; padding:10px 14px 4px; gap:8px; flex-wrap:wrap;
+}
+.brand{font-size:22px; font-weight:800; color:var(--deep);}
+.brand small{display:block; font-size:14px; color:var(--main); font-weight:700;}
+.hud{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;}
+.chip{background:#fff; border:2px solid var(--line); border-radius:12px;
+  padding:6px 10px; font-size:18px; font-weight:800; color:var(--ink); white-space:nowrap;}
+
+/* ============ 通用按钮 ============ */
+.btn{
+  border:2px solid var(--line); border-radius:12px; padding:12px 16px;
+  font-size:19px; font-weight:700; cursor:pointer; background:#fff; color:var(--ink);
+  box-shadow:0 3px 0 var(--line); font-family:inherit;
+}
+.btn:active{transform:translateY(2px); box-shadow:none;}
+.btn.primary{background:var(--main); color:#fff; border-color:var(--deep); box-shadow:0 3px 0 var(--deep);}
+.btn.warn{background:var(--accent); color:#5d4037; border-color:#c98a00; box-shadow:0 3px 0 #c98a00;}
+.btn.mini{padding:6px 10px; font-size:16px;}
+
+/* ============ 难度选择界面 ============ */
+#screen-menu{display:flex; flex-direction:column; gap:16px; padding:14px 16px 28px; width:100%; max-width:560px;}
+.intro{background:#fff; border:2px dashed var(--line); border-radius:16px;
+  padding:14px; font-size:18px; line-height:1.7;}
+.diff-card{background:#fff; border:3px solid var(--main); border-radius:18px; padding:16px 18px;
+  cursor:pointer; box-shadow:0 5px 0 var(--deep); transition:transform .12s;}
+.diff-card:hover{transform:translateY(-3px);}
+.diff-card h2{margin:0 0 6px; font-size:24px; color:var(--main);}
+.diff-card p{margin:0; font-size:17px; line-height:1.6;}
+.diff-card .tag{display:inline-block; background:var(--soft); color:var(--deep);
+  border-radius:8px; padding:3px 10px; font-size:14px; font-weight:700; margin-top:10px;}
+
+/* ============ 游戏界面 ============ */
+#screen-game{width:100%; max-width:560px; padding:6px 12px 28px;
+  display:flex; flex-direction:column; align-items:center; gap:12px;}
+#level-bar{display:flex; gap:14px; align-items:center; font-size:20px; font-weight:800; color:var(--deep);}
+#level-dots{letter-spacing:4px; font-size:22px; color:var(--accent);}
+.mascot{display:flex; gap:10px; align-items:center; background:#fff; border:2px dashed var(--line);
+  border-radius:14px; padding:8px 12px; width:100%; font-size:17px; line-height:1.5;}
+.mascot .face{width:44px; height:44px; border-radius:50%; background:var(--accent);
+  display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800;
+  color:#5d4037; flex:none;}
+
+/* 棋盘：行标 A~D、列标 1~4（与教参一致） */
+.board{display:grid; grid-template-columns:auto auto; grid-template-rows:auto auto; gap:6px;}
+.collabels{grid-column:2; display:grid; grid-template-columns:repeat(4,var(--cell));}
+.collabels span{text-align:center; font-size:18px; font-weight:800; color:var(--deep);}
+.rowlabels{display:grid; grid-template-rows:repeat(4,var(--cell)); align-items:center;}
+.rowlabels span{display:flex; align-items:center; justify-content:center;
+  height:var(--cell); font-size:18px; font-weight:800; color:var(--deep);}
+.gridbox{position:relative; grid-column:2;}
+#grid{display:grid; grid-template-columns:repeat(4,var(--cell)); grid-template-rows:repeat(4,var(--cell));
+  border:4px solid var(--ink); border-radius:6px; overflow:hidden; background:#fff;}
+.diag-svg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none;}
+
+/* 单元格 */
+.cell{position:relative; width:var(--cell); height:var(--cell);
+  border:2px solid var(--line); display:flex; align-items:center; justify-content:center;
+  background:#fff; user-select:none; touch-action:none; cursor:pointer;}
+.cell .num{font-size:36px; font-weight:800; color:var(--ink); z-index:2; text-shadow:0 1px 0 #fff;}
+.cell.given .num{color:var(--ink);}
+.cell.user .num{color:var(--main);}
+.cell.boxtint{background:var(--soft2);}
+.cell.diagMain{background-image:repeating-linear-gradient(45deg,
+  rgba(21,101,192,.16) 0 7px, rgba(21,101,192,.05) 7px 14px);}
+.cell.diagAnti{background-image:repeating-linear-gradient(-45deg,
+  rgba(230,81,0,.18) 0 7px, rgba(230,81,0,.06) 7px 14px);}
+.cell.bad{background:#ffebee !important; outline:3px solid #c62828; outline-offset:-3px;}
+.cell.droptarget{outline:4px solid var(--accent); outline-offset:-4px; z-index:3;}
+.cell.hintcell{outline:4px dashed var(--accent); outline-offset:-4px; z-index:3;
+  animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{outline-offset:-4px;} 50%{outline-offset:-8px;}}
+.cell.shake{animation:shake .35s;}
+@keyframes shake{0%,100%{transform:translateX(0);} 25%{transform:translateX(-5px);}
+  50%{transform:translateX(5px);} 75%{transform:translateX(-3px);}}
+.cell.pop{animation:pop .35s;}
+@keyframes pop{0%{transform:scale(.4);} 70%{transform:scale(1.18);} 100%{transform:scale(1);}}
+.cell.glow{animation:unitglow .8s;}
+@keyframes unitglow{0%{box-shadow:inset 0 0 0 0 rgba(255,179,0,0);}
+  40%{box-shadow:inset 0 0 24px 6px rgba(255,179,0,.75);} 100%{box-shadow:inset 0 0 0 0 rgba(255,179,0,0);}}
+
+/* 和框角标（左上角小数字＝框内数字之和） */
+.badge{position:absolute; top:3px; left:3px; background:var(--deep); color:#fff;
+  font-size:16px; font-weight:800; border-radius:8px; padding:1px 7px; line-height:1.3; z-index:4;}
+.badge.ok{background:#2e7d32;}
+.badge.badbg{background:#c62828;}
+
+/* 排除镜：格内 2×2 候选数字点 */
+.lens{position:absolute; inset:0; display:none; grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr; padding:16px 12px; z-index:1;}
+.cell.lenson .lens{display:grid;}
+.lens span{font-size:16px; font-weight:800; color:var(--deep); opacity:.9;
+  display:flex; align-items:center; justify-content:center;}
+.lens span.off{opacity:.10;}
+
+/* 图例 */
+.legend{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+.legend .lg{background:#fff; border:2px solid var(--line); border-radius:10px;
+  padding:4px 10px; font-size:16px; font-weight:700;}
+.legend .sw{display:inline-block; width:15px; height:15px; border-radius:4px;
+  vertical-align:-2px; margin-right:5px;}
+
+/* 数字托盘与操作区（间距≥12px，互不遮挡） */
+#palette{display:flex; gap:14px; margin-top:4px; flex-wrap:wrap; justify-content:center;}
+.tile{width:64px; height:64px; border-radius:14px; background:var(--main); color:#fff;
+  font-size:34px; font-weight:800; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 5px 0 var(--deep); cursor:grab; touch-action:none; user-select:none;}
+.tile.eraser{background:var(--accent); color:#5d4037; box-shadow:0 5px 0 #c98a00; font-size:22px;}
+.tile.sel{transform:translateY(-6px); outline:4px solid var(--accent);}
+#actions{display:flex; flex-wrap:wrap; gap:10px; justify-content:center;}
+
+/* 拖拽幽灵块 */
+.ghost{position:fixed; z-index:99; width:56px; height:56px; border-radius:12px;
+  background:var(--main); color:#fff; font-size:30px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; pointer-events:none;
+  transform:translate(-50%,-60%); opacity:.92; box-shadow:0 6px 18px rgba(0,0,0,.25);}
+.ghost.eraser{background:var(--accent); color:#5d4037; font-size:20px;}
+
+/* 弹窗 */
+.overlay{position:fixed; inset:0; background:rgba(38,50,56,.45); display:none;
+  align-items:center; justify-content:center; z-index:50; padding:16px;}
+.overlay.show{display:flex;}
+.modal{background:#fff; border-radius:20px; max-width:480px; width:100%; padding:20px 22px;
+  box-shadow:0 10px 40px rgba(0,0,0,.25); border-top:10px solid var(--main);}
+.modal h3{margin:0 0 10px; font-size:24px; color:var(--main);}
+.modal .body{font-size:18px; line-height:1.8;}
+.modal .body p{margin:6px 0;}
+.modal .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; justify-content:center;}
+.stars{font-size:44px; letter-spacing:8px; color:#cfd8dc; text-align:center; margin:4px 0;}
+.stars .on{color:#ffb300; text-shadow:0 2px 0 #fff, 0 3px 6px rgba(255,179,0,.5);}
+.stats{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:6px;}
+.stats .chip{font-size:16px;}
+
+/* 彩纸画布 */
+#fx{position:fixed; inset:0; pointer-events:none; z-index:80; display:none;}
+
+@media (max-width:420px){
+  :root{--cell: clamp(56px, 20vw, 74px);}
+  .brand{font-size:19px;}
+  .cell .num{font-size:30px;}
+  .tile{width:56px; height:56px; font-size:28px;}
+  .btn{padding:10px 12px; font-size:17px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">方格中的秘密<small>数字精灵救援队 · 变形数独闯关</small></div>
+  <div class="hud">
+    <div class="chip" id="hud-time">时间 00:00</div>
+    <div class="chip" id="hud-steps">步数 0</div>
+    <button class="btn mini" id="btn-sound">音效 开</button>
+    <button class="btn mini primary" id="btn-rules">规则说明</button>
+  </div>
+</header>
+
+<!-- ============ 难度选择 ============ -->
+<section id="screen-menu">
+  <div class="intro">数字精灵们被大风吹散在方格迷宫里啦！请把它们送回正确的家：
+    让每行、每列都集齐 1～4，整片方格就会亮起来！先选一个难度出发吧。</div>
+  <div class="diff-card" data-d="0">
+    <h2>初级 · 星光平原</h2>
+    <p>四宫数独：每行、每列、每个彩色区域，1～4 各出现一次。</p>
+    <span class="tag">课堂好方法：从缺数最少的行或列入手，用排除法填数</span>
+  </div>
+  <div class="diff-card" data-d="1">
+    <h2>中级 · 彩虹桥</h2>
+    <p>和框数独：粗线框左上角的数字＝框里数字之和，先找只占一格的突破口。</p>
+    <span class="tag">课堂好方法：先填单个方格，再用每列总和 1+2+3+4=10 推理</span>
+  </div>
+  <div class="diff-card" data-d="2">
+    <h2>高级 · 星空之巅</h2>
+    <p>对角线数独：除了每行每列，两条彩色对角线上的 1～4 也不能重复。</p>
+    <span class="tag">课堂好方法：综合运用排除法，两条对角线一起检查</span>
+  </div>
+</section>
+
+<!-- ============ 游戏区 ============ -->
+<section id="screen-game" class="hidden">
+  <div id="level-bar"><span id="level-title"></span><span id="level-dots"></span></div>
+  <div class="mascot"><div class="face">★</div><div id="mascot-msg"></div></div>
+
+  <div class="board">
+    <div class="corner"></div>
+    <div class="collabels"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+    <div class="rowlabels"><span>A</span><span>B</span><span>C</span><span>D</span></div>
+    <div class="gridbox">
+      <div id="grid"></div>
+      <svg class="diag-svg" id="diag-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line x1="0" y1="0" x2="100" y2="100" stroke="#1565c0" stroke-width="2.4" opacity="0.75"></line>
+        <line x1="100" y1="0" x2="0" y2="100" stroke="#e65100" stroke-width="2.4" opacity="0.75"></line>
+      </svg>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div id="palette">
+    <div class="tile" data-v="1">1</div>
+    <div class="tile" data-v="2">2</div>
+    <div class="tile" data-v="3">3</div>
+    <div class="tile" data-v="4">4</div>
+    <div class="tile eraser" data-v="-1">擦除</div>
+  </div>
+
+  <div id="actions">
+    <button class="btn primary" id="btn-hint">智慧提示</button>
+    <button class="btn" id="btn-lens">排除镜 关</button>
+    <button class="btn warn" id="btn-reveal">揭示答案</button>
+    <button class="btn" id="btn-restart">重新开始</button>
+    <button class="btn" id="btn-menu">返回难度选择</button>
+  </div>
+</section>
+
+<!-- 规则弹窗 -->
+<div class="overlay" id="ov-rules"><div class="modal">
+  <h3 id="rules-title">规则说明</h3>
+  <div class="body" id="rules-body"></div>
+  <div class="row"><button class="btn primary" id="btn-rules-ok">知道啦，出发！</button></div>
+</div></div>
+
+<!-- 提示弹窗 -->
+<div class="overlay" id="ov-hint"><div class="modal">
+  <h3>智慧提示</h3>
+  <div class="body" id="hint-body"></div>
+  <div class="row"><button class="btn primary" id="btn-hint-ok">知道啦</button></div>
+</div></div>
+
+<!-- 结算弹窗 -->
+<div class="overlay" id="ov-end"><div class="modal">
+  <h3 id="end-title"></h3>
+  <div class="stars" id="end-stars"></div>
+  <div class="body" id="end-body"></div>
+  <div class="stats" id="end-stats"></div>
+  <div class="row" id="end-btns"></div>
+</div></div>
+
+<canvas id="fx"></canvas>
+
+<script>
+/* ================================================================
+   方格中的秘密 · 数字精灵救援队
+   题型来源：第10讲《方格中的秘密（下）》——变形数独
+   1）四宫区域数独（每行/列/彩色区域 1~4 不重复）
+   2）和框数独（粗框左上角=框内数字之和，先找单格突破口）
+   3）对角线数独（两条对角线上 1~4 也不重复）
+   核心交互：拖动数字块放入方格 + 排除镜实时显示候选数 +
+   和框实时求和反馈 + 智慧提示（排除法推理讲解）
+   ================================================================ */
+
+/*LOGIC-START（以下为纯逻辑区：题目生成与求解，不涉及界面）*/
+
+/* ---------- 基础工具 ---------- */
+var ROW_ = function(i){ return Math.floor(i/4); };
+var COL_ = function(i){ return i%4; };
+var BOX_ = function(i){ return Math.floor(ROW_(i)/2)*2 + Math.floor(COL_(i)/2); };
+var ONMAIN_ = function(i){ return ROW_(i)===COL_(i); };
+var ONANTI_ = function(i){ return ROW_(i)+COL_(i)===3; };
+var range16_ = function(){ return [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]; };
+function shuffle_(arr){
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){
+    var j = Math.floor(Math.random()*(i+1));
+    var t = a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+
+/* ---------- 约束单位与同伴格 ---------- */
+function buildUnits_(type){
+  var us = [];
+  var r,c,k;
+  for(r=0;r<4;r++){ var ru=[]; for(c=0;c<4;c++) ru.push(r*4+c); us.push(ru); }
+  for(c=0;c<4;c++){ var cu=[]; for(r=0;r<4;r++) cu.push(r*4+c); us.push(cu); }
+  if(type==='region'){
+    for(k=0;k<4;k++){
+      var bu=[];
+      for(r=0;r<4;r++) for(c=0;c<4;c++){ if(BOX_(r*4+c)===k) bu.push(r*4+c); }
+      us.push(bu);
+    }
+  }
+  if(type==='diagonal'){ us.push([0,5,10,15]); us.push([3,6,9,12]); }
+  return us;
+}
+var UNITS_ = {
+  region: buildUnits_('region'),
+  diagonal: buildUnits_('diagonal'),
+  base: buildUnits_('base')     /* base = 仅行+列（和框数独的行列约束） */
+};
+function buildPeers_(units){
+  var peers = [];
+  var i,k;
+  for(i=0;i<16;i++) peers.push({});
+  for(k=0;k<units.length;k++){
+    var u = units[k];
+    for(i=0;i<u.length;i++){
+      for(var j=0;j<u.length;j++){
+        if(u[i]!==u[j]) peers[u[i]][u[j]] = 1;
+      }
+    }
+  }
+  var out = [];
+  for(i=0;i<16;i++){
+    var arr=[];
+    for(var key in peers[i]){ if(peers[i].hasOwnProperty(key)) arr.push(parseInt(key,10)); }
+    out.push(arr);
+  }
+  return out;
+}
+var PEERS_ = {
+  region: buildPeers_(UNITS_.region),
+  diagonal: buildPeers_(UNITS_.diagonal),
+  base: buildPeers_(UNITS_.base)
+};
+function peersForType_(t){
+  if(t==='region') return PEERS_.region;
+  if(t==='diagonal') return PEERS_.diagonal;
+  return PEERS_.base;
+}
+function unitsForType_(t){
+  if(t==='region') return UNITS_.region;
+  if(t==='diagonal') return UNITS_.diagonal;
+  return UNITS_.base;
+}
+
+/* ---------- 生成一个完整合法终盘 ---------- */
+function genFull_(peers){
+  var g = new Array(16).fill(0);
+  function bt(p){
+    if(p===16) return true;
+    var order = shuffle_([1,2,3,4]);
+    for(var k=0;k<order.length;k++){
+      var v = order[k], ok = true;
+      var ps = peers[p];
+      for(var q=0;q<ps.length;q++){ if(g[ps[q]]===v){ ok=false; break; } }
+      if(ok){ g[p]=v; if(bt(p+1)) return true; g[p]=0; }
+    }
+    return false;
+  }
+  bt(0);
+  return g.slice();
+}
+
+/* ---------- 解数器（数解的个数，最多数到 cap 个） ---------- */
+function countSolutions_(puz, cap){
+  cap = cap||2;
+  var g = puz.givens.slice();
+  var peers = peersForType_(puz.type);
+  var cages = puz.cages, remSum=null, remCnt=null, used=null;
+  if(cages){
+    remSum = cages.map(function(c){ return c.sum; });
+    remCnt = cages.map(function(c){ return c.cells.length; });
+    used = cages.map(function(){ return {}; });
+    for(var i0=0;i0<16;i0++){
+      if(g[i0]!==0){
+        var ci0 = puz.cageOf[i0];
+        remSum[ci0]-=g[i0]; remCnt[ci0]--; used[ci0][g[i0]]=1;
+      }
+    }
+  }
+  function put(i,v){
+    g[i]=v;
+    if(cages){ var ci=puz.cageOf[i]; remSum[ci]-=v; remCnt[ci]--; used[ci][v]=1; }
+  }
+  function unput(i,v){
+    g[i]=0;
+    if(cages){ var ci=puz.cageOf[i]; remSum[ci]+=v; remCnt[ci]++; delete used[ci][v]; }
+  }
+  function cand(i){
+    var res=[], v, q;
+    for(v=1;v<=4;v++){
+      var bad=false;
+      var ps=peers[i];
+      for(q=0;q<ps.length;q++){ if(g[ps[q]]===v){ bad=true; break; } }
+      if(bad) continue;
+      if(cages){
+        var ci=puz.cageOf[i];
+        if(used[ci][v]) continue;                      /* 和框内数字不重复 */
+        var rs=remSum[ci]-v, rc=remCnt[ci]-1;
+        if(rc===0 && rs!==0) continue;                 /* 放完必须正好等于和 */
+        if(rc>0 && (rs < rc*(rc+1)/2 || rs > rc*(9-rc)/2)) continue; /* 剩余和上下界剪枝 */
+      }
+      res.push(v);
+    }
+    return res;
+  }
+  var count = 0;
+  function dfs(){
+    if(count>=cap) return;
+    var best=-1, bestC=null, i, cc;
+    for(i=0;i<16;i++){
+      if(g[i]!==0) continue;
+      cc = cand(i);
+      if(cc.length===0) return;                        /* 死路，回溯 */
+      if(bestC===null || cc.length<bestC.length){
+        best=i; bestC=cc;
+        if(cc.length===1) break;
+      }
+    }
+    if(best===-1){ count++; return; }                  /* 全部填满，得到一解 */
+    for(var k=0;k<bestC.length;k++){
+      put(best,bestC[k]); dfs(); unput(best,bestC[k]);
+      if(count>=cap) return;
+    }
+  }
+  dfs();
+  return count;
+}
+
+/* ---------- 出题：四宫区域 / 对角线数独（保证唯一解） ---------- */
+function makeRegionDiagonal_(type, targetGivens){
+  var peers = peersForType_(type), att, i;
+  for(att=0; att<80; att++){
+    var sol = genFull_(peers);
+    var puz = { type:type, solution:sol, givens:sol.slice(), cages:null, cageOf:null, clues:16 };
+    var givens = 16;
+    var order = shuffle_(range16_());
+    for(i=0;i<order.length;i++){
+      if(givens<=targetGivens) break;
+      var keep = puz.givens[order[i]];
+      puz.givens[order[i]] = 0;
+      if(countSolutions_(puz,2)!==1){ puz.givens[order[i]] = keep; }
+      else givens--;
+    }
+    puz.clues = givens;
+    if(givens<=targetGivens+1) return puz;             /* 达到目标提示数（允许差1） */
+  }
+  var sol2 = genFull_(peers);                          /* 兜底：全给出 */
+  return { type:type, solution:sol2, givens:sol2.slice(), cages:null, cageOf:null, clues:16 };
+}
+
+/* ---------- 和框划分（保证框内数字互不相同） ---------- */
+function buildPartition_(sol, numSingles){
+  var used = new Array(16).fill(false);
+  var cages = [];
+  var singles = shuffle_(range16_()).slice(0, numSingles);
+  var k;
+  for(k=0;k<singles.length;k++){
+    used[singles[k]] = true;
+    cages.push({ cells:[singles[k]], sum: sol[singles[k]] });
+  }
+  var guard = 0;
+  while(true){
+    var free = [];
+    for(k=0;k<16;k++){ if(!used[k]) free.push(k); }
+    if(free.length===0) break;
+    if(++guard>40) return null;                        /* 防御：异常划分放弃重试 */
+    var seed = free[Math.floor(Math.random()*free.length)];
+    var want = 2 + Math.floor(Math.random()*2);        /* 每框 2~3 格 */
+    var cells = [seed]; used[seed]=true;
+    while(cells.length<want){
+      var nbrs = [];
+      for(var ci=0;ci<cells.length;ci++){
+        var r=ROW_(cells[ci]), c=COL_(cells[ci]);
+        var dirs=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+        for(var d=0;d<4;d++){
+          var rr=dirs[d][0], cc2=dirs[d][1];
+          if(rr>=0&&rr<4&&cc2>=0&&cc2<4){
+            var nx=rr*4+cc2;
+            if(!used[nx] && nbrs.indexOf(nx)<0) nbrs.push(nx);
+          }
+        }
+      }
+      if(nbrs.length===0) break;
+      var pick = nbrs[Math.floor(Math.random()*nbrs.length)];
+      used[pick]=true; cells.push(pick);
+    }
+    var digs = cells.map(function(ix){ return sol[ix]; });
+    var uniq = {};
+    for(k=0;k<digs.length;k++) uniq[digs[k]]=1;
+    var uniqCnt=0; for(var kk in uniq){ if(uniq.hasOwnProperty(kk)) uniqCnt++; }
+    if(uniqCnt!==digs.length) return null;             /* 框内数字需互不相同 */
+    var s=0; for(k=0;k<digs.length;k++) s+=digs[k];
+    cages.push({ cells:cells, sum:s });
+  }
+  return { cages:cages };
+}
+
+/* ---------- 出题：和框数独（单格突破口 + 按需亮数保证唯一解） ---------- */
+function makeKiller_(pm){
+  var att, i;
+  for(att=0; att<300; att++){
+    var sol = genFull_(PEERS_.base);
+    var part = buildPartition_(sol, pm.s);
+    if(!part) continue;
+    var cageOf = new Array(16).fill(-1);
+    for(var ci=0;ci<part.cages.length;ci++){
+      var cells = part.cages[ci].cells;
+      for(i=0;i<cells.length;i++) cageOf[cells[i]] = ci;
+    }
+    var puz = { type:'killer', solution:sol, givens:new Array(16).fill(0),
+                cages:part.cages, cageOf:cageOf, clues:0 };
+    var order = shuffle_(range16_()).filter(function(ix){
+      return part.cages[cageOf[ix]].cells.length>1;    /* 单格框本身就是突破口 */
+    });
+    var reveals = 0;
+    for(i=0;i<order.length;i++){
+      if(countSolutions_(puz,2)===1) break;
+      if(reveals>=pm.r) break;
+      puz.givens[order[i]] = sol[order[i]];
+      reveals++;
+    }
+    if(countSolutions_(puz,2)===1){
+      puz.clues = pm.s + reveals;
+      return puz;
+    }
+  }
+  return makeRegionDiagonal_('region', 8);             /* 极端兜底，几乎不会走到 */
+}
+
+/* ---------- 按难度+关卡出题 ---------- */
+var LEVEL_PARAMS_ = {
+  region:   [{g:9},{g:8},{g:7}],                       /* 各关给出的提示数字数 */
+  diagonal: [{g:8},{g:7},{g:6}],
+  killer:   [{s:3,r:2},{s:2,r:2},{s:1,r:3}]            /* 单格突破口数 / 最多亮出数字数 */
+};
+function makePuzzle_(diff, level){
+  var key = ['region','killer','diagonal'][diff];
+  var pm = LEVEL_PARAMS_[key][level];
+  if(key==='killer') return makeKiller_(pm);
+  return makeRegionDiagonal_(key, pm.g);
+}
+/*LOGIC-END（纯逻辑区结束）*/
+
+/* ================================================================
+   界面与交互
+   ================================================================ */
+var $ = function(sel){ return document.querySelector(sel); };
+
+/* ---------- 主题色板（每局随机换色，玩不腻） ---------- */
+var THEMES = [
+  {main:'#1565c0', deep:'#0d47a1', soft:'#e3f2fd', soft2:'#bbdefb', accent:'#ffb300', bg1:'#eaf4ff', bg2:'#f8fbff'},
+  {main:'#2e7d32', deep:'#1b5e20', soft:'#e8f5e9', soft2:'#c8e6c9', accent:'#ff8f00', bg1:'#edf8ed', bg2:'#f7fcf7'},
+  {main:'#e65100', deep:'#bf360c', soft:'#fff3e0', soft2:'#ffe0b2', accent:'#00897b', bg1:'#fff5ea', bg2:'#fffaf5'},
+  {main:'#6a1b9a', deep:'#4a148c', soft:'#f3e5f5', soft2:'#e1bee7', accent:'#fbc02d', bg1:'#f6edfa', bg2:'#fcf9fd'},
+  {main:'#c2185b', deep:'#880e4f', soft:'#fce4ec', soft2:'#f8bbd0', accent:'#00796b', bg1:'#fdeef5', bg2:'#fff8fa'}
+];
+function applyTheme(t){
+  var root = document.documentElement;
+  root.style.setProperty('--main', t.main);
+  root.style.setProperty('--deep', t.deep);
+  root.style.setProperty('--soft', t.soft);
+  root.style.setProperty('--soft2', t.soft2);
+  root.style.setProperty('--accent', t.accent);
+  root.style.setProperty('--bg1', t.bg1);
+  root.style.setProperty('--bg2', t.bg2);
+}
+
+/* ---------- 全局状态 ---------- */
+var S = {
+  screen:'menu',
+  diff:0, level:0,
+  puzzles:[],
+  grid:[],
+  steps:0, hints:0, timer:0, timerId:0, running:false,
+  curHints:0, curRevealed:false, revealed:false,
+  lens:false, sound:true,
+  selectedTile:0,
+  cellEls:[],
+  badgeEls:[],                                          /* 和框角标：按框编号存放 */
+  hintTimer:0
+};
+function curPuz(){ return S.puzzles[S.level]; }
+
+/* ---------- 音效（WebAudio，可关闭） ---------- */
+var audioCtx = null;
+function beep(freq, dur, delay, vol){
+  if(!S.sound) return;
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    var t = audioCtx.currentTime + (delay||0);
+    var o = audioCtx.createOscillator(), gn = audioCtx.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    gn.gain.setValueAtTime(vol||0.12, t);
+    gn.gain.exponentialRampToValueAtTime(0.001, t+(dur||0.12));
+    o.connect(gn); gn.connect(audioCtx.destination);
+    o.start(t); o.stop(t+(dur||0.12)+0.03);
+  }catch(err){ /* 音频不可用时安静地跳过 */ }
+}
+function melody(){ [523,659,784,1047].forEach(function(f,k){ beep(f,0.16,k*0.12,0.14); }); }
+
+/* ---------- 计时器 ---------- */
+function fmtTime(sec){
+  var m = Math.floor(sec/60), s = sec%60;
+  var mm = (m<10?'0':'')+m, ss = (s<10?'0':'')+s;
+  return mm+':'+ss;
+}
+function startTimer(){
+  stopTimer();
+  S.running = true;
+  S.timerId = setInterval(function(){
+    if(S.running){ S.timer++; $('#hud-time').textContent = '时间 '+fmtTime(S.timer); }
+  }, 1000);
+}
+function stopTimer(){ S.running=false; if(S.timerId){ clearInterval(S.timerId); S.timerId=0; } }
+
+/* ---------- 界面切换 ---------- */
+function showScreen(name){
+  S.screen = name;
+  $('#screen-menu').classList.toggle('hidden', name!=='menu');
+  $('#screen-game').classList.toggle('hidden', name!=='game');
+}
+
+/* ---------- 开始一局（换主题、重新随机出3关） ---------- */
+function startRun(diff){
+  S.diff = diff;
+  S.level = 0; S.steps = 0; S.hints = 0; S.timer = 0; S.revealed = false;
+  applyTheme(THEMES[Math.floor(Math.random()*THEMES.length)]);
+  S.puzzles = [ makePuzzle_(diff,0), makePuzzle_(diff,1), makePuzzle_(diff,2) ];
+  showScreen('game');
+  updateHud();
+  startTimer();
+  loadLevel(true);
+}
+
+/* ---------- 载入当前关 ---------- */
+function loadLevel(showRules){
+  var puz = curPuz();
+  S.curHints = 0; S.curRevealed = false;
+  S.grid = puz.givens.slice();
+  S.selectedTile = 0;
+  buildBoard(puz);
+  paint();
+  /* 关卡信息条 */
+  var names = ['初级 · 星光平原','中级 · 彩虹桥','高级 · 星空之巅'];
+  $('#level-title').textContent = '第 '+(S.level+1)+' 关 / 3 · '+names[S.diff];
+  var dots = '';
+  for(var k=0;k<3;k++) dots += (k<=S.level ? '●' : '○');
+  $('#level-dots').textContent = dots;
+  setMascot();
+  $('#btn-lens').textContent = '排除镜 '+(S.lens?'开':'关');
+  if(showRules) showRulesModal();
+}
+
+/* ---------- 吉祥物鼓励语 ---------- */
+var MASCOT_MSGS = {
+  region:[
+    '先数一数：哪一行或哪一列缺的数字最少？从它开始填！',
+    '彩色区域里也要 1～4 各一个，别忘记检查哦。',
+    '排除法：行里没有、列里没有、区域里也没有，剩下的就是答案！'
+  ],
+  killer:[
+    '先找只占一格的和框：一格的和就是它自己，直接填！',
+    '每列四个数的和是 1+2+3+4=10，可以用总和来推理。',
+    '看看和框左上角的小数字，框里数字加起来要正好等于它。'
+  ],
+  diagonal:[
+    '两条彩色对角线上的 1～4 也不能重复，一起检查！',
+    '先从数字最多的行或列入手，再用对角线排除。',
+    '角上的格子最特别：它们同时在对角线上。'
+  ]
+};
+function setMascot(){
+  var key = ['region','killer','diagonal'][S.diff];
+  var arr = MASCOT_MSGS[key];
+  $('#mascot-msg').textContent = arr[Math.floor(Math.random()*arr.length)];
+}
+
+/* ---------- 图例 ---------- */
+function renderLegend(puz){
+  var html = '';
+  if(puz.type==='region'){
+    html += '<span class="lg">每行 1～4 不重复</span>';
+    html += '<span class="lg">每列 1～4 不重复</span>';
+    html += '<span class="lg"><i class="sw" style="background:var(--soft2)"></i>彩色区域 1～4 不重复</span>';
+  }else if(puz.type==='killer'){
+    html += '<span class="lg">每行、每列 1～4 不重复</span>';
+    html += '<span class="lg">角标数字＝粗框内数字之和</span>';
+    html += '<span class="lg">先找只占一格的和框</span>';
+  }else{
+    html += '<span class="lg">每行、每列 1～4 不重复</span>';
+    html += '<span class="lg"><i class="sw" style="background:#1565c0"></i>蓝对角线不重复</span>';
+    html += '<span class="lg"><i class="sw" style="background:#e65100"></i>橙对角线不重复</span>';
+  }
+  $('#legend').innerHTML = html;
+  $('#diag-svg').style.display = (puz.type==='diagonal') ? 'block' : 'none';
+}
+
+/* ---------- 搭建棋盘 DOM ---------- */
+function cageExposed_(puz, i, side){
+  var ci = puz.cageOf[i];
+  var r = ROW_(i), c = COL_(i), nr=r, nc=c;
+  if(side==='t') nr--; if(side==='b') nr++;
+  if(side==='l') nc--; if(side==='r') nc++;
+  if(nr<0||nr>3||nc<0||nc>3) return true;
+  return puz.cageOf[nr*4+nc]!==ci;
+}
+function boxExposed_(i, side){
+  var r = ROW_(i), c = COL_(i), nr=r, nc=c;
+  if(side==='t') nr--; if(side==='b') nr++;
+  if(side==='l') nc--; if(side==='r') nc++;
+  if(nr<0||nr>3||nc<0||nc>3) return true;
+  return BOX_(nr*4+nc)!==BOX_(i);
+}
+function buildBoard(puz){
+  var grid = $('#grid');
+  grid.innerHTML = '';
+  S.cellEls = []; S.badgeEls = [];
+  /* 找到每个和框的"锚点格"（最上最左），角标放在它左上角 */
+  var anchors = {};
+  if(puz.cages){
+    for(var ci=0;ci<puz.cages.length;ci++){
+      var cells = puz.cages[ci].cells, best = cells[0];
+      for(var k=1;k<cells.length;k++){
+        if(ROW_(cells[k])<ROW_(best) || (ROW_(cells[k])===ROW_(best) && COL_(cells[k])<COL_(best)))
+          best = cells[k];
+      }
+      anchors[best] = ci;
+    }
+  }
+  for(var i=0;i<16;i++){
+    var d = document.createElement('div');
+    d.className = 'cell';
+    d.dataset.i = i;
+    /* 区域底色（四宫数独：左上、右下两个区域着色） */
+    if(puz.type==='region' && (BOX_(i)===0 || BOX_(i)===3)) d.classList.add('boxtint');
+    /* 对角线底纹 */
+    if(puz.type==='diagonal'){
+      if(ONMAIN_(i)) d.classList.add('diagMain');
+      if(ONANTI_(i)) d.classList.add('diagAnti');
+    }
+    /* 边框：和框用粗线描出形状；区域用粗线分隔；对角线仅外框加粗 */
+    var t,b,l,rp;
+    if(puz.type==='killer'){
+      t = cageExposed_(puz,i,'t'); b = cageExposed_(puz,i,'b');
+      l = cageExposed_(puz,i,'l'); rp = cageExposed_(puz,i,'r');
+    }else if(puz.type==='region'){
+      t = boxExposed_(i,'t'); b = boxExposed_(i,'b');
+      l = boxExposed_(i,'l'); rp = boxExposed_(i,'r');
+    }else{
+      t=false; b=false; l=false; rp=false;
+    }
+    d.style.borderTop    = t  ? '4px solid var(--ink)' : '2px solid var(--line)';
+    d.style.borderBottom = b  ? '4px solid var(--ink)' : '2px solid var(--line)';
+    d.style.borderLeft   = l  ? '4px solid var(--ink)' : '2px solid var(--line)';
+    d.style.borderRight  = rp ? '4px solid var(--ink)' : '2px solid var(--line)';
+    /* 排除镜候选点（2×2 小数字） */
+    var lens = document.createElement('div');
+    lens.className = 'lens';
+    for(var v=1;v<=4;v++){
+      var sp = document.createElement('span');
+      sp.textContent = v;
+      sp.dataset.v = v;
+      lens.appendChild(sp);
+    }
+    d.appendChild(lens);
+    /* 和框角标 */
+    if(anchors.hasOwnProperty(i)){
+      var bd = document.createElement('div');
+      bd.className = 'badge';
+      d.appendChild(bd);
+      S.badgeEls[anchors[i]] = bd;
+    }
+    /* 数字本体 */
+    var num = document.createElement('div');
+    num.className = 'num';
+    d.appendChild(num);
+    grid.appendChild(d);
+    S.cellEls.push(d);
+  }
+  renderLegend(puz);
+}
+
+/* ---------- 冲突检测（用于即时反馈与终检） ---------- */
+function unitValues_(grid, unit){
+  var vs = [];
+  for(var k=0;k<unit.length;k++){ if(grid[unit[k]]!==0) vs.push(grid[unit[k]]); }
+  return vs;
+}
+function computeState(puz, grid){
+  var bad = {};
+  var units = unitsForType_(puz.type);
+  var k, j;
+  for(k=0;k<units.length;k++){
+    var seen = {};
+    var u = units[k];
+    for(j=0;j<u.length;j++){
+      var v = grid[u[j]];
+      if(v===0) continue;
+      if(seen.hasOwnProperty(v)){ bad[u[j]]=1; bad[seen[v]]=1; }
+      else seen[v]=u[j];
+    }
+  }
+  var cageOk = [];
+  if(puz.cages){
+    for(k=0;k<puz.cages.length;k++){
+      var cg = puz.cages[k];
+      var sum=0, filled=0, dup={}, ok=true;
+      for(j=0;j<cg.cells.length;j++){
+        var vv = grid[cg.cells[j]];
+        if(vv!==0){
+          sum+=vv; filled++;
+          if(dup.hasOwnProperty(vv)){ ok=false; bad[cg.cells[j]]=1; bad[dup[vv]]=1; }
+          else dup[vv]=cg.cells[j];
+        }
+      }
+      var complete = (filled===cg.cells.length);
+      var sumOk = complete && (sum===cg.sum) && ok;
+      if(complete && !sumOk){ for(j=0;j<cg.cells.length;j++) bad[cg.cells[j]]=1; }
+      cageOk.push({ complete:complete, sum:sum, ok:sumOk });
+    }
+  }
+  return { bad:bad, cageOk:cageOk };
+}
+
+/* ---------- 排除镜候选数（对玩家开放的候选计算） ---------- */
+function userCandidates(puz, grid, i){
+  var res = [];
+  var units = unitsForType_(puz.type);
+  for(var v=1;v<=4;v++){
+    var clash = false;
+    for(var k=0;k<units.length;k++){
+      var u = units[k], hit=false;
+      for(var j=0;j<u.length;j++){
+        if(u[j]!==i && grid[u[j]]===v){ hit=true; break; }
+      }
+      if(hit){ clash=true; break; }
+    }
+    if(clash) continue;
+    if(puz.cages){
+      var cg = puz.cages[puz.cageOf[i]];
+      var sum=0, dup=false;
+      for(var m=0;m<cg.cells.length;m++){
+        var vv = grid[cg.cells[m]];
+        if(vv!==0){ sum+=vv; if(vv===v) dup=true; }
+      }
+      if(dup) continue;
+      if(sum+v>cg.sum) continue;                       /* 超过和框的和，排除 */
+    }
+    res.push(v);
+  }
+  return res;
+}
+
+/* ---------- 重绘 ---------- */
+function paint(){
+  var puz = curPuz();
+  var st = computeState(puz, S.grid);
+  for(var i=0;i<16;i++){
+    var d = S.cellEls[i];
+    var v = S.grid[i];
+    d.querySelector('.num').textContent = (v===0 ? '' : v);
+    d.classList.toggle('given', puz.givens[i]!==0);
+    d.classList.toggle('user', v!==0 && puz.givens[i]===0);
+    d.classList.toggle('bad', st.bad.hasOwnProperty(i));
+    d.classList.toggle('lenson', S.lens && v===0 && puz.givens[i]===0);
+    if(S.lens && v===0 && puz.givens[i]===0){
+      var cands = userCandidates(puz, S.grid, i);
+      var spans = d.querySelectorAll('.lens span');
+      for(var s=0;s<spans.length;s++){
+        spans[s].classList.toggle('off', cands.indexOf(parseInt(spans[s].dataset.v,10))<0);
+      }
+    }
+  }
+  /* 和框角标实时反馈：已填/目标和，完成时打勾或打叉 */
+  if(puz.cages){
+    for(var ci=0;ci<puz.cages.length;ci++){
+      var bd = S.badgeEls[ci];
+      if(!bd) continue;
+      var info = st.cageOk[ci];
+      var target = puz.cages[ci].sum;
+      if(info.complete){
+        bd.textContent = (info.ok?'✓ ':'✗ ')+target;
+        bd.classList.toggle('ok', info.ok);
+        bd.classList.toggle('badbg', !info.ok);
+      }else{
+        bd.textContent = info.sum>0 ? (info.sum+'/'+target) : String(target);
+        bd.classList.remove('ok','badbg');
+      }
+    }
+  }
+  updateHud();
+}
+function updateHud(){
+  $('#hud-time').textContent = '时间 '+fmtTime(S.timer);
+  $('#hud-steps').textContent = '步数 '+S.steps;
+}
+
+/* ---------- 放置数字（拖拽/点选共用入口） ---------- */
+function place(i, val){
+  var puz = curPuz();
+  if(puz.givens[i]!==0){
+    flashCell(i,'shake'); beep(200,0.1);
+    return;
+  }
+  if(val===-1){                                         /* 擦除 */
+    if(S.grid[i]!==0){
+      S.grid[i]=0; paint(); beep(320,0.06);
+    }
+    return;
+  }
+  if(S.grid[i]===val){                                  /* 同数字再放一次＝取消 */
+    S.grid[i]=0; paint(); beep(320,0.06);
+    return;
+  }
+  S.grid[i]=val; S.steps++;
+  paint();
+  var st = computeState(puz, S.grid);
+  if(st.bad.hasOwnProperty(i)){
+    flashCell(i,'shake'); beep(160,0.14);
+  }else{
+    flashCell(i,'pop'); beep(620,0.08);
+    glowUnits(puz);
+  }
+  if(checkWin()) levelWin(true);
+}
+function flashCell(i, cls){
+  var d = S.cellEls[i];
+  d.classList.remove(cls);
+  void d.offsetWidth;                                   /* 强制重排以重播动画 */
+  d.classList.add(cls);
+  setTimeout(function(){ d.classList.remove(cls); }, 400);
+}
+/* 点亮已完成的行/列/区域/对角线 */
+function glowUnits(puz){
+  var units = unitsForType_(puz.type);
+  for(var k=0;k<units.length;k++){
+    var u = units[k], full=true, seen={};
+    for(var j=0;j<u.length;j++){
+      var v=S.grid[u[j]];
+      if(v===0 || seen.hasOwnProperty(v)){ full=false; break; }
+      seen[v]=1;
+    }
+    if(full){
+      for(var m=0;m<u.length;m++) flashCell(u[m],'glow');
+    }
+  }
+}
+
+/* ---------- 胜利判定：填满 + 无冲突 + 所有和框正确 ---------- */
+function checkWin(){
+  var puz = curPuz();
+  for(var i=0;i<16;i++){ if(S.grid[i]===0) return false; }
+  var st = computeState(puz, S.grid);
+  for(var key in st.bad){ if(st.bad.hasOwnProperty(key)) return false; }
+  if(puz.cages){
+    for(var k=0;k<st.cageOk.length;k++){ if(!st.cageOk[k].ok) return false; }
+  }
+  return true;
+}
+
+/* ---------- 智慧提示：讲解排除法推理 ---------- */
+function computeHint(){
+  var puz = curPuz();
+  /* 和框题：优先提示"只占一格的和框"突破口 */
+  if(puz.cages){
+    for(var ci=0;ci<puz.cages.length;ci++){
+      var cg = puz.cages[ci];
+      if(cg.cells.length===1 && S.grid[cg.cells[0]]===0){
+        return { i:cg.cells[0], v:cg.sum,
+          text:'先找只占一格的和框做突破口：这个框左上角的和是 '+cg.sum+
+               '，一格的和就是它自己，所以这里直接填 '+cg.sum+'！' };
+      }
+    }
+  }
+  /* 找只有唯一候选数的格子 */
+  var i2=-1, cands2=null;
+  for(var i=0;i<16;i++){
+    if(S.grid[i]!==0 || puz.givens[i]!==0) continue;
+    var cc = userCandidates(puz, S.grid, i);
+    if(cc.length===1) return { i:i, v:cc[0], text:buildExplain(puz, i, cc) };
+    if(cc.length===2 && i2<0){ i2=i; cands2=cc; }
+  }
+  if(i2>=0){
+    return { i:i2, v:0, text:'先用排除镜看一看这一格：行、列排除之后还剩 '+
+      cands2.join(' 和 ')+' 两种可能。再结合其他条件想一想，确定后再放！' };
+  }
+  return null;
+}
+function buildExplain(puz, i, cands){
+  var grid = S.grid;
+  var r = ROW_(i), c = COL_(i);
+  var units = unitsForType_(puz.type);
+  var rowU = units[r], colU = units[4+c];
+  var rowNums = unitValues_(grid, rowU);
+  var missing = [1,2,3,4].filter(function(v){ return rowNums.indexOf(v)<0; });
+  var seg = [];
+  seg.push('第'+'ABCD'[r]+'行已经有 '+(rowNums.length?rowNums.join('、'):'数字')+
+           '，还缺 '+missing.join('、')+'；');
+  var colNums = unitValues_(grid, colU);
+  var byCol = missing.filter(function(v){ return colNums.indexOf(v)>=0; });
+  if(byCol.length) seg.push('第'+(c+1)+'列已经有 '+byCol.join('、')+'，先排除掉；');
+  if(puz.type==='region'){
+    var boxU = units[8+BOX_(i)];
+    var boxNums = unitValues_(grid, boxU);
+    var byBox = missing.filter(function(v){
+      return boxNums.indexOf(v)>=0 && byCol.indexOf(v)<0;
+    });
+    if(byBox.length) seg.push('它所在的彩色区域已经有 '+byBox.join('、')+'，也要排除；');
+  }
+  if(puz.type==='diagonal'){
+    if(ONMAIN_(i)){
+      var dn = unitValues_(grid, [0,5,10,15]);
+      var by = missing.filter(function(v){ return dn.indexOf(v)>=0 && byCol.indexOf(v)<0; });
+      if(by.length) seg.push('蓝色对角线上已经有 '+by.join('、')+'，也要排除；');
+    }
+    if(ONANTI_(i)){
+      var dn2 = unitValues_(grid, [3,6,9,12]);
+      var by2 = missing.filter(function(v){ return dn2.indexOf(v)>=0 && byCol.indexOf(v)<0; });
+      if(by2.length) seg.push('橙色对角线上已经有 '+by2.join('、')+'，也要排除；');
+    }
+  }
+  if(puz.cages){
+    var cg = puz.cages[puz.cageOf[i]];
+    var cn = unitValues_(grid, cg.cells);
+    var byCage = missing.filter(function(v){
+      return cn.indexOf(v)>=0 && byCol.indexOf(v)<0;
+    });
+    if(byCage.length) seg.push('它的和框里已经有 '+byCage.join('、')+'，同样要排除；');
+    var cur = 0; for(var m=0;m<cn.length;m++) cur+=cn[m];
+    if(cur>0){
+      seg.push('这个和框的和要是 '+cg.sum+'，已经放了 '+cur+
+               '，还差 '+(cg.sum-cur)+'，只能放 '+cands[0]+'！');
+      return seg.join('');
+    }
+  }
+  seg.push('排除之后，就只剩 '+cands[0]+' 啦！');
+  return seg.join('');
+}
+function onHint(){
+  var h = computeHint();
+  S.hints++; S.curHints++;
+  if(!h){
+    $('#hint-body').innerHTML = '先把数字较多的行或列补齐，再回来试一试！也可以打开排除镜观察候选数。';
+  }else{
+    $('#hint-body').innerHTML = h.text+'<p>（已用彩色虚线圈出这一格）</p>';
+    var d = S.cellEls[h.i];
+    d.classList.add('hintcell');
+    if(S.hintTimer) clearTimeout(S.hintTimer);
+    S.hintTimer = setTimeout(function(){ d.classList.remove('hintcell'); }, 5000);
+  }
+  $('#ov-hint').classList.add('show');
+  beep(880,0.1);
+  paint();
+}
+
+/* ---------- 揭示答案（连点两次防误触） ---------- */
+var revealArmed = 0, revealTimer = 0;
+function onReveal(){
+  var now = Date.now();
+  var btn = $('#btn-reveal');
+  if(now - revealArmed < 3000){
+    revealArmed = 0;
+    if(revealTimer){ clearTimeout(revealTimer); revealTimer=0; }
+    btn.textContent = '揭示答案';
+    doReveal();
+  }else{
+    revealArmed = now;
+    btn.textContent = '再点一次确认揭示';
+    if(revealTimer) clearTimeout(revealTimer);
+    revealTimer = setTimeout(function(){
+      btn.textContent = '揭示答案'; revealArmed = 0;
+    }, 3000);
+  }
+}
+function doReveal(){
+  var puz = curPuz();
+  S.revealed = true; S.curRevealed = true;
+  for(var i=0;i<16;i++){
+    if(puz.givens[i]===0) S.grid[i] = puz.solution[i];
+  }
+  paint();
+  levelWin(false);
+}
+
+/* ---------- 过关结算 ---------- */
+function starCount(){
+  if(S.curRevealed) return 1;
+  if(S.curHints===0) return 3;
+  if(S.curHints<=2) return 2;
+  return 1;
+}
+function levelWin(won){
+  if(won){ confetti(S.level===2); melody(); }
+  var stars = won ? starCount() : 1;
+  var st = '<span class="'+(stars>=1?'on':'')+'">★</span>'+
+           '<span class="'+(stars>=2?'on':'')+'">★</span>'+
+           '<span class="'+(stars>=3?'on':'')+'">★</span>';
+  $('#end-stars').innerHTML = st;
+  var body, title;
+  if(won){
+    if(S.level===2){
+      title = '全部通关，太了不起了！';
+      body = '<p>三关全部点亮！这片方格世界被你照得亮堂堂！</p><p>换一局会重新出题、换新配色，再来挑战吧！</p>';
+    }else{
+      title = '太棒了，本关完成！';
+      body = '<p>数字精灵们都回家了！点击"下一关"继续探险。</p>';
+    }
+    if(stars<3) body += '<p>少用提示可以拿到三颗星哦，下一关试试看！</p>';
+  }else{
+    title = '答案已经揭晓';
+    body = '<p>这一关的完整答案已经展示在棋盘上，可以对照看看推理思路。</p><p>下一关试着自己完成，你一定可以！</p>';
+  }
+  $('#end-title').textContent = title;
+  $('#end-body').innerHTML = body;
+  $('#end-stats').innerHTML =
+    '<span class="chip">用时 '+fmtTime(S.timer)+'</span>'+
+    '<span class="chip">步数 '+S.steps+'</span>'+
+    '<span class="chip">提示 '+S.hints+' 次</span>';
+  var btns = '';
+  if(S.level<2) btns += '<button class="btn primary" id="eb-next">下一关</button>';
+  else btns += '<button class="btn primary" id="eb-again">再玩一局</button>';
+  btns += '<button class="btn" id="eb-restart">重新开始</button>';
+  btns += '<button class="btn" id="eb-menu">返回难度选择</button>';
+  $('#end-btns').innerHTML = btns;
+  if(S.level<2){
+    $('#eb-next').onclick = function(){
+      $('#ov-end').classList.remove('show');
+      S.level++;
+      loadLevel(true);
+    };
+  }else{
+    $('#eb-again').onclick = function(){
+      $('#ov-end').classList.remove('show');
+      startRun(S.diff);
+    };
+  }
+  $('#eb-restart').onclick = function(){
+    $('#ov-end').classList.remove('show');
+    startRun(S.diff);
+  };
+  $('#eb-menu').onclick = function(){
+    $('#ov-end').classList.remove('show');
+    goMenu();
+  };
+  if(S.level===2 && won) stopTimer();
+  $('#ov-end').classList.add('show');
+}
+function goMenu(){
+  stopTimer();
+  showScreen('menu');
+}
+
+/* ---------- 规则说明弹窗 ---------- */
+function rulesText(diff){
+  if(diff===0){
+    return '<p><b>初级 · 星光平原（四宫数独）</b></p>'+
+      '<p>把 1～4 填进空格，让：</p>'+
+      '<p>· 每一行的 4 个数字都不重复；<br>· 每一列的 4 个数字都不重复；<br>· 每个彩色区域的 4 个数字都不重复。</p>'+
+      '<p><b>小妙招</b>：从缺个数最少的行或列入手，再用排除法填数！</p>'+
+      '<p><b>玩法</b>：把下方的数字块拖进空格；或先点数字块再点格子。放错了可以拖"擦除"或再点一次取消。</p>';
+  }
+  if(diff===1){
+    return '<p><b>中级 · 彩虹桥（和框数独）</b></p>'+
+      '<p>把 1～4 填进空格，让每一行、每一列的 4 个数字都不重复。</p>'+
+      '<p>粗线框左上角的小数字＝这个框里所有数字的<b>和</b>。角标会实时显示"已填/目标和"。</p>'+
+      '<p><b>小妙招</b>：先找只占一格的和框——一格的和就是它自己，直接填！再记住每列的总和是 1+2+3+4=10。</p>';
+  }
+  return '<p><b>高级 · 星空之巅（对角线数独）</b></p>'+
+    '<p>把 1～4 填进空格，让每一行、每一列的 4 个数字都不重复。</p>'+
+    '<p>特别提醒：蓝色对角线和橙色对角线上的 4 个数字也<b>都不能重复</b>！</p>'+
+    '<p><b>小妙招</b>：先按行列排除，再用两条对角线一起检查。</p>';
+}
+function showRulesModal(){
+  $('#rules-body').innerHTML = rulesText(S.diff);
+  $('#ov-rules').classList.add('show');
+}
+
+/* ---------- 庆祝彩纸（Canvas） ---------- */
+function confetti(big){
+  var cv = $('#fx');
+  cv.style.display = 'block';
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  var ctx = cv.getContext('2d');
+  var colors = ['#f44336','#2196f3','#4caf50','#ffc107','#e91e63','#9c27b0','#00bcd4'];
+  var parts = [];
+  var n = big ? 180 : 100;
+  for(var k=0;k<n;k++){
+    parts.push({
+      x: Math.random()*cv.width,
+      y: -20 - Math.random()*cv.height*0.5,
+      w: 8+Math.random()*8, h: 10+Math.random()*10,
+      c: colors[k%colors.length],
+      vy: 2+Math.random()*3.5, vx: -1.5+Math.random()*3,
+      rot: Math.random()*Math.PI, vr: -0.15+Math.random()*0.3
+    });
+  }
+  var t0 = performance.now();
+  function frame(t){
+    var el = t - t0;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    for(var j=0;j<parts.length;j++){
+      var p = parts[j];
+      p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      ctx.save();
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    }
+    if(el<3000){ requestAnimationFrame(frame); }
+    else{ ctx.clearRect(0,0,cv.width,cv.height); cv.style.display='none'; }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ================================================================
+   拖拽交互（指针事件：鼠标+触摸通用）与点选兜底
+   ================================================================ */
+var drag = null;
+function makeGhost(val){
+  var g = document.createElement('div');
+  g.className = 'ghost'+(val===-1?' eraser':'');
+  g.textContent = (val===-1?'擦除':val);
+  document.body.appendChild(g);
+  return g;
+}
+function tileDown(e, val){
+  if(S.screen!=='game') return;
+  e.preventDefault();
+  drag = { val:val, x0:e.clientX, y0:e.clientY, moved:false, ghost:null, target:null };
+}
+function hitCell(x, y){
+  for(var i=0;i<16;i++){
+    var rc = S.cellEls[i].getBoundingClientRect();
+    if(x>=rc.left && x<=rc.right && y>=rc.top && y<=rc.bottom) return i;
+  }
+  return null;
+}
+function dragMove(e){
+  if(!drag) return;
+  var dx = e.clientX-drag.x0, dy = e.clientY-drag.y0;
+  if(!drag.moved && (dx*dx+dy*dy) > 36){
+    drag.moved = true;
+    drag.ghost = makeGhost(drag.val);
+  }
+  if(drag.moved){
+    drag.ghost.style.left = e.clientX+'px';
+    drag.ghost.style.top  = e.clientY+'px';
+    var hit = hitCell(e.clientX, e.clientY);
+    if(drag.target!==null && drag.target!==hit){
+      S.cellEls[drag.target].classList.remove('droptarget');
+    }
+    if(hit!==null) S.cellEls[hit].classList.add('droptarget');
+    drag.target = hit;
+  }
+}
+function dragUp(e){
+  if(!drag) return;
+  if(drag.moved){
+    if(drag.target!==null) S.cellEls[drag.target].classList.remove('droptarget');
+    if(drag.ghost) document.body.removeChild(drag.ghost);
+    var hit = hitCell(e.clientX, e.clientY);
+    if(hit!==null) place(hit, drag.val);
+  }else{
+    toggleSelect(drag.val);                            /* 原地点一下＝选中数字块 */
+  }
+  drag = null;
+}
+function toggleSelect(val){
+  if(S.selectedTile===val) S.selectedTile = 0;
+  else S.selectedTile = val;
+  var tiles = document.querySelectorAll('.tile');
+  for(var k=0;k<tiles.length;k++){
+    tiles[k].classList.toggle('sel', parseInt(tiles[k].dataset.v,10)===S.selectedTile);
+  }
+}
+document.addEventListener('pointermove', dragMove);
+document.addEventListener('pointerup', dragUp);
+document.addEventListener('pointercancel', function(){
+  /* 指针被系统打断时收尾，避免残留幽灵块 */
+  if(drag){
+    if(drag.ghost) document.body.removeChild(drag.ghost);
+    if(drag.target!==null) S.cellEls[drag.target].classList.remove('droptarget');
+    drag = null;
+  }
+});
+/* 拖拽时阻止页面滚动（触摸设备） */
+document.addEventListener('touchmove', function(e){
+  if(drag && drag.moved) e.preventDefault();
+}, { passive:false });
+
+/* 托盘数字块：按下即准备拖拽 */
+(function bindTiles(){
+  var tiles = document.querySelectorAll('.tile');
+  for(var k=0;k<tiles.length;k++){
+    (function(t){
+      t.addEventListener('pointerdown', function(e){ tileDown(e, parseInt(t.dataset.v,10)); });
+    })(tiles[k]);
+  }
+})();
+
+/* 棋盘点选：选中数字后点格子放置；点已填的自填数字＝擦除 */
+$('#grid').addEventListener('click', function(e){
+  if(S.screen!=='game') return;
+  var cell = e.target.closest('.cell');
+  if(!cell) return;
+  var i = parseInt(cell.dataset.i,10);
+  if(S.selectedTile!==0){
+    place(i, S.selectedTile);
+  }else if(curPuz().givens[i]===0 && S.grid[i]!==0){
+    place(i, -1);
+  }else{
+    setMascot();
+  }
+});
+
+/* ================================================================
+   按钮绑定
+   ================================================================ */
+(function bindButtons(){
+  /* 难度卡片 */
+  var cards = document.querySelectorAll('.diff-card');
+  for(var k=0;k<cards.length;k++){
+    (function(c){
+      c.addEventListener('click', function(){ startRun(parseInt(c.dataset.d,10)); });
+    })(cards[k]);
+  }
+  $('#btn-hint').onclick = function(){ if(S.screen==='game') onHint(); };
+  $('#btn-hint-ok').onclick = function(){ $('#ov-hint').classList.remove('show'); };
+  $('#btn-lens').onclick = function(){
+    S.lens = !S.lens;
+    $('#btn-lens').textContent = '排除镜 '+(S.lens?'开':'关');
+    paint();
+    beep(700,0.06);
+  };
+  $('#btn-reveal').onclick = function(){ if(S.screen==='game') onReveal(); };
+  $('#btn-restart').onclick = function(){ if(S.screen==='game') startRun(S.diff); };
+  $('#btn-menu').onclick = function(){ if(S.screen==='game') goMenu(); };
+  $('#btn-rules').onclick = function(){ showRulesModal(); };
+  $('#btn-rules-ok').onclick = function(){ $('#ov-rules').classList.remove('show'); };
+  $('#btn-sound').onclick = function(){
+    S.sound = !S.sound;
+    $('#btn-sound').textContent = '音效 '+(S.sound?'开':'关');
+    if(S.sound) beep(660,0.08);
+  };
+})();
+
+/* 初始：应用随机主题，停留在难度选择 */
+applyTheme(THEMES[Math.floor(Math.random()*THEMES.length)]);
+updateHud();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g020", "name": "\u65b9\u683c\u4e2d\u7684\u79d8\u5bc6 \u00b7 \u6570\u5b57\u7cbe\u7075\u6551\u63f4\u961f", "file": "g020.html", "jiaocan": "\u301020\u3011\u7b2c10\u8bb2 \u65b9\u683c\u4e2d\u7684\u79d8\u5bc6\uff08\u4e0b\uff09", "unit": "\u7b2c10\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

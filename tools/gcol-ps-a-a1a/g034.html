@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排队小达人 · 圈圈大闯关（第17讲 简单的排队问题·下）</title>
+<style>
+/* ========== 基础样式（配色由 JS 从预设色板随机注入 CSS 变量） ========== */
+:root{
+  --c-primary:#F57C00; --c-pdark:#E65100; --c-bg:#FFF8F0; --c-card:#FFFFFF;
+  --c-accent:#0277BD; --c-lit:#FFD54F; --c-ink:#263238; --c-line:#CFD8DC;
+  --c-ok:#2E7D32; --c-warn:#EF6C00;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Source Han Sans SC",sans-serif;
+  background:var(--c-bg); color:var(--c-ink); font-size:18px; line-height:1.6;
+}
+#app{max-width:1120px;margin:0 auto;padding:14px 14px 46px;}
+
+/* ========== 顶栏：标题 + 计时器/步数/进度（G7） ========== */
+header{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+  background:var(--c-card);border:4px solid var(--c-primary);border-radius:18px;
+  padding:12px 18px;margin-bottom:14px;
+}
+h1{font-size:clamp(20px,3.4vw,27px);color:var(--c-pdark);}
+h1 small{font-size:0.62em;color:var(--c-ink);font-weight:600;}
+.hud{display:flex;gap:10px;flex-wrap:wrap;}
+.hud .chip{
+  background:var(--c-bg);border:2px solid var(--c-line);border-radius:999px;
+  padding:6px 14px;font-size:18px;font-weight:800;white-space:nowrap;
+}
+
+/* ========== 屏幕切换 ========== */
+.screen{display:none;}
+.screen.active{display:block;}
+.card{
+  background:var(--c-card);border:3px solid var(--c-line);border-radius:18px;
+  padding:16px 18px;margin-bottom:14px;
+}
+
+/* ========== 难度选择（G3） ========== */
+#screen-diff .cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin:14px 0;}
+.diffcard{
+  flex:1 1 260px;max-width:330px;background:var(--c-card);border:4px solid var(--c-primary);
+  border-radius:22px;padding:24px 18px;text-align:center;cursor:pointer;
+  transition:transform .15s, box-shadow .15s; box-shadow:0 4px 0 var(--c-line);
+}
+.diffcard:hover{transform:translateY(-6px);box-shadow:0 10px 0 var(--c-line);}
+.diffcard:active{transform:translateY(-2px);}
+.diffcard .ic{font-size:48px;line-height:1.2;}
+.diffcard h2{font-size:24px;color:var(--c-pdark);margin:10px 0 4px;}
+.diffcard .sub{font-size:17px;color:var(--c-accent);font-weight:800;}
+.diffcard p{font-size:17px;line-height:1.75;margin-top:10px;text-align:left;}
+.intro{font-size:19px;line-height:1.9;}
+
+/* ========== 题目卡（G14：题干条件完整呈现） ========== */
+.lvbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;}
+.lvbar .tag{font-size:17px;font-weight:800;color:#fff;background:var(--c-accent);border-radius:999px;padding:4px 14px;}
+.story{font-size:20px;line-height:1.95;}
+.clues{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;}
+.clue{
+  display:inline-flex;align-items:center;gap:10px;border:3px solid var(--c-line);border-radius:999px;
+  padding:8px 16px;font-size:17px;background:#FAFAFA;font-weight:700;transition:all .2s;
+}
+.clue.ok{border-color:var(--c-ok);background:#E8F5E9;color:var(--c-ok);animation:pop .35s;}
+.clue .st{font-weight:800;}
+@keyframes pop{0%{transform:scale(1);}50%{transform:scale(1.12);}100%{transform:scale(1);}}
+.tipbox{
+  margin-top:14px;border:3px dashed var(--c-accent);border-radius:14px;
+  padding:12px 16px;font-size:19px;background:var(--c-bg);line-height:1.8;
+}
+.tipbox b{color:var(--c-pdark);}
+
+/* ========== 主角等候区（拖拽源） ========== */
+.docktitle{font-size:18px;font-weight:800;color:var(--c-pdark);margin-bottom:10px;}
+#dock{display:flex;gap:16px;flex-wrap:wrap;min-height:110px;align-items:flex-start;}
+.token{
+  width:88px;height:104px;border-radius:18px;border:4px solid #B0BEC5;background:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 4px 0 rgba(0,0,0,.08);
+}
+.token .em{font-size:36px;line-height:1.1;}
+.token .nm{font-size:17px;font-weight:800;}
+.token.ghost{position:fixed;z-index:999;pointer-events:none;opacity:.93;transform:translate(-50%,-115%);box-shadow:0 10px 24px rgba(0,0,0,.3);left:0;top:0;}
+.dockhint{font-size:16px;color:#546E7A;margin-top:10px;}
+
+/* ========== 队伍画布（圈圈图） ========== */
+.qbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px;}
+.qbar .end{font-size:17px;font-weight:800;color:var(--c-accent);}
+#queue{
+  display:flex;flex-wrap:wrap;gap:16px 14px;justify-content:center;align-items:flex-start;
+  padding:14px 4px 10px;touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.slot{width:68px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.slot .cir{
+  width:54px;height:54px;border-radius:50%;border:4px solid #B0BEC5;background:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1;
+}
+.slot .num{font-size:16px;color:#546E7A;font-weight:700;}
+.slot .nm{font-size:16px;font-weight:800;line-height:1.2;}
+.slot.lit .cir{background:var(--c-lit);border-color:var(--c-primary);box-shadow:inset 0 0 0 3px rgba(255,255,255,.7);}
+.slot.hl .cir{outline:5px dashed var(--c-accent);outline-offset:2px;}
+.slot .p-emoji{font-size:30px;cursor:grab;touch-action:none;}
+.shake{animation:shake .4s;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+
+/* ========== 队伍下方面板：点亮计数 / 队伍长度调节 ========== */
+.panel{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:12px;min-height:64px;}
+.bigcount{font-size:25px;font-weight:800;color:var(--c-pdark);}
+.mbutton{
+  font-family:inherit;border:3px solid var(--c-primary);background:#fff;color:var(--c-pdark);
+  border-radius:14px;padding:10px 18px;font-size:19px;font-weight:800;cursor:pointer;touch-action:manipulation;
+}
+.mbutton:active{transform:scale(.96);}
+
+/* ========== 操作按钮区（G4） ========== */
+.actions{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:4px;}
+.btn{
+  font-family:inherit;border:none;border-radius:14px;padding:14px 24px;font-size:19px;
+  font-weight:800;cursor:pointer;touch-action:manipulation;box-shadow:0 4px 0 rgba(0,0,0,.18);
+}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.18);}
+.btn.primary{background:var(--c-primary);color:#fff;}
+.btn.accent{background:var(--c-accent);color:#fff;}
+.btn.ghostb{background:#fff;border:3px solid var(--c-primary);color:var(--c-pdark);}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none;}
+
+/* ========== 弹窗 ========== */
+.modal{position:fixed;inset:0;background:rgba(38,50,56,.55);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px;}
+.modal.show{display:flex;}
+.mbox{
+  background:#fff;border-radius:20px;max-width:660px;width:100%;padding:24px 24px 22px;
+  max-height:88vh;overflow:auto;border-top:12px solid var(--c-primary);box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+.mbox h2{font-size:26px;color:var(--c-pdark);margin-bottom:12px;text-align:center;}
+.mbox .rules{font-size:18px;line-height:1.95;}
+.mbox .rules li{margin:10px 0 10px 26px;}
+.mbox .meth{
+  margin-top:14px;background:var(--c-bg);border:3px solid var(--c-lit);border-radius:14px;
+  padding:12px 16px;font-size:19px;line-height:1.9;
+}
+.stars{font-size:34px;letter-spacing:8px;text-align:center;margin:6px 0;}
+.winanswer{font-size:23px;font-weight:800;color:var(--c-ok);text-align:center;margin:10px 0;}
+.mfoot{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:18px;}
+
+/* ========== 战绩页 ========== */
+.sumtable{width:100%;border-collapse:collapse;margin:14px 0;font-size:19px;}
+.sumtable th,.sumtable td{border:2px solid var(--c-line);padding:10px 12px;text-align:center;}
+.sumtable th{background:var(--c-bg);}
+.bigstars{font-size:40px;text-align:center;letter-spacing:6px;margin:10px 0;}
+
+/* ========== 提示条 / 彩纸 ========== */
+#toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#37474F;color:#fff;
+  padding:13px 24px;border-radius:999px;font-size:18px;z-index:1200;display:none;
+  max-width:92vw;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.3);
+}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:1500;display:none;}
+
+@media (max-width:640px){
+  body{font-size:17px;}
+  .story{font-size:19px;}
+  .slot{width:60px;}
+  .slot .cir{width:48px;height:48px;font-size:26px;}
+  .token{width:80px;height:98px;}
+  #queue{gap:14px 12px;}
+  .btn{padding:12px 16px;font-size:18px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ===== 顶栏 ===== -->
+  <header>
+    <h1>🚩 排队小达人 · 圈圈大闯关<br><small>第17讲 简单的排队问题（下）· 画圈圈图数一数</small></h1>
+    <div class="hud">
+      <div class="chip" id="hud-timer">⏱ 00:00</div>
+      <div class="chip" id="hud-steps">🐾 步数 0</div>
+      <div class="chip" id="hud-level">关卡 -/-</div>
+    </div>
+  </header>
+
+  <!-- ===== 屏：难度选择 ===== -->
+  <section class="screen active" id="screen-diff">
+    <div class="card intro">
+      欢迎来到<b>排队王国</b>！这里的小动物、小朋友、小花花都要排成一队。<br>
+      你的任务是：把<b>主角</b>拖到队伍里正确的位置，再用手指<b>点亮圈圈</b>（这就是老师教的“画圈圈图”），答案就会自己跳出来！
+    </div>
+    <div class="cards">
+      <div class="diffcard" data-diff="easy">
+        <div class="ic">🌉</div>
+        <h2>初级 · 彩虹桥</h2>
+        <div class="sub">之间有几个？</div>
+        <p>🎯 把两位主角拖进队伍，让他们都站对位置；<br>💡 再把<b>两人之间</b>的圈圈全部点亮（不包括两位主角自己）；<br>🏅 点亮的个数就是答案！</p>
+      </div>
+      <div class="diffcard" data-diff="mid">
+        <div class="ic">🌟</div>
+        <h2>中级 · 星空旅程</h2>
+        <div class="sub">从A数到B有几个？</div>
+        <p>🎯 把两位主角拖进队伍，站对位置；<br>💡 把<b>从A到B的一整段</b>（<b>包括A和B自己</b>）全部点亮；<br>🏅 别忘了最后要把两个主角也加回来哦！</p>
+      </div>
+      <div class="diffcard" data-diff="hard">
+        <div class="ic">🚪</div>
+        <h2>高级 · 智慧之门</h2>
+        <div class="sub">神探来推总数</div>
+        <p>🎯 这次的队伍人数是未知的！用 <b>＋／－</b> 按钮调整队伍长度；<br>💡 拖好主角，让<b>每一条线索都亮起绿灯</b>；<br>🏅 全部亮灯时，队伍总人数就是答案！</p>
+      </div>
+    </div>
+    <div class="card" style="text-align:center;">
+      <button class="btn accent" id="btn-rules">📖 玩法说明</button>
+    </div>
+  </section>
+
+  <!-- ===== 屏：游戏 ===== -->
+  <section class="screen" id="screen-game">
+    <div class="card" id="qcard">
+      <div class="lvbar">
+        <span class="tag" id="lv-tag">第1关</span>
+        <span class="tag" id="lv-diff" style="background:var(--c-primary);">初级</span>
+      </div>
+      <div class="story" id="lv-story">题干加载中……</div>
+      <div class="clues" id="lv-clues"></div>
+      <div class="tipbox" id="lv-tip"></div>
+    </div>
+
+    <div class="card">
+      <div class="docktitle">🙋 主角等候区（按住我，拖进下面的队伍里）</div>
+      <div id="dock"></div>
+      <div class="dockhint">小提示：拖错了没关系，把主角拖回等候区上方松手，就可以重新排队啦！</div>
+    </div>
+
+    <div class="card">
+      <div class="qbar">
+        <span class="end">◀ 排头（左起第1个）</span>
+        <button class="mbutton" id="btn-dir">🔁 换个方向数：当前从左往右编号</button>
+        <span class="end">排尾（右起第1个）▶</span>
+      </div>
+      <div id="queue"></div>
+      <div class="panel" id="panel-lit">
+        <span class="bigcount">🖍 已点亮：<span id="lit-n">0</span> 个</span>
+        <button class="mbutton" id="btn-clearlit">🧽 清空点亮</button>
+      </div>
+      <div class="panel" id="panel-total" style="display:none;">
+        <button class="mbutton" id="btn-minus">➖ 队伍减1人</button>
+        <span class="bigcount">👥 队伍当前人数：<span id="len-n">12</span> 人</span>
+        <button class="mbutton" id="btn-plus">➕ 队伍加1人</button>
+      </div>
+    </div>
+
+    <div class="card actions">
+      <button class="btn primary" id="btn-check">✅ 检查答案</button>
+      <button class="btn accent" id="btn-reveal">💡 揭示答案</button>
+      <button class="btn ghostb" id="btn-restart">🔄 重新开始</button>
+      <button class="btn ghostb" id="btn-back">🏠 返回难度选择</button>
+      <button class="btn ghostb" id="btn-rules2">📖 玩法说明</button>
+    </div>
+  </section>
+
+  <!-- ===== 屏：战绩 ===== -->
+  <section class="screen" id="screen-summary">
+    <div class="card" style="text-align:center;">
+      <h2 style="font-size:28px;color:var(--c-pdark);" id="sum-title">🎉 全部通关！</h2>
+      <div class="bigstars" id="sum-stars">⭐⭐⭐</div>
+      <div class="intro" id="sum-text"></div>
+      <table class="sumtable" id="sum-table"></table>
+      <div class="mfoot">
+        <button class="btn primary" id="btn-again">🎲 再来一局（重新抽题）</button>
+        <button class="btn ghostb" id="btn-back2">🏠 返回难度选择</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== 规则弹窗（G6：进入时弹出，可随时再看） ===== -->
+<div class="modal" id="modal-rules">
+  <div class="mbox">
+    <h2>📖 玩法说明</h2>
+    <ul class="rules">
+      <li>🖐 <b>拖一拖</b>：按住等候区里的主角，拖到队伍中正确的圈圈上松手。看谁站错了，随时可以拖回来重排！</li>
+      <li>🟢 <b>看线索灯</b>：题目下方的每条线索都有一个小灯，主角站对了就会亮绿灯，全亮说明位置全对！</li>
+      <li>🖍 <b>圈一圈</b>：用手指按住圈圈拖过去，就能像画圈圈图一样把它们连续点亮（再点一下可以熄灭）。把该数的对象全部点亮！</li>
+      <li>🔁 <b>换个方向数</b>：从右边数不清？点一下方向按钮，编号立刻改成从右往左（倒着数）！</li>
+      <li>➕ <b>高级关特别玩法</b>：队伍总人数未知，用“＋／－”按钮加人减人，直到每条线索都亮绿灯，总人数就是答案！</li>
+      <li>✅ 都完成后点<b>【检查答案】</b>；实在想不出来，点<b>【揭示答案】</b>看看老师的方法。</li>
+    </ul>
+    <div class="meth">
+      🌟 口诀一：<b>总数 － 一部分 － 一部分 ＝ 中间部分</b>（“之间”不包括两个主角）<br>
+      🌟 口诀二：<b>从A数到B，包括A和B</b>（中间部分算完，别忘了 ＋2）<br>
+      🌟 口诀三：两次数到同一个主角时，他被算了<b>两次</b>，要<b>减1</b>；排队总人数也可以<b>分三段相加</b>。
+    </div>
+    <div class="mfoot"><button class="btn primary" id="btn-rules-ok">🚀 开始挑战</button></div>
+  </div>
+</div>
+
+<!-- ===== 通关弹窗（G5：庆祝动画 + 解析） ===== -->
+<div class="modal" id="modal-win">
+  <div class="mbox">
+    <h2 id="win-title">🎉 太棒了，答对啦！</h2>
+    <div class="stars" id="win-stars">⭐⭐⭐</div>
+    <div class="winanswer" id="win-answer"></div>
+    <div class="meth" id="win-solve"></div>
+    <div class="meth" id="win-method" style="border-color:var(--c-accent);"></div>
+    <div class="mfoot"><button class="btn primary" id="btn-next">➡️ 下一关</button></div>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+ * 排队小达人 · 圈圈大闯关
+ * 核心机制：①拖拽主角入队（对应“画圈圈图”定位主角）
+ *          ②涂抹点亮圈圈（对应“圈一圈数一数”）
+ *          ③高级关调节队伍长度（对应“由部分推总数”）
+ * 本文件零外部依赖，全部内联。
+ * ===================================================================== */
+
+/* ---------- 小工具 ---------- */
+function $(s){ return document.querySelector(s); }
+function shuffle(arr){
+  var r = arr.slice();
+  for(var i = r.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = r[i]; r[i] = r[j]; r[j] = t;
+  }
+  return r;
+}
+function sampleN(arr, n){ return shuffle(arr).slice(0, n); }
+function pad2(n){ return (n < 10 ? '0' : '') + n; }
+
+/* ---------- 色板（G8：每局随机换主色） ---------- */
+var PALETTES = [
+  {p:'#F57C00', pd:'#E65100', bg:'#FFF8F0', ac:'#0277BD', lit:'#FFD54F'},
+  {p:'#2E7D32', pd:'#1B5E20', bg:'#F1F8E9', ac:'#EF6C00', lit:'#FFEB3B'},
+  {p:'#1565C0', pd:'#0D47A1', bg:'#E8F4FD', ac:'#E65100', lit:'#FFF176'},
+  {p:'#6A1B9A', pd:'#4A148C', bg:'#F6EFFB', ac:'#00897B', lit:'#FFD54F'},
+  {p:'#C2185B', pd:'#880E4F', bg:'#FDF0F5', ac:'#00838F', lit:'#FFE082'},
+  {p:'#00838F', pd:'#006064', bg:'#E0F7FA', ac:'#D81B60', lit:'#FFF59D'}
+];
+var PAL = PALETTES[0];
+function applyRandomPalette(){
+  PAL = shuffle(PALETTES)[0];
+  var st = document.documentElement.style;
+  st.setProperty('--c-primary', PAL.p);
+  st.setProperty('--c-pdark', PAL.pd);
+  st.setProperty('--c-bg', PAL.bg);
+  st.setProperty('--c-accent', PAL.ac);
+  st.setProperty('--c-lit', PAL.lit);
+}
+/* 主角徽章配色（与色板区分，保证多人不混淆） */
+var PRO_COLORS = ['#E53935', '#1E88E5', '#8E24AA', '#00897B'];
+
+/* =====================================================================
+ * 关卡数据（题目取自本讲 docx：例4、例5、例6、练习10~18 与小精灵题，
+ * 另按同题型自创 2 道变式题补充。answer 均已逐题人工核算。）
+ * 线索类型 t：L=从左(排头)数第x个；R=从右(排尾)数第x个；
+ *          FC=前面有x人(不含自己)；BC=后面有x人(不含自己)；
+ *          ADJ=a正好排在b的前面一个；OFF=b是a后面的第k个；BTW=a和b之间有x人
+ * 任务类型 task：between=之间(不含两端)点亮；inclusive=从A到B(含两端)点亮；
+ *              fromEnd=从队尾(或队头)数到主角(含主角)点亮；total=调队伍长度求总数
+ * ===================================================================== */
+var POOLS = {
+  easy: [ /* 初级：求之间（不含两端）——例4、练习10、12、14 + 变式1 */
+    {
+      id:'例4', total:20, unit:'个小朋友', task:'between',
+      story:'一(1)班 20 个小朋友排成一队去看电影。从左往右数，牛牛是第 6 个；从右往左数，田田是第 9 个。那么，牛牛和田田之间有多少个小朋友？',
+      tip:'把<b>牛牛</b>和<b>田田</b>拖进队伍（两条线索都亮绿灯），再把<b>他们之间</b>的小朋友全部点亮（<b>不包括</b>牛牛和田田），点亮的个数就是答案！',
+      p:[{name:'牛牛', emoji:'🐮'}, {name:'田田', emoji:'🐰'}],
+      clues:[
+        {t:'L', who:0, x:6, txt:'从左往右数，牛牛是第6个'},
+        {t:'R', who:1, x:9, txt:'从右往左数，田田是第9个'}
+      ],
+      solPos:[6, 12], answer:5,
+      answerText:'牛牛和田田之间有 5 个小朋友',
+      solve:'从左数到牛牛有 6 人，从右数到田田有 9 人：6＋9＝15（人）；20－15＝5（人）。',
+      method:'口诀：总数－一部分－一部分＝中间部分（“之间”不包括两个主角）。'
+    },
+    {
+      id:'练习10', total:16, unit:'只小羊', task:'between',
+      story:'羊村的小羊去郊外春游，它们 16 只羊排成一队走路。从前往后数，美羊羊是第 4 个；从后往前数，懒羊羊排在第 8 个。美羊羊和懒羊羊之间有几只羊呢？',
+      tip:'把<b>美羊羊</b>和<b>懒羊羊</b>拖进队伍，再把<b>她们之间</b>的位置点亮（不包括两只主角羊）！',
+      p:[{name:'美羊羊', emoji:'🐑'}, {name:'懒羊羊', emoji:'🐏'}],
+      clues:[
+        {t:'L', who:0, x:4, txt:'从前往后数，美羊羊是第4个'},
+        {t:'R', who:1, x:8, txt:'从后往前数，懒羊羊排在第8个'}
+      ],
+      solPos:[4, 9], answer:4,
+      answerText:'美羊羊和懒羊羊之间有 4 只羊',
+      solve:'从前面数到美羊羊有 4 只，从后面数到懒羊羊有 8 只：4＋8＝12（只）；16－12＝4（只）。',
+      method:'口诀：总数－一部分－一部分＝中间部分（“之间”不包括两个主角）。'
+    },
+    {
+      id:'练习12', total:16, unit:'盆花', task:'between',
+      story:'运动会上，乐乐老师在操场门前摆了一排花，一共有 16 盆。从左往右数，迎春花摆在第 6 盆；从右往左数，月季花摆在第 8 盆。一串红全部摆在了迎春花和月季花之间，一串红一共有多少盆？',
+      tip:'一串红就摆在两种花<b>之间</b>！把<b>迎春花</b>和<b>月季花</b>拖进队伍，再把她们之间的位置点亮，点亮几个就是几盆！',
+      p:[{name:'迎春花', emoji:'🌼'}, {name:'月季花', emoji:'🌹'}],
+      clues:[
+        {t:'L', who:0, x:6, txt:'从左往右数，迎春花摆在第6盆'},
+        {t:'R', who:1, x:8, txt:'从右往左数，月季花摆在第8盆'}
+      ],
+      solPos:[6, 9], answer:2,
+      answerText:'一串红一共有 2 盆',
+      solve:'从左数到迎春花有 6 盆，从右数到月季花有 8 盆：6＋8＝14（盆）；16－14＝2（盆）。',
+      method:'口诀：总数－一部分－一部分＝中间部分（“之间”不包括两种主角花）。'
+    },
+    {
+      id:'练习14', total:40, unit:'幅画', task:'between',
+      story:'六一儿童节，一共有 40 幅画展览在学校画廊中。牛牛和丁丁的作品都被展出。在这一排画中，牛牛的画挂在从左往右数第 13 幅，丁丁的画挂在从右往左数第 20 幅。牛牛和丁丁的画之间还有多少幅呢？',
+      tip:'把<b>牛牛的画</b>和<b>丁丁的画</b>拖到长长的画廊队伍里，再把两幅画<b>之间</b>的位置点亮！',
+      p:[{name:'牛牛的画', emoji:'🎨'}, {name:'丁丁的画', emoji:'🖼️'}],
+      clues:[
+        {t:'L', who:0, x:13, txt:'从左往右数，牛牛的画是第13幅'},
+        {t:'R', who:1, x:20, txt:'从右往左数，丁丁的画是第20幅'}
+      ],
+      solPos:[13, 21], answer:7,
+      answerText:'牛牛和丁丁的画之间还有 7 幅',
+      solve:'从左数到牛牛的画有 13 幅，从右数到丁丁的画有 20 幅：13＋20＝33（幅）；40－33＝7（幅）。',
+      method:'口诀：总数－一部分－一部分＝中间部分（“之间”不包括两幅主角画）。'
+    },
+    {
+      id:'变式1', total:24, unit:'棵果树', task:'between',
+      story:'果园里的果树排成一排，一共 24 棵。从左往右数，苹果树是第 7 棵；从右往左数，橘子树是第 10 棵。苹果树和橘子树之间有多少棵果树？',
+      tip:'把<b>苹果树</b>和<b>橘子树</b>拖进队伍，再把两棵树<b>之间</b>的位置点亮！',
+      p:[{name:'苹果树', emoji:'🍎'}, {name:'橘子树', emoji:'🍊'}],
+      clues:[
+        {t:'L', who:0, x:7, txt:'从左往右数，苹果树是第7棵'},
+        {t:'R', who:1, x:10, txt:'从右往左数，橘子树是第10棵'}
+      ],
+      solPos:[7, 15], answer:7,
+      answerText:'苹果树和橘子树之间有 7 棵果树',
+      solve:'从左数到苹果树有 7 棵，从右数到橘子树有 10 棵：7＋10＝17（棵）；24－17＝7（棵）。',
+      method:'口诀：总数－一部分－一部分＝中间部分（“之间”不包括两棵主角树）。'
+    }
+  ],
+  mid: [ /* 中级：从A数到B（含两端）——例5、练习11、13 + 变式2 */
+    {
+      id:'例5', total:25, unit:'个小动物', task:'inclusive',
+      story:'迪士尼乐园选了 25 个小动物排成一排给大家表演节目。从左往右数，米老鼠是第 8 个；从右往左数，唐老鸭是第 9 个。从米老鼠数到唐老鸭一共有多少个小动物？（包括米老鼠和唐老鸭）',
+      tip:'把<b>米老鼠</b>和<b>唐老鸭</b>拖进队伍，再把<b>从米老鼠到唐老鸭的一整段</b>全部点亮（<b>包括</b>米老鼠和唐老鸭自己）！',
+      p:[{name:'米老鼠', emoji:'🐭'}, {name:'唐老鸭', emoji:'🦆'}],
+      clues:[
+        {t:'L', who:0, x:8, txt:'从左往右数，米老鼠是第8个'},
+        {t:'R', who:1, x:9, txt:'从右往左数，唐老鸭是第9个'}
+      ],
+      solPos:[8, 17], answer:10,
+      answerText:'从米老鼠数到唐老鸭一共有 10 个小动物',
+      solve:'8＋9＝17（个）；25－17＝8（个），这是两位主角之间的；从米老鼠数到唐老鸭要包括他们俩：8＋2＝10（个）。',
+      method:'口诀：从A数到B，包括A和B——中间部分算完，别忘了 ＋2。'
+    },
+    {
+      id:'练习11', total:18, unit:'名同学', task:'inclusive',
+      story:'体育课上 18 名同学排成一排。从左往右数，田田是第 8 名；从右往左数，阿普在第 5 名。从田田数到阿普共有同学多少名？（包括田田和阿普）',
+      tip:'把<b>田田</b>和<b>阿普</b>拖进队伍，再把<b>从田田数到阿普的一整段</b>全部点亮（包括两人自己）！',
+      p:[{name:'田田', emoji:'🐰'}, {name:'阿普', emoji:'🐵'}],
+      clues:[
+        {t:'L', who:0, x:8, txt:'从左往右数，田田是第8名'},
+        {t:'R', who:1, x:5, txt:'从右往左数，阿普在第5名'}
+      ],
+      solPos:[8, 14], answer:7,
+      answerText:'从田田数到阿普共有 7 名同学',
+      solve:'8＋5＝13（名）；18－13＝5（名），这是两人之间的；加上田田和阿普：5＋2＝7（名）。',
+      method:'口诀：从A数到B，包括A和B——中间部分算完，别忘了 ＋2。'
+    },
+    {
+      id:'练习13', total:18, unit:'盆花', task:'inclusive',
+      story:'校门口摆着一排花，共 18 盆。从左往右数，茉莉花摆在第 6 盆；从右往左数，月季花摆在第 8 盆。从茉莉花数到月季花一共有多少盆花？（包括茉莉花和月季花）',
+      tip:'把<b>茉莉花</b>和<b>月季花</b>拖进队伍，再把<b>从茉莉花数到月季花的一整段</b>全部点亮（包括两盆主角花）！',
+      p:[{name:'茉莉花', emoji:'🌸'}, {name:'月季花', emoji:'🌺'}],
+      clues:[
+        {t:'L', who:0, x:6, txt:'从左往右数，茉莉花摆在第6盆'},
+        {t:'R', who:1, x:8, txt:'从右往左数，月季花摆在第8盆'}
+      ],
+      solPos:[6, 11], answer:6,
+      answerText:'从茉莉花数到月季花一共有 6 盆花',
+      solve:'6＋8＝14（盆）；18－14＝4（盆），这是两种花之间的；加上茉莉花和月季花：4＋2＝6（盆）。',
+      method:'口诀：从A数到B，包括A和B——中间部分算完，别忘了 ＋2。'
+    },
+    {
+      id:'变式2', total:22, unit:'面彩旗', task:'inclusive',
+      story:'学校门口插了一排彩旗，一共 22 面。从左往右数，红旗是第 5 面；从右往左数，蓝旗是第 9 面。从红旗数到蓝旗一共有多少面彩旗？（包括红旗和蓝旗）',
+      tip:'把<b>红旗</b>和<b>蓝旗</b>拖进队伍，再把<b>从红旗数到蓝旗的一整段</b>全部点亮（包括两面主角旗）！',
+      p:[{name:'红旗', emoji:'🚩'}, {name:'蓝旗', emoji:'🔵'}],
+      clues:[
+        {t:'L', who:0, x:5, txt:'从左往右数，红旗是第5面'},
+        {t:'R', who:1, x:9, txt:'从右往左数，蓝旗是第9面'}
+      ],
+      solPos:[5, 14], answer:10,
+      answerText:'从红旗数到蓝旗一共有 10 面彩旗',
+      solve:'5＋9＝14（面）；22－14＝8（面），这是两面旗之间的；加上红旗和蓝旗：8＋2＝10（面）。',
+      method:'口诀：从A数到B，包括A和B——中间部分算完，别忘了 ＋2。'
+    }
+  ],
+  hard: [ /* 高级：推总数 / 倒着数定位——例6、练习16、17、18 + 小精灵 */
+    {
+      id:'例6', total:null, startL:12, unit:'名同学', task:'total', answer:44,
+      story:'一排同学排成一队去看动物标本。从排头数起，田田是第 22 人；从排尾数起，牛牛是第 24 人。已知牛牛正好排在田田的前一个，问这队一共有多少同学？',
+      tip:'队伍总人数是<b>未知</b>的！用 ➕／➖ 调整队伍长度，再把<b>田田</b>和<b>牛牛</b>拖到正确位置，让<b>三条线索全部亮绿灯</b>，此时的队伍人数就是答案！',
+      p:[{name:'田田', emoji:'🐰'}, {name:'牛牛', emoji:'🐮'}],
+      clues:[
+        {t:'L', who:0, x:22, txt:'从排头数起，田田是第22人'},
+        {t:'R', who:1, x:24, txt:'从排尾数起，牛牛是第24人'},
+        {t:'ADJ', a:1, b:0, txt:'牛牛正好排在田田的前一个'}
+      ],
+      solPos:[22, 21],
+      answerText:'这队一共有 44 名同学',
+      solve:'田田从排头数是第 22 人，牛牛在她前一个，即从排头数第 21 人；牛牛从排尾数又是第 24 人。牛牛被数了两次：21＋24－1＝44（人）。',
+      method:'口诀：部分＋部分－重复的 1 ＝总数（两次都数到同一个主角，要减去多算的一次）。'
+    },
+    {
+      id:'练习16', total:null, startL:12, unit:'个小朋友', task:'total', answer:20,
+      story:'一队小朋友排队上车。从前往后数，小红排第 10 个；从后往前数，小兰排第 12 个。已知小兰正好排在小红的前面一个。请问这队小朋友共有多少个？',
+      tip:'先用 ➕／➖ 调队伍长度，再拖好<b>小红</b>和<b>小兰</b>，三条线索全亮绿灯就通关！',
+      p:[{name:'小红', emoji:'🧒'}, {name:'小兰', emoji:'👧'}],
+      clues:[
+        {t:'L', who:0, x:10, txt:'从前往后数，小红排第10个'},
+        {t:'R', who:1, x:12, txt:'从后往前数，小兰排第12个'},
+        {t:'ADJ', a:1, b:0, txt:'小兰正好排在小红的前面一个'}
+      ],
+      solPos:[10, 9],
+      answerText:'这队小朋友共有 20 个',
+      solve:'小兰在小红前一个，从前往后数小兰是第 9 个；又从后往前数小兰是第 12 个，小兰被数了两次：9＋12－1＝20（个）。',
+      method:'口诀：部分＋部分－重复的 1 ＝总数。'
+    },
+    {
+      id:'练习17', total:null, startL:12, unit:'名同学', task:'total', answer:15,
+      story:'同学们排成一队做游戏。从前往后数，小丽在第 5 名；从后往前数，小萍排在第 5 名；她们两人之间有 5 名同学。算一算这队一共有多少名同学。',
+      tip:'队伍可以看成<b>三段</b>：小丽前面（连小丽）、两人之间、小萍后面（连小萍）。用 ➕／➖ 调长度，拖好主角，三条线索全亮就通关！',
+      p:[{name:'小丽', emoji:'🧒'}, {name:'小萍', emoji:'👧'}],
+      clues:[
+        {t:'L', who:0, x:5, txt:'从前往后数，小丽在第5名'},
+        {t:'R', who:1, x:5, txt:'从后往前数，小萍排在第5名'},
+        {t:'BTW', a:0, b:1, x:5, txt:'小丽和小萍之间有5名同学'}
+      ],
+      solPos:[5, 11],
+      answerText:'这队一共有 15 名同学',
+      solve:'总人数分三段：小丽前面（包括小丽）5 名 ＋ 两人之间 5 名 ＋ 小萍后面（包括小萍）5 名：5＋5＋5＝15（名）。',
+      method:'口诀：把队伍分段，部分＋部分＋部分＝总数。'
+    },
+    {
+      id:'练习18', total:23, unit:'个小朋友', task:'fromEnd', taskWho:1, taskEnd:'R',
+      story:'一(1)班同学 23 人排成一排。从前往后数，田田是第 4 个；丁丁是田田后面的第 7 个。请问丁丁是从后往前数的第几个？',
+      tip:'把<b>田田</b>和<b>丁丁</b>拖进队伍，再把<b>从队尾一路数到丁丁（包括丁丁）</b>的位置全部点亮——点亮的个数就是“从后往前数第几个”！（可以点 🔁 换成从右往左编号哦）',
+      p:[{name:'田田', emoji:'🐰'}, {name:'丁丁', emoji:'🐼'}],
+      clues:[
+        {t:'L', who:0, x:4, txt:'从前往后数，田田是第4个'},
+        {t:'OFF', a:0, b:1, k:7, txt:'丁丁是田田后面的第7个'}
+      ],
+      solPos:[4, 11], answer:13,
+      answerText:'丁丁是从后往前数的第 13 个',
+      solve:'田田从前往后数第 4 个，丁丁是第 4＋7＝11 个；丁丁后面还有 23－11＝12（人），所以丁丁是从后往前数的第 12＋1＝13（个）。',
+      method:'口诀：主角后面的人数＋1＝从后面数的“第几个”（“第几个”要包括主角自己）。'
+    },
+    {
+      id:'小精灵', total:18, unit:'个小精灵', task:'between',
+      story:'18 个小精灵在做游戏。小精灵冰冰前面有 8 人，小精灵琳琳后面有 12 人。聪明的小朋友，你能猜出冰冰和琳琳之间有多少人吗？',
+      tip:'注意！这次线索说的是“前面<b>有</b>8人”（不包括冰冰自己）。把<b>冰冰</b>和<b>琳琳</b>都拖进队伍，两条线索都亮绿灯后，再把两人<b>之间</b>的位置点亮！',
+      p:[{name:'冰冰', emoji:'🧚'}, {name:'琳琳', emoji:'🦋'}],
+      clues:[
+        {t:'FC', who:0, x:8, txt:'冰冰前面有8人（不包括冰冰）'},
+        {t:'BC', who:1, x:12, txt:'琳琳后面有12人（不包括琳琳）'}
+      ],
+      solPos:[9, 6], answer:2,
+      answerText:'冰冰和琳琳之间有 2 人',
+      solve:'冰冰前面 8 人，所以冰冰是第 9 个；琳琳后面 12 人，所以琳琳是第 18－12＝6（个）。8＋12＝20（人）比 18 还多，说明琳琳一定在冰冰前面。两人之间：8－6＝2（人）。',
+      method:'口诀：“前面有x人”不含自己，主角位置＝x＋1；两边加起来比总数还多，说明两人站反了方向。'
+    }
+  ]
+};
+
+/* =====================================================================
+ * 运行状态
+ * ===================================================================== */
+var state = {
+  diff:null, levels:[], idx:0, level:null,
+  L:12, placed:{}, lit:{},          /* placed: 主角编号->位置；lit: 位置->true */
+  done:false, revealed:false, wrong:0,
+  steps:0, seconds:0, stars:[], timerId:null,
+  numFromRight:false, dragging:null, paint:null
+};
+
+/* ---------- HUD ---------- */
+function hud(){
+  $('#hud-timer').textContent = '⏱ ' + pad2(Math.floor(state.seconds/60)) + ':' + pad2(state.seconds%60);
+  $('#hud-steps').textContent = '🐾 步数 ' + state.steps;
+  $('#hud-level').textContent = state.levels.length ? ('关卡 ' + (state.idx+1) + '/' + state.levels.length) : '关卡 -/-';
+}
+function addStep(){ state.steps++; hud(); }
+function startTimer(){
+  stopTimer();
+  state.timerId = setInterval(function(){ state.seconds++; hud(); }, 1000);
+}
+function stopTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId = null; } }
+
+/* ---------- 屏幕切换 ---------- */
+function showScreen(id){
+  var list = document.querySelectorAll('.screen');
+  for(var i=0;i<list.length;i++){ list[i].classList.remove('active'); }
+  $('#' + id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+/* ---------- 提示条 ---------- */
+var toastId = null;
+function toast(msg){
+  var t = $('#toast');
+  t.innerHTML = msg;
+  t.style.display = 'block';
+  if(toastId){ clearTimeout(toastId); }
+  toastId = setTimeout(function(){ t.style.display = 'none'; }, 2800);
+}
+
+/* =====================================================================
+ * 线索判定（拖拽位置的正确性由线索灯实时反馈——探索式学习）
+ * ===================================================================== */
+function posOf(who){ return state.placed[who]; }
+function clueOK(c){
+  var L = state.L;
+  switch(c.t){
+    case 'L':   return posOf(c.who) === c.x;
+    case 'R':   return posOf(c.who) === L - c.x + 1;
+    case 'FC':  return (posOf(c.who) - 1) === c.x;          /* 前面有x人（不含自己） */
+    case 'BC':  return (L - posOf(c.who)) === c.x;          /* 后面有x人（不含自己） */
+    case 'ADJ': return posOf(c.a) === posOf(c.b) - 1;       /* a在b的前面一个 */
+    case 'OFF': return posOf(c.b) === posOf(c.a) + c.k;     /* b是a后面的第k个 */
+    case 'BTW': return Math.abs(posOf(c.b) - posOf(c.a)) - 1 === c.x; /* a、b之间有x人 */
+  }
+  return false;
+}
+function allCluesOK(){ return state.level.clues.every(clueOK); }
+
+/* 更新线索灯显示 */
+function updateClues(){
+  var box = $('#lv-clues');
+  box.innerHTML = '';
+  state.level.clues.forEach(function(c){
+    var ok = clueOK(c);
+    var d = document.createElement('div');
+    d.className = 'clue' + (ok ? ' ok' : '');
+    d.innerHTML = '<span class="st">' + (ok ? '🟢' : '⚪') + '</span>' + c.txt + '<span class="st">' + (ok ? '满足！' : '等你摆') + '</span>';
+    box.appendChild(d);
+  });
+}
+
+/* =====================================================================
+ * 目标点亮集合（依据当前摆好的主角位置计算）
+ * ===================================================================== */
+function targetSet(){
+  var lv = state.level;
+  var a = state.placed[0], b = state.placed[1];
+  var lo, hi, i, s;
+  if(lv.task === 'between'){
+    lo = Math.min(a,b); hi = Math.max(a,b); s = [];
+    for(i = lo+1; i <= hi-1; i++){ s.push(i); }
+    return s;
+  }
+  if(lv.task === 'inclusive'){
+    lo = Math.min(a,b); hi = Math.max(a,b); s = [];
+    for(i = lo; i <= hi; i++){ s.push(i); }
+    return s;
+  }
+  if(lv.task === 'fromEnd'){
+    var q = state.placed[lv.taskWho];
+    if(lv.taskEnd === 'R'){ s = []; for(i = q; i <= state.L; i++){ s.push(i); } return s; }
+    s = []; for(i = 1; i <= q; i++){ s.push(i); } return s;
+  }
+  return null; /* total 关不点亮 */
+}
+function litCount(){ return Object.keys(state.lit).length; }
+
+/* =====================================================================
+ * 渲染：队伍 / 等候区 / 面板
+ * ===================================================================== */
+function slotNum(pos){ return state.numFromRight ? (state.L - pos + 1) : pos; }
+
+function renderQueue(){
+  var q = $('#queue');
+  q.innerHTML = '';
+  var lv = state.level;
+  for(var pos = 1; pos <= state.L; pos++){
+    (function(p){
+      var slot = document.createElement('div');
+      slot.className = 'slot' + (state.lit[p] ? ' lit' : '');
+      slot.dataset.pos = p;
+      var cir = document.createElement('div');
+      cir.className = 'cir';
+      var who = null;
+      for(var k in state.placed){ if(state.placed[k] === p){ who = +k; } }
+      if(who !== null){
+        var em = document.createElement('span');
+        em.className = 'p-emoji';
+        em.textContent = lv.p[who].emoji;
+        em.addEventListener('pointerdown', function(e){ startDrag(e, who, p); });
+        cir.appendChild(em);
+      }
+      slot.appendChild(cir);
+      var num = document.createElement('div');
+      num.className = 'num';
+      num.textContent = '第' + slotNum(p) + '个';
+      slot.appendChild(num);
+      var nm = document.createElement('div');
+      nm.className = 'nm';
+      if(who !== null){
+        nm.textContent = lv.p[who].name;
+        nm.style.color = PRO_COLORS[who % PRO_COLORS.length];
+        slot.title = lv.p[who].name;
+      }
+      slot.appendChild(nm);
+      q.appendChild(slot);
+    })(pos);
+  }
+}
+
+function renderDock(){
+  var dock = $('#dock');
+  dock.innerHTML = '';
+  var lv = state.level;
+  var any = false;
+  lv.p.forEach(function(pr, i){
+    if(state.placed[i] !== undefined){ return; }  /* 已入队的不显示 */
+    any = true;
+    var t = document.createElement('div');
+    t.className = 'token';
+    t.style.borderColor = PRO_COLORS[i % PRO_COLORS.length];
+    t.innerHTML = '<span class="em">' + pr.emoji + '</span><span class="nm">' + pr.name + '</span>';
+    t.addEventListener('pointerdown', function(e){ startDrag(e, i, null); });
+    dock.appendChild(t);
+  });
+  if(!any){
+    var ok = document.createElement('div');
+    ok.style.fontSize = '18px';
+    ok.style.color = '#78909C';
+    ok.style.padding = '20px 6px';
+    ok.textContent = '主角都已经入队啦！（把主角拖回这里可以重新排队）';
+    dock.appendChild(ok);
+  }
+}
+
+function renderPanels(){
+  var lv = state.level;
+  if(lv.task === 'total'){
+    $('#panel-lit').style.display = 'none';
+    $('#panel-total').style.display = 'flex';
+    $('#len-n').textContent = state.L;
+  }else{
+    $('#panel-lit').style.display = 'flex';
+    $('#panel-total').style.display = 'none';
+    $('#lit-n').textContent = litCount();
+  }
+  $('#btn-dir').textContent = state.numFromRight
+    ? '🔁 换个方向数：当前从右往左编号'
+    : '🔁 换个方向数：当前从左往右编号';
+}
+
+function setLit(pos, on){
+  if(on){ state.lit[pos] = true; } else { delete state.lit[pos]; }
+  var el = document.querySelector('.slot[data-pos="' + pos + '"]');
+  if(el){ el.classList.toggle('lit', on); }
+  $('#lit-n').textContent = litCount();
+}
+
+function renderAll(){ renderQueue(); renderDock(); renderPanels(); updateClues(); }
+
+/* =====================================================================
+ * 拖拽入队（Pointer Events，兼容触摸屏）
+ * ===================================================================== */
+function startDrag(e, who, fromPos){
+  if(state.done){ toast('本关已经完成啦，点【下一关】继续旅程！'); return; }
+  e.preventDefault();
+  e.stopPropagation();
+  var lv = state.level;
+  state.dragging = { who: who, fromPos: fromPos, ghost: null };
+  if(fromPos !== null && fromPos !== undefined){ delete state.placed[who]; }
+  /* 生成跟随指针的“幽灵”令牌 */
+  var g = document.createElement('div');
+  g.className = 'token ghost';
+  g.style.borderColor = PRO_COLORS[who % PRO_COLORS.length];
+  g.innerHTML = '<span class="em">' + lv.p[who].emoji + '</span><span class="nm">' + lv.p[who].name + '</span>';
+  document.body.appendChild(g);
+  state.dragging.ghost = g;
+  moveGhost(e.clientX, e.clientY);
+  renderAll();
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', onDragEnd);
+}
+function moveGhost(x, y){
+  var g = state.dragging && state.dragging.ghost;
+  if(!g){ return; }
+  g.style.left = x + 'px';
+  g.style.top = y + 'px';
+}
+function clearHL(){
+  var els = document.querySelectorAll('.slot.hl');
+  for(var i=0;i<els.length;i++){ els[i].classList.remove('hl'); }
+}
+function slotAt(x, y){
+  var el = document.elementFromPoint(x, y);
+  if(!el){ return null; }
+  var s = el.closest ? el.closest('.slot') : null;
+  return s;
+}
+function onDragMove(e){
+  if(!state.dragging){ return; }
+  moveGhost(e.clientX, e.clientY);
+  clearHL();
+  var s = slotAt(e.clientX, e.clientY);
+  if(s){ s.classList.add('hl'); }
+}
+function onDragEnd(e){
+  if(!state.dragging){ return; }
+  var d = state.dragging;
+  state.dragging = null;
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragEnd);
+  if(d.ghost && d.ghost.parentNode){ d.ghost.parentNode.removeChild(d.ghost); }
+  clearHL();
+  var s = slotAt(e.clientX, e.clientY);
+  if(s){
+    var pos = +s.dataset.pos;
+    var occ = null;
+    for(var k in state.placed){ if(state.placed[k] === pos){ occ = +k; } }
+    if(occ !== null && occ !== d.who){
+      toast('第 ' + slotNum(pos) + ' 个位置已经被 ' + state.level.p[occ].name + ' 占啦，换一个位置试试！');
+      var card = $('#qcard');
+      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+    }else{
+      state.placed[d.who] = pos;
+      addStep();
+      toast('👍 ' + state.level.p[d.who].name + ' 站到了第 ' + slotNum(pos) + ' 个位置，看看线索灯！');
+    }
+  }else{
+    /* 放到队伍以外＝回到等候区，不算失误 */
+    toast(state.level.p[d.who].name + ' 回到等候区休息一下～');
+  }
+  renderAll();
+}
+
+/* =====================================================================
+ * 涂抹点亮圈圈（画圈圈图）——按住拖动连续点亮，单击切换
+ * ===================================================================== */
+function bindPaint(){
+  var q = $('#queue');
+  q.addEventListener('pointerdown', function(e){
+    if(!state.level || state.level.task === 'total'){ return; } /* 求总数关不需要涂色 */
+    if(state.dragging){ return; }
+    if(e.target.closest && e.target.closest('.p-emoji')){ return; } /* 主角令牌区域用于拖拽 */
+    var slot = e.target.closest ? e.target.closest('.slot') : null;
+    if(!slot){ return; }
+    e.preventDefault();
+    var pos = +slot.dataset.pos;
+    state.paint = { mode: !state.lit[pos] };
+    setLit(pos, state.paint.mode);
+  });
+  window.addEventListener('pointermove', function(e){
+    if(!state.paint){ return; }
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    var slot = el && el.closest ? el.closest('.slot') : null;
+    if(slot){ setLit(+slot.dataset.pos, state.paint.mode); }
+  });
+  window.addEventListener('pointerup', function(){
+    if(state.paint){ state.paint = null; addStep(); }
+  });
+}
+
+/* =====================================================================
+ * 关卡流程
+ * ===================================================================== */
+function loadLevel(){
+  var lv = state.level = state.levels[state.idx];
+  state.L = lv.task === 'total' ? (lv.startL || 12) : lv.total;
+  state.placed = {};
+  state.lit = {};
+  state.done = false;
+  state.revealed = false;
+  state.wrong = 0;
+  state.numFromRight = false;
+  $('#lv-tag').textContent = '第 ' + (state.idx+1) + ' 关 · ' + lv.id;
+  $('#lv-diff').textContent = (state.diff === 'easy' ? '初级 · 彩虹桥' : (state.diff === 'mid' ? '中级 · 星空旅程' : '高级 · 智慧之门'));
+  $('#lv-story').textContent = lv.story;
+  $('#lv-tip').innerHTML = '🎯 ' + lv.tip;
+  $('#btn-check').disabled = false;
+  renderAll();
+  hud();
+  toast('新关卡开始！先把主角拖进队伍吧～');
+}
+
+function startRound(diff){
+  state.diff = diff;
+  state.levels = sampleN(POOLS[diff], 3);   /* 反重复：每局随机抽3关 */
+  state.idx = 0;
+  state.stars = [];
+  state.steps = 0;
+  state.seconds = 0;
+  applyRandomPalette();                      /* 反重复：每局随机换色板 */
+  showScreen('screen-game');
+  loadLevel();
+  startTimer();
+}
+
+/* 检查答案 */
+function check(){
+  if(state.done){ toast('本关已经完成啦！'); return; }
+  addStep();
+  var lv = state.level;
+  if(!allCluesOK()){
+    toast('⚪ 还有线索没亮绿灯：先把主角摆到正确的位置吧！（看看哪条线索还是白圈）');
+    var card = $('#qcard');
+    card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+    return;
+  }
+  if(lv.task === 'total'){
+    if(state.L === lv.answer){ winLevel(); }
+    else{ state.wrong++; toast('主角位置全对啦！但队伍总人数还不对，用 ➕／➖ 再调一调！'); }
+    return;
+  }
+  var tgt = targetSet();
+  var cur = litCount();
+  if(tgt.length === cur && tgt.every(function(x){ return state.lit[x]; })){
+    winLevel();
+  }else{
+    state.wrong++;
+    if(tgt.length === cur){
+      toast('🤔 点亮的个数对了，但圈的位置还不对！看看哪些该点亮、哪些该熄灭（再点一下就能熄灭）。');
+    }else{
+      toast('🖍 点亮的个数还不对哦！再想想该圈哪些，把不该亮的点一下熄灭。');
+    }
+  }
+}
+
+/* 通关（G5：庆祝动画 + 解析弹窗 + 星级） */
+function winLevel(){
+  state.done = true;
+  var star = state.revealed ? 0 : (state.wrong === 0 ? 3 : (state.wrong <= 2 ? 2 : 1));
+  state.stars.push(star);
+  $('#btn-check').disabled = true;
+  confetti();
+  showWin(true, star);
+}
+
+/* 揭示答案（G4） */
+function reveal(){
+  if(state.done){ toast('本关已经完成啦！'); return; }
+  addStep();
+  state.revealed = true;
+  state.done = true;
+  var lv = state.level;
+  if(lv.task === 'total'){ state.L = lv.answer; }
+  state.placed = {};
+  lv.solPos.forEach(function(p, i){ state.placed[i] = p; });
+  state.lit = {};
+  if(lv.task !== 'total'){
+    targetSet().forEach(function(p){ state.lit[p] = true; });
+  }
+  $('#btn-check').disabled = true;
+  renderAll();
+  state.stars.push(0);
+  showWin(false, 0);
+}
+
+function showWin(isWin, star){
+  var lv = state.level;
+  var last = (state.idx === state.levels.length - 1);
+  $('#win-title').textContent = isWin ? '🎉 太棒了，答对啦！' : '💡 已经揭示答案';
+  $('#win-stars').textContent = isWin
+    ? (new Array(star+1).join('⭐') + new Array(4-star).join('☆'))
+    : '🌟 看懂方法，下一关自己来！';
+  $('#win-answer').textContent = lv.answerText;
+  $('#win-solve').innerHTML = '✏️ <b>列式：</b>' + lv.solve;
+  $('#win-method').innerHTML = '🌟 <b>方法：</b>' + lv.method;
+  $('#btn-next').textContent = last ? '🏁 查看总成绩' : '➡️ 下一关';
+  $('#modal-win').classList.add('show');
+}
+
+function nextLevel(){
+  $('#modal-win').classList.remove('show');
+  if(state.idx >= state.levels.length - 1){
+    stopTimer();
+    showSummary();
+  }else{
+    state.idx++;
+    loadLevel();
+  }
+}
+
+/* 战绩页 */
+function showSummary(){
+  var total = state.stars.reduce(function(a,b){ return a+b; }, 0);
+  var maxS = state.stars.length * 3;
+  $('#sum-title').textContent = total >= maxS - 1 ? '🏆 完美通关，你就是排队小达人！'
+    : (total >= Math.ceil(maxS*0.6) ? '🎉 全部通关，表现很棒！' : '💪 全部通关，再练一局更厉害！');
+  $('#sum-stars').textContent = '⭐'.repeat(Math.max(1, Math.round(total / Math.max(1, state.stars.length))))
+    + '（共 ' + total + ' / ' + maxS + ' 颗星）';
+  $('#sum-text').innerHTML = '用时 <b>' + pad2(Math.floor(state.seconds/60)) + ':' + pad2(state.seconds%60)
+    + '</b>　·　总步数 <b>' + state.steps + '</b>　·　难度 <b>'
+    + (state.diff === 'easy' ? '初级 · 彩虹桥' : (state.diff === 'mid' ? '中级 · 星空旅程' : '高级 · 智慧之门')) + '</b>';
+  var html = '<tr><th>关卡</th><th>星级</th></tr>';
+  state.levels.forEach(function(lv, i){
+    html += '<tr><td>' + (i+1) + '. ' + lv.answerText + '</td><td>'
+      + (state.stars[i] === 0 ? '💡用了揭示' : '⭐'.repeat(state.stars[i])) + '</td></tr>';
+  });
+  $('#sum-table').innerHTML = html;
+  showScreen('screen-summary');
+  confetti();
+}
+
+/* =====================================================================
+ * 庆祝彩纸（G5：Canvas 实现）
+ * ===================================================================== */
+function confetti(){
+  var cv = $('#confetti');
+  var ctx = cv.getContext('2d');
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  cv.style.display = 'block';
+  var cols = [PAL.p, PAL.ac, PAL.lit, '#FF5252', '#66BB6A', '#42A5F5', '#AB47BC'];
+  var ps = [];
+  for(var i = 0; i < 150; i++){
+    ps.push({
+      x: Math.random() * cv.width,
+      y: -20 - Math.random() * cv.height * 0.6,
+      v: 2.2 + Math.random() * 3.6,
+      w: 6 + Math.random() * 8,
+      h: 9 + Math.random() * 10,
+      c: cols[i % cols.length],
+      r: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.25,
+      ph: Math.random() * 100
+    });
+  }
+  var t0 = performance.now();
+  function frame(now){
+    var el = now - t0;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    var alive = false;
+    for(var k = 0; k < ps.length; k++){
+      var p = ps[k];
+      p.y += p.v;
+      p.x += Math.sin((p.y + p.ph) / 38) * 1.4;
+      p.r += p.vr;
+      if(p.y < cv.height + 30){ alive = true; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.r);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    }
+    if(el < 3200 && alive){ requestAnimationFrame(frame); }
+    else{ ctx.clearRect(0, 0, cv.width, cv.height); cv.style.display = 'none'; }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =====================================================================
+ * 事件绑定与启动
+ * ===================================================================== */
+function bindUI(){
+  /* 难度卡片 */
+  var cards = document.querySelectorAll('.diffcard');
+  for(var i = 0; i < cards.length; i++){
+    (function(c){
+      c.addEventListener('click', function(){ startRound(c.dataset.diff); });
+    })(cards[i]);
+  }
+  $('#btn-rules').addEventListener('click', function(){ $('#modal-rules').classList.add('show'); });
+  $('#btn-rules2').addEventListener('click', function(){ $('#modal-rules').classList.add('show'); });
+  $('#btn-rules-ok').addEventListener('click', function(){ $('#modal-rules').classList.remove('show'); });
+
+  $('#btn-check').addEventListener('click', check);
+  $('#btn-reveal').addEventListener('click', reveal);
+  $('#btn-next').addEventListener('click', nextLevel);
+
+  /* 重新开始：重摆当前关（不换题） */
+  $('#btn-restart').addEventListener('click', function(){
+    $('#modal-win').classList.remove('show');
+    loadLevel();
+    toast('🔄 本关重新开始，再试一次！');
+  });
+  /* 返回难度选择 */
+  function goDiff(){
+    stopTimer();
+    $('#modal-win').classList.remove('show');
+    $('#modal-rules').classList.remove('show');
+    state.levels = [];
+    hud();
+    showScreen('screen-diff');
+  }
+  $('#btn-back').addEventListener('click', goDiff);
+  $('#btn-back2').addEventListener('click', goDiff);
+  $('#btn-again').addEventListener('click', function(){ startRound(state.diff); });
+
+  /* 换方向编号（数数辅助） */
+  $('#btn-dir').addEventListener('click', function(){
+    state.numFromRight = !state.numFromRight;
+    renderQueue();
+    renderPanels();
+    toast(state.numFromRight ? '🔁 现在编号从右往左（倒着数），排尾是第1个！' : '🔁 现在编号从左往右，排头是第1个！');
+  });
+
+  /* 清空点亮 */
+  $('#btn-clearlit').addEventListener('click', function(){
+    state.lit = {};
+    renderQueue();
+    renderPanels();
+    toast('🧽 已清空所有点亮，重新圈一圈吧！');
+  });
+
+  /* 高级关：调整队伍长度 */
+  function changeL(d){
+    if(!state.level || state.level.task !== 'total' || state.done){ return; }
+    var nl = state.L + d;
+    if(nl < 6){ toast('队伍最少要有 6 人哦！'); return; }
+    if(nl > 60){ toast('队伍最多 60 人，别把操场站满啦！'); return; }
+    state.L = nl;
+    /* 队伍变短时，超出的主角回到等候区 */
+    for(var k in state.placed){
+      if(state.placed[k] > nl){
+        toast('队伍变短了，' + state.level.p[+k].name + ' 先回到等候区。');
+        delete state.placed[k];
+      }
+    }
+    /* 位置含义变了，点亮标记清空以免误导 */
+    state.lit = {};
+    addStep();
+    renderAll();
+  }
+  $('#btn-plus').addEventListener('click', function(){ changeL(1); });
+  $('#btn-minus').addEventListener('click', function(){ changeL(-1); });
+
+  window.addEventListener('resize', function(){
+    var cv = $('#confetti');
+    if(cv.style.display === 'block'){ cv.width = window.innerWidth; cv.height = window.innerHeight; }
+  });
+}
+
+/* 启动 */
+applyRandomPalette();
+bindUI();
+bindPaint();
+hud();
+/* 进入即弹出玩法说明（G6），点“开始挑战”后进入难度选择 */
+$('#modal-rules').classList.add('show');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g034", "name": "\u6392\u961f\u5c0f\u8fbe\u4eba \u00b7 \u5708\u5708\u5927\u95ef\u5173\uff08\u7b2c17\u8bb2 \u7b80\u5355\u7684\u6392\u961f\u95ee\u9898\u00b7\u4e0b\uff09", "file": "g034.html", "jiaocan": "\u301034\u3011\u7b2c17\u8bb2 \u7b80\u5355\u7684\u6392\u961f\u95ee\u9898\uff08\u4e0b\uff09", "unit": "\u7b2c17\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

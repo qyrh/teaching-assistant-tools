@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线段图搭桥工坊 · 用线形示意图解决问题</title>
+<style>
+/* ============ 全局变量（每局由 JS 从预设色板随机注入，保证多次玩不腻） ============ */
+:root{
+  --main:#1f7a8c; --accent:#e8630a; --ink:#25333f;
+  --deckA:#7cc6dd; --deckB:#a8dcef; --cliff:#8d7355;
+  --bgA:#eef8fb; --bgB:#d5edf4;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;
+  background:linear-gradient(160deg,var(--bgA),var(--bgB));
+  color:var(--ink); min-height:100vh;
+}
+#app{max-width:1080px; margin:0 auto; padding:10px 14px 40px;}
+
+/* ============ 顶栏：标题 + 右上角计时/步数 + 功能按钮 ============ */
+header{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  padding:10px 14px; margin-bottom:12px;
+  background:#ffffffcc; border:3px solid var(--main); border-radius:16px;
+  box-shadow:0 4px 0 rgba(0,0,0,.08);
+}
+h1{font-size:24px; margin:0 6px 0 0; color:var(--main); letter-spacing:1px;}
+h1 small{font-size:15px; color:var(--ink); font-weight:600;}
+#hud{margin-left:auto; display:flex; align-items:center; gap:14px; font-weight:800; font-size:18px;}
+#hud .pill{background:var(--main); color:#fff; border-radius:999px; padding:6px 14px; white-space:nowrap;}
+#btnRow{display:flex; gap:8px; flex-wrap:wrap;}
+.btn{
+  border:none; cursor:pointer; border-radius:12px; font-family:inherit;
+  font-size:16px; font-weight:700; padding:9px 16px; color:#fff;
+  background:var(--main); box-shadow:0 3px 0 rgba(0,0,0,.2); transition:transform .1s;
+}
+.btn:hover{transform:translateY(-2px);}
+.btn:active{transform:translateY(1px); box-shadow:none;}
+.btn.warn{background:var(--accent);}
+.btn.ghostbtn{background:#fff; color:var(--main); border:2px solid var(--main); box-shadow:none;}
+.btn.big{font-size:20px; padding:14px 26px;}
+[hidden]{display:none !important;}
+
+/* ============ 难度选择菜单 ============ */
+#menuScreen{text-align:center; padding-top:8px;}
+#menuScreen .logo{font-size:34px; font-weight:900; color:var(--main); margin:10px 0 4px;}
+#menuScreen .sub{font-size:18px; margin-bottom:18px;}
+#diffCards{display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin:14px 0 20px;}
+.diffCard{
+  width:270px; border:3px solid var(--main); border-radius:18px; background:#fff;
+  padding:20px 16px; cursor:pointer; transition:transform .15s, box-shadow .15s;
+}
+.diffCard:hover{transform:translateY(-6px) rotate(-1deg); box-shadow:0 10px 0 rgba(0,0,0,.1);}
+.diffCard h2{margin:0 0 8px; font-size:24px; color:var(--main);}
+.diffCard p{margin:0; font-size:16px; line-height:1.6;}
+.diffCard .starline{font-size:20px; color:var(--accent); margin-bottom:6px;}
+#schemeInfo{font-size:15px; opacity:.85;}
+
+/* ============ 游戏主区 ============ */
+#levelHead{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;}
+#levelHead .badge{background:var(--accent); color:#fff; font-weight:800; border-radius:999px; padding:6px 16px; font-size:17px;}
+#levelHead .lname{font-size:22px; font-weight:900;}
+#problemCard{
+  background:#fff; border:3px solid var(--main); border-radius:16px;
+  padding:14px 18px; font-size:19px; line-height:1.75; margin-bottom:12px;
+}
+#problemCard b{color:var(--accent);}
+#problemCard .src{display:inline-block; background:var(--main); color:#fff; border-radius:8px; padding:2px 10px; font-size:15px; margin-bottom:6px;}
+.ptab{border-collapse:collapse; margin:10px auto; font-size:17px;}
+.ptab th,.ptab td{border:2px solid var(--ink); padding:6px 16px; text-align:center;}
+.ptab th{background:var(--deckA);}
+.pmap{display:block; margin:8px auto; max-width:560px; width:100%;}
+
+/* ============ 线段图（桥面） ============ */
+#stepIntro{font-size:18px; font-weight:700; margin:6px 2px 4px; color:var(--main);}
+.bridgeRow{display:flex; align-items:flex-start; gap:6px; margin:6px 0 2px;}
+.cliff{width:30px; height:150px; background:var(--cliff); flex:none;}
+.cliff.L{clip-path:polygon(35% 0,100% 0,100% 100%,0 100%); border-radius:8px 0 0 0;}
+.cliff.R{clip-path:polygon(0 0,65% 0,100% 100%,0 100%); border-radius:0 8px 0 0;}
+.trackWrap{flex:1; min-width:0; padding:30px 4px 46px; position:relative;}
+.wholeWrap{
+  position:relative; height:12px; margin:0 2px 6px;
+  border-top:3px solid var(--main); border-left:3px solid var(--main); border-right:3px solid var(--main);
+  border-radius:8px 8px 0 0;
+}
+.wholeLabel{
+  position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+  background:var(--main); color:#fff; font-weight:800; font-size:17px;
+  border-radius:999px; padding:3px 14px; white-space:nowrap;
+}
+.cellsRow{display:flex; gap:10px; position:relative;}
+.cellCol{flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:5px;}
+.cell{
+  width:100%; min-height:66px; border:3px dashed var(--main); border-radius:12px;
+  background:#fff; display:flex; align-items:center; justify-content:center;
+  transition:background .15s, border-color .15s;
+}
+.cell.hot{background:#fff6de; border-color:var(--accent); border-style:solid;}
+.cell.filled{border-style:solid; background:var(--deckB);}
+.cell.okcell{border-color:#2e9e44; box-shadow:0 0 0 4px #2e9e4433;}
+.cell.badcell{animation:cellShake .4s;}
+@keyframes cellShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.cap{font-size:16px; font-weight:700; text-align:center; line-height:1.3;}
+.groupsRow{position:relative; height:30px; margin-top:2px;}
+.group{
+  position:absolute; top:0; height:12px;
+  border-bottom:3px solid var(--accent); border-left:3px solid var(--accent); border-right:3px solid var(--accent);
+  border-radius:0 0 8px 8px;
+}
+.groupLabel{
+  position:absolute; top:13px; left:50%; transform:translateX(-50%);
+  font-size:16px; font-weight:800; color:var(--accent); white-space:nowrap;
+}
+.cart{position:absolute; top:-34px; left:-50px; width:46px; transition:transform 1.6s ease-in-out; z-index:5;}
+.cart.go{will-change:transform;}
+
+/* ============ 数量积木（拖拽块） ============ */
+#paletteBox{margin-top:6px;}
+#palette{
+  display:flex; flex-wrap:wrap; gap:10px; justify-content:center;
+  padding:12px; background:#ffffffa8; border:3px dashed var(--main);
+  border-radius:16px; min-height:74px;
+}
+.block{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:66px; padding:9px 15px; border-radius:11px;
+  background:linear-gradient(180deg,var(--deckA),var(--deckB));
+  border:2px solid var(--ink); font-size:20px; font-weight:800;
+  cursor:grab; touch-action:none; user-select:none;
+  box-shadow:0 3px 0 rgba(0,0,0,.18);
+}
+.block.inCell{width:94%; max-width:200px; box-shadow:none;}
+.block.selected{outline:4px solid var(--accent); transform:translateY(-3px);}
+.block.dragging{opacity:.3;}
+.block.locked{cursor:default;}
+.block.locked::after{content:""; }
+#ghost{position:fixed; z-index:1300; pointer-events:none; opacity:.9; display:none; filter:drop-shadow(0 6px 6px rgba(0,0,0,.25));}
+
+/* ============ 合龙 / 提示 ============ */
+#joinBar{display:flex; gap:14px; align-items:center; justify-content:center; margin-top:12px; flex-wrap:wrap;}
+#hintBubble{
+  margin-top:10px; background:#fff6de; border:3px solid var(--accent);
+  border-radius:12px; padding:10px 16px; font-size:17px; font-weight:700; line-height:1.6;
+}
+#eqPanel{
+  margin-top:12px; background:#fff; border:4px solid #2e9e44; border-radius:16px;
+  padding:12px 18px; text-align:center; font-size:20px; font-weight:800;
+  animation:popIn .4s;
+}
+#eqPanel .cap2{font-size:16px; font-weight:700; color:#2e9e44; display:block; margin-bottom:4px;}
+@keyframes popIn{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+
+/* ============ 天平称量区 ============ */
+#balanceZone{margin-top:14px; background:#ffffffd9; border:3px solid var(--main); border-radius:16px; padding:14px;}
+.eqBanner{font-size:22px; font-weight:900; text-align:center; margin-bottom:6px;}
+.eqBanner b{color:var(--accent);}
+#scaleSvg{display:block; margin:0 auto; max-width:420px; width:100%;}
+.sliderRow{display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:6px;}
+#varLabel{font-size:18px; font-weight:800;}
+#valSlider{flex:1; min-width:200px; max-width:420px; height:38px; accent-color:var(--main); cursor:pointer;}
+#valShow{
+  font-size:22px; font-weight:900; color:#fff; background:var(--main);
+  border-radius:10px; padding:4px 14px; min-width:74px; text-align:center;
+}
+.liveVals{text-align:center; font-size:19px; font-weight:700; margin-top:6px;}
+.balanceTip{text-align:center; font-size:16px; opacity:.85; margin-top:4px;}
+#balanceZone.locked{border-color:#2e9e44;}
+
+/* ============ 答案卡 ============ */
+#answerCard{
+  margin-top:14px; background:#fff; border:4px solid #2e9e44; border-radius:18px;
+  padding:16px 20px; text-align:center; animation:popIn .4s;
+}
+#ansStars{font-size:40px; color:#f5b301; letter-spacing:8px; min-height:48px;}
+#ansStars .st{display:inline-block; animation:starPop .5s backwards;}
+#ansStars .st:nth-child(2){animation-delay:.15s;}
+#ansStars .st:nth-child(3){animation-delay:.3s;}
+@keyframes starPop{0%{transform:scale(0) rotate(-40deg)}70%{transform:scale(1.4)}100%{transform:scale(1)}}
+#ansTitle{margin:2px 0 8px; font-size:24px; color:#2e9e44;}
+#ansBody{font-size:19px; line-height:1.8; text-align:left; background:#f4faf5; border-radius:12px; padding:10px 16px;}
+#ansNote{font-size:16px; margin-top:8px; color:var(--accent); font-weight:700; line-height:1.6; text-align:left;}
+#answerCard .btnrow{margin-top:12px;}
+
+/* ============ 结算页 ============ */
+#doneScreen{text-align:center; padding-top:20px;}
+#doneScreen h2{font-size:34px; color:var(--main);}
+#doneStats{font-size:20px; font-weight:800; margin:14px 0 22px; line-height:2;}
+
+/* ============ 规则弹窗 ============ */
+#rulesModal{
+  position:fixed; inset:0; background:rgba(20,40,60,.45); z-index:1400;
+  display:flex; align-items:center; justify-content:center; padding:16px;
+}
+#rulesModal .box{
+  background:#fff; border:4px solid var(--main); border-radius:18px;
+  max-width:620px; width:100%; padding:20px 24px; max-height:86vh; overflow:auto;
+}
+#rulesModal h2{margin:0 0 10px; color:var(--main);}
+#rulesModal ol{font-size:18px; line-height:2; margin:0 0 12px; padding-left:24px;}
+#fx{position:fixed; inset:0; pointer-events:none; z-index:1500;}
+
+/* ============ 彩带庆祝层（CSS 动画，G5） ============ */
+#fx{position:fixed; inset:0; pointer-events:none; z-index:1500; overflow:hidden;}
+#fx .confetto{position:absolute; border-radius:2px; box-shadow:0 1px 0 rgba(0,0,0,.12);}
+
+/* ============ 响应式（移动端可玩） ============ */
+@media (max-width:640px){
+  h1{font-size:19px;}
+  #hud{font-size:15px; gap:8px;}
+  #problemCard{font-size:17px;}
+  .block{font-size:18px; padding:8px 11px;}
+  .cell{min-height:58px;}
+  .cap{font-size:14px;}
+  .groupLabel{font-size:14px;}
+  .wholeLabel{font-size:15px;}
+  .diffCard{width:86%;}
+  .cliff{width:18px; height:140px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ===================== 顶栏 ===================== -->
+  <header>
+    <h1>线段图搭桥工坊 <small>· 用线形示意图解决问题（一元一次方程）</small></h1>
+    <div id="hud">
+      <span class="pill">⏱ 时间 <span id="hudTime">00:00</span></span>
+      <span class="pill">👣 步数 <span id="hudSteps">0</span></span>
+    </div>
+    <div id="btnRow">
+      <button class="btn ghostbtn" id="btnRules">规则说明</button>
+      <button class="btn warn" id="btnReveal" hidden>揭示答案</button>
+      <button class="btn" id="btnRestart" hidden>重新开始</button>
+      <button class="btn" id="btnBack" hidden>返回难度选择</button>
+    </div>
+  </header>
+
+  <!-- ===================== 难度选择 ===================== -->
+  <section id="menuScreen">
+    <div class="logo">🌈 线段图搭桥工坊</div>
+    <div class="sub">把应用题里的数量变成"积木"，在峡谷上搭出线段示意图，再调天平找出未知数！</div>
+    <div id="diffCards">
+      <div class="diffCard" data-diff="basic">
+        <h2>初级 · 例题级</h2>
+        <div class="starline">★☆☆</div>
+        <p>和教材例题一样友好：总量拆两三段，热身找等量关系的最佳起点。</p>
+      </div>
+      <div class="diffCard" data-diff="mid">
+        <h2>中级 · 练习级</h2>
+        <div class="starline">★★☆</div>
+        <p>回声、工程、合作生产……多段拆分与隐藏的"1"，练熟线段图功夫。</p>
+      </div>
+      <div class="diffCard" data-diff="hard">
+        <h2>高级 · 挑战级</h2>
+        <div class="starline">★★★</div>
+        <p>双线段图、火车过桥、变速相遇——变式综合大挑战，敢来闯关吗？</p>
+      </div>
+    </div>
+    <div id="schemeInfo">每局配色随机更换，本局配色：海洋蓝</div>
+    <button class="btn big" id="btnRules2">先看看玩法规则</button>
+  </section>
+
+  <!-- ===================== 游戏主屏 ===================== -->
+  <section id="gameScreen" hidden>
+    <div id="levelHead">
+      <span class="badge" id="lvBadge">初级</span>
+      <span class="lname" id="lvName">关卡名</span>
+      <span id="lvProg" style="font-size:17px;font-weight:700;"></span>
+    </div>
+    <div id="problemCard"></div>
+    <div id="stepIntro"></div>
+    <div id="diagramZone"></div>
+    <div id="paletteBox">
+      <div id="palette"></div>
+      <div id="joinBar">
+        <button class="btn big" id="btnJoin">🌉 合龙检测</button>
+      </div>
+    </div>
+    <div id="hintBubble" hidden></div>
+    <div id="eqPanel" hidden><span class="cap2">线段图成立！等量关系找对了</span><span id="eqText"></span></div>
+
+    <div id="balanceZone" hidden>
+      <div class="eqBanner">等量关系：<b id="eqShow"></b></div>
+      <svg id="scaleSvg" viewBox="0 0 380 235" aria-label="天平">
+        <!-- 底座与立柱 -->
+        <rect x="140" y="206" width="90" height="16" rx="8" fill="var(--main)"/>
+        <rect x="176" y="64" width="18" height="146" rx="6" fill="var(--main)"/>
+        <!-- 横梁 + 吊绳 + 托盘（整体绕支点旋转） -->
+        <g id="beamGroup">
+          <rect x="62" y="54" width="246" height="11" rx="5" fill="var(--ink)"/>
+          <path d="M75 65 L46 126 L104 126" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/>
+          <path d="M295 65 L266 126 L324 126" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/>
+          <path d="M42 126 L108 126 L94 150 L56 150 Z" fill="var(--deckA)" stroke="var(--ink)" stroke-width="3"/>
+          <path d="M262 126 L328 126 L314 150 L276 150 Z" fill="var(--deckA)" stroke="var(--ink)" stroke-width="3"/>
+          <text id="tL" x="75" y="182" text-anchor="middle" font-size="21" font-weight="800" fill="var(--ink)">0</text>
+          <text id="tR" x="295" y="182" text-anchor="middle" font-size="21" font-weight="800" fill="var(--ink)">0</text>
+          <text x="75" y="204" text-anchor="middle" font-size="15" fill="var(--main)" font-weight="700">左边</text>
+          <text x="295" y="204" text-anchor="middle" font-size="15" fill="var(--main)" font-weight="700">右边</text>
+        </g>
+        <circle cx="185" cy="60" r="9" fill="var(--accent)" stroke="var(--ink)" stroke-width="3"/>
+      </svg>
+      <div class="sliderRow">
+        <span id="varLabel">x</span>
+        <input type="range" id="valSlider" min="0" max="10" step="1" value="0">
+        <span id="valShow">0</span>
+      </div>
+      <div class="liveVals">左边 = <b id="lv">0</b>　　右边 = <b id="rv">0</b></div>
+      <div class="balanceTip">左右两边的值会实时显示：调节滑块，让天平两边相等，它就会自动放平并点亮星星！</div>
+    </div>
+
+    <div id="answerCard" hidden>
+      <div id="ansStars"><span class="st">★</span><span class="st">★</span><span class="st">★</span></div>
+      <h3 id="ansTitle">天平平衡啦！</h3>
+      <div id="ansBody"></div>
+      <div id="ansNote"></div>
+      <div class="btnrow"><button class="btn big" id="btnNext">下一关</button></div>
+    </div>
+  </section>
+
+  <!-- ===================== 结算屏 ===================== -->
+  <section id="doneScreen" hidden>
+    <h2>🎉 全部关卡完成！</h2>
+    <div id="doneStats"></div>
+    <button class="btn big warn" id="btnAgain">再来一局（重新抽题）</button>
+    <button class="btn big ghostbtn" id="btnMenu2">返回难度选择</button>
+  </section>
+</div>
+
+<!-- 拖拽跟随的"影子积木" -->
+<div id="ghost"></div>
+
+<!-- 规则说明弹窗（进入时自动弹出，可随时再看） -->
+<div id="rulesModal" hidden>
+  <div class="box">
+    <h2>🎮 玩法规则</h2>
+    <ol>
+      <li><b>看题</b>：读题面，找出"总量"和它的各个部分。</li>
+      <li><b>搭桥</b>：把"数量积木"拖进桥面格子，搭出线段示意图（也可以先点积木选中、再点格子放下）。</li>
+      <li><b>合龙</b>：点「合龙检测」——全部摆对，桥段点亮、小车过桥；摆错的积木会弹回并给出提示。</li>
+      <li><b>称量</b>：线段图会给出等量关系，调节滑块让<b>天平两边相等</b>，就求出了未知数。</li>
+      <li><b>闯关</b>：每个难度玩 2 关，完成有彩带庆祝！右上角有计时和步数，看看谁能又快又准。</li>
+    </ol>
+    <button class="btn big" id="btnCloseRules">我知道啦，出发！</button>
+  </div>
+</div>
+
+<!-- 彩带庆祝层（CSS 动画实现） -->
+<div id="fx"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+ * 线段图搭桥工坊 —— 核心玩法：
+ *   A. 拖"数量积木"进桥面格子，构造线形示意图（等量关系可视化）
+ *   B. 合龙检测 → 揭示方程
+ *   C. 调滑块让天平两边相等 → 解出未知数（连续探索，非填空）
+ * 全部数据取自本讲教参题目，三档难度随机抽关、配色随机。
+ * ===================================================================== */
+
+/* ---------------- 小工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function fmt(v){
+  var r = Math.round(v * 100) / 100;
+  return String(r);
+}
+function clampN(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function makeFn(expr, varName){
+  /* 用安全的数据生成求值函数（数据全部由本文件写死，无外部输入） */
+  return new Function(varName, "return (" + expr + ");");
+}
+
+/* ---------------- 随机配色（G8） ---------------- */
+var SCHEMES = [
+  {name:"海洋蓝", main:"#1f7a8c", accent:"#e8630a", ink:"#25333f", deckA:"#7cc6dd", deckB:"#a8dcef", cliff:"#8d7355", bgA:"#eef8fb", bgB:"#d5edf4"},
+  {name:"暖阳橙", main:"#d96604", accent:"#1f7a8c", ink:"#4a2c12", deckA:"#f6a54c", deckB:"#ffd08a", cliff:"#a1887f", bgA:"#fff7ec", bgB:"#ffe6c7"},
+  {name:"森林绿", main:"#2e7d32", accent:"#e65100", ink:"#1b3a1e", deckA:"#8bc34a", deckB:"#c5e1a5", cliff:"#795548", bgA:"#f1f8e9", bgB:"#dcedc8"},
+  {name:"蜜桃粉", main:"#c2185b", accent:"#00838f", ink:"#4a2038", deckA:"#f48fb1", deckB:"#f8bbd0", cliff:"#8d6e63", bgA:"#fdf0f5", bgB:"#f8d7e6"},
+  {name:"星夜紫", main:"#5e35b1", accent:"#f57f17", ink:"#31215e", deckA:"#9575cd", deckB:"#d1c4e9", cliff:"#78909c", bgA:"#f3eefs", bgB:"#e4d9f7"}
+];
+function applyScheme(){
+  var s = SCHEMES[Math.floor(Math.random() * SCHEMES.length)];
+  var root = document.documentElement;
+  root.style.setProperty("--main", s.main);
+  root.style.setProperty("--accent", s.accent);
+  root.style.setProperty("--ink", s.ink);
+  root.style.setProperty("--deckA", s.deckA);
+  root.style.setProperty("--deckB", s.deckB);
+  root.style.setProperty("--cliff", s.cliff);
+  root.style.setProperty("--bgA", s.bgA);
+  root.style.setProperty("--bgB", s.bgB);
+  $("schemeInfo").textContent = "每局配色随机更换，本局配色：" + s.name;
+}
+
+/* =====================================================================
+ * 关卡数据（全部来自本讲教参：基础 7 题 + 提升 4 题）
+ * 每关：problem=完整题面；steps=若干步；每步 rows=线段图行、palette=积木、
+ * balance=天平（exprL/exprR 为求值表达式，answer 为滑块目标值）
+ * ===================================================================== */
+var POOLS = {
+  basic: [
+    {
+      id:"p1", name:"粽子总动员", src:"基础 · 包粽子",
+      problem:'端午节时，某中学七、八年级举行包粽子活动：<b>八年级包了 255 个，比七年级的 2 倍多 65 个</b>。七年级一共包了多少个粽子？<br>设七年级包了 <b>x</b> 个。请把桥面三格搭成"八年级总量"的线段图——注意下面的括号：前两格合起来才是七年级的 2 倍。',
+      steps:[{
+        intro:'第一步（也是唯一一步）：拖动数量积木，把"八年级的 255 个"拆成三段',
+        rows:[{
+          whole:"255（八年级总量）",
+          cells:[
+            {cap:"七年级", accept:"x"},
+            {cap:"七年级", accept:"x"},
+            {cap:"多出的部分", accept:"65"}
+          ],
+          groups:[{from:0, to:1, label:"两格合起来 = 七年级的 2 倍"}]
+        }],
+        palette:["x","x","65","2x","95","130"],
+        hint:"下面的括号告诉我们：前两格合起来才是七年级的 2 倍，所以每格是 1 个 x；第三格是多出的 65 个（不能把 2x 塞进一格哦）。",
+        revealEq:"x + x + 65 = 255（即 2x + 65 = 255）",
+        balance:{
+          eqLText:"2x + 65", eqRText:"255", exprL:"2*x+65", exprR:"255",
+          varName:"x", varLabel:"x（七年级包的粽子数）", min:0, max:120, stepv:0.5, answer:95,
+          answerText:"解：设七年级包了 x 个。由线段图得 2x + 65 = 255，移项得 2x = 190，x = 95。<br>答：七年级一共包了 95 个粽子。",
+          note:"小锦囊：'比七年级的 2 倍多 65'，就是把总量拆成 x、x、65 三段，等量关系一眼就看出来了。"
+        }
+      }]
+    },
+    {
+      id:"p2", name:("定价小掌柜"), src:"基础 · 打折销售",
+      problem:'某种商品的<b>进价为 20 元/件，标价为 x 元/件</b>。由于商品积压，商店准备<b>按标价的八折销售</b>，仍要保证<b>利润率达到 20%</b>（利润率 = 利润 ÷ 进价）。标价应定为多少元/件？<br>售价 = 0.8x 元。请把"售价"这段桥搭成"成本 + 利润"两格。',
+      steps:[{
+        intro:'把"售价 0.8x"拆成两格：成本那一格很明显，利润那一格要算一算哦',
+        rows:[{
+          whole:"0.8x（售价）",
+          cells:[
+            {cap:"进价（成本）", accept:"20"},
+            {cap:"利润（进价 × 20%）", accept:"4"}
+          ],
+          groups:[]
+        }],
+        palette:["20","4","16","24","x"],
+        hint:"利润 = 进价 × 利润率 = 20 × 20% = 4 元，不是拿标价或售价去乘 20% 哦。",
+        revealEq:"0.8x = 20 + 20×20%（即 0.8x = 24）",
+        balance:{
+          eqLText:"0.8x", eqRText:"20 + 20×20%", exprL:"0.8*x", exprR:"20+20*0.2",
+          varName:"x", varLabel:"x（标价，元/件）", min:0, max:50, stepv:0.5, answer:30,
+          answerText:"解：由线段图得 0.8x = 20 + 20×20% = 24，所以 x = 24 ÷ 0.8 = 30。<br>答：标价应定为 30 元/件。",
+          note:"小锦囊：画线段图时把售价拆成'成本 + 利润'，利润该占多少就一目了然了。"
+        }
+      }]
+    },
+    {
+      id:"p3", name:"双车会合", src:"基础 · 相遇问题",
+      problem:'两辆汽车<b>同时从相距 300 千米的两地相对开出，2 小时后相遇</b>。已知两车<b>速度比是 2:3</b>，设较慢车速度为 2x 千米/时、较快车为 3x 千米/时。求较慢车每小时行驶多少千米。<br>提示：桥面每格代表一辆车 1 小时行驶的路程，共四格。',
+      steps:[{
+        intro:'搭出相遇线段图：前两格是慢车的，后两格是快车的',
+        rows:[{
+          whole:"300（两地距离）",
+          cells:[
+            {cap:"慢车·第1小时", accept:"2x"},
+            {cap:"慢车·第2小时", accept:"2x"},
+            {cap:"快车·第1小时", accept:"3x"},
+            {cap:"快车·第2小时", accept:"3x"}
+          ],
+          groups:[
+            {from:0, to:1, label:"慢车 2 小时共行 4x"},
+            {from:2, to:3, label:"快车 2 小时共行 6x"}
+          ]
+        }],
+        palette:["2x","2x","3x","3x","x","5x","150"],
+        hint:"慢车速度是 2x，每小时就行驶 2x；快车每小时行驶 3x。相遇时两车走的路程合起来恰好是全程 300 千米。",
+        revealEq:"2x + 2x + 3x + 3x = 300（即 4x + 6x = 300）",
+        balance:{
+          eqLText:"4x + 6x", eqRText:"300", exprL:"4*x+6*x", exprR:"300",
+          varName:"x", varLabel:"x（速度份量，千米/时）", min:0, max:50, stepv:0.5, answer:30,
+          answerText:"解：由线段图得 4x + 6x = 300，10x = 300，x = 30。较慢车速度 = 2x = 60 千米/时，较快车 = 3x = 90 千米/时。<br>答：较慢的一辆车每小时行驶 60 千米。",
+          note:"小锦囊：按速度比设 2x 和 3x，相遇问题就变成'把全程拆成两段'的和差关系。"
+        }
+      }]
+    }
+  ],
+  mid: [
+    {
+      id:"m1", name:"山间回声", src:"基础 · 回声测距",
+      problem:'一辆汽车以 <b>20 m/s</b> 的速度匀速<b>驶向正前方的山崖</b>，驾驶员鸣笛若干秒后听到从山崖<b>反射回来的回声</b>。声音在空气中的传播速度为 <b>340 m/s</b>，汽车鸣笛时与山崖的距离为 <b>540 m</b>。设鸣笛到听到回声共经过 t 秒。<br>想象"声音跑到山崖又折回车里"的过程：<b>汽车走的路程 + 声音走的路程 = 540×2</b>。请把总路程拆成两格。' +
+        '<svg class="pmap" viewBox="0 0 520 96">' +
+        '<line x1="16" y1="66" x2="504" y2="66" stroke="#8a6d3b" stroke-width="6" stroke-linecap="round"/>' +
+        '<rect x="22" y="36" width="52" height="24" rx="5" fill="var(--deckA)" stroke="var(--ink)" stroke-width="3"/>' +
+        '<circle cx="36" cy="64" r="7" fill="var(--ink)"/><circle cx="60" cy="64" r="7" fill="var(--ink)"/>' +
+        '<path d="M486 66 L470 30 L502 30 Z" fill="var(--cliff)" stroke="var(--ink)" stroke-width="3"/>' +
+        '<path d="M88 40 Q 260 6 448 34" fill="none" stroke="var(--accent)" stroke-width="4" stroke-dasharray="2 8" stroke-linecap="round"/>' +
+        '<path d="M448 56 Q 260 84 88 58" fill="none" stroke="var(--main)" stroke-width="4" stroke-dasharray="10 8" stroke-linecap="round"/>' +
+        '<text x="80" y="100" font-size="16" font-weight="700" fill="var(--ink)">汽车 20 m/s</text>' +
+        '<text x="408" y="100" font-size="16" font-weight="700" fill="var(--ink)">山崖</text>' +
+        '<text x="196" y="60" font-size="16" font-weight="700" fill="var(--main)">回声折回车内</text>' +
+        '<text x="428" y="24" font-size="16" font-weight="700" fill="var(--accent)">鸣笛声 →</text>' +
+        '<text x="300" y="88" font-size="16" font-weight="700" fill="var(--ink)">鸣笛时距山崖 540 m</text></svg>',
+      steps:[{
+        intro:'谁走了多少路？把"540×2"这段总路程拆成两格',
+        rows:[{
+          whole:"540×2（鸣笛点到山崖距离的 2 倍）",
+          cells:[
+            {cap:"汽车 t 秒行驶", accept:"20t"},
+            {cap:"声音 t 秒往返", accept:"340t"}
+          ],
+          groups:[]
+        }],
+        palette:["20t","340t","540","360t","320t"],
+        hint:"声音从汽车跑到山崖、再折回到汽车，走的是 340 × t；汽车同时向前开了 20 × t；两者合起来正好是 540 的 2 倍。",
+        revealEq:"20t + 340t = 540×2",
+        balance:{
+          eqLText:"20t + 340t", eqRText:"540×2", exprL:"20*t+340*t", exprR:"540*2",
+          varName:"t", varLabel:"t（鸣笛到听到回声的秒数）", min:0, max:10, stepv:0.1, answer:3,
+          answerText:"解：由示意图得 20t + 340t = 540×2，360t = 1080，t = 3。<br>答：鸣笛 3 秒后听到回声（原题只要求列方程，天平顺手帮你解出来了）。",
+          note:"小锦囊：回声问题的线段图口诀——'车走 + 声走 = 距离翻倍'。"
+        }
+      }]
+    },
+    {
+      id:"m2", name:"零件车间", src:"提升 · 合作生产",
+      problem:'小明每天能生产某种零件 <b>80 个</b>。小明先独自生产 <b>3 天</b>，之后小亮加入一起生产，<b>再经过 5 天，两人共生产零件 940 个</b>。问小亮每天生产零件多少个？<br>设小亮每天生产 y 个，请把"总产量 940 个"拆成三格（注意：小亮只参与了后 5 天）。',
+      steps:[{
+        intro:'把"940 个"拆成三格：小明前 3 天、小明后 5 天、小亮后 5 天',
+        rows:[{
+          whole:"940（零件总产量）",
+          cells:[
+            {cap:"小明前 3 天", accept:"240"},
+            {cap:"小明后 5 天", accept:"400"},
+            {cap:"小亮后 5 天", accept:"5y"}
+          ],
+          groups:[{from:1, to:2, label:"后 5 天两人合作完成"}]
+        }],
+        palette:["240","400","5y","80","3y","y"],
+        hint:"小明前 3 天：80×3 = 240；后 5 天小明还有 80×5 = 400；小亮只有后 5 天的 5y。三段加起来是 940。",
+        revealEq:"240 + 400 + 5y = 940",
+        balance:{
+          eqLText:"240 + 400 + 5y", eqRText:"940", exprL:"240+400+5*y", exprR:"940",
+          varName:"y", varLabel:"y（小亮每天的产量）", min:0, max:100, stepv:0.5, answer:60,
+          answerText:"解：由线段图得 240 + 400 + 5y = 940，5y = 300，y = 60。<br>答：小亮每天生产零件 60 个。",
+          note:"小锦囊：先工后合的产量问题，按'时间段 × 人'把桥面切干净，等量关系自然浮出来。"
+        }
+      }]
+    },
+    {
+      id:"m3", name:"修路工程", src:"提升 · 工程问题",
+      problem:'一项工程，<b>甲队单独做需要 12 天</b>完成，<b>乙队单独做需要 8 天</b>完成。甲队先做 <b>2 天</b>，剩下的由两队合作，<b>还需 x 天</b>完成任务。<br>把工作总量"1"拆成两格：甲队先做的 + 两队合作 x 天做的（甲队效率 1/12，乙队效率 1/8）。',
+      steps:[{
+        intro:'工程总量是"1"：把它拆成"甲先做的 2 天"和"合作 x 天"两格',
+        rows:[{
+          whole:"1（工作总量）",
+          cells:[
+            {cap:"甲队先做 2 天", accept:"1/6"},
+            {cap:"两队合作 x 天", accept:"5x/24"}
+          ],
+          groups:[]
+        }],
+        palette:["1/6","5x/24","1/12","1/8","2/3","x/24"],
+        hint:"甲队 2 天做 2×(1/12) = 1/6；两队合作 1 天做 1/12 + 1/8 = 5/24，那么 x 天就是 5x/24。",
+        revealEq:"2×(1/12) + (1/12 + 1/8)x = 1（即 1/6 + (5/24)x = 1）",
+        balance:{
+          eqLText:"1/6 + (5/24)x", eqRText:"1", exprL:"1/6+5*x/24", exprR:"1",
+          varName:"x", varLabel:"x（两队合作的天数）", min:0, max:12, stepv:0.1, answer:4,
+          answerText:"解：甲队效率 1/12，乙队效率 1/8，合作效率 1/12 + 1/8 = 5/24。由线段图得 1/6 + (5/24)x = 1，(5/24)x = 5/6，x = 4。<br>答：两队合作还需 4 天完成任务。",
+          note:"小锦囊：工程问题的总量画成'1'，先做的和合作的各占一段，这就是老师黑板上的线形示意图。"
+        }
+      }]
+    }
+  ],
+  hard: [
+    {
+      id:"h1", name:"火车过桥", src:"提升 · 火车过桥",
+      problem:'某桥长 <b>1200 m</b>，一列匀速行驶的火车从桥上通过：从上桥到<b>完全过桥</b>共用 <b>50 s</b>；整列火车<b>都在桥上</b>的时间是 <b>30 s</b>。求火车的速度。<br>设车速为 v m/s、车长为 L m。<b>第一行</b>：把"从上桥到完全过桥行驶的路程 50v"拆段；<b>第二行</b>：把"整车在桥上时行驶的路程 30v"拆段——此时车长要从桥长里<b>倒扣</b>，请使用"−L"积木！搭好后把两行相加，天平会帮你求出车速。',
+      steps:[{
+        intro:'搭两行线段图：第一行"桥长 + 车长"，第二行"桥长 − 车长"',
+        rows:[
+          {
+            whole:"50v（上桥 → 完全过桥行驶的路程）",
+            cells:[
+              {cap:"桥长", accept:"1200"},
+              {cap:"车长", accept:"L"}
+            ],
+            groups:[]
+          },
+          {
+            whole:"30v（整车都在桥上时行驶的路程）",
+            cells:[
+              {cap:"桥长", accept:"1200"},
+              {cap:"车长（倒扣）", accept:"−L"}
+            ],
+            groups:[]
+          }
+        ],
+        palette:["1200","1200","L","−L","50","30","150"],
+        hint:"完全过桥：路程 = 桥长 + 车长；整车在桥上：路程 = 桥长 − 车长（所以第二行要放倒扣的 −L）。",
+        revealEq:"1200 + L = 50v，且 1200 − L = 30v　→　两式相加：2400 = 80v",
+        balance:{
+          eqLText:"1200 + 1200", eqRText:"50v + 30v", exprL:"1200+1200", exprR:"50*v+30*v",
+          varName:"v", varLabel:"v（车速，m/s）", min:0, max:50, stepv:0.5, answer:30,
+          answerText:"解：两式相加：(1200 + L) + (1200 − L) = 50v + 30v，得 2400 = 80v，v = 30。车长 L = 50×30 − 1200 = 300 m。<br>答：火车的速度为 30 m/s，车长 300 m。",
+          note:"识图小锦囊：从上桥到完全过桥，路程 = 桥长 + 车长；整列火车在桥上，路程 = 桥长 − 车长。两式相加，车长就'抵消'啦。"
+        }
+      }]
+    },
+    {
+      id:"h2", name:"骑行相遇", src:"提升 · 相遇与变速",
+      problem:'甲、乙两人分别从 A、B 两地<b>同时出发</b>，甲骑自行车、乙骑摩托车，沿同一条路线<b>相向</b>匀速行驶，出发后 <b>0.4 小时相遇</b>。相遇时<b>乙比甲多行驶了 14.4 千米</b>；相遇后又经过 <b>0.1 小时乙到达 A 地</b>。<br>由"甲 0.4 小时的路程 = 乙 0.1 小时的路程"可知：乙的速度是甲的 4 倍。设甲的速度为 x 千米/时，则乙的速度为 4x 千米/时。请把"乙 0.4 小时行驶的路程"拆成两格。',
+      steps:[{
+        intro:'把"乙 0.4 小时的路程（0.4×4x）"拆成两格',
+        rows:[{
+          whole:"0.4×4x（乙 0.4 小时的路程）",
+          cells:[
+            {cap:"甲 0.4 小时行驶", accept:"0.4x"},
+            {cap:"乙多行驶的部分", accept:"14.4"}
+          ],
+          groups:[]
+        }],
+        palette:["0.4x","14.4","0.1x","0.4×4x","24"],
+        hint:"乙 0.4 小时的路程 = 甲 0.4 小时的路程 + 多出的 14.4 千米，正好把整段桥拆成两格。",
+        revealEq:"0.4x + 14.4 = 0.4×4x",
+        balance:{
+          eqLText:"0.4x + 14.4", eqRText:"0.4×4x", exprL:"0.4*x+14.4", exprR:"0.4*4*x",
+          varName:"x", varLabel:"x（甲的速度，千米/时）", min:0, max:40, stepv:0.1, answer:12,
+          answerText:"解：由线段图得 0.4x + 14.4 = 0.4×4x，即 0.4x + 14.4 = 1.6x，1.2x = 14.4，x = 12。乙的速度 = 4x = 48 千米/时。<br>答：甲的速度是 12 千米/时，乙的速度是 48 千米/时。",
+          note:"能力提升：若乙出发 0.2 小时后把速度减少 10 千米/时，那么甲出发 0.4 小时或 0.48 小时时两人相距 2 千米（要分相遇前、相遇后两种情况讨论，别漏解哦）。"
+        }
+      }]
+    },
+    {
+      id:"h3", name:"中国结工坊", src:"基础 · 分配问题",
+      problem:'某小组计划做一批中国结：<b>如果每人做 5 个，会比计划多 9 个</b>；<b>如果每人做 4 个，会比计划少 15 个</b>。小组成员共有多少人？他们计划做多少个中国结？<br>设小组有 x 人。<b>第一行</b>：把"每人做 5 个的总量 5x"拆成"计划 y 个 + 多出的"；<b>第二行</b>：把"计划 y 个"拆成"4x + 还差的"。两行里的"计划 y"是同一个量！',
+      steps:[{
+        intro:'搭出双线段图：两种方案都指向同一个"计划 y"',
+        rows:[
+          {
+            whole:"5x（每人做 5 个的总量）",
+            cells:[
+              {cap:"计划做的个数", accept:"y"},
+              {cap:"多出的个数", accept:"9"}
+            ],
+            groups:[]
+          },
+          {
+            whole:"y（计划做的总量）",
+            cells:[
+              {cap:"每人做 4 个的总量", accept:"4x"},
+              {cap:"还差的个数", accept:"15"}
+            ],
+            groups:[]
+          }
+        ],
+        palette:["y","9","4x","15","5x","x","24"],
+        hint:"第一行：5x 比 计划y 多 9，所以 5x = y + 9；第二行：4x 比 计划y 少 15，所以 y = 4x + 15。两个 y 相等！",
+        revealEq:"5x − 9 = 4x + 15（由 5x = y + 9 与 y = 4x + 15 得来）",
+        balance:{
+          eqLText:"5x − 9", eqRText:"4x + 15", exprL:"5*x-9", exprR:"4*x+15",
+          varName:"x", varLabel:"x（小组成员人数）", min:0, max:50, stepv:0.5, answer:24,
+          answerText:"解：由两行线段图得 5x − 9 = 4x + 15，x = 24。计划做 5×24 − 9 = 111 个。<br>答：小组成员共有 24 人，计划做 111 个中国结。",
+          note:"小锦囊：'多 9'与'少 15'都和计划量比较，让两行的 y 接力相等，方程就列出来了。"
+        }
+      }]
+    },
+    {
+      id:"h4", name:"翠湖之旅", src:"基础 · 表格行程",
+      problem:'翠湖在青山、绿水两地之间，<b>距青山 50 km、距绿水 70 km</b>。某天一辆汽车匀速行驶，依次途经王家庄、青山、绿水三地，时间如表所示。王家庄距翠湖的路程有多远？' +
+        '<table class="ptab"><tr><th>地名</th><th>王家庄</th><th>青山</th><th>绿水</th></tr><tr><th>时间</th><td>10:00</td><td>13:00</td><td>15:00</td></tr></table>' +
+        '<svg class="pmap" viewBox="0 0 560 78">' +
+        '<line x1="20" y1="36" x2="540" y2="36" stroke="#8a6d3b" stroke-width="6" stroke-linecap="round"/>' +
+        '<circle cx="42" cy="36" r="8" fill="var(--accent)" stroke="var(--ink)" stroke-width="3"/>' +
+        '<circle cx="252" cy="36" r="8" fill="var(--main)" stroke="var(--ink)" stroke-width="3"/>' +
+        '<circle cx="342" cy="36" r="8" fill="var(--main)" stroke="var(--ink)" stroke-width="3"/>' +
+        '<circle cx="472" cy="36" r="8" fill="var(--main)" stroke="var(--ink)" stroke-width="3"/>' +
+        '<text x="42" y="66" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">王家庄</text>' +
+        '<text x="252" y="66" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">青山</text>' +
+        '<text x="342" y="66" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">翠湖</text>' +
+        '<text x="472" y="66" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">绿水</text>' +
+        '<text x="147" y="20" text-anchor="middle" font-size="16" font-weight="700" fill="var(--accent)">3 小时</text>' +
+        '<text x="297" y="16" text-anchor="middle" font-size="16" font-weight="700" fill="var(--main)">50 km</text>' +
+        '<text x="407" y="16" text-anchor="middle" font-size="16" font-weight="700" fill="var(--main)">70 km</text></svg>',
+      steps:[
+        {
+          intro:'第一步：青山 → 绿水用了 2 小时（13:00 到 15:00），行驶了 (50 + 70) km。把"2v"拆段，先求车速 v',
+          rows:[{
+            whole:"2v（青山 → 绿水行驶的路程）",
+            cells:[
+              {cap:"青山 → 翠湖", accept:"50"},
+              {cap:"翠湖 → 绿水", accept:"70"}
+            ],
+            groups:[]
+          }],
+          palette:["50","70","120","2","3"],
+          hint:"青山到绿水 = 50 + 70 = 120 km，用时 2 小时，所以 2v = 120。注意：120 是总路程，不能塞进单独一格。",
+          revealEq:"2v = 50 + 70",
+          balance:{
+            eqLText:"2v", eqRText:"50 + 70", exprL:"2*v", exprR:"50+70",
+            varName:"v", varLabel:"v（车速，km/h）", min:0, max:80, stepv:0.5, answer:60,
+            answerText:"解：2v = 50 + 70 = 120，v = 60。汽车速度是 60 km/h。",
+            note:"第一步只要用表格里的'青山 13:00 → 绿水 15:00'这 2 小时，配合地图上的 50 km 和 70 km 就够了。"
+          }
+        },
+        {
+          intro:'第二步：王家庄 → 青山用了 3 小时（10:00 到 13:00），路程为 3v 千米。把"王家庄 → 翠湖的路程 x"拆段',
+          rows:[{
+            whole:"x（王家庄 → 翠湖的路程）",
+            cells:[
+              {cap:"王家庄 → 青山（3 小时）", accept:"3v"},
+              {cap:"青山 → 翠湖", accept:"50"}
+            ],
+            groups:[]
+          }],
+          palette:["3v","50","70","2v","x"],
+          hint:"王家庄到青山走了 3 小时：3v；再加上青山到翠湖的 50 km，就等于王家庄到翠湖的 x。",
+          revealEq:"3v + 50 = x（v 已求出为 60）",
+          balance:{
+            eqLText:"3×60 + 50", eqRText:"x", exprL:"3*60+50", exprR:"x",
+            varName:"x", varLabel:"x（王家庄到翠湖，km）", min:0, max:400, stepv:1, answer:230,
+            answerText:"解：v = 60，王家庄 → 青山 = 3×60 = 180 km。由线段图得 3×60 + 50 = x，x = 230。<br>答：王家庄距翠湖 230 km。",
+            note:"两步走：先用 2 小时那段求速度，再用 3 小时那段拼出全程——线段图把'路线'画成了'算式'。"
+          }
+        }
+      ]
+    }
+  ]
+};
+var DIFF_NAME = {basic:"初级", mid:"中级", hard:"高级"};
+var LEVELS_PER_GAME = 2; /* 每局随机抽 2 关（反重复：关卡、积木顺序、配色都随机） */
+
+/* ---------------- 全局状态 ---------------- */
+var S = { diff:"basic", levels:[], li:0, steps:0, sec:0, timer:null, revealed:0, done:0 };
+/* 当前关运行态：phase ∈ build(搭图) / balance(称量) / done(本步完成) */
+var L = { level:null, stepIdx:0, phase:"build", blocks:[], cells:[], selected:-1, locked:false, revealed:false };
+
+/* ---------------- 计时器与步数 ---------------- */
+function hudUpdate(){
+  var m = Math.floor(S.sec / 60), s = S.sec % 60;
+  $("hudTime").textContent = (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+  $("hudSteps").textContent = S.steps;
+}
+function startTimer(){
+  stopTimer();
+  S.timer = setInterval(function(){ S.sec++; hudUpdate(); }, 1000);
+}
+function stopTimer(){ if(S.timer){ clearInterval(S.timer); S.timer = null; } }
+
+/* ---------------- 屏幕切换 ---------------- */
+function showScreen(name){
+  $("menuScreen").hidden = (name !== "menu");
+  $("gameScreen").hidden = (name !== "game");
+  $("doneScreen").hidden = (name !== "done");
+  var inGame = (name === "game");
+  $("btnReveal").hidden = !inGame;
+  $("btnRestart").hidden = !inGame;
+  $("btnBack").hidden = !inGame;
+}
+
+/* ---------------- 开局：抽关 + 配色 ---------------- */
+function startSession(diff){
+  S.diff = diff;
+  S.levels = shuffle(POOLS[diff]).slice(0, LEVELS_PER_GAME);
+  S.li = 0; S.steps = 0; S.sec = 0; S.revealed = 0; S.done = 0;
+  applyScheme();
+  hudUpdate();
+  startTimer();
+  showScreen("game");
+  renderLevel();
+}
+
+/* ---------------- 渲染一关 ---------------- */
+function renderLevel(){
+  var lv = S.levels[S.li];
+  L.level = lv; L.stepIdx = 0; L.revealed = false;
+  $("lvBadge").textContent = DIFF_NAME[S.diff];
+  $("lvName").textContent = "第 " + (S.li + 1) + " 关 · " + lv.name;
+  $("lvProg").textContent = "（共 " + S.levels.length + " 关，" + (S.li + 1) + "/" + S.levels.length + "）";
+  $("problemCard").innerHTML = '<span class="src">' + lv.src + '</span><br>' + lv.problem;
+  renderStep(0);
+}
+
+/* ---------------- 渲染某一步（线段图 + 积木池） ---------------- */
+function renderStep(si){
+  var lv = L.level, step = lv.steps[si];
+  L.stepIdx = si; L.phase = "build"; L.locked = false; L.selected = -1;
+  L.blocks = []; L.cells = [];
+
+  $("stepIntro").textContent = "🧱 " + step.intro;
+  $("hintBubble").hidden = true;
+  $("eqPanel").hidden = true;
+  $("balanceZone").hidden = true;
+  $("answerCard").hidden = true;
+  $("paletteBox").hidden = false;
+
+  /* --- 生成线段图（可能多行） --- */
+  var html = "";
+  for(var ri = 0; ri < step.rows.length; ri++){
+    var row = step.rows[ri];
+    var n = row.cells.length;
+    html += '<div class="bridgeRow">';
+    html += '<div class="cliff L"></div>';
+    html += '<div class="trackWrap">';
+    html += '<div class="wholeWrap"><span class="wholeLabel">' + row.whole + '</span></div>';
+    html += '<div class="cellsRow">';
+    for(var ci = 0; ci < n; ci++){
+      html += '<div class="cellCol"><div class="cell" data-cell="' + ri + "-" + ci + '"></div><div class="cap">' + row.cells[ci].cap + '</div></div>';
+    }
+    /* 小车停在桥面左端，合龙成功后驶过 */
+    html += '<div class="cart"><svg viewBox="0 0 64 40"><rect x="4" y="8" width="36" height="20" rx="4" fill="var(--deckA)" stroke="var(--ink)" stroke-width="3"/><path d="M40 14 L52 14 L60 24 L60 28 L40 28 Z" fill="var(--accent)" stroke="var(--ink)" stroke-width="3"/><circle cx="16" cy="32" r="6" fill="var(--ink)"/><circle cx="48" cy="32" r="6" fill="var(--ink)"/></svg></div>';
+    html += '</div>';
+    /* 子括号（分组标注） */
+    html += '<div class="groupsRow">';
+    for(var gi = 0; gi < row.groups.length; gi++){
+      var g = row.groups[gi];
+      var span = g.to - g.from + 1;
+      var leftPct = (g.from / n) * 100, widthPct = (span / n) * 100;
+      html += '<div class="group" style="left:calc(' + leftPct + '% + 10px); width:calc(' + widthPct + '% - 20px);"><span class="groupLabel">' + g.label + '</span></div>';
+    }
+    html += '</div></div>';
+    html += '<div class="cliff R"></div>';
+    html += '</div>';
+  }
+  $("diagramZone").innerHTML = html;
+
+  /* 收集格子数据 */
+  var cellEls = document.querySelectorAll(".cell");
+  for(var k = 0; k < cellEls.length; k++){
+    var pos = cellEls[k].getAttribute("data-cell").split("-");
+    var rr = parseInt(pos[0], 10), cc = parseInt(pos[1], 10);
+    L.cells.push({ ri:rr, ci:cc, accept:step.rows[rr].cells[cc].accept, el:cellEls[k], blockId:-1 });
+    cellEls[k].addEventListener("click", onCellClick);
+  }
+
+  /* --- 生成积木池（顺序随机） --- */
+  var pal = $("palette");
+  pal.innerHTML = "";
+  var labels = shuffle(step.palette);
+  for(var bi = 0; bi < labels.length; bi++){
+    var el = document.createElement("div");
+    el.className = "block";
+    el.textContent = labels[bi];
+    var blk = { id:bi, label:labels[bi], el:el, cell:-1 };
+    L.blocks.push(blk);
+    el.addEventListener("pointerdown", function(e){ onBlockDown(e, this); });
+    pal.appendChild(el);
+  }
+}
+
+/* ---------------- 积木拖拽（含点选兜底，触摸可用） ---------------- */
+var drag = null; /* {blk, sx, sy, moved} */
+
+function onBlockDown(e, el){
+  if(L.phase !== "build" || L.locked){ return; }
+  var blk = null;
+  for(var i = 0; i < L.blocks.length; i++){ if(L.blocks[i].el === el){ blk = L.blocks[i]; break; } }
+  if(!blk){ return; }
+  drag = { blk:blk, sx:e.clientX, sy:e.clientY, moved:false };
+  e.preventDefault();
+}
+
+document.addEventListener("pointermove", function(e){
+  if(!drag){ return; }
+  var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if(!drag.moved && Math.sqrt(dx * dx + dy * dy) > 8){
+    drag.moved = true;
+    var g = $("ghost");
+    g.textContent = drag.blk.label;
+    g.className = "block";
+    g.style.display = "inline-flex";
+    drag.blk.el.classList.add("dragging");
+  }
+  if(drag.moved){
+    var gh = $("ghost");
+    gh.style.left = (e.clientX - gh.offsetWidth / 2) + "px";
+    gh.style.top = (e.clientY - gh.offsetHeight / 2) + "px";
+    /* 高亮悬停的空格子 */
+    var cellEl = cellFromPoint(e.clientX, e.clientY);
+    markHot(cellEl);
+  }
+});
+
+document.addEventListener("pointerup", function(e){
+  if(!drag){ return; }
+  var blk = drag.blk, wasMoved = drag.moved;
+  drag = null;
+  $("ghost").style.display = "none";
+  markHot(null);
+  blk.el.classList.remove("dragging");
+
+  if(wasMoved){
+    /* 拖拽放置：空格子直接放入；已占用的格子会用新积木替换（原积木退回积木池） */
+    var cellEl = cellFromPoint(e.clientX, e.clientY);
+    var cell = cellOf(cellEl);
+    var cellIdx = cell ? findCellIndex(cell) : -1;
+    if(cell && blk.cell === cellIdx){
+      /* 放回自己原来的格子：保持不动 */
+    }else if(cell){
+      placeBlock(blk, cell);
+      addStep();
+    }else{
+      returnHome(blk);
+    }
+    clearSelected();
+  }else{
+    /* 轻点：在格子里的积木 → 收回；在池里的积木 → 选中/取消 */
+    if(blk.cell >= 0){
+      returnHome(blk);
+      addStep();
+    }else{
+      toggleSelect(blk);
+    }
+  }
+});
+
+function cellFromPoint(x, y){
+  var el = document.elementFromPoint(x, y);
+  if(!el){ return null; }
+  return el.closest ? el.closest(".cell") : null;
+}
+function cellOf(el){
+  if(!el){ return null; }
+  for(var i = 0; i < L.cells.length; i++){
+    if(L.cells[i].el === el){ return L.cells[i]; }
+  }
+  return null;
+}
+function markHot(cellEl){
+  for(var i = 0; i < L.cells.length; i++){
+    L.cells[i].el.classList.toggle("hot", !!(cellEl && L.cells[i].el === cellEl));
+  }
+}
+function toggleSelect(blk){
+  if(L.selected === blk.id){ clearSelected(); return; }
+  clearSelected();
+  L.selected = blk.id;
+  blk.el.classList.add("selected");
+}
+function clearSelected(){
+  if(L.selected >= 0 && L.blocks[L.selected]){ L.blocks[L.selected].el.classList.remove("selected"); }
+  L.selected = -1;
+}
+function onCellClick(e){
+  /* 点选兜底：先点积木、再点空格子放下（事件来自积木本体时忽略，避免误放） */
+  if(L.phase !== "build" || L.locked){ return; }
+  if(e.target.closest && e.target.closest(".block")){ return; }
+  var cell = cellOf(this);
+  if(!cell || cell.blockId >= 0){ return; }
+  if(L.selected >= 0){
+    var blk = L.blocks[L.selected];
+    clearSelected();
+    placeBlock(blk, cell);
+    addStep();
+  }
+}
+function placeBlock(blk, cell){
+  if(blk.cell >= 0){
+    var old = findCellByBlock(blk);
+    if(old){ old.blockId = -1; old.el.classList.remove("filled"); }
+  }
+  if(cell.blockId >= 0){ returnHome(L.blocks[cell.blockId]); }
+  blk.cell = findCellIndex(cell);
+  cell.blockId = blk.id;
+  cell.el.classList.add("filled");
+  cell.el.appendChild(blk.el);
+  blk.el.classList.add("inCell");
+}
+function returnHome(blk){
+  if(blk.cell >= 0){
+    var cell = L.cells[blk.cell];
+    if(cell && cell.blockId === blk.id){ cell.blockId = -1; cell.el.classList.remove("filled"); }
+  }
+  blk.cell = -1;
+  blk.el.classList.remove("inCell");
+  blk.el.classList.remove("selected");
+  $("palette").appendChild(blk.el);
+}
+function findCellByBlock(blk){
+  return (blk.cell >= 0) ? L.cells[blk.cell] : null;
+}
+function findCellIndex(cell){
+  for(var i = 0; i < L.cells.length; i++){ if(L.cells[i] === cell){ return i; } }
+  return -1;
+}
+function addStep(){ S.steps++; hudUpdate(); }
+
+/* ---------------- 合龙检测 ---------------- */
+function checkJoin(){
+  if(L.phase !== "build" || L.locked){ return; }
+  var wrongCells = [];
+  for(var i = 0; i < L.cells.length; i++){
+    var c = L.cells[i];
+    if(c.blockId < 0 || L.blocks[c.blockId].label !== c.accept){ wrongCells.push(c); }
+  }
+  addStep();
+  if(wrongCells.length === 0){
+    joinSuccess(false);
+  }else{
+    var step = L.level.steps[L.stepIdx];
+    showHint("💡 提示：" + step.hint);
+    for(var k = 0; k < wrongCells.length; k++){
+      var c2 = wrongCells[k];
+      c2.el.classList.remove("badcell");
+      /* 触发抖动动画的重新播放 */
+      void c2.el.offsetWidth;
+      c2.el.classList.add("badcell");
+      if(c2.blockId >= 0){
+        (function(cell){
+          setTimeout(function(){ returnHome(L.blocks[cell.blockId]); }, 420);
+        })(c2);
+      }
+    }
+  }
+}
+function showHint(text){
+  var hb = $("hintBubble");
+  hb.textContent = text;
+  hb.hidden = false;
+}
+
+/* ---------------- 合龙成功 → 揭示方程 → 天平 ---------------- */
+function joinSuccess(fromReveal){
+  L.locked = true; L.phase = "balance";
+  clearSelected();
+  var step = L.level.steps[L.stepIdx];
+  /* 锁住积木与格子 */
+  for(var i = 0; i < L.blocks.length; i++){ L.blocks[i].el.classList.add("locked"); }
+  for(var j = 0; j < L.cells.length; j++){ L.cells[j].el.classList.add("okcell"); }
+  $("paletteBox").hidden = true;
+  $("hintBubble").hidden = true;
+  /* 方程揭示 */
+  var eq = step.revealEq || (step.balance.eqLText + " = " + step.balance.eqRText);
+  $("eqText").textContent = eq;
+  $("eqPanel").hidden = false;
+  $("eqPanel").scrollIntoView({ behavior:"smooth", block:"nearest" });
+  /* 小车过桥庆祝（用纯 px 的 transform 位移驱动，兼容性最好） */
+  if(!fromReveal){
+    var carts = document.querySelectorAll(".cart");
+    for(var ci = 0; ci < carts.length; ci++){
+      var rowW = carts[ci].parentElement.getBoundingClientRect().width;
+      carts[ci].classList.add("go");
+      carts[ci].style.transform = "translateX(" + Math.round(rowW + 56) + "px)";
+    }
+    miniConfetti();
+  }
+  setTimeout(function(){ showBalance(fromReveal); }, fromReveal ? 200 : 1300);
+}
+
+/* ---------------- 天平称量 ---------------- */
+function showBalance(fromReveal){
+  var step = L.level.steps[L.stepIdx], b = step.balance;
+  var bz = $("balanceZone");
+  bz.hidden = false;
+  bz.classList.remove("locked");
+  $("eqShow").textContent = b.eqLText + " = " + b.eqRText;
+  $("varLabel").textContent = b.varLabel;
+  var sl = $("valSlider");
+  sl.min = b.min; sl.max = b.max; sl.step = b.stepv; sl.value = b.min;
+  sl.disabled = false;
+  $("valShow").textContent = fmt(b.min);
+  if(fromReveal){
+    sl.value = b.answer;
+    updateBalance(true);
+  }else{
+    updateBalance(false);
+  }
+  bz.scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+function updateBalance(lockIfEqual){
+  var step = L.level.steps[L.stepIdx], b = step.balance;
+  var v = parseFloat($("valSlider").value);
+  $("valShow").textContent = fmt(v);
+  var fL = makeFn(b.exprL, b.varName), fR = makeFn(b.exprR, b.varName);
+  var valL = fL(v), valR = fR(v);
+  $("lv").textContent = fmt(valL);
+  $("rv").textContent = fmt(valR);
+  $("tL").textContent = fmt(valL);
+  $("tR").textContent = fmt(valR);
+  var diff = valL - valR;
+  var angle = clampN(diff * 0.9, -12, 12);
+  $("beamGroup").setAttribute("transform", "rotate(" + angle.toFixed(2) + " 185 60)");
+  if(lockIfEqual && Math.abs(diff) < 0.000001){
+    balanceLock();
+  }
+}
+function balanceLock(){
+  if(L.phase !== "balance"){ return; }
+  L.phase = "done";
+  var bz = $("balanceZone");
+  bz.classList.add("locked");
+  $("valSlider").disabled = true;
+  if(!L.revealed){ miniConfetti(); }
+  setTimeout(showAnswerCard, 700);
+}
+
+/* ---------------- 答案卡与流程推进 ---------------- */
+function showAnswerCard(){
+  var step = L.level.steps[L.stepIdx], b = step.balance;
+  $("ansTitle").textContent = L.revealed ? "已参考答案" : "天平平衡啦！";
+  $("ansBody").innerHTML = b.answerText;
+  $("ansNote").innerHTML = (L.revealed ? "这是本步的参考搭建与解答——先自己试一遍再对照，收获会更大哦。<br>" : "") + (b.note || "");
+  var lastStep = (L.stepIdx >= L.level.steps.length - 1);
+  var lastLevel = (S.li >= S.levels.length - 1);
+  $("btnNext").textContent = !lastStep ? "进入下一步 →" : (!lastLevel ? "下一关 →" : "查看成绩 →");
+  $("answerCard").hidden = false;
+  $("answerCard").scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+function goNext(){
+  var lastStep = (L.stepIdx >= L.level.steps.length - 1);
+  if(!lastStep){
+    renderStep(L.stepIdx + 1);
+    window.scrollTo({ top:0, behavior:"smooth" });
+    return;
+  }
+  var lastLevel = (S.li >= S.levels.length - 1);
+  if(!lastLevel){
+    S.li++;
+    renderLevel();
+    window.scrollTo({ top:0, behavior:"smooth" });
+  }else{
+    sessionDone();
+  }
+}
+
+/* ---------------- 揭示答案（G4） ---------------- */
+function revealAnswer(){
+  if(!L.level || L.phase === "done" || L.locked){ return; }
+  L.revealed = true;
+  S.revealed++;
+  var step = L.level.steps[L.stepIdx];
+  /* 自动摆上正确积木 */
+  for(var i = 0; i < L.cells.length; i++){
+    var c = L.cells[i];
+    if(c.blockId >= 0 && L.blocks[c.blockId].label === c.accept){ continue; }
+    if(c.blockId >= 0){ returnHome(L.blocks[c.blockId]); }
+    for(var j = 0; j < L.blocks.length; j++){
+      var blk = L.blocks[j];
+      if(blk.cell < 0 && blk.label === c.accept){
+        placeBlock(blk, c);
+        break;
+      }
+    }
+  }
+  joinSuccess(true);
+}
+
+/* ---------------- 重新开始 / 返回 ---------------- */
+function restartLevel(){
+  if(!L.level){ return; }
+  renderStep(0);
+}
+function backToMenu(){
+  stopTimer();
+  showScreen("menu");
+}
+
+/* ---------------- 结算 ---------------- */
+function sessionDone(){
+  stopTimer();
+  S.done++;
+  var m = Math.floor(S.sec / 60), s = S.sec % 60;
+  var timeStr = (m < 10 ? "0" : "") + m + " 分 " + (s < 10 ? "0" : "") + s + " 秒";
+  $("doneStats").innerHTML =
+    "难度：<b>" + DIFF_NAME[S.diff] + "</b>　｜　关卡：" + S.levels.length + " 关全部完成<br>" +
+    "总用时：<b>" + timeStr + "</b>　｜　总步数：<b>" + S.steps + "</b> 步　｜　参考答案次数：" + S.revealed + " 次<br>" +
+    "<span style='font-size:17px'>🎉 彩带庆祝！你已经掌握了「拆总量、找括号、列等式」的线段图心法！</span>";
+  showScreen("done");
+  bigConfetti();
+}
+
+/* =====================================================================
+ * 彩带庆祝（Web Animations API 驱动 CSS transform，G5；无需 Canvas）
+ * ===================================================================== */
+function burst(n, big){
+  var colors = ["#e91e63","#ff9800","#ffc107","#4caf50","#2196f3","#9c27b0","#00bcd4"];
+  var host = $("fx");
+  for(var i = 0; i < n; i++){
+    var el = document.createElement("i");
+    el.className = "confetto";
+    var s = 6 + Math.random() * 8;
+    el.style.width = Math.round(s) + "px";
+    el.style.height = Math.round(s * 0.62) + "px";
+    el.style.left = (3 + Math.random() * 94) + "vw";
+    el.style.top = (big ? 18 + Math.random() * 34 : 34 + Math.random() * 26) + "vh";
+    el.style.background = colors[i % colors.length];
+    var dx = Math.round((Math.random() - 0.5) * (big ? 240 : 130));
+    var rz = Math.round((Math.random() - 0.5) * 720);
+    var dur = 1300 + Math.random() * 1300;
+    var anim = el.animate(
+      [
+        { transform: "translate(0px, 0px) rotate(0deg)", opacity: 1 },
+        { transform: "translate(" + dx + "px, 58vh) rotate(" + rz + "deg)", opacity: 0.85 }
+      ],
+      { duration: dur, easing: "cubic-bezier(.2,.55,.45,1)", fill: "forwards" }
+    );
+    anim.onfinish = (function(node){ return function(){ node.remove(); }; })(el);
+    host.appendChild(el);
+  }
+}
+function miniConfetti(){ burst(70, false); }
+function bigConfetti(){ burst(220, true); setTimeout(function(){ burst(160, true); }, 700); }
+
+/* =====================================================================
+ * 事件绑定与启动
+ * ===================================================================== */
+function bindUI(){
+  var cards = document.querySelectorAll(".diffCard");
+  for(var i = 0; i < cards.length; i++){
+    cards[i].addEventListener("click", function(){ startSession(this.getAttribute("data-diff")); });
+  }
+  $("btnRules").addEventListener("click", function(){ $("rulesModal").hidden = false; });
+  $("btnRules2").addEventListener("click", function(){ $("rulesModal").hidden = false; });
+  $("btnCloseRules").addEventListener("click", function(){ $("rulesModal").hidden = true; });
+  $("btnReveal").addEventListener("click", revealAnswer);
+  $("btnRestart").addEventListener("click", restartLevel);
+  $("btnBack").addEventListener("click", backToMenu);
+  $("btnJoin").addEventListener("click", checkJoin);
+  $("btnNext").addEventListener("click", goNext);
+  $("btnAgain").addEventListener("click", function(){ startSession(S.diff); });
+  $("btnMenu2").addEventListener("click", backToMenu);
+  $("valSlider").addEventListener("input", function(){ updateBalance(true); });
+  $("valSlider").addEventListener("change", function(){ addStep(); });
+}
+document.addEventListener("DOMContentLoaded", function(){
+  bindUI();
+  applyScheme();
+  showScreen("menu");
+  /* 进入游戏先弹出规则说明（G6），可随时点"规则说明"再看 */
+  $("rulesModal").hidden = false;
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-jc-y/g010", "name": "\u7ebf\u6bb5\u56fe\u642d\u6865\u5de5\u574a \u00b7 \u7528\u7ebf\u5f62\u793a\u610f\u56fe\u89e3\u51b3\u95ee\u9898", "file": "g010.html", "jiaocan": "\u301054\u3011\u56db \u4e00\u5143\u4e00\u6b21\u65b9\u7a0b\uff1a4.3 \u7528\u4e00\u5143\u4e00\u6b21\u65b9\u7a0b\u89e3\u51b3\u95ee\u9898 2\u5229\u7528\u7ebf\u6027\u793a\u610f\u56fe\u89e3\u51b3\u95ee\u9898", "unit": "", "grade": "7\u5e74\u7ea7\u4e0a", "stage": "\u521d\u4e2d", "series": "Y \u521d\u4e2d\u62d4\u5c16\u63d0\u4f18\u8bad\u7ec3", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u521d\u4e2d\u62d4\u5c16\u63d0\u4f18\u8bad\u7ec3\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-jc-y"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

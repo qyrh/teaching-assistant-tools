@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一增一减找差记 · 比多少互动闯关</title>
+<style>
+/* ========== 全局变量（每局随机换色板，G8 配色随机化） ========== */
+:root{
+  --cBg1:#FFF6E9; --cBg2:#FFE8C8;      /* 背景渐变 */
+  --cPrimary:#F97316;                  /* 主色 */
+  --cInk:#1F2937;                      /* 正文墨色 */
+  --cA:#2F6FED;                        /* A 角色彩块色 */
+  --cB:#14B8A6;                        /* B 角色彩块色 */
+  --cNew:#FFC53D;                      /* “新增加”彩块色 */
+  --cGhost:#94A3B8;                    /* “被减少”虚影色 */
+  --bs:22px; --gap:3px;                /* 彩块尺寸与间距 */
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
+  color:var(--cInk);
+  background:linear-gradient(160deg,var(--cBg1),var(--cBg2));
+  min-height:100vh;
+}
+#app{max-width:1020px;margin:0 auto;padding:10px 14px 40px;}
+body.dragging{user-select:none;}
+body.noTouch .blocks{touch-action:none;} /* 涂色/拖块阶段防止页面滚动 */
+
+/* ========== 顶栏 ========== */
+header{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  padding:8px 4px 10px;
+}
+.hTitle{font-size:26px;font-weight:900;letter-spacing:1px;}
+.hTitle .sub{font-size:15px;font-weight:700;color:#6B7280;margin-left:8px;}
+.hRight{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.hStat{background:#fff;border:3px solid var(--cPrimary);border-radius:999px;
+  padding:4px 14px;font-size:18px;font-weight:800;}
+.hBadge{background:var(--cPrimary);color:#fff;border-radius:999px;padding:5px 14px;
+  font-size:16px;font-weight:800;}
+.hbtn{background:#fff;border:3px solid var(--cInk);border-radius:12px;
+  padding:6px 16px;font-size:17px;font-weight:800;cursor:pointer;}
+.hbtn:active{transform:scale(.95);}
+
+/* ========== 难度选择页 ========== */
+.diffWrap{text-align:center;padding:20px 0 10px;}
+.diffWrap h2{font-size:34px;margin:10px 0 6px;}
+.diffWrap p.lead{font-size:19px;margin:6px auto 22px;max-width:640px;line-height:1.6;}
+.diffRow{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;}
+.diffCard{background:#fff;border:6px solid var(--cPrimary);border-radius:22px;
+  width:250px;padding:24px 16px;cursor:pointer;transition:transform .15s;box-shadow:0 8px 24px rgba(0,0,0,.10);}
+.diffCard:hover{transform:translateY(-6px) scale(1.03);}
+.diffCard .ico{font-size:56px;}
+.diffCard h3{font-size:26px;margin:8px 0 4px;}
+.diffCard .tag{display:inline-block;background:var(--cPrimary);color:#fff;border-radius:999px;
+  padding:3px 14px;font-size:15px;font-weight:800;margin-bottom:8px;}
+.diffCard p{font-size:16px;line-height:1.55;margin:6px 0 0;}
+.paletteChip{margin-top:22px;font-size:16px;font-weight:700;color:#4B5563;}
+
+/* ========== 题目卡 ========== */
+#problemCard{
+  background:#fff;border:4px solid var(--cPrimary);border-radius:16px;
+  padding:12px 18px;font-size:20px;line-height:1.65;box-shadow:0 6px 18px rgba(0,0,0,.08);
+}
+.levelTag{display:inline-block;background:var(--cPrimary);color:#fff;border-radius:999px;
+  padding:2px 14px;font-size:16px;font-weight:800;margin-right:10px;vertical-align:middle;}
+.goalTag{display:inline-block;background:#FEF3C7;border:2px solid #D97706;color:#92400E;
+  border-radius:999px;padding:2px 14px;font-size:16px;font-weight:800;margin-top:6px;}
+
+/* ========== 舞台：两排彩块 ========== */
+#stage{margin-top:6px;}
+.charRow{display:flex;gap:14px;margin:14px 0;align-items:flex-start;}
+.avatarCol{width:128px;flex:0 0 auto;text-align:center;padding-top:4px;}
+.avatar{font-size:46px;width:88px;height:88px;line-height:88px;margin:0 auto;
+  background:#fff;border:4px solid var(--cPrimary);border-radius:50%;position:relative;}
+.avatar.crowned::before{content:'👑';position:absolute;top:-40px;left:50%;
+  transform:translateX(-50%) rotate(-10deg);font-size:38px;animation:crownDrop .5s;}
+@keyframes crownDrop{0%{transform:translate(-50%,-60px) rotate(20deg);}100%{transform:translate(-50%,0) rotate(-10deg);}}
+.cname{font-size:19px;font-weight:900;margin-top:6px;}
+.badge{font-size:16px;font-weight:800;line-height:1.4;margin-top:4px;color:#374151;}
+.blocks{flex:1;display:flex;flex-wrap:wrap;gap:var(--gap);align-content:flex-start;
+  padding:10px;background:rgba(255,255,255,.6);border:3px dashed transparent;
+  border-radius:12px;min-height:72px;}
+.charRow.dropOver .blocks{border-color:var(--cPrimary);background:#fff;}
+.charRow.paintable .blocks{border-color:var(--cNew);}
+
+/* 彩块状态 */
+.blk{width:var(--bs);height:var(--bs);border-radius:4px;flex:0 0 auto;transition:transform .12s;}
+.blk.a{background:var(--cA);}
+.blk.b{background:var(--cB);}
+.blk.added{background:var(--cNew);box-shadow:inset 0 0 0 2px rgba(255,255,255,.95);}
+.blk.ghost{background:transparent;border:2px dashed var(--cGhost);}
+.blk.painted{outline:3px solid #B45309;outline-offset:1px;transform:scale(1.15);filter:saturate(1.5);}
+.blk.fromDec{background:repeating-linear-gradient(45deg,#94A3B8,#94A3B8 4px,#64748B 4px,#64748B 8px);}
+.blk.fromInc{background:var(--cNew);box-shadow:inset 0 0 0 2px #B45309;}
+.blk.pop{animation:pop .35s;}
+@keyframes pop{0%{transform:scale(0);}70%{transform:scale(1.3);}100%{transform:scale(1);}}
+.blk.wrongFlash{animation:shake .45s;outline:3px solid #DC2626;}
+@keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-5px);}
+  40%{transform:translateX(5px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
+
+/* ========== 操作台（随阶段切换） ========== */
+#toolbox{background:rgba(255,255,255,.75);border:3px solid var(--cPrimary);border-radius:16px;
+  padding:12px 14px;margin-top:6px;}
+.tzone .zlabel{font-size:18px;font-weight:800;margin-bottom:10px;}
+.cardsWrap{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;}
+.changeCard{background:#fff;border:4px solid;border-radius:16px;padding:10px 18px;
+  min-width:150px;text-align:center;cursor:grab;touch-action:none;box-shadow:0 4px 10px rgba(0,0,0,.12);}
+.changeCard .big{font-size:30px;font-weight:900;}
+.changeCard.incCard{border-color:#0D9488;color:#0D9488;}
+.changeCard.decCard{border-color:#E11D48;color:#E11D48;}
+.changeCard .desc{font-size:16px;font-weight:800;color:#374151;margin-top:2px;}
+.changeCard.used{opacity:.25;pointer-events:none;}
+.adjWrap{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center;}
+.adjBox{background:#fff;border:4px solid var(--cPrimary);border-radius:16px;padding:8px 16px;
+  text-align:center;font-size:16px;font-weight:800;cursor:grab;touch-action:none;min-width:110px;}
+.adjBox .ico{font-size:38px;display:block;}
+.adjChip{background:#FEF3C7;border:2px solid #D97706;border-radius:999px;padding:4px 14px;
+  font-size:16px;font-weight:800;}
+.measureBtn{background:var(--cPrimary);color:#fff;border:none;border-radius:14px;
+  font-size:19px;font-weight:900;padding:12px 22px;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,.18);}
+.measureBtn:active{transform:scale(.95);}
+#crownChip{font-size:52px;width:96px;height:96px;line-height:96px;text-align:center;
+  background:#fff;border:4px solid #D97706;border-radius:50%;margin:0 auto;cursor:grab;touch-action:none;}
+.paintCounter{font-size:20px;font-weight:900;color:#92400E;}
+.binChips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
+.binChip{width:26px;height:26px;border-radius:5px;border:2px dashed var(--cGhost);
+  background:transparent;cursor:grab;touch-action:none;}
+
+/* ========== 提示条 ========== */
+#hintBar{font-size:18px;font-weight:800;background:rgba(255,255,255,.9);
+  border-left:10px solid var(--cPrimary);padding:10px 14px;border-radius:10px;margin:12px 0 6px;min-height:44px;}
+
+/* ========== 揭示区（圈画成功后的公式） ========== */
+#legendBar{display:none;background:#fff;border:4px solid #D97706;border-radius:14px;
+  padding:12px 16px;margin-top:10px;text-align:center;}
+#legendBar.show{display:block;}
+#legendBar .chips{margin-bottom:8px;}
+.chip{display:inline-block;padding:4px 14px;border-radius:999px;font-weight:900;
+  font-size:16px;margin:4px 6px 0 0;border:3px solid;}
+.chip.dec{border-color:#64748B;background:#E2E8F0;color:#334155;}
+.chip.inc{border-color:#B45309;background:#FEF3C7;color:#92400E;}
+#legendFormula{font-size:24px;font-weight:900;color:#92400E;margin-top:6px;}
+
+/* ========== 底部按钮 ========== */
+#gameFooter{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px;}
+.fbtn{background:#fff;border:3px solid var(--cInk);border-radius:14px;
+  font-size:18px;font-weight:900;padding:10px 20px;cursor:pointer;}
+.fbtn:active{transform:scale(.95);}
+
+/* ========== 拖拽浮层 ========== */
+#dragLayer{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:1200;}
+.dragGhost{position:fixed;opacity:.85;transform:scale(1.08) rotate(-3deg);
+  box-shadow:0 10px 24px rgba(0,0,0,.3);border-radius:14px;z-index:1201;}
+
+/* ========== 弹窗 ========== */
+.overlay{position:fixed;inset:0;background:rgba(31,41,55,.58);display:flex;
+  align-items:center;justify-content:center;z-index:900;padding:16px;}
+.overlay[hidden]{display:none;}
+.panel{background:#fff;border-radius:22px;max-width:660px;width:100%;padding:26px 26px 22px;
+  box-shadow:0 20px 60px rgba(0,0,0,.35);max-height:86vh;overflow:auto;text-align:center;}
+.panel h2{font-size:30px;margin:6px 0 12px;}
+.panel .body{font-size:18px;line-height:1.7;text-align:left;}
+.panel .btnRow{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px;}
+.mbtn{border:none;border-radius:14px;font-size:20px;font-weight:900;padding:12px 26px;
+  cursor:pointer;color:#fff;background:var(--cPrimary);box-shadow:0 4px 10px rgba(0,0,0,.2);}
+.mbtn.ghostBtn{background:#fff;color:var(--cInk);border:3px solid var(--cInk);}
+.mbtn:active{transform:scale(.95);}
+.rhyme{background:#FEF3C7;border:3px dashed #D97706;border-radius:14px;padding:12px;
+  font-size:19px;font-weight:900;color:#92400E;text-align:center;margin:12px 0;line-height:1.8;}
+.methodBox{background:#F3F4F6;border-radius:12px;padding:10px 14px;margin:10px 0;line-height:1.8;}
+.methodBox b{color:var(--cPrimary);}
+.statRow{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:12px 0;font-size:19px;font-weight:800;}
+.bigStars{font-size:52px;letter-spacing:8px;animation:starPulse 1.2s infinite;}
+@keyframes starPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.15);}}
+.burst{position:fixed;font-size:32px;pointer-events:none;z-index:1500;animation:flyUp 1.3s forwards;}
+@keyframes flyUp{0%{opacity:1;transform:translate(0,0) scale(.6);}
+  100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.4);}}
+#confettiCv{position:fixed;inset:0;pointer-events:none;z-index:880;}
+.stepList{text-align:left;font-size:18px;line-height:2;}
+.stepList b{color:var(--cPrimary);}
+
+/* ========== 响应式 ========== */
+@media (max-width:640px){
+  .hTitle{font-size:20px;}
+  .hTitle .sub{display:none;}
+  #problemCard{font-size:18px;}
+  .avatarCol{width:96px;}
+  .avatar{width:68px;height:68px;line-height:68px;font-size:36px;}
+  .cname{font-size:16px;}
+  .badge{font-size:14px;}
+  .hStat{font-size:15px;padding:3px 10px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶栏：标题 + 计时/步数（G7） -->
+  <header>
+    <div class="hTitle">🌽 一增一减找差记<span class="sub">比多少应用题 · 互动闯关</span></div>
+    <div class="hRight">
+      <span class="hBadge" id="tierBadge">选难度</span>
+      <span class="hStat">⏱ <b id="timer">00:00</b></span>
+      <span class="hStat">👣 <b id="steps">0</b> 步</span>
+      <button class="hbtn" id="btnRules">玩法</button>
+    </div>
+  </header>
+
+  <!-- 难度选择页（G3 三档难度） -->
+  <main id="screenDifficulty">
+    <div class="diffWrap">
+      <h2>欢迎来到彩块运动会！🎉</h2>
+      <p class="lead">两位小伙伴原来一样多，后来一个增加、一个减少——现在的“差”藏在哪里？
+        动手变一变、圈一圈，把差找出来吧！</p>
+      <div class="diffRow">
+        <div class="diffCard" data-tier="junior">
+          <div class="ico">🌻</div><h3>初级</h3>
+          <span class="tag">热身小院</span>
+          <p>例题级：数量小，先学会“一增一减”怎么看图找差。</p>
+        </div>
+        <div class="diffCard" data-tier="middle">
+          <div class="ico">🌈</div><h3>中级</h3>
+          <span class="tag">彩虹集市</span>
+          <p>练习级：数量变大，圈画找差又快又准才算过关。</p>
+        </div>
+        <div class="diffCard" data-tier="senior">
+          <div class="ico">🚀</div><h3>高级</h3>
+          <span class="tag">星空挑战</span>
+          <p>变式级：告诉你差是多少，反着推出增加或减少了多少！</p>
+        </div>
+      </div>
+      <div class="paletteChip" id="paletteChip"></div>
+    </div>
+  </main>
+
+  <!-- 游戏页 -->
+  <main id="screenGame" hidden>
+    <div id="problemCard"></div>
+
+    <section id="stage">
+      <div class="charRow" id="rowA" data-side="A">
+        <div class="avatarCol">
+          <div class="avatar" id="avaA">🐻</div>
+          <div class="cname" id="nameA">小熊</div>
+          <div class="badge" id="badgeA"></div>
+        </div>
+        <div class="blocks" id="blocksA"></div>
+      </div>
+      <div class="charRow" id="rowB" data-side="B">
+        <div class="avatarCol">
+          <div class="avatar" id="avaB">🐒</div>
+          <div class="cname" id="nameB">小猴子</div>
+          <div class="badge" id="badgeB"></div>
+        </div>
+        <div class="blocks" id="blocksB"></div>
+      </div>
+    </section>
+
+    <!-- 操作台 -->
+    <div id="toolbox">
+      <div class="tzone" id="zoneCards">
+        <div class="zlabel">👉 第一步 · 变一变：读题，把每张变化卡拖到对应小伙伴的那一排！</div>
+        <div class="cardsWrap" id="cardsWrap"></div>
+      </div>
+      <div class="tzone" id="zoneAdjust" hidden></div>
+      <div class="tzone" id="zoneCrown" hidden>
+        <div class="zlabel">👑 第二步 · 加冕：看看现在谁更多？把皇冠拖到 TA 的头像上！</div>
+        <div id="crownChip">👑</div>
+      </div>
+      <div class="tzone" id="zonePaint" hidden>
+        <div class="zlabel">🖌 第三步 · 圈一圈：按住并划过“不一样多”的彩块，把差圈出来！（点一下已圈的可以取消）</div>
+        <div class="paintCounter">已圈 <b id="paintCount">0</b> 个</div>
+      </div>
+    </div>
+
+    <div id="legendBar">
+      <div class="chips" id="legendChips"></div>
+      <div id="legendFormula"></div>
+    </div>
+
+    <div id="hintBar">准备好了吗？开始吧！</div>
+
+    <!-- 底部按钮（G4） -->
+    <div id="gameFooter">
+      <button class="fbtn" id="btnReveal">💡 揭示答案</button>
+      <button class="fbtn" id="btnRestart">🔄 重新开始</button>
+      <button class="fbtn" id="btnBackDiff">🏘 返回难度选择</button>
+    </div>
+  </main>
+</div>
+
+<!-- 规则面板（G6） -->
+<div class="overlay" id="rulesOverlay" hidden>
+  <div class="panel">
+    <h2>🎮 玩法说明</h2>
+    <div class="body stepList">
+      <b>第1步 · 变一变：</b>把题目里的“变化卡”（比如 +5、−8）拖到对应小伙伴的那一排，
+      两排彩块就会按题意变长、变短。<br>
+      <b>第2步 · 加冕：</b>比一比两排彩块，把皇冠👑拖给现在更多的小伙伴。<br>
+      <b>第3步 · 圈一圈：</b>按住并划过“不一样多”的彩块，把差完整圈出来，
+      游戏会自动帮你数出差是多少！<br>
+      <b>星空挑战（高级）：</b>告诉你差是多少，你要亲手把彩块搬来搬去，
+      让两排的差距正好达标，再反推出变化量！
+    </div>
+    <div class="rhyme">📜 秘籍口诀<br>两数原来一样大，一增一减要求差。<br>两数增加减少量，相加就是现在差。</div>
+    <div class="body" style="text-align:center;">小提示：差 = 增加的量 + 减少的量，圈画时别把“一样多的部分”圈进去哦！</div>
+    <div class="btnRow"><button class="mbtn" id="btnRulesClose">开始挑战</button></div>
+  </div>
+</div>
+
+<!-- 揭示答案面板 -->
+<div class="overlay" id="revealOverlay" hidden>
+  <div class="panel">
+    <h2>💡 答案与解析</h2>
+    <div class="body" id="revealBody"></div>
+    <div class="rhyme">📜 秘籍口诀<br>两数原来一样大，一增一减要求差。<br>两数增加减少量，相加就是现在差。</div>
+    <div class="btnRow">
+      <button class="mbtn" id="btnRevealClose">继续挑战</button>
+      <button class="mbtn ghostBtn" id="btnRevealRestart">重玩这一关</button>
+    </div>
+  </div>
+</div>
+
+<!-- 过关面板 -->
+<div class="overlay" id="resultOverlay" hidden>
+  <div class="panel">
+    <h2 id="resultTitle">🎉 挑战成功！</h2>
+    <div class="body" id="resultBody" style="text-align:center;font-size:20px;font-weight:800;"></div>
+    <div class="rhyme" id="resultRhyme"></div>
+    <div class="btnRow"><button class="mbtn" id="btnNextLevel">下一关 ➜</button></div>
+  </div>
+</div>
+
+<!-- 通关庆祝面板（G5） -->
+<div class="overlay" id="doneOverlay" hidden>
+  <div class="panel">
+    <div class="bigStars">⭐⭐⭐</div>
+    <h2 id="doneTitle">🏆 全部通关，太棒啦！</h2>
+    <div class="statRow">
+      <span class="hStat">⏱ 用时 <b id="doneTime">00:00</b></span>
+      <span class="hStat">👣 总步数 <b id="doneSteps">0</b></span>
+    </div>
+    <div class="rhyme">两数原来一样大，一增一减要求差。<br>两数增加减少量，相加就是现在差。</div>
+    <div class="btnRow">
+      <button class="mbtn" id="btnPlayAgain">再玩一次（题目重新抽）</button>
+      <button class="mbtn ghostBtn" id="btnChangeDiff">换个难度</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confettiCv"></canvas>
+<div id="dragLayer"></div>
+
+<script>
+/* =====================================================================
+   一增一减找差记 —— 互动HTML游戏
+   核心玩法：把“比多少（一增一减求差）”题型变成
+   “拖变化卡 → 加冕比多少 → 涂色圈差”的操作式闯关。
+   ===================================================================== */
+
+/* ---------- 工具函数 ---------- */
+function shuffleArr(arr){ /* Fisher-Yates 洗牌，用于反重复 */
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    const t = a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+function clampN(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+function pad2(n){ return (n<10?'0':'')+n; }
+function fmtTime(sec){ return pad2(Math.floor(sec/60))+':'+pad2(sec%60); }
+
+/* ---------- 色板（G8 每局随机） ---------- */
+const PALETTES = [
+  {name:'蜜柚橙', bg1:'#FFF6E9', bg2:'#FFE0B8', primary:'#F97316', A:'#2F6FED', B:'#14B8A6', New:'#FFC53D'},
+  {name:'嫩草地', bg1:'#F0FDF4', bg2:'#D3F8DF', primary:'#22C55E', A:'#2563EB', B:'#F97316', New:'#FACC15'},
+  {name:'晴空蓝', bg1:'#EFF6FF', bg2:'#D6E9FF', primary:'#3B82F6', A:'#F59E0B', B:'#EC4899', New:'#22D3EE'},
+  {name:'樱花粉', bg1:'#FDF2F8', bg2:'#FBDCEB', primary:'#EC4899', A:'#8B5CF6', B:'#0EA5E9', New:'#FDE047'},
+  {name:'葡萄紫', bg1:'#F5F3FF', bg2:'#E6DFFF', primary:'#8B5CF6', A:'#06B6D4', B:'#F43F5E', New:'#FBBF24'}
+];
+function applyRandomPalette(){
+  const p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  const r = document.documentElement.style;
+  r.setProperty('--cBg1', p.bg1); r.setProperty('--cBg2', p.bg2);
+  r.setProperty('--cPrimary', p.primary); r.setProperty('--cA', p.A);
+  r.setProperty('--cB', p.B); r.setProperty('--cNew', p.New);
+  state.paletteName = p.name;
+  const chip = document.getElementById('paletteChip');
+  if(chip){ chip.textContent = '🎨 本局主题色：' + p.name + '（每次进入都会随机换新装哦）'; }
+}
+
+/* ---------- 题库 ----------
+   junior/middle：顺向题（一增一减求差）
+   senior：逆向题（已知差，反推变化量）
+   incOn：'A' 表示 A 增加、B 减少；reverse 题给出 given（已知变化）与 unknown（待求变化） */
+const PROBLEMS = {
+  junior: [
+    { /* docx 例题：小熊小猴子掰玉米 */
+      theme:'玉米园', item:'🌽', unit:'个',
+      A:{name:'小熊', emoji:'🐻'}, B:{name:'小猴子', emoji:'🐒'},
+      start:20, inc:5, dec:8, incOn:'A',
+      text:'小熊和小猴子原来各掰了 20 个玉米，两个人的玉米一样多。后来小熊又掰了 5 个，小猴子扔掉了 8 个。现在谁的玉米多？多几个？',
+      answer:'现在小熊的玉米多，多 13 个。',
+      m1:'方法一（算一算）：小熊现在 20＋5＝25（个）；小猴子现在 20－8＝12（个）；相差 25－12＝13（个）。',
+      m2:'方法二（圈一圈）：原来两排一样多，相差 0。小熊增加 5 个，小猴子减少 8 个，现在的差＝5＋8＝13（个）。'
+    },
+    { /* docx 练习4：操场男生女生 */
+      theme:'大操场', item:'🧒', unit:'人',
+      A:{name:'男生', emoji:'👦'}, B:{name:'女生', emoji:'👧'},
+      start:30, inc:8, dec:7, incOn:'A',
+      text:'操场上原来有男生和女生各 30 人。后来又来了 8 名男生，走了 7 名女生。现在操场上是男生多还是女生多？多几人？',
+      answer:'现在男生多，多 15 人。',
+      m1:'方法一（算一算）：男生现在 30＋8＝38（名）；女生现在 30－7＝23（名）；相差 38－23＝15（名）。',
+      m2:'方法二（圈一圈）：原来一样多，相差 0。男生增加 8 名，女生减少 7 名，现在的差＝8＋7＝15（名）。'
+    },
+    { theme:'气球屋', item:'🎈', unit:'只',
+      A:{name:'小猪', emoji:'🐷'}, B:{name:'小兔', emoji:'🐰'},
+      start:25, inc:4, dec:7, incOn:'A',
+      text:'小猪和小兔原来各吹了 25 只气球，一样多。后来小猪又吹了 4 只，小兔的气球飞走了 7 只。现在谁的气球多？多几只？',
+      answer:'现在小猪的气球多，多 11 只。',
+      m1:'方法一（算一算）：小猪现在 25＋4＝29（只）；小兔现在 25－7＝18（只）；相差 29－18＝11（只）。',
+      m2:'方法二（圈一圈）：原来一样多，相差 0。小猪增加 4 只，小兔减少 7 只，现在的差＝4＋7＝11（只）。'
+    },
+    { theme:'图书角', item:'📚', unit:'本',
+      A:{name:'蓝猫', emoji:'🐱'}, B:{name:'黄狗', emoji:'🐶'},
+      start:18, inc:7, dec:6, incOn:'A',
+      text:'蓝猫和黄狗原来各有 18 本图画书，一样多。后来蓝猫又买了 7 本，黄狗借出去了 6 本。现在谁的书多？多几本？',
+      answer:'现在蓝猫的书多，多 13 本。',
+      m1:'方法一（算一算）：蓝猫现在 18＋7＝25（本）；黄狗现在 18－6＝12（本）；相差 25－12＝13（本）。',
+      m2:'方法二（圈一圈）：原来一样多，相差 0。蓝猫增加 7 本，黄狗减少 6 本，现在的差＝7＋6＝13（本）。'
+    }
+  ],
+  middle: [
+    { theme:'贴纸墙', item:'🖼️', unit:'张',
+      A:{name:'姐姐', emoji:'👩'}, B:{name:'弟弟', emoji:'👦'},
+      start:36, inc:9, dec:6, incOn:'A',
+      text:'姐姐和弟弟原来各有 36 张贴纸，一样多。后来姐姐又收集了 9 张，弟弟用掉了 6 张。现在谁的贴纸多？多几张？',
+      answer:'现在姐姐的贴纸多，多 15 张。',
+      m1:'方法一（算一算）：姐姐现在 36＋9＝45（张）；弟弟现在 36－6＝30（张）；相差 45－30＝15（张）。',
+      m2:'方法二（圈一圈）：原来一样多，相差 0。姐姐增加 9 张，弟弟减少 6 张，现在的差＝9＋6＝15（张）。'
+    },
+    { theme:'红花台', item:'🌸', unit:'朵',
+      A:{name:'一班', emoji:'🚩'}, B:{name:'二班', emoji:'🎏'},
+      start:32, inc:12, dec:9, incOn:'A',
+      text:'一班和二班原来各有 32 朵小红花，一样多。后来一班又获得了 12 朵，二班送出去了 9 朵。现在哪个班的花多？多几朵？',
+      answer:'现在一班的花多，多 21 朵。',
+      m1:'方法一（算一算）：一班现在 32＋12＝44（朵）；二班现在 32－9＝23（朵）；相差 44－23＝21（朵）。',
+      m2:'方法二（圈一圈）：原来一样多，相差 0。一班增加 12 朵，二班减少 9 朵，现在的差＝12＋9＝21（朵）。'
+    },
+    { theme:'糖果罐', item:'🍬', unit:'颗',
+      A:{name:'哥哥', emoji:'🧑'}, B:{name:'妹妹', emoji:'👧'},
+      start:34, inc:12, dec:9, incOn:'A',
+      text:'哥哥和妹妹原来各有 34 颗糖果，一样多。后来哥哥又得到了 12 颗，妹妹吃掉了 9 颗。现在谁的糖果多？多几颗？',
+      answer:'现在哥哥的糖果多，多 21 颗。',
+      m1:'方法一（算一算）：哥哥现在 34＋12＝46（颗）；妹妹现在 34－9＝25（颗）；相差 46－25＝21（颗）。',
+      m2:'方法二（圈一圈）：原来一样多，相差 0。哥哥增加 12 颗，妹妹减少 9 颗，现在的差＝12＋9＝21（颗）。'
+    },
+    { theme:'足球场', item:'⚽', unit:'个',
+      A:{name:'三班', emoji:'🟦'}, B:{name:'四班', emoji:'🟩'},
+      start:36, inc:11, dec:8, incOn:'A',
+      text:'三班和四班原来各有 36 个足球，一样多。后来三班又购进了 11 个，四班有 8 个借给了别的班。现在哪个班的足球多？多几个？',
+      answer:'现在三班的足球多，多 19 个。',
+      m1:'方法一（算一算）：三班现在 36＋11＝47（个）；四班现在 36－8＝28（个）；相差 47－28＝19（个）。',
+      m2:'方法二（圈一圈）：原来一样多，相差 0。三班增加 11 个，四班减少 8 个，现在的差＝11＋8＝19（个）。'
+    }
+  ],
+  senior: [
+    { theme:'苹果山', item:'🍎', unit:'个',
+      A:{name:'小马', emoji:'🐴'}, B:{name:'小牛', emoji:'🐮'},
+      start:24, reverse:true,
+      given:{on:'A', type:'inc', amt:9}, targetDiff:16, unknown:{on:'B', type:'dec'},
+      text:'小马和小牛原来各有 24 个苹果，一样多。后来小马又摘了 9 个，这时小马比小牛多 16 个苹果。小牛减少了几个苹果？',
+      answer:'小牛减少了 7 个苹果。',
+      m1:'方法一（算一算）：小马现在 24＋9＝33（个）；小马比小牛多 16 个，所以小牛现在 33－16＝17（个）；小牛减少了 24－17＝7（个）。',
+      m2:'方法二（圈一圈）：差 16＝增加 9＋减少？，所以减少量＝16－9＝7（个）。'
+    },
+    { theme:'积木城', item:'🧱', unit:'块',
+      A:{name:'乐乐', emoji:'🧒'}, B:{name:'天天', emoji:'👶'},
+      start:45, reverse:true,
+      given:{on:'A', type:'dec', amt:12}, targetDiff:20, unknown:{on:'B', type:'inc'},
+      text:'乐乐和天天原来各有 45 块积木，一样多。后来乐乐送出了 12 块，这时天天反而比乐乐多 20 块。天天又搬来了几块积木？',
+      answer:'天天又搬来了 8 块积木。',
+      m1:'方法一（算一算）：乐乐现在 45－12＝33（块）；天天比乐乐多 20 块，所以天天现在 33＋20＝53（块）；天天搬来 53－45＝8（块）。',
+      m2:'方法二（圈一圈）：差 20＝减少 12＋增加？，所以增加量＝20－12＝8（块）。'
+    },
+    { theme:'星星夜', item:'⭐', unit:'颗',
+      A:{name:'小明', emoji:'🧑'}, B:{name:'小红', emoji:'👧'},
+      start:32, reverse:true,
+      given:{on:'A', type:'inc', amt:11}, targetDiff:19, unknown:{on:'B', type:'dec'},
+      text:'小明和小红原来各有 32 颗小星星，一样多。后来小明又得到了 11 颗，这时小明比小红多 19 颗。小红丢了几颗星星？',
+      answer:'小红丢了 8 颗星星。',
+      m1:'方法一（算一算）：小明现在 32＋11＝43（颗）；小明比小红多 19 颗，所以小红现在 43－19＝24（颗）；小红丢了 32－24＝8（颗）。',
+      m2:'方法二（圈一圈）：差 19＝增加 11＋减少？，所以减少量＝19－11＝8（颗）。'
+    },
+    { theme:'存钱罐', item:'🪙', unit:'枚',
+      A:{name:'小鹿', emoji:'🦌'}, B:{name:'小羊', emoji:'🐑'},
+      start:28, reverse:true,
+      given:{on:'A', type:'dec', amt:10}, targetDiff:15, unknown:{on:'B', type:'inc'},
+      text:'小鹿和小羊原来各有 28 枚硬币，一样多。后来小鹿花掉了 10 枚，这时小羊比小鹿多 15 枚。小羊又存进了几枚硬币？',
+      answer:'小羊又存进了 5 枚硬币。',
+      m1:'方法一（算一算）：小鹿现在 28－10＝18（枚）；小羊比小鹿多 15 枚，所以小羊现在 18＋15＝33（枚）；小羊存进 33－28＝5（枚）。',
+      m2:'方法二（圈一圈）：差 15＝减少 10＋增加？，所以增加量＝15－10＝5（枚）。'
+    }
+  ]
+};
+const TIER_NAME = {junior:'初级·热身小院', middle:'中级·彩虹集市', senior:'高级·星空挑战'};
+
+/* ---------- 全局状态 ---------- */
+const state = {
+  tier:null, queue:[], idx:0, problem:null,
+  phase:'idle',            // place / adjust / crown / paint / done
+  chars:null,              // {A:{kept,added,ghost}, B:{...}}
+  cardsPlaced:{A:false,B:false},
+  givenPlaced:false,
+  removed:0, added:0,      // 逆向关的取走/搬来数量
+  paintedSet:{},           // 已圈彩块索引 -> true
+  paintSide:null, targetStart:0,
+  steps:0, startTs:0, timerInt:null, elapsed:0,
+  revealed:false, paletteName:''
+};
+
+/* ---------- DOM 引用 ---------- */
+const $ = id => document.getElementById(id);
+const screenDifficulty = $('screenDifficulty'), screenGame = $('screenGame');
+const blocksA = $('blocksA'), blocksB = $('blocksB');
+const rowA = $('rowA'), rowB = $('rowB');
+const dragLayer = $('dragLayer');
+
+/* ---------- 计时器与步数（G7） ---------- */
+function startTimer(){
+  state.startTs = Math.floor(Date.now()/1000); state.elapsed = 0;
+  stopTimer();
+  state.timerInt = setInterval(()=>{
+    state.elapsed = Math.floor(Date.now()/1000) - state.startTs;
+    $('timer').textContent = fmtTime(state.elapsed);
+  }, 500);
+  $('timer').textContent = '00:00';
+}
+function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
+function bump(){ state.steps++; $('steps').textContent = String(state.steps); }
+function setHint(msg){ $('hintBar').textContent = msg; }
+
+/* ---------- 界面切换 ---------- */
+function showDifficulty(){
+  stopTimer();
+  screenGame.hidden = true; screenDifficulty.hidden = false;
+  $('tierBadge').textContent = '选难度';
+  applyRandomPalette();
+}
+function startTier(tier){
+  state.tier = tier;
+  applyRandomPalette(); /* 每局随机换主题色（G8） */
+  state.queue = shuffleArr(PROBLEMS[tier]).slice(0,3); /* 每局随机抽3关（反重复） */
+  state.idx = 0; state.steps = 0; $('steps').textContent = '0';
+  $('tierBadge').textContent = TIER_NAME[tier];
+  screenDifficulty.hidden = true; screenGame.hidden = false;
+  startTimer();
+  startLevel();
+}
+
+/* ---------- 关卡渲染 ---------- */
+function charObj(side){ return side==='A' ? state.problem.A : state.problem.B; }
+function curCount(side){ const c = state.chars[side]; return c.kept + c.added; }
+function rowLen(side){ const c = state.chars[side]; return c.kept + c.added + c.ghost; }
+
+function startLevel(){
+  const p = state.problem = state.queue[state.idx];
+  state.phase = 'place';
+  state.chars = {A:{kept:p.start, added:0, ghost:0}, B:{kept:p.start, added:0, ghost:0}};
+  state.cardsPlaced = {A:false,B:false}; state.givenPlaced = false;
+  state.removed = 0; state.added = 0; state.paintedSet = {}; state.paintSide = null;
+  state.revealed = false;
+  document.body.classList.remove('noTouch');
+
+  /* 题目卡：完整题干（G14） */
+  let html = '<span class="levelTag">第 '+(state.idx+1)+' 关 · '+p.theme+'</span>'+p.text;
+  if(p.reverse){ html += '<br><span class="goalTag">🎯 目标差距：'+p.targetDiff+' '+p.unit+'</span>'; }
+  $('problemCard').innerHTML = html;
+
+  /* 头像与徽章 */
+  $('avaA').textContent = p.A.emoji; $('nameA').textContent = p.A.name;
+  $('avaB').textContent = p.B.emoji; $('nameB').textContent = p.B.name;
+  $('avaA').classList.remove('crowned'); $('avaB').classList.remove('crowned');
+
+  renderRows(); updateBadges();
+  $('legendBar').classList.remove('show');
+  rowA.classList.remove('paintable'); rowB.classList.remove('paintable');
+
+  /* 阶段一：变化卡（顺序随机） */
+  buildCards();
+  showZone('zoneCards');
+  setHint('先读题，再动手：两张变化卡该分别放到哪一排呢？');
+}
+
+/* 生成变化卡：顺向题两张；逆向题只有“已知变化”一张 */
+function buildCards(){
+  const p = state.problem;
+  const wrap = $('cardsWrap'); wrap.innerHTML = '';
+  let cards = [];
+  if(!p.reverse){
+    const incSide = p.incOn, decSide = incSide==='A' ? 'B' : 'A';
+    cards.push({side:incSide, type:'inc', amt:p.inc,
+      desc:charObj(incSide).name+' · 又增加了 '+p.inc+' '+p.unit});
+    cards.push({side:decSide, type:'dec', amt:p.dec,
+      desc:charObj(decSide).name+' · 减少了 '+p.dec+' '+p.unit});
+  }else{
+    const g = p.given;
+    cards.push({side:g.on, type:g.type, amt:g.amt,
+      desc:charObj(g.on).name+' · '+(g.type==='inc'?'增加了':'减少了')+' '+g.amt+' '+p.unit});
+  }
+  cards = shuffleArr(cards);
+  cards.forEach(c=>{
+    const el = document.createElement('div');
+    el.className = 'changeCard '+(c.type==='inc'?'incCard':'decCard');
+    el.innerHTML = '<div class="big">'+(c.type==='inc'?'＋':'－')+c.amt+'</div><div class="desc">'+c.desc+'</div>';
+    el.addEventListener('pointerdown', function(ev){
+      if(el.classList.contains('used')) return;
+      startDrag(ev, el, {
+        ghostClass:'changeCard '+(c.type==='inc'?'incCard':'decCard'),
+        targets:()=>[rowA,rowB],
+        onDrop:(t)=>dropCard(c, t, el)
+      });
+    });
+    wrap.appendChild(el);
+  });
+}
+
+function dropCard(card, target, el){
+  bump();
+  if(!target){ setHint('要把卡片拖到小伙伴那一排上哦！'); return; }
+  const side = target.dataset.side;
+  if(side !== card.side){
+    setHint('再读读题：这张卡片说的是 '+charObj(card.side).name+' 的变化，放到 TA 那一排才对～');
+    return;
+  }
+  el.classList.add('used');
+  applyChange(side, card.type, card.amt);
+  if(!state.problem.reverse){
+    state.cardsPlaced[card.side] = true;
+    if(state.cardsPlaced.A && state.cardsPlaced.B){
+      setHint('两排都变好了！正在观察谁更多……');
+      setTimeout(toCrown, 1300);
+    }else{
+      setHint('还有一张变化卡没放呢！');
+    }
+  }else{
+    state.givenPlaced = true;
+    setTimeout(toAdjust, 900);
+  }
+}
+
+/* 应用一次变化：增加 → 尾部追加新彩块；减少 → 末尾变成虚影 */
+function applyChange(side, type, amt){
+  const c = state.chars[side];
+  if(type==='inc'){ c.added += amt; renderRows({side:side, from:c.kept+c.added-amt, kind:'added'}); }
+  else{ c.kept -= amt; c.ghost += amt; renderRows({side:side, from:c.kept+c.ghost-amt, kind:'ghost'}); }
+  updateBadges();
+}
+
+/* 渲染两排彩块（animate: {side,from,kind} 新出现的块做弹跳动画） */
+function renderRows(animate){
+  renderOneRow('A', blocksA, animate);
+  renderOneRow('B', blocksB, animate);
+  layoutBlocks();
+}
+function renderOneRow(side, container, animate){
+  const c = state.chars[side];
+  const cls = side==='A' ? 'a' : 'b';
+  container.innerHTML = '';
+  let i = 0;
+  const mk = (kind)=>{
+    const b = document.createElement('div');
+    b.className = 'blk '+cls+(kind==='added'?' added':kind==='ghost'?' ghost':'');
+    b.dataset.side = side; b.dataset.i = String(i); b.dataset.kind = kind;
+    if(animate && animate.side===side && animate.kind===kind && i>=animate.from){
+      b.classList.add('pop');
+      b.style.animationDelay = ((i-animate.from)*55)+'ms';
+    }
+    container.appendChild(b); i++;
+  };
+  for(let k=0;k<c.kept;k++) mk('kept');
+  for(let k=0;k<c.added;k++) mk('added');
+  for(let k=0;k<c.ghost;k++) mk('ghost');
+}
+/* 依据最长一排自动计算彩块尺寸，保证不超出容器 */
+function layoutBlocks(){
+  const w = Math.max(blocksA.clientWidth, blocksB.clientWidth, 200);
+  const n = Math.max(rowLen('A'), rowLen('B'), 1);
+  const gap = 3;
+  const size = clampN(Math.floor((w - (n-1)*gap)/n), 12, 24);
+  document.documentElement.style.setProperty('--bs', size+'px');
+}
+function updateBadges(){
+  const p = state.problem;
+  $('badgeA').innerHTML = '原来 '+p.start+' '+p.unit+'<br>现在 '+curCount('A')+' '+p.unit;
+  $('badgeB').innerHTML = '原来 '+p.start+' '+p.unit+'<br>现在 '+curCount('B')+' '+p.unit;
+}
+function showZone(id){
+  ['zoneCards','zoneAdjust','zoneCrown','zonePaint'].forEach(z=>{ $(z).hidden = (z!==id); });
+}
+
+/* ---------- 逆向关：搬彩块阶段 ---------- */
+function toAdjust(){
+  state.phase = 'adjust';
+  document.body.classList.add('noTouch');
+  const p = state.problem, u = p.unknown;
+  const zone = $('zoneAdjust');
+  const uName = charObj(u.on).name;
+  if(u.type==='dec'){
+    zone.innerHTML =
+      '<div class="zlabel">🧺 从 <b>'+uName+'</b> 那一排，把'+p.item+'一个个拖进回收篮，让两排差距正好是 <b>'+p.targetDiff+'</b> '+p.unit+'！</div>'+
+      '<div class="adjWrap">'+
+        '<div class="adjBox" id="binBox"><span class="ico">🧺</span>回收篮</div>'+
+        '<span class="adjChip">已取走 <b id="adjCount">0</b> '+p.unit+'</span>'+
+        '<span class="adjChip">🎯 目标差距 '+p.targetDiff+'</span>'+
+        '<button class="measureBtn" id="btnMeasure">📏 量一量现在的差距</button>'+
+      '</div><div class="binChips" id="binChips"></div>';
+  }else{
+    zone.innerHTML =
+      '<div class="zlabel">📦 从补给篮里，把'+p.item+'一个个拖到 <b>'+uName+'</b> 那一排，让两排差距正好是 <b>'+p.targetDiff+'</b> '+p.unit+'！</div>'+
+      '<div class="adjWrap">'+
+        '<div class="adjBox" id="pileBox"><span class="ico">📦</span>补给篮</div>'+
+        '<span class="adjChip">已搬来 <b id="adjCount">0</b> '+p.unit+'</span>'+
+        '<span class="adjChip">🎯 目标差距 '+p.targetDiff+'</span>'+
+        '<button class="measureBtn" id="btnMeasure">📏 量一量现在的差距</button>'+
+      '</div>';
+  }
+  showZone('zoneAdjust');
+  setHint('想一想：差 ＝ 增加的 ＋ 减少的。现在的差还不够，还是已经超了？');
+  if(u.type==='inc'){
+    /* 补给篮 → 目标那一排：搬来一个 */
+    $('pileBox').addEventListener('pointerdown', function(ev){
+      startDrag(ev, $('pileBox'), {ghostClass:'adjBox',
+        targets:()=>[u.on==='A'?blocksA:blocksB],
+        onDrop:(t)=>{ if(t){ addOne(); } else setHint('要把'+p.item+'拖到 '+uName+' 的那一排上哦！'); }});
+    });
+  }
+  $('btnMeasure').addEventListener('click', measure);
+  renderBinChips();
+}
+function renderBinChips(){
+  const holder = $('binChips'); if(!holder) return;
+  const p = state.problem, u = p.unknown;
+  holder.innerHTML = '';
+  for(let k=0;k<state.removed;k++){
+    const chip = document.createElement('div');
+    chip.className = 'binChip';
+    chip.addEventListener('pointerdown', function(ev){
+      startDrag(ev, chip, {ghostClass:'binChip',
+        targets:()=>[u.on==='A'?blocksA:blocksB],
+        onDrop:(t)=>{ if(t){ restoreOne(); } }});
+    });
+    holder.appendChild(chip);
+  }
+}
+/* 取走一个：末尾实块变虚影 */
+function removeOne(){
+  const p = state.problem, side = p.unknown.on, c = state.chars[side];
+  if(c.kept<=0) return;
+  c.kept--; c.ghost++; state.removed++;
+  renderRows({side:side, from:c.kept, kind:'ghost'}); updateBadges();
+  $('adjCount').textContent = String(state.removed);
+  renderBinChips(); bump();
+}
+/* 放回一个：末尾虚影变实块 */
+function restoreOne(){
+  const p = state.problem, side = p.unknown.on, c = state.chars[side];
+  if(c.ghost<=0) return;
+  c.ghost--; c.kept++; state.removed--;
+  renderRows({side:side, from:c.kept-1, kind:'kept'}); updateBadges();
+  $('adjCount').textContent = String(state.removed);
+  renderBinChips(); bump();
+}
+/* 搬来一个：尾部追加新彩块 */
+function addOne(){
+  const p = state.problem, side = p.unknown.on, c = state.chars[side];
+  c.added++; state.added++;
+  renderRows({side:side, from:c.kept+c.added-1, kind:'added'}); updateBadges();
+  $('adjCount').textContent = String(state.added);
+  bump();
+}
+/* 搬走一个（撤销）：尾部新彩块移除 */
+function unaddOne(){
+  const p = state.problem, side = p.unknown.on, c = state.chars[side];
+  if(c.added<=0) return;
+  c.added--; state.added--;
+  renderRows(); updateBadges();
+  $('adjCount').textContent = String(state.added);
+  bump();
+}
+/* 量一量：检查当前差是否等于目标 */
+function measure(){
+  bump();
+  const p = state.problem;
+  const diff = Math.abs(curCount('A')-curCount('B'));
+  const uName = charObj(p.unknown.on).name;
+  if(diff === p.targetDiff){
+    state.phase = 'measureOk'; /* 立即锁定搬块操作，防止过渡期误改 */
+    setHint('太准了！现在的差距正好是 '+p.targetDiff+' '+p.unit+'！👍');
+    $('btnMeasure').disabled = true;
+    document.body.classList.remove('noTouch');
+    setTimeout(toCrown, 900);
+  }else if(diff < p.targetDiff){
+    if(p.unknown.type==='dec') setHint('差距还不够（现在差 '+diff+'），再从 '+uName+' 那排取走一些吧！');
+    else setHint('差距还不够（现在差 '+diff+'），再给 '+uName+' 搬来一些吧！');
+  }else{
+    if(p.unknown.type==='dec') setHint('哎呀，取多了（现在差 '+diff+'）！从回收篮里放回去一些吧。');
+    else setHint('哎呀，搬多了（现在差 '+diff+'）！把多余的新彩块拖回补给篮吧。');
+  }
+}
+
+/* 彩块的“调整阶段”拖拽：实块→回收篮（减少型）/ 新彩块→补给篮（撤销） */
+document.addEventListener('pointerdown', function(e){
+  if(state.phase!=='adjust') return;
+  const blk = e.target.closest ? e.target.closest('.blk') : null;
+  if(!blk) return;
+  const p = state.problem, u = p.unknown;
+  const side = blk.dataset.side, kind = blk.dataset.kind;
+  const isDecSrc = (u.type==='dec' && side===u.on && kind==='kept');
+  const isIncUndo = (u.type==='inc' && side===u.on && kind==='added');
+  if(!isDecSrc && !isIncUndo) return;
+  startDrag(e, blk, {ghostClass:'blk '+blk.className.replace('blk ',''),
+    targets:()=>[isDecSrc ? $('binBox') : $('pileBox')],
+    onDrop:(t)=>{ if(!t){ setHint('拖到'+(isDecSrc?'回收篮':'补给篮')+'里才有效哦！'); return; }
+      if(isDecSrc) removeOne(); else unaddOne(); }});
+}, true);
+
+/* ---------- 加冕阶段 ---------- */
+function toCrown(){
+  state.phase = 'crown';
+  document.body.classList.remove('noTouch');
+  showZone('zoneCrown');
+  setHint('两排彩块谁更长？把皇冠拖给现在更多的小伙伴！');
+}
+function dropCrown(target){
+  bump();
+  if(!target){ setHint('要把皇冠拖到小伙伴的头像上哦！'); return; }
+  const side = target.closest('.charRow').dataset.side;
+  const winner = curCount('A')>=curCount('B') ? 'A' : 'B';
+  if(side===winner){
+    $(side==='A'?'avaA':'avaB').classList.add('crowned');
+    setHint('答对啦！'+charObj(winner).name+' 现在更多。接着把“不一样多”的部分圈出来！');
+    setTimeout(toPaint, 900);
+  }else{
+    setHint('再仔细比一比两排彩块的长短～谁多一目了然哦！');
+  }
+}
+
+/* ---------- 圈画（涂色）阶段 ---------- */
+function toPaint(){
+  state.phase = 'paint';
+  document.body.classList.add('noTouch');
+  const winner = curCount('A')>=curCount('B') ? 'A' : 'B';
+  const loser = winner==='A' ? 'B' : 'A';
+  state.paintSide = winner;
+  state.targetStart = curCount(loser);       /* 短排现在的数量：从这里开始是“多出来的” */
+  state.paintedSet = {};
+  $('paintCount').textContent = '0';
+  $(winner==='A'?'rowA':'rowB').classList.add('paintable');
+  showZone('zonePaint');
+  setHint('按住并划过 '+charObj(winner).name+' 那排“多出来”的彩块，把差全部圈出来！');
+}
+let strokeMode = 'paint';
+function startPaint(e, blk){
+  e.preventDefault();
+  const winner = state.paintSide;
+  if(blk.dataset.side !== winner){
+    setHint('先想一想：哪一排更长？“多出来的部分”在长的那一排的尾巴上！');
+    flashWrong(blk); bump();
+    return;
+  }
+  strokeMode = blk.classList.contains('painted') ? 'unpaint' : 'paint';
+  applyPaintBlk(blk);
+  const move = function(ev){
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const b = el && el.closest ? el.closest('.blk') : null;
+    if(b && b.dataset.side===winner && b.dataset.kind!=='ghost') applyPaintBlk(b);
+  };
+  const end = function(){
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', end);
+    bump(); /* 一次划动记一步 */
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', end);
+}
+function applyPaintBlk(blk){
+  if(strokeMode==='paint'){
+    if(blk.classList.contains('painted')) return;
+    const i = parseInt(blk.dataset.i, 10);
+    if(i >= state.targetStart){
+      blk.classList.add('painted');
+      state.paintedSet[i] = true;
+      $('paintCount').textContent = String(Object.keys(state.paintedSet).length);
+      checkPaintDone();
+    }else{
+      flashWrong(blk);
+      setHint('这块属于“一样多的部分”，不能算进差里哦！差在长排的尾巴上～');
+      bump();
+    }
+  }else{
+    if(blk.classList.contains('painted')){
+      blk.classList.remove('painted');
+      delete state.paintedSet[blk.dataset.i];
+      $('paintCount').textContent = String(Object.keys(state.paintedSet).length);
+    }
+  }
+}
+function flashWrong(blk){
+  blk.classList.add('wrongFlash');
+  setTimeout(function(){ blk.classList.remove('wrongFlash'); }, 480);
+}
+function paintTargets(){
+  /* 目标集合：长排中索引 >= targetStart 的实块 */
+  const t = [];
+  const container = state.paintSide==='A' ? blocksA : blocksB;
+  container.querySelectorAll('.blk').forEach(function(b){
+    if(b.dataset.kind!=='ghost' && parseInt(b.dataset.i,10) >= state.targetStart) t.push(b);
+  });
+  return t;
+}
+function checkPaintDone(){
+  const targets = paintTargets();
+  const done = targets.every(function(b){ return b.classList.contains('painted'); });
+  if(done){ state.phase='done'; setTimeout(revealDiff, 550); }
+}
+
+/* ---------- 揭示差：分解成“减少部分 + 增加部分” ---------- */
+function revealDiff(){
+  const p = state.problem;
+  const winner = state.paintSide, loser = winner==='A' ? 'B' : 'A';
+  const fromDec = state.chars[loser].ghost;   /* 对应“减少”的部分 */
+  const fromInc = state.chars[winner].added;  /* “增加”的部分 */
+  const diff = fromDec + fromInc;
+  /* 给尾巴上的彩块重新上色：前 fromDec 块=减少对应，后 fromInc 块=新增 */
+  const container = winner==='A' ? blocksA : blocksB;
+  container.querySelectorAll('.blk').forEach(function(b){
+    const i = parseInt(b.dataset.i,10);
+    if(i >= state.targetStart && b.dataset.kind!=='ghost'){
+      b.classList.remove('painted');
+      b.classList.add(i - state.targetStart < fromDec ? 'fromDec' : 'fromInc');
+    }
+  });
+  $('legendChips').innerHTML =
+    '<span class="chip dec">🔀 对应减少的部分：'+fromDec+' '+p.unit+'</span>'+
+    '<span class="chip inc">✨ 新增加的部分：'+fromInc+' '+p.unit+'</span>';
+  $('legendFormula').textContent = '现在的差 ＝ 减少 '+fromDec+' ＋ 增加 '+fromInc+' ＝ '+diff+' '+p.unit;
+  $('legendBar').classList.add('show');
+  document.body.classList.remove('noTouch');
+  setHint('不一样多的部分一共 '+diff+' '+p.unit+'，被你圈出来啦！🎉');
+  spawnBurst();
+  setTimeout(openResult, 1100);
+}
+
+/* ---------- 过关面板 ---------- */
+function openResult(){
+  const p = state.problem;
+  const winner = state.paintSide;
+  const diff = state.chars[winner].added + state.chars[(winner==='A'?'B':'A')].ghost;
+  let body = p.answer;
+  if(state.revealed){ body += '<br><span style="font-size:15px;color:#6B7280;">（本关查看过答案解析）</span>'; }
+  $('resultTitle').textContent = '🎉 第 '+(state.idx+1)+' 关 · 挑战成功！';
+  $('resultBody').innerHTML = body;
+  $('resultRhyme').innerHTML = '现在的差 ＝ 减少 '+(diff - state.chars[winner].added)+' ＋ 增加 '+state.chars[winner].added+' ＝ '+diff;
+  $('btnNextLevel').textContent = (state.idx >= state.queue.length-1) ? '领取通关庆祝 🏆' : '下一关 ➜';
+  $('resultOverlay').hidden = false;
+}
+$('btnNextLevel').addEventListener('click', function(){
+  $('resultOverlay').hidden = true;
+  if(state.idx >= state.queue.length-1){ finishGame(); }
+  else { state.idx++; startLevel(); }
+});
+
+/* ---------- 通关庆祝（G5） ---------- */
+function finishGame(){
+  stopTimer();
+  $('doneTime').textContent = fmtTime(state.elapsed);
+  $('doneSteps').textContent = String(state.steps);
+  $('doneTitle').textContent = '🏆 '+TIER_NAME[state.tier]+' 全部通关！';
+  $('doneOverlay').hidden = false;
+  launchConfetti();
+}
+$('btnPlayAgain').addEventListener('click', function(){
+  $('doneOverlay').hidden = true; startTier(state.tier);
+});
+$('btnChangeDiff').addEventListener('click', function(){
+  $('doneOverlay').hidden = true; showDifficulty();
+});
+
+/* 彩纸庆祝（Canvas） */
+const confettiCv = $('confettiCv');
+function launchConfetti(){
+  const ctx = confettiCv.getContext('2d');
+  confettiCv.width = window.innerWidth; confettiCv.height = window.innerHeight;
+  const colors = ['#F97316','#FACC15','#22C55E','#3B82F6','#EC4899','#8B5CF6'];
+  const parts = [];
+  for(let i=0;i<170;i++){
+    parts.push({x:Math.random()*confettiCv.width, y:-30-Math.random()*confettiCv.height*0.5,
+      w:6+Math.random()*8, h:8+Math.random()*10,
+      vy:2+Math.random()*3.2, vx:-1.4+Math.random()*2.8,
+      rot:Math.random()*Math.PI, vr:-0.12+Math.random()*0.24,
+      c:colors[Math.floor(Math.random()*colors.length)]});
+  }
+  const t0 = Date.now();
+  (function frame(){
+    ctx.clearRect(0,0,confettiCv.width,confettiCv.height);
+    parts.forEach(function(pt){
+      pt.x+=pt.vx; pt.y+=pt.vy; pt.rot+=pt.vr;
+      ctx.save(); ctx.translate(pt.x,pt.y); ctx.rotate(pt.rot);
+      ctx.fillStyle = pt.c; ctx.fillRect(-pt.w/2,-pt.h/2,pt.w,pt.h);
+      ctx.restore();
+    });
+    if(Date.now()-t0 < 5200){ requestAnimationFrame(frame); }
+    else{ ctx.clearRect(0,0,confettiCv.width,confettiCv.height); }
+  })();
+}
+/* 星星小庆祝（DOM） */
+function spawnBurst(){
+  const cx = window.innerWidth/2, cy = window.innerHeight*0.35;
+  const emo = ['⭐','🎉','✨','🌟','🎊'];
+  for(let i=0;i<12;i++){
+    const s = document.createElement('div');
+    s.className = 'burst';
+    s.textContent = emo[i%emo.length];
+    s.style.left = cx+'px'; s.style.top = cy+'px';
+    s.style.setProperty('--dx', (Math.random()*360-180)+'px');
+    s.style.setProperty('--dy', (-80-Math.random()*220)+'px');
+    document.body.appendChild(s);
+    setTimeout(function(){ s.remove(); }, 1400);
+  }
+}
+
+/* ---------- 通用拖拽引擎（Pointer Events，支持触摸） ---------- */
+function startDrag(e, el, cfg){
+  e.preventDefault();
+  document.body.classList.add('dragging');
+  const rect = el.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'dragGhost '+(cfg.ghostClass||'');
+  ghost.innerHTML = el.innerHTML;
+  ghost.style.width = rect.width+'px'; ghost.style.height = rect.height+'px';
+  ghost.style.lineHeight = rect.height+'px'; ghost.style.textAlign = 'center';
+  dragLayer.appendChild(ghost);
+  const offX = e.clientX-rect.left, offY = e.clientY-rect.top;
+  let hover = null;
+  function hit(x,y){
+    let found = null;
+    (cfg.targets()||[]).forEach(function(t){
+      if(!t||found) return;
+      const r = t.getBoundingClientRect();
+      if(r.left-16<=x && x<=r.right+16 && r.top-16<=y && y<=r.bottom+16) found = t;
+    });
+    return found;
+  }
+  function place(ev){
+    ghost.style.left = (ev.clientX-offX)+'px';
+    ghost.style.top = (ev.clientY-offY)+'px';
+    const t = hit(ev.clientX, ev.clientY);
+    if(t!==hover){
+      if(hover){ const r = hover.closest('.charRow'); if(r) r.classList.remove('dropOver'); }
+      hover = t;
+      if(hover){ const r = hover.closest('.charRow'); if(r) r.classList.add('dropOver'); }
+    }
+  }
+  function move(ev){ place(ev); }
+  function up(ev){
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.body.classList.remove('dragging');
+    if(hover){ const r = hover.closest('.charRow'); if(r) r.classList.remove('dropOver'); }
+    dragLayer.innerHTML = '';
+    cfg.onDrop(hit(ev.clientX, ev.clientY), ev);
+  }
+  place(e);
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+}
+
+/* ---------- 涂色入口（事件委托到两排容器） ---------- */
+[blocksA, blocksB].forEach(function(container){
+  container.addEventListener('pointerdown', function(e){
+    if(state.phase!=='paint') return;
+    const blk = e.target.closest('.blk');
+    if(blk) startPaint(e, blk);
+  });
+});
+
+/* ---------- 皇冠拖拽 ---------- */
+$('crownChip').addEventListener('pointerdown', function(e){
+  if(state.phase!=='crown') return;
+  startDrag(e, $('crownChip'), {ghostClass:'',
+    targets:()=>[$('avaA'), $('avaB')],
+    onDrop:(t)=>dropCrown(t)});
+});
+
+/* ---------- 揭示答案（G4） ---------- */
+$('btnReveal').addEventListener('click', function(){
+  const p = state.problem; if(!p) return;
+  state.revealed = true;
+  $('revealBody').innerHTML =
+    '<div class="methodBox"><b>'+p.m1+'</b></div>'+
+    '<div class="methodBox"><b>'+p.m2+'</b></div>'+
+    '<div class="methodBox">✅ <b>'+p.answer+'</b></div>';
+  $('revealOverlay').hidden = false;
+});
+$('btnRevealClose').addEventListener('click', function(){ $('revealOverlay').hidden = true; });
+$('btnRevealRestart').addEventListener('click', function(){
+  $('revealOverlay').hidden = true; startLevel();
+});
+
+/* ---------- 重新开始 / 返回难度（G4） ---------- */
+$('btnRestart').addEventListener('click', function(){ if(state.problem) startLevel(); });
+$('btnBackDiff').addEventListener('click', showDifficulty);
+
+/* ---------- 规则面板（G6） ---------- */
+$('btnRules').addEventListener('click', function(){ $('rulesOverlay').hidden = false; });
+$('btnRulesClose').addEventListener('click', function(){ $('rulesOverlay').hidden = true; });
+
+/* ---------- 难度卡片 ---------- */
+document.querySelectorAll('.diffCard').forEach(function(card){
+  card.addEventListener('click', function(){ startTier(card.dataset.tier); });
+});
+
+/* ---------- 窗口变化时重排彩块 ---------- */
+window.addEventListener('resize', function(){
+  if(state.problem) layoutBlocks();
+  confettiCv.width = window.innerWidth; confettiCv.height = window.innerHeight;
+});
+
+/* ---------- 启动：随机色板 + 弹出玩法说明 ---------- */
+applyRandomPalette();
+$('rulesOverlay').hidden = false;
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-g/g003", "name": "\u4e00\u589e\u4e00\u51cf\u627e\u5dee\u8bb0 \u00b7 \u6bd4\u591a\u5c11\u4e92\u52a8\u95ef\u5173", "file": "g003.html", "jiaocan": "\u30107\u3011\u7b2c2\u8bb2\u6bd4\u591a\u5c11(2)\u79d8\u7c4d3\u4e24\u6570\u76f8\u540c\uff0c\u4e00\u589e\u4e00\u51cf\uff0c\u53d8\u5316\u91cf\u4e0d\u540c\uff0c\u6c42\u201c\u5dee\u201d", "unit": "\u7b2c2\u8bb2\u6bd4\u591a\u5c11(2)\u79d8\u7c4d3\u4e24\u6570\u76f8\u540c\uff0c\u4e00\u589e\u4e00\u51cf\uff0c\u53d8\u5316\u91cf\u4e0d\u540c\uff0c\u6c42\u201c\u5dee\u201d", "grade": "\u4e8c\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "G\uff1a\u5e94\u7528\u9898\u4e13\u9879", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5e94\u7528\u9898\u4e13\u9879\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-g"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

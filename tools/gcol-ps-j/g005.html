@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>等高山峰探险 · 等高模型的综合应用</title>
+<style>
+/* ============ 全局样式（配色由 JS 随机注入 CSS 变量） ============ */
+:root{
+  --main:#2563eb; --deep:#1e40af; --bg:#f0f6ff; --panel:#ffffff;
+  --ink:#1f2937; --accent:#f59e0b; --line:#374151;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+  background:var(--bg); color:var(--ink); overflow:hidden; font-size:16px;
+}
+.hidden{ display:none !important; }
+button{ font-family:inherit; cursor:pointer; }
+
+/* ============ 难度选择页 ============ */
+#page-select{
+  height:100%; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:26px; padding:20px; overflow:auto;
+}
+#page-select h1{
+  font-size:40px; letter-spacing:4px; color:var(--deep);
+  text-shadow:0 2px 0 rgba(0,0,0,0.06);
+}
+#page-select .sub{ font-size:19px; color:#5b6472; }
+.diff-cards{ display:flex; gap:26px; flex-wrap:wrap; justify-content:center; }
+.diff-card{
+  width:250px; background:var(--panel); border:3px solid var(--main);
+  border-radius:20px; padding:22px 18px; text-align:center;
+  box-shadow:0 8px 20px rgba(30,64,175,0.15); transition:transform .15s, box-shadow .15s;
+}
+.diff-card:hover{ transform:translateY(-6px); box-shadow:0 14px 28px rgba(30,64,175,0.25); }
+.diff-card .lv{ font-size:30px; font-weight:bold; color:var(--main); }
+.diff-card .nm{ font-size:23px; font-weight:bold; margin:6px 0 10px; color:var(--ink); }
+.diff-card .ds{ font-size:16px; color:#5b6472; line-height:1.6; min-height:76px; }
+.diff-card .go{
+  margin-top:14px; width:100%; padding:12px 0; font-size:19px; font-weight:bold;
+  color:#fff; background:var(--main); border:none; border-radius:12px;
+}
+.diff-card .done-mark{
+  margin-top:10px; font-size:15px; font-weight:bold; color:#16a34a; min-height:20px;
+}
+.select-tip{ font-size:15px; color:#8a93a3; max-width:720px; text-align:center; line-height:1.7; }
+
+/* ============ 游戏页 ============ */
+#page-game{ height:100%; display:flex; flex-direction:column; }
+#game-header{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:10px 18px; background:var(--panel); border-bottom:3px solid var(--main);
+  flex-wrap:wrap;
+}
+#h-title{ font-size:21px; font-weight:bold; color:var(--deep); }
+#h-title .diff-tag{
+  display:inline-block; margin-left:10px; padding:2px 12px; border-radius:999px;
+  background:var(--main); color:#fff; font-size:15px; vertical-align:middle;
+}
+#h-progress{ font-size:18px; font-weight:bold; display:flex; align-items:center; gap:10px; }
+.dots{ display:flex; gap:7px; }
+.dot{
+  width:16px; height:16px; border-radius:50%; background:#d7dce5; border:2px solid #aab3c2;
+}
+.dot.cur{ border-color:var(--main); box-shadow:0 0 0 3px rgba(37,99,235,.25); }
+.dot.ok{ background:var(--accent); border-color:#b45309; }
+#h-stats{ font-size:17px; font-weight:bold; color:#475569; font-variant-numeric:tabular-nums; }
+#main-area{ flex:1; display:flex; min-height:0; }
+#canvas-wrap{
+  flex:1; position:relative; min-width:0; margin:12px;
+  background:var(--panel); border:3px solid var(--line); border-radius:16px; overflow:hidden;
+}
+#board{ position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+#hint-bar{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  background:rgba(31,41,55,0.82); color:#fff; font-size:16px; padding:8px 20px;
+  border-radius:999px; white-space:nowrap; max-width:94%; overflow:hidden; text-overflow:ellipsis;
+}
+#panel{
+  width:352px; margin:12px 12px 12px 0; background:var(--panel);
+  border:3px solid var(--line); border-radius:16px; padding:14px; overflow-y:auto;
+  display:flex; flex-direction:column; gap:12px;
+}
+#panel h3{ font-size:19px; color:var(--deep); }
+#lv-brief{ font-size:16px; line-height:1.75; background:var(--bg); border-radius:10px; padding:10px 12px; }
+#lv-brief .src{ display:block; margin-top:6px; font-size:14px; color:#8a93a3; }
+.sec-title{ font-size:16px; font-weight:bold; color:var(--deep); border-left:5px solid var(--main); padding-left:8px; }
+.badge{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  border:2px solid #cbd5e1; border-radius:12px; padding:8px 12px; margin-top:8px;
+  background:#f8fafc; font-size:16px; flex-wrap:wrap;
+}
+.badge .goal{ font-weight:bold; }
+.badge .cur{ font-variant-numeric:tabular-nums; color:#64748b; }
+.badge.ok{ border-color:#16a34a; background:#f0fdf4; }
+.badge.ok .cur{ color:#16a34a; font-weight:bold; }
+.badge .chk{
+  width:22px; height:22px; border-radius:50%; background:#e2e8f0; position:relative; flex:none;
+}
+.badge.ok .chk{ background:#16a34a; }
+.badge.ok .chk::after{
+  content:""; position:absolute; left:6px; top:3px; width:7px; height:12px;
+  border:solid #fff; border-width:0 3px 3px 0; transform:rotate(42deg);
+}
+#lv-live{ display:flex; flex-direction:column; gap:5px; margin-top:4px; }
+.live-row{
+  display:flex; align-items:center; gap:8px; font-size:16px;
+  font-variant-numeric:tabular-nums;
+}
+.live-row .sw{ width:15px; height:15px; border-radius:4px; border:1.5px solid rgba(0,0,0,.25); flex:none; }
+.live-row .nm{ flex:1; }
+.live-row .vl{ font-weight:bold; }
+.btn-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.btn{
+  padding:11px 6px; font-size:17px; font-weight:bold; border-radius:11px;
+  border:2.5px solid var(--main); background:#fff; color:var(--main);
+}
+.btn.primary{ background:var(--main); color:#fff; }
+.btn.warn{ border-color:#d97706; color:#b45309; background:#fffbeb; }
+.btn.plain{ border-color:#94a3b8; color:#475569; background:#f8fafc; }
+.btn:active{ transform:scale(0.96); }
+#lv-analysis{ display:none; flex-direction:column; gap:8px; }
+#lv-analysis.show{ display:flex; }
+#lv-analysis .box{
+  background:var(--bg); border:2px dashed var(--main); border-radius:12px; padding:12px;
+}
+#lv-analysis ol{ margin-left:22px; font-size:16px; line-height:1.8; }
+#lv-analysis .note{
+  margin-top:10px; padding:9px 10px; border-radius:9px; background:#fffbeb;
+  border:2px solid #f59e0b; font-size:16px; line-height:1.7;
+}
+#btn-next{
+  padding:13px 0; font-size:19px; border-radius:12px; border:none;
+  background:var(--accent); color:#78350f; font-weight:bold;
+}
+
+/* ============ 模态框（规则 / 完成） ============ */
+.modal-mask{
+  position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:60;
+  display:flex; align-items:center; justify-content:center; padding:18px;
+}
+.modal{
+  background:var(--panel); border-radius:18px; border:3px solid var(--main);
+  max-width:660px; width:100%; max-height:84vh; overflow-y:auto; padding:24px 26px;
+}
+.modal h2{ font-size:26px; color:var(--deep); margin-bottom:12px; }
+.modal .r{ font-size:17px; line-height:1.9; margin-bottom:8px; }
+.modal .r b{ color:var(--main); }
+.modal .close-btn{
+  margin-top:14px; width:100%; padding:13px 0; font-size:19px; font-weight:bold;
+  background:var(--main); color:#fff; border:none; border-radius:12px;
+}
+#done-stars{ display:flex; gap:14px; justify-content:center; margin:16px 0; }
+.star{
+  width:52px; height:52px; background:var(--accent);
+  clip-path:polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:80; }
+
+/* ============ 提示条 toast ============ */
+#toast{
+  position:fixed; top:14px; left:50%; transform:translateX(-50%);
+  background:rgba(31,41,55,0.92); color:#fff; font-size:17px; padding:10px 24px;
+  border-radius:999px; z-index:90; opacity:0; transition:opacity .25s; pointer-events:none;
+}
+#toast.show{ opacity:1; }
+
+/* ============ 移动端适配 ============ */
+@media (max-width:900px){
+  #page-select h1{ font-size:30px; }
+  .diff-card{ width:min(84vw,300px); }
+  #main-area{ flex-direction:column; }
+  #canvas-wrap{ flex:none; height:46vh; margin:10px; }
+  #panel{ width:auto; margin:0 10px 10px; flex:1; }
+  #h-title{ font-size:17px; }
+  #h-stats{ font-size:15px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 难度选择页 ================= -->
+<div id="page-select">
+  <h1>等高山峰探险</h1>
+  <div class="sub">第8讲 · 等高模型 · 综合应用（小学 · 几何专项）</div>
+  <div class="diff-cards">
+    <div class="diff-card">
+      <div class="lv">初级</div>
+      <div class="nm">山脚营地</div>
+      <div class="ds">拖动底边上的发光点，重新分配两块草地的面积，体会"高相等时，面积比 = 底边比"。</div>
+      <button class="go" data-diff="easy">开始闯关</button>
+      <div class="done-mark" data-done="easy"></div>
+    </div>
+    <div class="diff-card">
+      <div class="lv">中级</div>
+      <div class="nm">山腰迷阵</div>
+      <div class="ds">拖动四边形对角线的交点，让三块彩色区域的面积达标，见证倍数关系的神奇传递。</div>
+      <button class="go" data-diff="mid">开始闯关</button>
+      <div class="done-mark" data-done="mid"></div>
+    </div>
+    <div class="diff-card">
+      <div class="lv">高级</div>
+      <div class="nm">峰顶挑战</div>
+      <div class="ds">等积分割大挑战：拖动分割点，把三角形、正方形分成面积完全相等的小块！</div>
+      <button class="go" data-diff="hard">开始闯关</button>
+      <div class="done-mark" data-done="hard"></div>
+    </div>
+  </div>
+  <div class="select-tip">
+    玩法：拖动画布上的发光点，彩色区域的面积会实时变化；把右侧所有目标徽章点亮即可过关。
+    每一局的图形与数值都会重新随机，越玩越熟练！
+  </div>
+</div>
+
+<!-- ================= 游戏页 ================= -->
+<div id="page-game" class="hidden">
+  <header id="game-header">
+    <div id="h-title">等高山峰探险<span class="diff-tag" id="h-diff"></span></div>
+    <div id="h-progress"><span id="h-lvtext"></span><span class="dots" id="h-dots"></span></div>
+    <div id="h-stats">用时 <span id="h-time">00:00</span> · 步数 <span id="h-steps">0</span></div>
+  </header>
+  <div id="main-area">
+    <div id="canvas-wrap">
+      <canvas id="board"></canvas>
+      <div id="hint-bar">拖动画布上的发光点试试！</div>
+    </div>
+    <aside id="panel">
+      <h3 id="lv-title"></h3>
+      <div id="lv-brief"></div>
+      <div class="sec-title">目标徽章</div>
+      <div id="lv-targets"></div>
+      <div class="sec-title">实时面积（平方厘米）</div>
+      <div id="lv-live"></div>
+      <div class="btn-row">
+        <button class="btn warn" id="btn-reveal">揭示答案</button>
+        <button class="btn" id="btn-restart">重新开始</button>
+        <button class="btn plain" id="btn-rules">游戏规则</button>
+        <button class="btn plain" id="btn-back">返回难度选择</button>
+      </div>
+      <div id="lv-analysis">
+        <div class="sec-title">等高模型解析</div>
+        <div class="box">
+          <ol id="ana-steps"></ol>
+          <div class="note" id="ana-note"></div>
+        </div>
+        <button id="btn-next">进入下一关</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ================= 规则说明面板 ================= -->
+<div class="modal-mask hidden" id="rules-modal">
+  <div class="modal">
+    <h2>游戏规则 · 等高模型小锦囊</h2>
+    <div class="r"><b>什么是等高模型？</b>两个三角形有公共顶点，并且它们的对边在同一条直线上，那么过这个公共顶点的高就相等——这两个三角形就是"等高三角形"。</div>
+    <div class="r"><b>锦囊一：</b>等高三角形的面积倍数关系 = 底边的倍数关系。底边越长，面积越大。</div>
+    <div class="r"><b>锦囊二：</b>过三角形顶点且等分底边的线段，也等分面积；底边分成几比几，面积就分成几比几。</div>
+    <div class="r"><b>怎么玩：</b>拖动画布上<b>发光的点</b>，彩色区域的面积会实时变化。看右侧"目标徽章"，把所有徽章点亮（变绿打勾）就过关！</div>
+    <div class="r"><b>小提示：</b>高不变时，拖动底边上的点，就是在按底边比例重新分配面积——这正是等高模型的核心！</div>
+    <div class="r"><b>三档难度：</b>山脚营地（初级）练基本比例；山腰迷阵（中级）挑战倍数传递；峰顶挑战（高级）完成等积分割。</div>
+    <button class="close-btn" id="btn-rules-close">我知道了，出发！</button>
+  </div>
+</div>
+
+<!-- ================= 完成庆祝面板 ================= -->
+<div class="modal-mask hidden" id="done-modal">
+  <div class="modal" style="text-align:center;">
+    <h2 id="done-title">恭喜！</h2>
+    <div class="r" id="done-text"></div>
+    <div id="done-stars"></div>
+    <div class="btn-row" style="grid-template-columns:1fr 1fr;">
+      <button class="btn primary" id="btn-done-back">返回难度选择</button>
+      <button class="btn" id="btn-done-again">再玩一次（重新出题）</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="fx"></canvas>
+<div id="toast"></div>
+
+<script>
+/* ==================================================================
+   等高山峰探险 —— 等高模型综合应用互动游戏
+   核心机制：拖动几何图形上的分割点 / 顶点，实时重新分配彩色区域面积，
+   学生在"拖动—观察—定位"中体会：等高三角形 面积比 = 底边比。
+   ================================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+function rand(a, b){ return a + Math.random() * (b - a); }
+function randInt(a, b){ return Math.floor(rand(a, b + 1)); }
+function choice(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function mid(p, q){ return { x:(p.x+q.x)/2, y:(p.y+q.y)/2 }; }
+/* 鞋带公式求多边形面积（绝对值） */
+function polyArea(pts){
+  let s = 0;
+  for(let i = 0; i < pts.length; i++){
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    s += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(s) / 2;
+}
+/* 数值显示：整数不带小数，否则保留一位 */
+function fmt(x){
+  const r = Math.round(x * 10) / 10;
+  if(Math.abs(r - Math.round(r)) < 0.05) return String(Math.round(r));
+  return r.toFixed(1);
+}
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+
+/* ---------------- 随机色板（每局随机一套） ---------------- */
+const PALETTES = [
+  { name:"森林晨光", main:"#2e7d32", deep:"#1b5e20", bg:"#f1f8f2", accent:"#f9a825",
+    line:"#33413a", regions:["#66bb6a","#42a5f5","#ab47bc","#ffca28","#ef5350","#26c6da"] },
+  { name:"海洋远航", main:"#0277bd", deep:"#01579b", bg:"#eef6fc", accent:"#ffb300",
+    line:"#2c3e50", regions:["#29b6f6","#66bb6a","#ffca28","#8d6e63","#ec407a","#7e57c2"] },
+  { name:"日落暖橙", main:"#e65100", deep:"#bf360c", bg:"#fdf4ec", accent:"#0288d1",
+    line:"#4e342e", regions:["#ffa726","#66bb6a","#8d6e63","#29b6f6","#d4e157","#f06292"] },
+  { name:"葡萄紫谷", main:"#6a1b9a", deep:"#4a148c", bg:"#f7f0fb", accent:"#00897b",
+    line:"#3e2755", regions:["#ab47bc","#7e57c2","#4dd0e1","#aed581","#ffb74d","#f06292"] },
+  { name:"蜜桃果园", main:"#c2185b", deep:"#880e4f", bg:"#fdf0f5", accent:"#7cb342",
+    line:"#4a2c38", regions:["#f06292","#ffb74d","#4db6ac","#ba68c8","#7986cb","#a1887f"] },
+  { name:"星空靛蓝", main:"#283593", deep:"#1a237e", bg:"#eef0fb", accent:"#fb8c00",
+    line:"#263238", regions:["#5c6bc0","#26a69a","#ffca28","#ec407a","#8bc34a","#8d6e63"] }
+];
+let PAL = PALETTES[0];
+function applyRandomPalette(){
+  PAL = choice(PALETTES);
+  const root = document.documentElement.style;
+  root.setProperty("--main", PAL.main);
+  root.setProperty("--deep", PAL.deep);
+  root.setProperty("--bg", PAL.bg);
+  root.setProperty("--accent", PAL.accent);
+  root.setProperty("--line", PAL.line);
+}
+
+/* ==================================================================
+   关卡工厂：每个工厂返回统一的关卡对象
+   {
+     title, brief, tip, view, initParams, dragPoints,
+     compute(params) -> { regions, lines, dashes, dims, marks, tracks },
+     targets, revealParams, steps, successNote
+   }
+   ================================================================== */
+
+/* ---------- 初级 E1：面积比分配（1个拖动点） ---------- */
+function makeE1(){
+  const L = randInt(24, 40);                 // 底边 AB 长
+  const h = randInt(7, 13) * 2;              // 顶点 V 到 AB 的高（取偶数，面积值为整数）
+  const vx = L * rand(0.35, 0.65);           // V 的水平位置
+  const pq = choice([[1,2],[2,1],[1,3],[3,1],[2,3],[3,2]]);
+  const p = pq[0], q = pq[1];
+  const tTrue = p / (p + q);                 // P 正确位置参数（AP = t*L）
+  const A = {x:0,y:0}, B = {x:L,y:0};
+  let t0 = tTrue + choice([-1,1]) * rand(0.18, 0.32);
+  t0 = clamp(t0, 0.06, 0.94);
+  if(Math.abs(t0 - tTrue) < 0.07) t0 = clamp(tTrue - 0.2, 0.06, 0.94);
+  return {
+    title:"初级 · 草地比例分配",
+    tip:"高相等的两个三角形，面积比就等于底边比。拖动 P 试试！",
+    brief:"笔直的山路 AB 长 <b>" + L + " 厘米</b>，山顶小屋 V 到路面的高是 <b>" + h +
+      " 厘米</b>（A、P、B 在同一条直线上）。<br>请拖动路上的发光点 <b>P</b>，让两块彩色草地满足：" +
+      "S(△VAP) : S(△VBP) = <b>" + p + " : " + q + "</b>",
+    view:{ x0:-8, y0:-10, x1:L+8, y1:h+14 },
+    initParams:{ t:t0 },
+    revealParams:{ t:tTrue },
+    dragPoints:[{
+      id:"P",
+      getPos(pr){ return { x:pr.t * L, y:0 }; },
+      setParams(pr, w){ pr.t = clamp(w.x / L, 0.06, 0.94); }
+    }],
+    compute(pr){
+      const V = {x:vx, y:h}, P = {x:pr.t*L, y:0};
+      return {
+        regions:[
+          { key:"R1", name:"△VAP", poly:[V,A,P], colorI:0 },
+          { key:"R2", name:"△VBP", poly:[V,P,B], colorI:1 }
+        ],
+        lines:[[A,B],[V,A],[V,B]],
+        dashes:[[V,{x:vx,y:0}]],
+        dims:[
+          { a:A, b:B, label:"AB=" + L + "厘米", dx:0, dy:-2.6 },
+          { a:V, b:{x:vx,y:0}, label:"高=" + h + "厘米", dx:2.4, dy:0.6, dash:true }
+        ],
+        marks:[
+          { p:V, label:"V", dx:-1.6, dy:1.2 }, { p:A, label:"A", dx:-1.6, dy:-1.2 },
+          { p:B, label:"B", dx:1.6, dy:-1.2 }, { p:P, label:"P", dx:0, dy:-2.6, hot:true }
+        ],
+        tracks:[[{x:0.06*L,y:0},{x:0.94*L,y:0}]]
+      };
+    },
+    targets:[{ kind:"ratio", keyA:"R1", keyB:"R2", p:p, q:q,
+      name:"S(△VAP) : S(△VBP) = " + p + " : " + q }],
+    steps:[
+      "△VAP 与 △VBP 有公共顶点 V，底 AP、PB 在同一条直线 AB 上——它们是<b>等高三角形</b>（高都是 V 到 AB 的距离 " + h + " 厘米）。",
+      "等高模型告诉我们：<b>面积比 = 底边比</b>，所以 S(△VAP):S(△VBP) = AP:PB。",
+      "要让面积比 = " + p + ":" + q + "，就要 AP:PB = " + p + ":" + q + "。",
+      "AP = " + L + " × " + p + "/" + (p+q) + " = " + fmt(L*p/(p+q)) + " 厘米，PB = " + fmt(L*q/(p+q)) + " 厘米。"
+    ],
+    successNote:"看！高不变，P 把底边分成 " + p + ":" + q + "，两块面积恰好也是 " + p + ":" + q + "。这就是等高模型！"
+  };
+}
+
+/* ---------- 初级 E2：精准面积（1个拖动点） ---------- */
+function makeE2(){
+  const L = randInt(24, 40);
+  const h = randInt(7, 13) * 2;
+  const vx = L * rand(0.35, 0.65);
+  const APtrue = randInt(Math.round(L*0.25), Math.round(L*0.75));
+  const T = APtrue * h / 2;                  // 目标面积（整数）
+  const tTrue = APtrue / L;
+  const A = {x:0,y:0}, B = {x:L,y:0};
+  let t0 = tTrue + choice([-1,1]) * rand(0.2, 0.33);
+  t0 = clamp(t0, 0.06, 0.94);
+  if(Math.abs(t0 - tTrue) < 0.08) t0 = clamp(tTrue - 0.22, 0.06, 0.94);
+  return {
+    title:"初级 · 精准面积",
+    tip:"面积 = 底 × 高 ÷ 2。高固定时，想要多大的面积，就要多长的底。",
+    brief:"笔直的山路 AB 长 <b>" + L + " 厘米</b>，山顶小屋 V 到路面的高是 <b>" + h +
+      " 厘米</b>。<br>请拖动发光点 <b>P</b>，使左侧草地 △VAP 的面积恰好等于 <b>" + T + " 平方厘米</b>。",
+    view:{ x0:-8, y0:-10, x1:L+8, y1:h+14 },
+    initParams:{ t:t0 },
+    revealParams:{ t:tTrue },
+    dragPoints:[{
+      id:"P",
+      getPos(pr){ return { x:pr.t * L, y:0 }; },
+      setParams(pr, w){ pr.t = clamp(w.x / L, 0.06, 0.94); }
+    }],
+    compute(pr){
+      const V = {x:vx, y:h}, P = {x:pr.t*L, y:0};
+      return {
+        regions:[
+          { key:"R1", name:"△VAP", poly:[V,A,P], colorI:0 },
+          { key:"R2", name:"△VBP", poly:[V,P,B], colorI:1 }
+        ],
+        lines:[[A,B],[V,A],[V,B]],
+        dashes:[[V,{x:vx,y:0}]],
+        dims:[
+          { a:A, b:B, label:"AB=" + L + "厘米", dx:0, dy:-2.6 },
+          { a:V, b:{x:vx,y:0}, label:"高=" + h + "厘米", dx:2.4, dy:0.6, dash:true }
+        ],
+        marks:[
+          { p:V, label:"V", dx:-1.6, dy:1.2 }, { p:A, label:"A", dx:-1.6, dy:-1.2 },
+          { p:B, label:"B", dx:1.6, dy:-1.2 }, { p:P, label:"P", dx:0, dy:-2.6, hot:true }
+        ],
+        tracks:[[{x:0.06*L,y:0},{x:0.94*L,y:0}]]
+      };
+    },
+    targets:[{ kind:"value", key:"R1", name:"S(△VAP)", value:T, unit:"平方厘米" }],
+    steps:[
+      "△VAP 的高固定：V 到直线 AB 的距离 = " + h + " 厘米。",
+      "等高模型中：<b>S(△VAP) = AP × " + h + " ÷ 2</b>。",
+      "要使面积 = " + T + " 平方厘米，就要 AP = " + T + " × 2 ÷ " + h + " = <b>" + APtrue + " 厘米</b>。",
+      "把 P 拖到距离 A 点 " + APtrue + " 厘米的位置就成功啦！"
+    ],
+    successNote:"高 " + h + " 厘米不变，底 " + APtrue + " 厘米，面积正好 " + APtrue + "×" + h + "÷2 = " + T + " 平方厘米。"
+  };
+}
+
+/* ---------- 初级 E3：双点调音（拖顶点 V 改高 + 拖 P 分底） ---------- */
+function makeE3(){
+  const L = randInt(26, 42);
+  const hTrue = randInt(8, 15) * 2;          // 正确的高
+  const vx = L * rand(0.3, 0.7);
+  let APtrue = randInt(Math.round(L*0.25), Math.round(L*0.75));
+  if(Math.abs(APtrue - L/2) < 2) APtrue += 3;   // 保证两个目标值不相同
+  if(APtrue > L - 2) APtrue = L - 6;
+  const T1 = APtrue * hTrue / 2;
+  const T2 = (L - APtrue) * hTrue / 2;
+  const A = {x:0,y:0}, B = {x:L,y:0};
+  let hv0 = clamp(hTrue * choice([0.5, 0.6, 0.7, 1.2, 1.3, 1.4]), 6, 30);
+  if(Math.abs(hv0 - hTrue) < 2.5) hv0 = clamp(hTrue * 0.6, 6, 30);  // 防止初始就接近正确高度
+  let t0 = clamp(APtrue/L + choice([-1,1])*rand(0.18, 0.3), 0.06, 0.94);
+  return {
+    title:"初级 · 双点协奏",
+    tip:"V 控制高，P 控制分配。先想：两块面积之和由谁决定？",
+    brief:"山路 AB 长 <b>" + L + " 厘米</b>。这一关有<b>两个</b>发光点：小屋 <b>V</b>（可上下拖动，改变高）和路上的 <b>P</b>。<br>" +
+      "请同时拖动 V 和 P，让两块草地同时达标：S(△VAP) = <b>" + T1 + "</b> 平方厘米，S(△VBP) = <b>" + T2 + "</b> 平方厘米。",
+    view:{ x0:-8, y0:-10, x1:L+8, y1:34 },
+    initParams:{ hv:hv0, t:t0 },
+    revealParams:{ hv:hTrue, t:APtrue/L },
+    dragPoints:[
+      { id:"V",
+        getPos(pr){ return { x:vx, y:pr.hv }; },
+        setParams(pr, w){ pr.hv = clamp(w.y, 6, 30); } },
+      { id:"P",
+        getPos(pr){ return { x:pr.t * L, y:0 }; },
+        setParams(pr, w){ pr.t = clamp(w.x / L, 0.06, 0.94); } }
+    ],
+    compute(pr){
+      const V = {x:vx, y:pr.hv}, P = {x:pr.t*L, y:0};
+      return {
+        regions:[
+          { key:"R1", name:"△VAP", poly:[V,A,P], colorI:0 },
+          { key:"R2", name:"△VBP", poly:[V,P,B], colorI:1 }
+        ],
+        lines:[[A,B],[V,A],[V,B]],
+        dashes:[[V,{x:vx,y:0}]],
+        dims:[
+          { a:A, b:B, label:"AB=" + L + "厘米", dx:0, dy:-2.6 },
+          { a:V, b:{x:vx,y:0}, label:"高会随V变化", dx:3, dy:0.6, dash:true }
+        ],
+        marks:[
+          { p:V, label:"V", dx:-1.6, dy:1.2, hot:true }, { p:A, label:"A", dx:-1.6, dy:-1.2 },
+          { p:B, label:"B", dx:1.6, dy:-1.2 }, { p:P, label:"P", dx:0, dy:-2.6, hot:true }
+        ],
+        tracks:[[{x:vx,y:6},{x:vx,y:30}],[{x:0.06*L,y:0},{x:0.94*L,y:0}]]
+      };
+    },
+    targets:[
+      { kind:"value", key:"R1", name:"S(△VAP)", value:T1, unit:"平方厘米" },
+      { kind:"value", key:"R2", name:"S(△VBP)", value:T2, unit:"平方厘米" }
+    ],
+    steps:[
+      "两块草地共用高（V 到 AB 的距离），设为 h，则 S(△VAP)+S(△VBP) = " + L + " × h ÷ 2。",
+      "两个目标相加：" + T1 + " + " + T2 + " = " + (T1+T2) + " 平方厘米，所以 " + L + "×h÷2 = " + (T1+T2) + "，解得 <b>h = " + hTrue + " 厘米</b>——先把 V 拖到这个高度。",
+      "再分配底边：S(△VAP) = " + T1 + " → AP = " + T1 + "×2÷" + hTrue + " = <b>" + APtrue + " 厘米</b>——把 P 拖到这里。",
+      "验证：S(△VBP) = " + (L-APtrue) + "×" + hTrue + "÷2 = " + T2 + " 平方厘米，正好达标！"
+    ],
+    successNote:"高决定总面积，底边分割决定分配比例——等高模型的两要素你都用上了！"
+  };
+}
+
+/* ---------- 中级：四边形对角线交点（改编自例5，倍数传递） ---------- */
+function makeMid(useExample){
+  let k, S1, S2, S3;
+  if(useExample){
+    k = 1.5; S2 = 20; S1 = 30; S3 = 10;      // 例5 原题数值
+  } else {
+    k = choice([1.25, 1.5, 2, 2.5, 3]);
+    S2 = choice([16, 20, 24, 28, 32]);
+    S3 = choice([12, 16, 20, 24]);
+    /* 保证 kD=1+S3/S2 落在 D 点可拖范围 [1.15, 2.3] 内，且目标值互不相同 */
+    while(S3 > 1.3 * S2 || S3 === k * S2 || S3 === S2){
+      S2 = choice([16, 20, 24, 28, 32]);
+      S3 = choice([12, 16, 20, 24]);
+    }
+    S1 = k * S2;
+  }
+  const S4 = S3 * k;
+  const total = S1 + S2 + S3 + S4;
+  const AClen = randInt(50, 80);             // 对角线 AC 的长度（画面尺寸单位）
+  const tTrue = k / (1 + k);                 // AE / AC
+  const EC = AClen / (1 + k);
+  const hB = 2 * S2 / EC;                    // B 到 AC 的高
+  const bx = rand(0.25, 0.55) * tTrue * AClen;
+  const B = { x:bx, y:hB };
+  const A = { x:0, y:0 }, C = { x:AClen, y:0 };
+  const kD = 1 + S3 / S2;                    // D = B + kD*(E-B)，保证 S(CDE)=S3
+  let t0 = clamp(tTrue - rand(0.12, 0.25), 0.18, 0.85);
+  if(Math.abs(t0 - tTrue) < 0.06) t0 = clamp(tTrue - 0.1, 0.18, 0.85);
+  const u0 = clamp(kD * rand(1.2, 1.55), 1.15, 2.3);
+  const kTxt = (k === 2 || k === 3) ? String(k) : String(k);
+  function EOf(pr){ return { x:pr.t * AClen, y:0 }; }
+  function DOf(pr){ const E = EOf(pr); return { x:B.x + pr.u*(E.x-B.x), y:B.y + pr.u*(E.y-B.y) }; }
+  return {
+    title:"中级 · 对角线交点探秘",
+    tip:"E 管左右分配（AE:CE），D 管上下高。先拖 E 定比例，再拖 D 定面积。",
+    brief:"四边形 ABCD 中，对角线 <b>AC 与 BD 相交于点 E</b>。<b>E</b> 可沿 AC 拖动，<b>D</b> 可沿 BE 的延长线拖动。<br>" +
+      "请拖动 E 和 D，使 <b>S(△ABE) = " + fmt(S1) + "</b> 且 <b>S(△CDE) = " + fmt(S3) + "</b>（看目标徽章）。" +
+      '<span class="src">改编自本讲 · 例5</span>',
+    /* 几何常量挂在关卡对象上，供画布动态绘制 D 点轨道使用 */
+    _A:A, _B:B, _AClen:AClen,
+    fixedView:(function(){
+      const Et = { x:tTrue*AClen, y:0 };
+      const dMin = { x:B.x + 1.15*(Et.x-B.x), y:B.y + 1.15*(Et.y-B.y) };
+      const dMax = { x:B.x + 2.3*(Et.x-B.x), y:B.y + 2.3*(Et.y-B.y) };
+      const ymin = Math.min(dMin.y, dMax.y, 0) - 10;
+      return { x0:-10, y0:ymin, x1:AClen+10, y1:hB+12 };
+    })(),
+    initParams:{ t:t0, u:u0 },
+    revealParams:{ t:tTrue, u:kD },
+    dragPoints:[
+      { id:"E",
+        getPos(pr){ return EOf(pr); },
+        setParams(pr, w){ pr.t = clamp(w.x / AClen, 0.18, 0.85); } },
+      { id:"D",
+        getPos(pr){ return DOf(pr); },
+        setParams(pr, w){
+          const E = EOf(pr);
+          const vx = E.x - B.x, vy = E.y - B.y;
+          const len2 = vx*vx + vy*vy;
+          const u = ((w.x - B.x)*vx + (w.y - B.y)*vy) / len2;
+          pr.u = clamp(u, 1.15, 2.3);
+        } }
+    ],
+    compute(pr){
+      const E = EOf(pr), D = DOf(pr);
+      return {
+        regions:[
+          { key:"ABE", name:"△ABE", poly:[A,B,E], colorI:0 },
+          { key:"BCE", name:"△BCE", poly:[B,C,E], colorI:1 },
+          { key:"CDE", name:"△CDE", poly:[C,D,E], colorI:2 },
+          { key:"ADE", name:"△ADE", poly:[A,D,E], colorI:3 }
+        ],
+        lines:[[A,B],[B,C],[C,D],[D,A],[A,C],[B,D]],
+        dashes:[],
+        dims:[],
+        marks:[
+          { p:A, label:"A", dx:-1.8, dy:-1.4 }, { p:B, label:"B", dx:0, dy:2.2 },
+          { p:C, label:"C", dx:1.8, dy:-1.4 }, { p:D, label:"D", dx:0, dy:-2.6, hot:true },
+          { p:E, label:"E", dx:2.2, dy:1.6, hot:true }
+        ],
+        tracks:[
+          [{x:0.18*AClen,y:0},{x:0.85*AClen,y:0}],
+          null // D 的轨道随 E 变化，渲染时动态补
+        ],
+        dynTrackD:true
+      };
+    },
+    targets:[
+      { kind:"value", key:"ABE", name:"S(△ABE)", value:S1, unit:"平方厘米" },
+      { kind:"value", key:"CDE", name:"S(△CDE)", value:S3, unit:"平方厘米" }
+    ],
+    steps:[
+      "△ABE 与 △BCE 是等高模型：公共顶点 B，底 AE、CE 在同一条直线 AC 上，高相等（都是 B 到 AC 的距离）。",
+      "所以 <b>S(△ABE) : S(△BCE) = AE : CE = " + fmt(S1) + " : " + fmt(S2) + "</b>，即 AE 是 CE 的 " + kTxt + " 倍。",
+      "△ADE 与 △CDE 也是等高模型：公共顶点 D，底 AE、CE 仍在直线 AC 上，高都是 D 到 AC 的距离。",
+      "所以 S(△ADE) = S(△CDE) × " + kTxt + " = " + fmt(S3) + " × " + kTxt + " = <b>" + fmt(S4) + "（平方厘米）</b>——第四块被等高模型锁定！",
+      "四边形 ABCD 的面积 = " + fmt(S1) + "+" + fmt(S2) + "+" + fmt(S3) + "+" + fmt(S4) + " = <b>" + fmt(total) + " 平方厘米</b>。"
+    ],
+    successNote:"三块面积确定后，第四块 △ADE = " + fmt(S3) + " × " + kTxt + " = " + fmt(S4) +
+      " 平方厘米。四边形 ABCD 的总面积 = " + fmt(total) + " 平方厘米。（这正是例5 的解法！）"
+  };
+}
+
+/* ---------- 高级 H1：六块等积分割（改编自例6） ---------- */
+function makeH1(){
+  let AB, BC, AC;
+  do{
+    AB = randInt(5, 9) * 2;                  // 偶数 → AD=AB/2 为整数
+    BC = randInt(5, 9) * 2;                  // 偶数 → BE=BC/2 为整数
+    AC = randInt(4, 8) * 3;                  // 3 的倍数 → AF=AC/3 为整数
+  } while(!(AB + BC > AC && AB + AC > BC && BC + AC > AB));
+  const B = {x:0,y:0}, C = {x:BC,y:0};
+  const ax = (AB*AB + BC*BC - AC*AC) / (2*BC);
+  const ay = Math.sqrt(Math.max(0.01, AB*AB - ax*ax));
+  const A = {x:ax, y:ay};
+  const D = mid(A, B);                        // D 是 AB 中点
+  const E = mid(B, C);                        // E 是 BC 中点
+  const G = { x:A.x + (E.x - A.x)*2/3, y:A.y + (E.y - A.y)*2/3 };  // AG:GE = 2:1
+  const tTrue = 1/3;                          // AF = AC/3
+  let t0 = clamp(1/3 - rand(0.1, 0.22), 0.08, 0.92);
+  const AD = AB/2, BE = BC/2, AF = AC/3, CF = AC - AF;
+  const sum = AD + BE + CF;
+  return {
+    title:"高级 · 六块等积挑战",
+    tip:"F 只影响右侧三块。想一想：△AFE 应该占 △ACE 的几分之几？",
+    brief:"大三角形 ABC（AB=<b>" + AB + "厘米</b>，BC=<b>" + BC + "厘米</b>，AC=<b>" + AC +
+      "厘米</b>）被线段 AE、DG、BG、EF、CM 分成 6 块。其中 <b>D 是 AB 的中点</b>，<b>E 是 BC 的中点</b>，G 在 AE 上（AG:GE=2:1），<b>M 是 EF 的中点</b>（随 F 移动）。<br>" +
+      "请拖动发光点 <b>F</b>（沿 AC 移动），使 <b>6 个小三角形的面积全部相等</b>！" +
+      '<span class="src">改编自本讲 · 例6</span>',
+    view:{ x0:-9, y0:-9, x1:BC+9, y1:ay+11 },
+    initParams:{ t:t0 },
+    revealParams:{ t:tTrue },
+    dragPoints:[{
+      id:"F",
+      getPos(pr){ return { x:A.x + pr.t*(C.x-A.x), y:A.y + pr.t*(C.y-A.y) }; },
+      setParams(pr, w){
+        const vx = C.x - A.x, vy = C.y - A.y;
+        const t = ((w.x-A.x)*vx + (w.y-A.y)*vy) / (vx*vx + vy*vy);
+        pr.t = clamp(t, 0.08, 0.92);
+      }
+    }],
+    compute(pr){
+      const F = { x:A.x + pr.t*(C.x-A.x), y:A.y + pr.t*(C.y-A.y) };
+      const M = mid(E, F);
+      return {
+        regions:[
+          { key:"ADG", name:"△ADG", poly:[A,D,G], colorI:0 },
+          { key:"BDG", name:"△BDG", poly:[B,D,G], colorI:1 },
+          { key:"BEG", name:"△BEG", poly:[B,E,G], colorI:2 },
+          { key:"CEM", name:"△CEM", poly:[C,E,M], colorI:3 },
+          { key:"CMF", name:"△CMF", poly:[C,M,F], colorI:4 },
+          { key:"AFE", name:"△AFE", poly:[A,F,E], colorI:5 }
+        ],
+        lines:[[A,B],[B,C],[C,A],[A,E],[B,G],[D,G],[E,F],[C,M]],
+        dashes:[],
+        dims:[
+          { a:A, b:B, label:"AB=" + AB + "厘米", dx:-2.5, dy:1.6 },
+          { a:B, b:C, label:"BC=" + BC + "厘米", dx:0, dy:-2.6 },
+          { a:A, b:C, label:"AC=" + AC + "厘米", dx:2.6, dy:0.6 }
+        ],
+        marks:[
+          { p:A, label:"A", dx:-1.8, dy:1.6 }, { p:B, label:"B", dx:-1.8, dy:-1.6 },
+          { p:C, label:"C", dx:1.8, dy:-1.6 }, { p:D, label:"D", dx:-1.6, dy:-1.6 },
+          { p:E, label:"E", dx:1.6, dy:-1.6 }, { p:G, label:"G", dx:-1.8, dy:-1.4 },
+          { p:F, label:"F", dx:1.9, dy:1.2, hot:true }, { p:M, label:"M", dx:2, dy:0.9 }
+        ],
+        tracks:[[A,C]]
+      };
+    },
+    targets:[{ kind:"equal",
+      keys:["ADG","BDG","BEG","CEM","CMF","AFE"],
+      name:"6 个小三角形面积全部相等" }],
+    steps:[
+      "E 是 BC 中点 → △ABE 与 △ACE 等高（公共顶点 A，底 BE、CE 共线）→ 两个大三角形面积相等，各占 ABC 的一半。",
+      "G 在 AE 上且 AG:GE=2:1 → △ABG 与 △BEG 等高（公共顶点 B）→ 面积比 2:1，恰好 △ABG=总面积的 1/3、△BEG=1/6。",
+      "D 是 AB 中点 → △ADG 与 △BDG 等高（公共顶点 G，AD=DB）→ 面积相等，各是 1/3 的一半 = <b>总面积的 1/6</b>。左半三块（△ADG、△BDG、△BEG）都等于 1/6。",
+      "要六块等积，还需 S(△AFE)=1/6 总面积；△AFE 与 △ACE 等高（公共顶点 E，底在 AC 上），S(△AFE)=S(△ACE)×AF/AC → <b>AF = AC÷3 = " + AF + " 厘米</b>。",
+      "这正是例6 的结论：AD=AB÷2=" + AD + "，BE=BC÷2=" + BE + "，CF=2AF=" + CF + " → <b>AD+BE+CF = " + sum + " 厘米</b>。"
+    ],
+    successNote:"六块全部相等！本讲例6 中：AD=" + AD + "、BE=" + BE + "、CF=" + CF + "，所以 AD+BE+CF=" + sum + " 厘米。"
+  };
+}
+
+/* ---------- 高级 H2：折线四等积（改编自练习6） ---------- */
+function makeH2(){
+  const L = choice([48, 72, 96]);             // 正三角形边长（24 的倍数保证各段整数）
+  const hEq = L * Math.sqrt(3) / 2;
+  const A = {x:0,y:0}, C = {x:L,y:0}, B = {x:L/2, y:hEq};
+  const D = { x:L/4, y:0 };                   // AD = L/4
+  const E = { x:B.x + (C.x-B.x)/3, y:B.y + (C.y-B.y)/3 };  // BE = L/3
+  const tTrue = 0.5;                          // F 是 DC 中点
+  let t0 = tTrue + choice([-1,1]) * rand(0.18, 0.3);
+  t0 = clamp(t0, 0.06, 0.94);
+  if(Math.abs(t0 - tTrue) < 0.08) t0 = 0.24;
+  const AD = L/4, BE = L/3, CE = 2*L/3, CF = 3*L/8, sum = CE + CF;
+  return {
+    title:"高级 · 折线四等积",
+    tip:"△DEF 与 △CEF 公共顶点是 E，等高！底 DF、CF 相等时面积才相等。",
+    brief:"正三角形 ABC 的边长为 <b>" + L + " 厘米</b>，折线 <b>B→D→E→F</b> 把它分成 4 块。已知 <b>D 在 AC 上且 AD=" + AD +
+      " 厘米</b>，<b>E 在 BC 上且 BE=" + BE + " 厘米</b>。<br>请拖动发光点 <b>F</b>（沿 AC 移动），使 <b>4 个小三角形的面积全部相等</b>！" +
+      '<span class="src">改编自本讲 · 练习6</span>',
+    view:{ x0:-9, y0:-9, x1:L+9, y1:hEq+11 },
+    initParams:{ t:t0 },
+    revealParams:{ t:tTrue },
+    dragPoints:[{
+      id:"F",
+      getPos(pr){ return { x:D.x + pr.t*(C.x-D.x), y:0 }; },
+      setParams(pr, w){ pr.t = clamp((w.x - D.x) / (C.x - D.x), 0.06, 0.94); }
+    }],
+    compute(pr){
+      const F = { x:D.x + pr.t*(C.x-D.x), y:0 };
+      return {
+        regions:[
+          { key:"ABD", name:"△ABD", poly:[A,B,D], colorI:0 },
+          { key:"BDE", name:"△BDE", poly:[B,D,E], colorI:1 },
+          { key:"DEF", name:"△DEF", poly:[D,E,F], colorI:2 },
+          { key:"EFC", name:"△EFC", poly:[E,F,C], colorI:3 }
+        ],
+        lines:[[A,B],[B,C],[C,A],[B,D],[D,E],[E,F]],
+        dashes:[],
+        dims:[
+          { a:A, b:C, label:"AC=" + L + "厘米（AD=" + AD + "厘米）", dx:0, dy:-2.8 },
+          { a:B, b:E, label:"BE=" + BE + "厘米", dx:2.6, dy:1.2 }
+        ],
+        marks:[
+          { p:A, label:"A", dx:-1.8, dy:-1.4 }, { p:B, label:"B", dx:0, dy:2.2 },
+          { p:C, label:"C", dx:1.8, dy:-1.4 }, { p:D, label:"D", dx:-1.5, dy:-1.8 },
+          { p:E, label:"E", dx:1.9, dy:1.2 }, { p:F, label:"F", dx:0, dy:-2.8, hot:true }
+        ],
+        tracks:[[D,C]]
+      };
+    },
+    targets:[{ kind:"equal", keys:["ABD","BDE","DEF","EFC"],
+      name:"4 个小三角形面积全部相等" }],
+    steps:[
+      "总面积按 4 等份分，每块 = S(△ABC) ÷ 4。D 已放在 AC 的四等分点：S(△ABD) = 总面积 ÷ 4（AD=" + AD + " 厘米）。",
+      "△BDE 与 △CDE 等高（公共顶点 D，底 BE、CE 共线）→ 面积比 = BE:CE = " + BE + ":" + CE + " = 1:2，恰好 S(△BDE) = 总面积 ÷ 4。",
+      "△DEF 与 △CEF 等高（公共顶点 E，底 DF、CF 都在直线 AC 上）→ 要 S(△DEF)=S(△CEF)，必须 <b>DF = CF，即 F 是 DC 的中点</b>。",
+      "所以 CF = DC÷2 = (" + L + "−" + AD + ")÷2 = <b>" + CF + " 厘米</b>，四块都是总面积的 1/4。",
+      "本讲练习6 求 CE+CF = " + CE + "+" + CF + " = <b>" + sum + " 厘米</b>。"
+    ],
+    successNote:"四块完全相等！练习6 中 CE=" + CE + " 厘米、CF=" + CF + " 厘米，CE+CF=" + sum + " 厘米。"
+  };
+}
+
+/* ---------- 高级 H3：正方形阴影面积（改编自练习5） ---------- */
+function makeH3(){
+  const s = randInt(10, 16);                  // 正方形边长
+  const a = randInt(6, s - 3);                // AE 长
+  const tTrue = choice([1/3, 0.4, 5/12, 0.5, 7/12, 0.6, 2/3]); // AF/AC
+  const T = s * a * (1 - tTrue) / 4;          // 目标：S(△EFG)（等高链推出）
+  const Sace = s * a / 2;
+  const A = {x:0,y:0}, B = {x:s,y:0}, C = {x:s,y:s}, Dp = {x:0,y:s};
+  const E = {x:a, y:0};
+  const G = mid(E, C);                        // G 是 EC 中点
+  let t0 = clamp(tTrue - rand(0.15, 0.3), 0.1, 0.9);
+  if(Math.abs(t0 - tTrue) < 0.07) t0 = clamp(tTrue - 0.12, 0.1, 0.9);
+  const vCFE = 2 * T, vAFE = Sace - 2 * T;
+  return {
+    title:"高级 · 金色阴影定位",
+    tip:"S(△ACE) 能先算出来！再用两次等高模型倒推 F 的位置。",
+    brief:"正方形 ABCD 的边长为 <b>" + s + " 厘米</b>，E 在 AB 上且 <b>AE=" + a + "厘米</b>，<b>G 是 EC 的中点</b>（固定）。F 在对角线 AC 上（可拖动）。<br>" +
+      "请拖动发光点 <b>F</b>，使金色阴影 <b>△EFG 的面积 = " + fmt(T) + " 平方厘米</b>（看目标徽章）。" +
+      '<span class="src">改编自本讲 · 练习5</span>',
+    view:{ x0:-8, y0:-13, x1:s+9, y1:s+11 },
+    initParams:{ t:t0 },
+    revealParams:{ t:tTrue },
+    dragPoints:[{
+      id:"F",
+      getPos(pr){ return { x:pr.t * s, y:pr.t * s }; },
+      setParams(pr, w){
+        const t = (w.x + w.y) / (2 * s);
+        pr.t = clamp(t, 0.1, 0.9);
+      }
+    }],
+    compute(pr){
+      const F = { x:pr.t*s, y:pr.t*s };
+      return {
+        regions:[
+          { key:"ACD", name:"△ACD", poly:[A,C,Dp], colorI:5, muted:true },
+          { key:"EBC", name:"△EBC", poly:[E,B,C], colorI:4, muted:true },
+          { key:"AFE", name:"△AFE", poly:[A,F,E], colorI:0 },
+          { key:"EFG", name:"△EFG", poly:[E,F,G], colorI:9, target:true },
+          { key:"CFG", name:"△CFG", poly:[C,F,G], colorI:2 }
+        ],
+        lines:[[A,B],[B,C],[C,Dp],[Dp,A],[A,C],[E,C],[E,F],[F,G]],
+        dashes:[],
+        dims:[
+          { a:A, b:B, label:"正方形边长=" + s + "厘米", dx:0, dy:-2.6 },
+          { a:A, b:E, label:"AE=" + a + "厘米", dx:0, dy:-2.6 },
+          { a:E, b:C, label:"G 是 EC 中点", dx:2.8, dy:0.8 }
+        ],
+        marks:[
+          { p:A, label:"A", dx:-1.6, dy:-1.4 }, { p:B, label:"B", dx:1.6, dy:-1.4 },
+          { p:C, label:"C", dx:1.6, dy:1.6 }, { p:Dp, label:"D", dx:-1.6, dy:1.6 },
+          { p:E, label:"E", dx:0, dy:-2.4 }, { p:F, label:"F", dx:-1.9, dy:-0.9, hot:true },
+          { p:G, label:"G", dx:1.9, dy:0.9 }
+        ],
+        tracks:[[{x:0.1*s,y:0.1*s},{x:0.9*s,y:0.9*s}]]
+      };
+    },
+    targets:[{ kind:"value", key:"EFG", name:"S(△EFG)", value:T, unit:"平方厘米" }],
+    steps:[
+      "先算大块：△ACE 与 △BCE 等高（公共顶点 C，底 AE、EB 在直线 AB 上）→ S(△ACE) = S(△ABC)×" + a + "/" + s + " = " + s + "×" + s + "÷2×" + a + "/" + s + " = <b>" + fmt(Sace) + " 平方厘米</b>。",
+      "△AFE 与 △CFE 等高（公共顶点 E，底 AF、CF 都在对角线 AC 上）→ 面积比 = AF:CF。",
+      "G 是 EC 中点 → △EFG 与 △CFG 等高（公共顶点 F，底 EG、GC 共线）→ <b>S(△EFG) = S(△CFE) ÷ 2</b>。",
+      "倒推：S(△EFG)=" + fmt(T) + " → S(△CFE)=" + fmt(vCFE) + " → S(△AFE)=" + fmt(Sace) + "−" + fmt(vCFE) + "=" + fmt(vAFE) +
+        " 平方厘米 → AF 占 AC 的 " + fmt(tTrue*100) + "%，把 F 拖到对角线的这个位置！"
+    ],
+    successNote:"本讲练习5 原题：边长 12、AE=8、AC=3AF、G 是 EC 中点 → S(△EFG)=12×8÷2÷3=16 平方厘米。你的方法一样吗？"
+  };
+}
+
+/* ==================================================================
+   游戏状态与流程
+   ================================================================== */
+const S = {
+  difficulty:null, levels:[], levelIndex:0,
+  params:{}, steps:0, solved:false, revealed:false,
+  startTime:0, timerId:null, dragging:null,
+  done:{ easy:false, mid:false, hard:false }
+};
+const DIFF_NAME = { easy:"初级", mid:"中级", hard:"高级" };
+const DIFF_FULL = { easy:"初级 · 山脚营地", mid:"中级 · 山腰迷阵", hard:"高级 · 峰顶挑战" };
+
+const $ = function(id){ return document.getElementById(id); };
+const canvas = $("board"), ctx = canvas.getContext("2d");
+const fxCanvas = $("fx"), fxCtx = fxCanvas.getContext("2d");
+
+/* ---------- 页面切换 ---------- */
+function showPage(id){
+  $("page-select").classList.toggle("hidden", id !== "select");
+  $("page-game").classList.toggle("hidden", id !== "game");
+}
+
+/* ---------- 计时器 ---------- */
+function startTimer(){
+  S.startTime = Date.now();
+  stopTimer();
+  S.timerId = setInterval(function(){
+    const sec = Math.floor((Date.now() - S.startTime) / 1000);
+    const m = String(Math.floor(sec / 60)).padStart(2, "0");
+    const s2 = String(sec % 60).padStart(2, "0");
+    $("h-time").textContent = m + ":" + s2;
+  }, 1000);
+}
+function stopTimer(){ if(S.timerId){ clearInterval(S.timerId); S.timerId = null; } }
+
+/* ---------- 开始一局 ---------- */
+function startGame(diff){
+  S.difficulty = diff;
+  applyRandomPalette();                       // 每局随机主色
+  let factories;
+  if(diff === "easy") factories = shuffle([makeE1, makeE2, makeE3]);
+  else if(diff === "mid") factories = [function(){ return makeMid(true); }, function(){ return makeMid(false); }];
+  else factories = shuffle([makeH1, makeH2, makeH3]);
+  S.levels = factories.map(function(f){ return f(); });
+  S.levelIndex = 0;
+  S.steps = 0;
+  $("h-steps").textContent = "0";
+  $("h-diff").textContent = DIFF_FULL[diff];
+  showPage("game");
+  startTimer();
+  loadLevel(0);
+  openRules();                                // 每局开始时展示规则
+}
+
+/* ---------- 载入某一关 ---------- */
+function loadLevel(i){
+  S.levelIndex = i;
+  const L = S.levels[i];
+  S.params = clone(L.initParams);
+  S.solved = false; S.revealed = false; S.dragging = null;
+  $("lv-title").textContent = (i+1) + ". " + L.title;
+  $("lv-brief").innerHTML = L.brief;
+  $("hint-bar").textContent = L.tip;
+  $("lv-analysis").classList.remove("show");
+  buildTargetBadges(L);
+  buildLiveList(L);
+  buildDots();
+  $("h-lvtext").textContent = "第 " + (i+1) + " / " + S.levels.length + " 关";
+}
+function buildDots(){
+  const box = $("h-dots"); box.innerHTML = "";
+  for(let i = 0; i < S.levels.length; i++){
+    const d = document.createElement("span");
+    d.className = "dot";
+    if(i === S.levelIndex) d.classList.add("cur");
+    box.appendChild(d);
+  }
+}
+function refreshDots(){
+  const dots = $("h-dots").children;
+  for(let i = 0; i < dots.length; i++){
+    if(!dots[i] || !S.levels[i]) continue;   // 防御：数量不一致时跳过
+    dots[i].classList.toggle("cur", i === S.levelIndex);
+    dots[i].classList.toggle("ok", S.levels[i]._solved === true);
+  }
+}
+
+/* ---------- 目标徽章 DOM ---------- */
+let badgeEls = [];
+function buildTargetBadges(L){
+  const box = $("lv-targets"); box.innerHTML = ""; badgeEls = [];
+  L.targets.forEach(function(tg){
+    const div = document.createElement("div");
+    div.className = "badge";
+    const left = document.createElement("span");
+    left.className = "goal";
+    if(tg.kind === "value") left.textContent = tg.name + " = " + fmt(tg.value) + (tg.unit || "");
+    else if(tg.kind === "ratio") left.textContent = tg.name;
+    else left.textContent = tg.name;
+    const cur = document.createElement("span");
+    cur.className = "cur";
+    cur.textContent = "…";
+    const chk = document.createElement("span");
+    chk.className = "chk";
+    div.appendChild(left); div.appendChild(cur); div.appendChild(chk);
+    box.appendChild(div);
+    badgeEls.push({ el:div, curEl:cur, tg:tg });
+  });
+}
+
+/* ---------- 实时面积列表 DOM ---------- */
+let liveEls = [];
+function buildLiveList(L){
+  const box = $("lv-live"); box.innerHTML = ""; liveEls = [];
+  const probe = L.compute(L.revealParams);
+  probe.regions.forEach(function(r){
+    const row = document.createElement("div");
+    row.className = "live-row";
+    const sw = document.createElement("span"); sw.className = "sw";
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = r.name;
+    const vl = document.createElement("span"); vl.className = "vl"; vl.textContent = "…";
+    row.appendChild(sw); row.appendChild(nm); row.appendChild(vl);
+    box.appendChild(row);
+    liveEls.push({ swEl:sw, vlEl:vl, key:r.key, name:r.name });
+  });
+  S._probeKeys = probe.regions.map(function(r){ return r.key; });
+}
+
+/* ---------- 目标判定 ---------- */
+function targetOk(tg, areaMap){
+  if(tg.kind === "value"){
+    return Math.abs(areaMap[tg.key] - tg.value) <= 0.035 * Math.abs(tg.value);
+  } else if(tg.kind === "ratio"){
+    const cur = areaMap[tg.keyA] / Math.max(1e-9, areaMap[tg.keyB]);
+    return Math.abs(cur - tg.p / tg.q) <= 0.03;
+  } else {
+    const vals = tg.keys.map(function(k){ return areaMap[k]; });
+    const mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals);
+    const avg = vals.reduce(function(x,y){ return x+y; }, 0) / vals.length;
+    return (mx - mn) <= 0.045 * avg;
+  }
+}
+function targetCurText(tg, areaMap){
+  if(tg.kind === "value"){
+    return "当前 " + fmt(areaMap[tg.key]);
+  } else if(tg.kind === "ratio"){
+    const cur = areaMap[tg.keyA] / Math.max(1e-9, areaMap[tg.keyB]);
+    return "当前 " + fmt(cur) + " : 1";
+  } else {
+    const vals = tg.keys.map(function(k){ return areaMap[k]; });
+    const mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals);
+    const avg = vals.reduce(function(x,y){ return x+y; }, 0) / vals.length;
+    return "最大相差 " + fmt((mx-mn)/Math.max(1e-9,avg)*100) + "%";
+  }
+}
+
+/* ---------- 每帧更新徽章与读数 ---------- */
+function updatePanel(comp){
+  const areaMap = {};
+  comp.regions.forEach(function(r){ areaMap[r.key] = polyArea(r.poly); });
+  badgeEls.forEach(function(b){
+    const ok = targetOk(b.tg, areaMap);
+    b.el.classList.toggle("ok", ok);
+    b.curEl.textContent = targetCurText(b.tg, areaMap);
+  });
+  const curMap = {};
+  comp.regions.forEach(function(r){ curMap[r.key] = r; });
+  liveEls.forEach(function(le){
+    const r = curMap[le.key];
+    if(r){
+      const area = polyArea(r.poly);
+      le.vlEl.textContent = fmt(area);
+      le.swEl.style.background = regionColor(r);
+    }
+  });
+  return areaMap;
+}
+function regionColor(r){
+  if(r.target) return PAL.accent;
+  if(typeof r.colorI === "number" && r.colorI >= 0 && r.colorI < 6) return PAL.regions[r.colorI];
+  return "#b0bec5";
+}
+
+/* ==================================================================
+   画布渲染
+   ================================================================== */
+let VIEW = null;
+function resizeBoard(){
+  const wrap = $("canvas-wrap");
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const dpr = window.devicePixelRatio || 1;
+  if(canvas.width !== Math.round(w*dpr) || canvas.height !== Math.round(h*dpr)){
+    canvas.width = Math.round(w*dpr);
+    canvas.height = Math.round(h*dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w:w, h:h };
+}
+function makeView(view, w, h, pad){
+  pad = pad || 30;
+  const sx = (w - 2*pad) / (view.x1 - view.x0);
+  const sy = (h - 2*pad) / (view.y1 - view.y0);
+  const s = Math.min(sx, sy);
+  const ox = (w - s*(view.x1 - view.x0)) / 2 - s*view.x0;
+  const oy = (h + s*(view.y1 - view.y0)) / 2 + s*view.y0;
+  return {
+    s:s,
+    px:function(p){ return { x: ox + s*p.x, y: oy - s*p.y }; },
+    wx:function(x, y){ return { x:(x-ox)/s, y:(oy-y)/s }; },
+    w:ox + s*view.x0, e:ox + s*view.x1,
+    t:oy - s*view.y1, b:oy - s*view.y0
+  };
+}
+function drawPoly(pts, fill, alpha){
+  if(pts.length < 3) return;
+  ctx.beginPath();
+  const p0 = VIEW.px(pts[0]);
+  ctx.moveTo(p0.x, p0.y);
+  for(let i = 1; i < pts.length; i++){
+    const p = VIEW.px(pts[i]);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  if(fill){
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+function drawSeg(p, q, color, width, dash){
+  const a = VIEW.px(p), b = VIEW.px(q);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.setLineDash(dash || []);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+function drawLabel(pos, text, opts){
+  opts = opts || {};
+  const pt = VIEW.px(pos);
+  ctx.font = (opts.bold ? "bold " : "") + (opts.size || 16) + "px 'Microsoft YaHei',sans-serif";
+  const tw = ctx.measureText(text).width;
+  const x = clamp(pt.x, tw/2 + 6, canvas.clientWidth - tw/2 - 6);
+  const y = clamp(pt.y, 14, canvas.clientHeight - 10);
+  if(opts.bg !== false){
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    roundRect(x - tw/2 - 6, y - 14, tw + 12, 22, 6);
+    ctx.fill();
+    if(opts.border){
+      ctx.strokeStyle = opts.border;
+      ctx.lineWidth = 2;
+      roundRect(x - tw/2 - 6, y - 14, tw + 12, 22, 6);
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = opts.color || "#1f2937";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x, y - 2);
+}
+function roundRect(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+/* ---------- 主绘制 ---------- */
+function draw(ts){
+  if($("page-game").classList.contains("hidden")) return;
+  const size = resizeBoard();
+  const L = S.levels[S.levelIndex];
+  if(!L) return;
+  const comp = L.compute(S.params);
+  const view = L.fixedView || L.view;
+  VIEW = makeView(view, size.w, size.h, 30);
+  ctx.clearRect(0, 0, size.w, size.h);
+
+  /* 1. 区域填充（先画淡色的背景块，再画主体色块） */
+  comp.regions.forEach(function(r){ if(r.muted) drawPoly(r.poly, regionColor(r), 0.22); });
+  comp.regions.forEach(function(r){ if(!r.muted) drawPoly(r.poly, regionColor(r), r.target ? 0.62 : 0.5); });
+
+  /* 2. 拖动轨道（浅色虚线） */
+  (comp.tracks || []).forEach(function(tr){
+    if(!tr) return;
+    drawSeg(tr[0], tr[1], "rgba(100,116,139,0.35)", 2, [7,7]);
+  });
+  if(comp.dynTrackD){
+    /* 中级关卡：D 点的轨道沿 B→当前E 方向（随 E 联动） */
+    if(L._A && L._B){
+      const pr = S.params;
+      const Ept = { x:pr.t*L._AClen, y:0 };
+      const d1 = { x:L._B.x + 1.15*(Ept.x-L._B.x), y:L._B.y + 1.15*(Ept.y-L._B.y) };
+      const d2 = { x:L._B.x + 2.3*(Ept.x-L._B.x), y:L._B.y + 2.3*(Ept.y-L._B.y) };
+      drawSeg(d1, d2, "rgba(100,116,139,0.35)", 2, [7,7]);
+    }
+  }
+
+  /* 3. 线段 */
+  comp.lines.forEach(function(seg){ drawSeg(seg[0], seg[1], PAL.line, 3.4); });
+  (comp.dashes || []).forEach(function(seg){ drawSeg(seg[0], seg[1], "#94a3b8", 2.2, [8,6]); });
+
+  /* 4. 尺寸标注 */
+  (comp.dims || []).forEach(function(dm){
+    const pos = mid(dm.a, dm.b);
+    pos.x += dm.dx || 0; pos.y += dm.dy || 0;
+    drawLabel(pos, dm.label, { size:15, color:"#475569" });
+  });
+
+  /* 5. 区域面积标签（放在多边形质心附近） */
+  comp.regions.forEach(function(r){
+    if(r.muted) return;
+    const area = polyArea(r.poly);
+    let cx = 0, cy = 0;
+    r.poly.forEach(function(p){ cx += p.x; cy += p.y; });
+    cx /= r.poly.length; cy /= r.poly.length;
+    drawLabel({x:cx, y:cy}, fmt(area), {
+      bold:true, size:17,
+      color:r.target ? "#78350f" : "#1f2937",
+      border:regionColor(r)
+    });
+  });
+
+  /* 6. 顶点字母 */
+  (comp.marks || []).forEach(function(mk){
+    const pos = { x:mk.p.x + (mk.dx||0), y:mk.p.y + (mk.dy||0) };
+    const pt = VIEW.px(pos);
+    ctx.font = "bold 19px 'Microsoft YaHei',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 4; ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.strokeText(mk.label, pt.x, pt.y);
+    ctx.fillStyle = mk.hot ? PAL.main : "#111827";
+    ctx.fillText(mk.label, pt.x, pt.y);
+  });
+
+  /* 7. 揭示答案时：金色虚线圆标出正确位置 */
+  if(S.revealed){
+    L.dragPoints.forEach(function(dp){
+      const pos = dp.getPos(L.revealParams);
+      const pt = VIEW.px(pos);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 20, 0, Math.PI*2);
+      ctx.strokeStyle = "#d97706";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6,5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+    const rp = L.dragPoints[0].getPos(L.revealParams);
+    const pt = VIEW.px(rp);
+    ctx.font = "bold 15px 'Microsoft YaHei',sans-serif";
+    ctx.fillStyle = "#b45309";
+    ctx.textAlign = "center";
+    ctx.fillText("正确位置", pt.x, pt.y + 34);
+  }
+
+  /* 8. 可拖动发光点（脉动光晕） */
+  const pulse = 2.5 + 1.5 * Math.sin(ts / 280);
+  L.dragPoints.forEach(function(dp){
+    const pos = dp.getPos(S.params);
+    const pt = VIEW.px(pos);
+    const grad = ctx.createRadialGradient(pt.x, pt.y, 3, pt.x, pt.y, 26 + pulse);
+    grad.addColorStop(0, "rgba(255,255,255,0.9)");
+    grad.addColorStop(0.45, hexA(PAL.main, 0.5));
+    grad.addColorStop(1, hexA(PAL.main, 0));
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 26 + pulse, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 12, 0, Math.PI*2);
+    ctx.fillStyle = PAL.main; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 5, 0, Math.PI*2);
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+  });
+
+  /* 9. 更新侧栏数值 */
+  const areaMap = updatePanel(comp);
+  S._lastAreas = areaMap;
+  S._lastComp = comp;
+}
+function hexA(hex, a){
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+}
+
+/* ==================================================================
+   指针交互（鼠标 + 触摸统一处理）
+   ================================================================== */
+canvas.addEventListener("pointerdown", function(e){
+  const L = S.levels[S.levelIndex];
+  if(!L || S.solved) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  let best = null, bestD = 38;
+  L.dragPoints.forEach(function(dp){
+    const pos = VIEW.px(dp.getPos(S.params));
+    const d = Math.hypot(pos.x - sx, pos.y - sy);
+    if(d < bestD){ bestD = d; best = dp; }
+  });
+  if(best){
+    S.dragging = best;
+    canvas.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+});
+canvas.addEventListener("pointermove", function(e){
+  if(!S.dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const w = VIEW.wx(e.clientX - rect.left, e.clientY - rect.top);
+  S.dragging.setParams(S.params, w);
+  e.preventDefault();
+});
+function endDrag(){
+  if(!S.dragging) return;
+  S.dragging = null;
+  S.steps++;
+  $("h-steps").textContent = String(S.steps);
+  checkWin();
+}
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", endDrag);
+
+/* ---------- 过关判定（松手时重新计算最新面积，不依赖渲染帧） ---------- */
+const ENCOURAGE = [
+  "很接近啦，再微调一下发光点！",
+  "注意看徽章数字的变化方向哦！",
+  "高相等时，底边越长，面积越大！",
+  "稳住，慢慢拖，观察几块面积的联动！"
+];
+function checkWin(){
+  if(S.solved) return;
+  const L = S.levels[S.levelIndex];
+  const comp = L.compute(S.params);
+  const areaMap = {};
+  comp.regions.forEach(function(r){ areaMap[r.key] = polyArea(r.poly); });
+  updatePanel(comp);                         // 立即刷新徽章读数
+  const allOk = L.targets.every(function(tg){ return targetOk(tg, areaMap); });
+  if(allOk) onSolved();
+  else showToast(choice(ENCOURAGE));
+}
+function onSolved(){
+  S.solved = true;
+  if(!S.revealed) S.levels[S.levelIndex]._solved = true;
+  refreshDots();
+  confetti(90);
+  showAnalysis();
+}
+function showAnalysis(){
+  const L = S.levels[S.levelIndex];
+  const ol = $("ana-steps"); ol.innerHTML = "";
+  L.steps.forEach(function(s){
+    const li = document.createElement("li");
+    li.innerHTML = s;
+    ol.appendChild(li);
+  });
+  $("ana-note").innerHTML = L.successNote;
+  const isLast = S.levelIndex === S.levels.length - 1;
+  $("btn-next").textContent = isLast ? "完成本档挑战！" : "进入下一关";
+  $("lv-analysis").classList.add("show");
+  $("lv-analysis").scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+
+/* ---------- 按钮 ---------- */
+$("btn-reveal").addEventListener("click", function(){
+  const L = S.levels[S.levelIndex];
+  if(!L) return;
+  S.revealed = true;
+  S.params = clone(L.revealParams);
+  showAnalysis();
+  showToast("已揭示答案：金色虚线圈就是正确位置");
+});
+$("btn-restart").addEventListener("click", function(){
+  const L = S.levels[S.levelIndex];
+  if(!L) return;
+  S.params = clone(L.initParams);
+  S.solved = false; S.revealed = false;
+  $("lv-analysis").classList.remove("show");
+  showToast("本关已重新开始，加油！");
+});
+$("btn-rules").addEventListener("click", openRules);
+$("btn-rules-close").addEventListener("click", closeRules);
+$("btn-back").addEventListener("click", function(){
+  stopTimer();
+  updateDoneMarks();
+  showPage("select");
+});
+$("btn-next").addEventListener("click", function(){
+  if(S.levelIndex < S.levels.length - 1){
+    loadLevel(S.levelIndex + 1);
+  } else {
+    S.done[S.difficulty] = true;
+    showDoneModal();
+  }
+});
+$("btn-done-back").addEventListener("click", function(){
+  $("done-modal").classList.add("hidden");
+  stopTimer();
+  updateDoneMarks();
+  showPage("select");
+});
+$("btn-done-again").addEventListener("click", function(){
+  $("done-modal").classList.add("hidden");
+  startGame(S.difficulty);
+});
+
+/* ---------- 规则面板 ---------- */
+function openRules(){ $("rules-modal").classList.remove("hidden"); }
+function closeRules(){ $("rules-modal").classList.add("hidden"); }
+
+/* ---------- 完成面板 ---------- */
+function showDoneModal(){
+  stopTimer();
+  const starBox = $("done-stars"); starBox.innerHTML = "";
+  const got = S.levels.filter(function(l){ return l._solved === true; }).length;
+  for(let i = 0; i < S.levels.length; i++){
+    const st = document.createElement("div");
+    st.className = "star";
+    if(i >= got) st.style.background = "#d7dce5";
+    starBox.appendChild(st);
+  }
+  $("done-title").textContent = "恭喜完成 " + DIFF_FULL[S.difficulty] + "！";
+  $("done-text").innerHTML = "你用 <b>" + $("h-time").textContent + "</b> 的用时、<b>" + S.steps +
+    "</b> 步拖动，点亮了 <b>" + got + " / " + S.levels.length +
+    "</b> 颗星（不靠揭示答案过关才算星星哦）。等高模型：高相等，面积比 = 底边比——记住它！";
+  $("done-modal").classList.remove("hidden");
+  confetti(230);
+}
+function updateDoneMarks(){
+  ["easy","mid","hard"].forEach(function(d){
+    const el = document.querySelector('[data-done="' + d + '"]');
+    if(el) el.textContent = S.done[d] ? "已完成挑战" : "";
+  });
+}
+
+/* ---------- 难度选择按钮 ---------- */
+document.querySelectorAll(".go").forEach(function(btn){
+  btn.addEventListener("click", function(){ startGame(btn.getAttribute("data-diff")); });
+});
+
+/* ---------- toast 提示 ---------- */
+let toastTimer = null;
+function showToast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+}
+
+/* ==================================================================
+   庆祝彩纸（Canvas 粒子动画）
+   ================================================================== */
+let fxParts = [], fxRunning = false, fxStart = 0;
+function confetti(n){
+  const dpr = window.devicePixelRatio || 1;
+  fxCanvas.width = Math.round(window.innerWidth * dpr);
+  fxCanvas.height = Math.round(window.innerHeight * dpr);
+  fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for(let i = 0; i < n; i++){
+    fxParts.push({
+      x: rand(0, window.innerWidth),
+      y: rand(-window.innerHeight * 0.4, -20),
+      vx: rand(-1.4, 1.4),
+      vy: rand(2.1, 5.2),
+      w: rand(7, 13), h: rand(10, 18),
+      rot: rand(0, Math.PI*2),
+      vr: rand(-0.16, 0.16),
+      color: choice(PAL.regions.concat([PAL.accent, PAL.main])),
+      star: Math.random() < 0.18
+    });
+  }
+  fxStart = performance.now();
+  if(!fxRunning){ fxRunning = true; requestAnimationFrame(fxTick); }
+}
+function fxTick(ts){
+  fxCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  const life = ts - fxStart;
+  for(let i = fxParts.length - 1; i >= 0; i--){
+    const p = fxParts[i];
+    p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vy += 0.028;
+    if(p.y > window.innerHeight + 30 || life > 4200){
+      fxParts.splice(i, 1); continue;
+    }
+    fxCtx.save();
+    fxCtx.translate(p.x, p.y);
+    fxCtx.rotate(p.rot);
+    fxCtx.fillStyle = p.color;
+    if(p.star){
+      drawStarPath(fxCtx, p.w);
+      fxCtx.fill();
+    } else {
+      fxCtx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+    }
+    fxCtx.restore();
+  }
+  if(fxParts.length > 0){
+    requestAnimationFrame(fxTick);
+  } else {
+    fxRunning = false;
+    fxCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  }
+}
+function drawStarPath(c, r){
+  c.beginPath();
+  for(let i = 0; i < 10; i++){
+    const ang = Math.PI/5 * i - Math.PI/2;
+    const rr = (i % 2 === 0) ? r : r * 0.45;
+    const x = Math.cos(ang)*rr, y = Math.sin(ang)*rr;
+    if(i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+  }
+  c.closePath();
+}
+
+/* ==================================================================
+   主循环
+   ================================================================== */
+function loop(ts){
+  draw(ts);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 启动 ---------- */
+applyRandomPalette();
+showPage("select");
+requestAnimationFrame(loop);
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-j/g005", "name": "\u7b49\u9ad8\u5c71\u5cf0\u63a2\u9669 \u00b7 \u7b49\u9ad8\u6a21\u578b\u7684\u7efc\u5408\u5e94\u7528", "file": "g005.html", "jiaocan": "\u301033\u3011\u7b2c8\u8bb2 \u7b49\u9ad8\u6a21\u578b\uff1a\u79d8\u7c4d3\u7b49\u9ad8\u6a21\u578b\u7684\u7efc\u5408\u5e94\u7528", "unit": "\u7b2c8\u8bb2", "grade": "\u56db\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "J\uff1a\u51e0\u4f55\u4e13\u9879", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u51e0\u4f55\u4e13\u9879\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-j"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

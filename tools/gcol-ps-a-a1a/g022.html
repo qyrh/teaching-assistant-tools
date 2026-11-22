@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>图形寻宝大闯关——平面图形计数初步（下）</title>
+<style>
+/* ============================================================
+   图形寻宝大闯关 —— 第11讲 平面图形计数初步（下）
+   核心方法：按构成分类计数（数长方形）、按大小分类计数（三角形/正方形/圆）
+   玩法：框选点亮（网格类图形） / 点击点亮（三角形、圆）
+   单文件自包含，零外部依赖，纯内联 CSS + JS
+   ============================================================ */
+
+/* ---------- 全局变量：每局随机换色板 ---------- */
+:root {
+  --c-primary: #4a7de0;
+  --c-primary-deep: #2d5bb9;
+  --c-accent1: #4a7de0;
+  --c-accent2: #58b368;
+  --c-accent3: #e8913a;
+  --c-bg: #f4f7fc;
+  --c-card: #ffffff;
+  --c-ink: #23324a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; min-height: 100%;
+  font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Source Han Sans SC", sans-serif;
+  background: var(--c-bg);
+  color: var(--c-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app { max-width: 1180px; margin: 0 auto; padding: 10px 12px 24px; }
+
+.hidden { display: none !important; }
+
+/* ---------- 通用按钮 ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px;
+  border: none; border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 17px; font-weight: 700;
+  cursor: pointer;
+  background: var(--c-primary); color: #fff;
+  box-shadow: 0 3px 0 var(--c-primary-deep);
+  transition: transform .08s ease, box-shadow .08s ease, filter .15s;
+  user-select: none;
+}
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--c-primary-deep); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn.ghost {
+  background: #fff; color: var(--c-primary-deep);
+  border: 2px solid var(--c-primary);
+  box-shadow: 0 3px 0 rgba(45,91,185,.25);
+}
+.btn.small { padding: 7px 12px; font-size: 15px; border-radius: 10px; }
+
+/* ---------- 开始屏 ---------- */
+#screen-start { text-align: center; padding-top: 26px; }
+.game-title {
+  font-size: 46px; letter-spacing: 4px; color: var(--c-primary-deep);
+  text-shadow: 0 3px 0 rgba(0,0,0,.08);
+}
+.game-sub { margin-top: 8px; font-size: 19px; color: #5a6b8c; }
+.palette-strip {
+  margin: 16px auto 6px; width: 220px; height: 14px; border-radius: 8px;
+  background: linear-gradient(90deg, var(--c-accent1), var(--c-accent2), var(--c-accent3));
+  border: 2px solid rgba(0,0,0,.12);
+}
+.start-tip { font-size: 15px; color: #8492ad; margin-bottom: 18px; }
+.diff-cards { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.diff-card {
+  width: 260px; padding: 20px 16px;
+  border-radius: 18px; border: 3px solid var(--c-primary);
+  background: var(--c-card); cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+  text-align: center;
+}
+.diff-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(45,91,185,.18); }
+.diff-card h3 { font-size: 24px; color: var(--c-primary-deep); margin-bottom: 8px; }
+.diff-card p { font-size: 15px; color: #5a6b8c; line-height: 1.6; }
+.diff-card .stars-icon { font-size: 26px; color: #f0a52e; margin-bottom: 4px; }
+.start-footer { margin-top: 24px; display: flex; gap: 14px; justify-content: center; }
+
+/* ---------- 游戏屏：顶栏 ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--c-card); border-radius: 14px;
+  padding: 10px 14px; margin-bottom: 10px;
+  box-shadow: 0 2px 10px rgba(35,50,74,.08);
+}
+.topbar .game-brand { font-size: 19px; font-weight: 800; color: var(--c-primary-deep); }
+.topbar .level-chip {
+  background: var(--c-primary); color: #fff; border-radius: 999px;
+  padding: 4px 14px; font-size: 15px; font-weight: 700;
+}
+.stat-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #eef2fb; border-radius: 999px; padding: 5px 13px;
+  font-size: 15px; font-weight: 700; color: #3c4d6e;
+}
+.stat-chip b { color: var(--c-primary-deep); font-size: 17px; }
+.topbar .spacer { flex: 1; }
+.topbar .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- 游戏主区布局 ---------- */
+.game-layout { display: flex; gap: 12px; align-items: stretch; }
+.main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.question-bar {
+  background: var(--c-card); border-left: 8px solid var(--c-primary);
+  border-radius: 12px; padding: 12px 16px;
+  box-shadow: 0 2px 10px rgba(35,50,74,.08);
+}
+.question-bar .q-tag { font-size: 15px; font-weight: 800; color: var(--c-accent3); margin-right: 10px; }
+.question-bar .q-text { font-size: 20px; font-weight: 700; line-height: 1.5; }
+.question-bar .q-progress { margin-top: 6px; font-size: 17px; color: var(--c-primary-deep); font-weight: 800; }
+.question-bar .q-progress .bar {
+  display: inline-block; width: 170px; height: 12px; border-radius: 6px;
+  background: #e3e9f5; vertical-align: middle; margin: 0 8px; overflow: hidden;
+}
+.question-bar .q-progress .bar i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--c-accent1), var(--c-accent2));
+  transition: width .25s ease;
+}
+
+.canvas-wrap {
+  position: relative;
+  background: var(--c-card);
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(35,50,74,.08);
+  height: 500px;
+  overflow: hidden;
+}
+#game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.canvas-wrap.shake { animation: shakeAnim .38s ease; }
+@keyframes shakeAnim {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); } 40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); } 80% { transform: translateX(4px); }
+}
+
+.message-bar {
+  min-height: 46px;
+  background: var(--c-card); border-radius: 12px;
+  padding: 10px 16px; font-size: 18px; font-weight: 700;
+  color: var(--c-primary-deep);
+  box-shadow: 0 2px 10px rgba(35,50,74,.08);
+  display: flex; align-items: center; gap: 8px;
+}
+.message-bar.good { color: #23804a; }
+.message-bar.warn { color: #b06a12; }
+
+/* ---------- 侧栏：寻宝收集架 ---------- */
+.shelf {
+  width: 292px; flex-shrink: 0;
+  background: var(--c-card); border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 2px 10px rgba(35,50,74,.08);
+  overflow-y: auto;
+}
+.shelf h2 { font-size: 20px; color: var(--c-primary-deep); margin-bottom: 4px; }
+.shelf .shelf-sub { font-size: 14px; color: #8492ad; margin-bottom: 10px; }
+.shelf-total { font-size: 18px; font-weight: 800; color: var(--c-primary-deep); margin-bottom: 10px; }
+.cat-block {
+  border: 2px solid #e3e9f5; border-radius: 12px;
+  padding: 9px 11px; margin-bottom: 10px;
+}
+.cat-block.done { border-color: var(--c-accent2); background: #f0faf2; }
+.cat-head { display: flex; justify-content: space-between; align-items: center; }
+.cat-name { font-size: 17px; font-weight: 800; color: #3c4d6e; }
+.cat-count { font-size: 16px; font-weight: 800; color: var(--c-primary-deep); }
+.cat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.chip {
+  min-width: 34px; height: 30px; padding: 0 8px;
+  border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; color: #fff;
+  animation: chipPop .3s ease;
+}
+@keyframes chipPop { 0% { transform: scale(.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+/* ---------- 结算屏 ---------- */
+#screen-result { text-align: center; padding-top: 40px; }
+.result-card {
+  max-width: 620px; margin: 0 auto; background: var(--c-card);
+  border-radius: 20px; padding: 30px 26px;
+  box-shadow: 0 8px 30px rgba(35,50,74,.14);
+}
+.result-card h1 { font-size: 38px; color: var(--c-primary-deep); margin-bottom: 6px; }
+.result-stars { font-size: 52px; color: #f0a52e; letter-spacing: 8px; margin: 12px 0; }
+.result-stats { font-size: 19px; color: #3c4d6e; line-height: 2; }
+.result-levels { margin: 14px auto; max-width: 420px; text-align: left; }
+.result-levels .rl {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 14px; border-radius: 10px; background: #f2f6fd; margin-bottom: 8px;
+  font-size: 16px; font-weight: 700;
+}
+.result-levels .rl span:last-child { color: #f0a52e; font-size: 18px; }
+.result-btns { display: flex; gap: 14px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+
+/* ---------- 弹窗 ---------- */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(23,34,54,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 60; padding: 16px;
+}
+.modal-card {
+  background: #fff; border-radius: 18px; max-width: 640px; width: 100%;
+  max-height: 86vh; overflow-y: auto; padding: 26px 28px;
+  box-shadow: 0 14px 44px rgba(0,0,0,.28);
+  animation: modalIn .22s ease;
+}
+@keyframes modalIn { from { transform: translateY(26px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal-card h2 { font-size: 26px; color: var(--c-primary-deep); margin-bottom: 14px; text-align: center; }
+.modal-card .rule-sec { margin-bottom: 14px; }
+.modal-card .rule-sec h3 { font-size: 19px; color: var(--c-primary-deep); margin-bottom: 6px; }
+.modal-card .rule-sec p, .modal-card .rule-sec li { font-size: 17px; line-height: 1.75; color: #3c4d6e; }
+.modal-card ul { padding-left: 22px; }
+.modal-card .modal-btns { display: flex; gap: 12px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+.done-breakdown { font-size: 18px; line-height: 1.9; color: #3c4d6e; text-align: center; }
+.done-breakdown .formula {
+  display: inline-block; margin-top: 6px; padding: 6px 16px;
+  background: #f2f6fd; border-radius: 10px; font-weight: 800; font-size: 20px;
+  color: var(--c-primary-deep);
+}
+.done-stars-line { text-align: center; font-size: 40px; color: #f0a52e; margin: 10px 0 2px; letter-spacing: 6px; }
+.done-note { text-align: center; font-size: 15px; color: #8492ad; margin-top: 6px; }
+
+/* ---------- 彩纸画布 ---------- */
+#confetti-canvas {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 80;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 900px) {
+  .game-layout { flex-direction: column; }
+  .shelf { width: 100%; }
+  .cat-chips { flex-wrap: wrap; }
+  .canvas-wrap { height: 420px; }
+  .game-title { font-size: 34px; }
+}
+@media (max-width: 520px) {
+  .canvas-wrap { height: 340px; }
+  .question-bar .q-text { font-size: 17px; }
+  .topbar .game-brand { display: none; }
+  .diff-card { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ==================== 开始屏 ==================== -->
+  <section id="screen-start">
+    <h1 class="game-title">图形寻宝大闯关</h1>
+    <p class="game-sub">第11讲 平面图形计数初步（下）· 按构成分类 · 按大小分类</p>
+    <div class="palette-strip" id="palette-strip"></div>
+    <p class="start-tip">每局随机抽取关卡、随机编号与随机配色，每一次都是新旅程！</p>
+    <div class="diff-cards">
+      <button class="diff-card" data-diff="easy">
+        <div class="stars-icon">★</div>
+        <h3>初级 · 热身岛</h3>
+        <p>例题级图形，共 3 关<br>小L楼 · 四连排 · 花朵圆<br>框一框、点一点，学会分类数图形</p>
+      </button>
+      <button class="diff-card" data-diff="mid">
+        <div class="stars-icon">★★</div>
+        <h3>中级 · 练习湾</h3>
+        <p>练习级图形，随机 3 关<br>田字格 · 城门楼 · 九宫格<br>六角星 · 六瓣花 · 圆圈阵</p>
+      </button>
+      <button class="diff-card" data-diff="hard">
+        <div class="stars-icon">★★★</div>
+        <h3>高级 · 挑战峰</h3>
+        <p>变式与综合，随机 3 关<br>神秘大楼 · 长龙阵 · 阶梯楼<br>双排方 · 三分角 · 同心圆</p>
+      </button>
+    </div>
+    <div class="start-footer">
+      <button class="btn ghost" id="btn-rules-start">玩法规则</button>
+    </div>
+  </section>
+
+  <!-- ==================== 游戏屏 ==================== -->
+  <section id="screen-game" class="hidden">
+    <header class="topbar">
+      <span class="game-brand">图形寻宝大闯关</span>
+      <span class="level-chip" id="diff-chip">初级</span>
+      <span class="stat-chip">第 <b id="level-now">1</b> / <span id="level-total">3</span> 关</span>
+      <span class="stat-chip">时间 <b id="timer-text">00:00</b></span>
+      <span class="stat-chip">操作 <b id="moves-text">0</b> 次</span>
+      <span class="stat-chip">星星 <b id="stars-text">0</b></span>
+      <span class="spacer"></span>
+      <span class="btn-group">
+        <button class="btn ghost small" id="btn-hint">提示（2）</button>
+        <button class="btn ghost small" id="btn-reveal">揭示答案</button>
+        <button class="btn ghost small" id="btn-rules">规则</button>
+        <button class="btn ghost small" id="btn-restart">重新开始</button>
+        <button class="btn ghost small" id="btn-back">返回难度选择</button>
+      </span>
+    </header>
+
+    <div class="game-layout">
+      <div class="main-col">
+        <div class="question-bar">
+          <div><span class="q-tag" id="level-tag"></span><span class="q-text" id="question-text"></span></div>
+          <div class="q-progress">
+            已点亮 <b id="found-count">0</b> / <b id="total-count">0</b> 个
+            <span class="bar"><i id="progress-fill"></i></span>
+          </div>
+        </div>
+        <div class="canvas-wrap" id="canvas-wrap">
+          <canvas id="game-canvas"></canvas>
+        </div>
+        <div class="message-bar" id="message-bar">欢迎来到寻宝之旅！</div>
+      </div>
+
+      <aside class="shelf">
+        <h2>寻宝收集架</h2>
+        <div class="shelf-sub">先分类，再数数，又快又准！</div>
+        <div class="shelf-total" id="shelf-total"></div>
+        <div id="shelf-cats"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ==================== 结算屏 ==================== -->
+  <section id="screen-result" class="hidden">
+    <div class="result-card">
+      <h1>全部闯关成功！</h1>
+      <div class="result-stars" id="result-stars"></div>
+      <div class="result-stats">
+        总用时 <b id="result-time">00:00</b> · 总操作 <b id="result-moves">0</b> 次
+      </div>
+      <div class="result-levels" id="result-levels"></div>
+      <div class="result-btns">
+        <button class="btn" id="btn-again">再来一局（重新抽题）</button>
+        <button class="btn ghost" id="btn-change-diff">换个难度</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 规则弹窗 ==================== -->
+  <div class="modal-mask hidden" id="modal-rules">
+    <div class="modal-card">
+      <h2>玩法规则</h2>
+      <div class="rule-sec">
+        <h3>寻宝目标</h3>
+        <p>每幅图里藏着许多长方形、正方形、三角形或圆。你的任务：把它们<b>一个不漏地全部点亮</b>，收进右边的收集架！</p>
+      </div>
+      <div class="rule-sec">
+        <h3>两种寻宝手法</h3>
+        <ul>
+          <li><b>框选点亮</b>（数长方形 / 正方形）：在图上<b>按住并拖动</b>画出一个选框，框线会自动吸到图形的边线上。恰好框住一个完整图形时松手，它就会被点亮！</li>
+          <li><b>点击点亮</b>（数三角形 / 圆）：直接<b>点击</b>图中的图形。同一个位置叠着好几个图形时，<b>多点几次</b>，就能由小到大把它们逐个点亮！</li>
+        </ul>
+      </div>
+      <div class="rule-sec">
+        <h3>计数小妙招（本讲好方法）</h3>
+        <ul>
+          <li><b>按构成分类</b>：数长方形时，先给每块编号，再按"一块、两块、三块……"分类去找，数过的会被点亮做标记。</li>
+          <li><b>按大小分类</b>：数三角形、正方形、圆时，先数小的，再数中的、大的，层层递进不遗漏。</li>
+        </ul>
+      </div>
+      <div class="rule-sec">
+        <h3>小帮手</h3>
+        <ul>
+          <li><b>提示</b>：每关可用 2 次，会闪烁一个还没点亮的图形。</li>
+          <li><b>揭示答案</b>：把剩下的全部点亮，但本关星星会变少哦。</li>
+        </ul>
+      </div>
+      <div class="modal-btns">
+        <button class="btn" id="btn-rules-close">开始寻宝</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 单关完成弹窗 ==================== -->
+  <div class="modal-mask hidden" id="modal-level-done">
+    <div class="modal-card">
+      <h2 id="done-title">本关完成！</h2>
+      <div class="done-breakdown" id="done-breakdown"></div>
+      <div class="done-stars-line" id="done-stars"></div>
+      <div class="done-note" id="done-note"></div>
+      <div class="modal-btns">
+        <button class="btn" id="btn-next-level">进入下一关</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<canvas id="confetti-canvas"></canvas>
+
+<script>
+/* ============================================================
+   图形寻宝大闯关 —— 主程序
+   数据结构说明：
+   - 网格类关卡（frame）：由 rows×cols 单元格 + 分块 pieces 构成，
+     合法目标 = 恰好由若干"完整分块"拼成的长方形/正方形，
+     运行时用枚举算法生成目标与分类（单一数据源），
+     图形、目标、分类统计三者天然自洽，不存在标签错配的死题。
+   - 点选类关卡（tap）：三角形 / 圆的几何列表，逐个点击点亮。
+   ============================================================ */
+'use strict';
+
+/* ---------------- 小工具 ---------------- */
+const $ = (s) => document.querySelector(s);
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+const CN_NUM = ['零', '一', '两', '三', '四', '五', '六', '七', '八', '九', '十'];
+function cnNum(n) { return CN_NUM[n] || String(n); }
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+function fmtTime(sec) { return pad2(Math.floor(sec / 60)) + ':' + pad2(sec % 60); }
+function pointInPoly(px, py, pts) {
+  /* 射线法：判断点是否在多边形内 */
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function polyArea(pts) {
+  let s = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    s += pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1];
+  }
+  return Math.abs(s / 2);
+}
+function lerpPt(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+
+/* ---------------- 色板（每局随机一套） ---------------- */
+const PALETTES = [
+  { name: '海洋蓝', primary: '#4a7de0', deep: '#2d5bb9', accents: ['#4a7de0', '#58b368', '#e8913a', '#9a6fe0'] },
+  { name: '珊瑚红', primary: '#e06a5a', deep: '#b84536', accents: ['#e06a5a', '#4aa3c7', '#e8b13a', '#7e6fe0'] },
+  { name: '森林绿', primary: '#3f9d63', deep: '#2a7a48', accents: ['#3f9d63', '#4a7de0', '#e8913a', '#c75d9e'] },
+  { name: '向日葵', primary: '#d99a2b', deep: '#b07715', accents: ['#d99a2b', '#4aa3c7', '#e06a5a', '#58b368'] },
+  { name: '紫罗兰', primary: '#8a6fe0', deep: '#6449bb', accents: ['#8a6fe0', '#58b368', '#e8913a', '#4aa3c7'] },
+  { name: '蜜桃橙', primary: '#e08a4e', deep: '#bd6630', accents: ['#e08a4e', '#5b8fd9', '#58b368', '#c75d9e'] }
+];
+
+/* ---------------- 关卡数据：网格类（长方形按构成分类 / 正方形按大小分类） ----------------
+   cells：图形里存在的单元格（[行,列]，第0行在最上面）
+   pieces：分块列表，每块是若干单元格；同一块内部不画分隔线
+   expect：教参答案（用于加载时自检，枚举结果必须与之相等） */
+function gridCells(rows, cols) {
+  const arr = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) arr.push([r, c]);
+  return arr;
+}
+function cellPieces(cells) { return cells.map(c => [c]); }
+
+const FRAME_DEFS = {
+  /* 例4：底行 1、2、3 三块，3 的上方叠着 4 号块；一块4 + 两块3 + 三块1 = 8 个长方形 */
+  F1: {
+    id: 'F1', src: '例4', name: '小L楼', type: 'rect', rows: 2, cols: 3,
+    cells: [[1, 0], [1, 1], [1, 2], [0, 2]],
+    pieces: [[[1, 0]], [[1, 1]], [[1, 2]], [[0, 2]]],
+    expect: 8
+  },
+  /* 练习11：一行 4 块；4+3+2+1=10 个长方形 */
+  F3: {
+    id: 'F3', src: '练习11', name: '四连排', type: 'rect', rows: 1, cols: 4,
+    cells: [[0, 0], [0, 1], [0, 2], [0, 3]],
+    pieces: [[[0, 0]], [[0, 1]], [[0, 2]], [[0, 3]]],
+    expect: 10
+  },
+  /* 练习12：2×2 田字格；一块4 + 两块4 + 四块1 = 9 个长方形 */
+  F2: {
+    id: 'F2', src: '练习12', name: '田字格', type: 'rect', rows: 2, cols: 2,
+    cells: gridCells(2, 2),
+    pieces: cellPieces(gridCells(2, 2)),
+    expect: 9
+  },
+  /* 练习10：上梁 2、3、4 三块，左右两根柱子 1、5；
+     一块5 + 两块4(1+2,2+3,3+4,4+5) + 三块1(2+3+4) = 10 个长方形 */
+  F4: {
+    id: 'F4', src: '练习10', name: '城门楼', type: 'rect', rows: 2, cols: 3,
+    cells: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2]],
+    pieces: [[[1, 0]], [[0, 0]], [[0, 1]], [[0, 2]], [[1, 2]]],
+    expect: 10
+  },
+  /* 练习14：3×3 网格；小9 + 中4 + 大1 = 14 个正方形 */
+  F5: {
+    id: 'F5', src: '练习14', name: '九宫格', type: 'square', rows: 3, cols: 3,
+    cells: gridCells(3, 3),
+    pieces: cellPieces(gridCells(3, 3)),
+    expect: 14
+  },
+  /* 变式：三级阶梯（自创变式，枚举得 15 个长方形：6+6+2+1） */
+  F6: {
+    id: 'F6', src: '变式', name: '阶梯楼', type: 'rect', rows: 3, cols: 3,
+    cells: [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [2, 2]],
+    pieces: cellPieces([[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [2, 2]]),
+    expect: 15
+  },
+  /* 挑战自我：3行4列，块2、块3为L形；
+     一块{1,4,5,6} + 两块{3+4, 2+5, 4+5} + 三块{1+3+4, 2+5+6} + 六块{全部} = 10 个长方形 */
+  F7: {
+    id: 'F7', src: '挑战自我', name: '神秘大楼', type: 'rect', rows: 3, cols: 4,
+    cells: gridCells(3, 4),
+    pieces: [
+      [[0, 0], [0, 1]],            /* 块1：顶左横排 */
+      [[0, 2], [0, 3], [1, 3]],    /* 块2：L形 */
+      [[1, 0], [2, 0], [2, 1]],    /* 块3：L形 */
+      [[1, 1]],                    /* 块4 */
+      [[1, 2]],                    /* 块5 */
+      [[2, 2], [2, 3]]             /* 块6：底右横排 */
+    ],
+    expect: 10
+  },
+  /* 练习15(1)：2 行 8 列；小16 + 大7(2×2) = 23 个正方形 */
+  F8: {
+    id: 'F8', src: '练习15(1)', name: '长龙阵', type: 'square', rows: 2, cols: 8,
+    cells: gridCells(2, 8),
+    pieces: cellPieces(gridCells(2, 8)),
+    expect: 23
+  },
+  /* 变式：2 行 4 列；小8 + 大3(2×2) = 11 个正方形 */
+  F9: {
+    id: 'F9', src: '变式', name: '双排方', type: 'square', rows: 2, cols: 4,
+    cells: gridCells(2, 4),
+    pieces: cellPieces(gridCells(2, 4)),
+    expect: 11
+  }
+};
+
+/* ---------------- 关卡数据：点选类（三角形 / 圆，按大小分类） ---------------- */
+
+/* 六角星（例5(1)）：2 个大三角形 + 6 个尖角小三角形 = 8 个三角形 */
+function buildHexagram() {
+  const R = 1;
+  const deg = (a) => a * Math.PI / 180;
+  const up = [90, 210, 330].map(a => [R * Math.cos(deg(a)), -R * Math.sin(deg(a))]);
+  const down = [30, 150, 270].map(a => [R * Math.cos(deg(a)), -R * Math.sin(deg(a))]);
+  const shapes = [];
+  [up, down].forEach(tri => {
+    shapes.push({ kind: 'poly', pts: tri, cat: '大' });
+    for (let i = 0; i < 3; i++) {
+      const V = tri[i], P = tri[(i + 1) % 3], Q = tri[(i + 2) % 3];
+      shapes.push({ kind: 'poly', pts: [V, lerpPt(V, P, 1 / 3), lerpPt(V, Q, 1 / 3)], cat: '小' });
+    }
+  });
+  return shapes;
+}
+
+/* 花朵 / 圆圈：中心圆 + 若干花瓣圆 +（可选）中等圆 + 大外圆 */
+function buildFlower(nPetals, rCenter, rPetal, dist, rMid, rOuter, cats) {
+  const shapes = [];
+  shapes.push({ kind: 'circle', cx: 0, cy: 0, r: rCenter, cat: cats.center });
+  for (let i = 0; i < nPetals; i++) {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / nPetals;
+    shapes.push({ kind: 'circle', cx: dist * Math.cos(a), cy: dist * Math.sin(a), r: rPetal, cat: cats.petal });
+  }
+  if (rMid) shapes.push({ kind: 'circle', cx: 0, cy: 0, r: rMid, cat: cats.mid });
+  shapes.push({ kind: 'circle', cx: 0, cy: 0, r: rOuter, cat: cats.outer });
+  return shapes;
+}
+
+/* 三分角（例5变式）：大三角形被两条线分成 3小 + 2中 + 1大 = 6 个三角形 */
+function buildTriSplit() {
+  const A = [0, 1.5], B = [-1.8, -1], C = [1.8, -1], D = [-0.6, -1], E = [0.6, -1];
+  return [
+    { kind: 'poly', pts: [A, B, D], cat: '小' },
+    { kind: 'poly', pts: [A, D, E], cat: '小' },
+    { kind: 'poly', pts: [A, E, C], cat: '小' },
+    { kind: 'poly', pts: [A, B, E], cat: '中' },
+    { kind: 'poly', pts: [A, D, C], cat: '中' },
+    { kind: 'poly', pts: [A, B, C], cat: '大' }
+  ];
+}
+
+const TAP_DEFS = {
+  /* 例6：1 个小中心圆 + 4 个中等花瓣圆 + 1 个大外圆 = 6 个圆 */
+  T1: {
+    id: 'T1', src: '例6', name: '花朵圆', type: 'circle',
+    question: '数一数，下面的花朵是由多少个圆组成的？点击点亮每一个圆！',
+    shapes: buildFlower(4, 0.5, 0.95, 1.15, null, 2.15, { center: '小', petal: '中', mid: '中', outer: '大' }),
+    expect: 6
+  },
+  /* 例5(1)：六角星，6 小 + 2 大 = 8 个三角形 */
+  T2: {
+    id: 'T2', src: '例5(1)', name: '六角星', type: 'triangle',
+    question: '你会数下面的图形吗？点击点亮图中的每一个三角形！',
+    shapes: buildHexagram(),
+    expect: 8
+  },
+  /* 练习16：中心 + 6 花瓣 + 大外圆 = 7 小 + 1 大 = 8 个圆 */
+  T3: {
+    id: 'T3', src: '练习16', name: '六瓣花', type: 'circle',
+    question: '数一数，下面的花朵是由多少个圆组成的？点击点亮每一个圆！',
+    shapes: buildFlower(6, 0.42, 0.7, 1.02, null, 1.8, { center: '小', petal: '小', mid: '中', outer: '大' }),
+    expect: 8
+  },
+  /* 练习17：中心 + 4 花瓣 + 大外圆 = 5 小 + 1 大 = 6 个圆 */
+  T4: {
+    id: 'T4', src: '练习17', name: '圆圈阵', type: 'circle',
+    question: '下图中有多少个圆？点击点亮每一个圆！',
+    shapes: buildFlower(4, 0.4, 0.68, 1.0, null, 1.72, { center: '小', petal: '小', mid: '中', outer: '大' }),
+    expect: 6
+  },
+  /* 例5变式：3 小 + 2 中 + 1 大 = 6 个三角形 */
+  T5: {
+    id: 'T5', src: '例5变式', name: '三分角', type: 'triangle',
+    question: '你会数下面的图形吗？点击点亮图中的每一个三角形！',
+    shapes: buildTriSplit(),
+    expect: 6
+  },
+  /* 练习18：中心 + 7 花瓣 + 中圆 + 大外圆 = 8 小 + 1 中 + 1 大 = 10 个圆 */
+  T6: {
+    id: 'T6', src: '练习18', name: '同心圆', type: 'circle',
+    question: '数一数，图中一共有多少个圆？点击点亮每一个圆！',
+    shapes: buildFlower(7, 0.34, 0.62, 1.05, 1.05, 1.72, { center: '小', petal: '小', mid: '中', outer: '大' }),
+    expect: 10
+  }
+};
+
+/* ---------------- 难度池 ---------------- */
+const DIFF_POOLS = {
+  easy: { label: '初级', defs: ['F1', 'F3', 'T1'], pick: 3 },
+  mid:  { label: '中级', defs: ['F2', 'F4', 'F5', 'T2', 'T3', 'T4'], pick: 3 },
+  hard: { label: '高级', defs: ['F7', 'F8', 'F6', 'F9', 'T5', 'T6'], pick: 3 }
+};
+
+const QUESTIONS = {
+  rect: '下图中有多少个长方形？按住拖动选框，把每一个长方形都框出来点亮吧！',
+  square: '下图中有多少个正方形？按住拖动选框，把每一个正方形都框出来点亮吧！'
+};
+const NOUNS = { rect: '长方形', square: '正方形', triangle: '三角形', circle: '圆' };
+
+/* ---------------- 网格目标枚举（与教参"按构成分类"完全一致） ----------------
+   合法目标 = 范围内格子齐全 + 涉及分块完整（不切碎）+（正方形题）宽高格数相等 */
+function buildFrameTargets(def) {
+  const cellSet = new Set(def.cells.map(c => c.join(',')));
+  const cellPiece = new Map();
+  def.pieces.forEach((p, i) => p.forEach(c => cellPiece.set(c.join(','), i)));
+  const targets = [];
+  for (let r1 = 0; r1 < def.rows; r1++) {
+    for (let r2 = r1; r2 < def.rows; r2++) {
+      for (let c1 = 0; c1 < def.cols; c1++) {
+        for (let c2 = c1; c2 < def.cols; c2++) {
+          let ok = true;
+          for (let r = r1; r <= r2 && ok; r++) {
+            for (let c = c1; c <= c2 && ok; c++) {
+              if (!cellSet.has(r + ',' + c)) ok = false;
+            }
+          }
+          if (!ok) continue;
+          const used = new Set();
+          for (let r = r1; r <= r2; r++) {
+            for (let c = c1; c <= c2; c++) used.add(cellPiece.get(r + ',' + c));
+          }
+          for (const pi of used) {
+            for (const seg of def.pieces[pi]) {
+              if (seg[0] < r1 || seg[0] > r2 || seg[1] < c1 || seg[1] > c2) { ok = false; break; }
+            }
+            if (!ok) break;
+          }
+          if (!ok) continue;
+          if (def.type === 'square' && (r2 - r1) !== (c2 - c1)) continue;
+          targets.push({ r1, r2, c1, c2, pieces: [...used].sort((a, b) => a - b) });
+        }
+      }
+    }
+  }
+  return targets;
+}
+
+/* ---------------- 全局状态 ---------------- */
+const G = {
+  palette: null,
+  diffKey: 'easy',
+  levels: [],
+  levelIdx: 0,
+  moves: 0,
+  stars: 0,
+  levelRecords: [],
+  timerSec: 0,
+  timerId: null
+};
+
+/* 当前关卡的运行时数据 */
+const L = {
+  def: null, mode: '', noun: '',
+  targets: [], cats: [],
+  pieceLabels: [],
+  layout: null,
+  drag: null,
+  hoverShape: null,
+  hintTarget: null, hintUntil: 0,
+  hintsLeft: 2, revealed: false, revealing: false,
+  fx: [],
+  done: false,
+  gen: 0   /* 关卡代数：重开关卡后让旧的延时回调失效，防止串关 */
+};
+
+/* ---------------- DOM 引用 ---------------- */
+const canvas = $('#game-canvas');
+const ctx = canvas.getContext('2d');
+const canvasWrap = $('#canvas-wrap');
+const confettiCv = $('#confetti-canvas');
+const confettiCtx = confettiCv.getContext('2d');
+
+/* ---------------- 色板应用 ---------------- */
+function applyPalette() {
+  G.palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  const p = G.palette;
+  const root = document.documentElement.style;
+  root.setProperty('--c-primary', p.primary);
+  root.setProperty('--c-primary-deep', p.deep);
+  root.setProperty('--c-accent1', p.accents[0]);
+  root.setProperty('--c-accent2', p.accents[1]);
+  root.setProperty('--c-accent3', p.accents[2]);
+}
+
+/* ---------------- 关卡实例构建 ---------------- */
+function buildLevel(def) {
+  L.gen++;   /* 关卡换代：让上一关未执行的延时回调全部失效 */
+  L.def = def;
+  L.mode = (def.type === 'rect' || def.type === 'square') ? 'frame' : 'tap';
+  L.noun = NOUNS[def.type];
+  L.done = false; L.revealed = false; L.revealing = false;
+  L.hintsLeft = 2; L.hintTarget = null; L.hintUntil = 0;
+  L.drag = null; L.hoverShape = null; L.fx = [];
+
+  /* 分块编号随机打乱（教参的"标号法"，每局编号不同） */
+  const n = def.pieces ? def.pieces.length : 0;
+  const nums = [];
+  for (let i = 1; i <= n; i++) nums.push(i);
+  L.pieceLabels = shuffle(nums);
+
+  /* 生成目标与分类（分类完全由目标派生，杜绝标签错配） */
+  if (L.mode === 'frame') {
+    const tgts = buildFrameTargets(def);
+    /* 自检：枚举结果必须与教参期望一致（见控制台） */
+    if (def.expect && tgts.length !== def.expect) {
+      console.warn('关卡 ' + def.id + ' 枚举数 ' + tgts.length + ' 与期望 ' + def.expect + ' 不一致');
+    }
+    L.targets = tgts.map(t => ({ r1: t.r1, r2: t.r2, c1: t.c1, c2: t.c2, pieces: t.pieces, found: false, order: 0 }));
+    if (def.type === 'rect') {
+      /* 长方形：按构成块数分类（一块、两块、三块……） */
+      const byCount = {};
+      L.targets.forEach(t => {
+        const k = t.pieces.length;
+        (byCount[k] = byCount[k] || []).push(t);
+      });
+      L.cats = Object.keys(byCount).map(Number).sort((a, b) => a - b).map(k => ({
+        key: 'p' + k,
+        label: cnNum(k) + '块',
+        targets: byCount[k]
+      }));
+    } else {
+      /* 正方形：按大小分类；名称由实际出现的尺寸自动派生
+         （1 种尺寸→小；2 种→小、大；3 种→小、中、大，与教参口径一致） */
+      const bySize = {};
+      L.targets.forEach(t => {
+        const k = t.r2 - t.r1 + 1;
+        (bySize[k] = bySize[k] || []).push(t);
+      });
+      const sizes = Object.keys(bySize).map(Number).sort((a, b) => a - b);
+      const sizeNames = sizes.length === 1 ? ['小'] : (sizes.length === 2 ? ['小', '大'] : ['小', '中', '大']);
+      L.cats = sizes.map((k, i) => ({
+        key: 's' + k,
+        label: sizeNames[i] + '（' + k + '×' + k + '）',
+        targets: bySize[k]
+      }));
+    }
+  } else {
+    /* 点选类：图形列表即目标，按 小 / 中 / 大 分类 */
+    const shapes = shuffle(def.shapes.map(s => ({ ...s })));   /* 顺序随机化 */
+    L.targets = shapes.map(s => ({
+      kind: s.kind, pts: s.pts, cx: s.cx, cy: s.cy, r: s.r, cat: s.cat,
+      found: false, order: 0,
+      area: s.kind === 'circle' ? Math.PI * s.r * s.r : polyArea(s.pts)
+    }));
+    const byCat = { '小': [], '中': [], '大': [] };
+    L.targets.forEach(t => byCat[t.cat].push(t));
+    L.cats = ['小', '中', '大'].filter(k => byCat[k].length > 0).map(k => ({
+      key: 'c' + k, label: k + '图形', targets: byCat[k]
+    }));
+  }
+}
+
+/* ---------------- 画布布局 ---------------- */
+function fitCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvasWrap.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  confettiCv.width = Math.round(window.innerWidth * dpr);
+  confettiCv.height = Math.round(window.innerHeight * dpr);
+  computeLayout();
+}
+
+function computeLayout() {
+  if (!L.def) { L.layout = null; return; }
+  const W = canvasWrap.clientWidth, H = canvasWrap.clientHeight;
+  const padX = 46, padY = 40;
+  if (L.mode === 'frame') {
+    const def = L.def;
+    let uw = Math.floor((W - padX * 2) / def.cols);
+    let uh = Math.floor((H - padY * 2) / def.rows);
+    if (def.type === 'square') {
+      /* 正方形题：单元格必须画成正方形，保证 2×2、3×3 看起来是大正方形 */
+      const u = Math.min(uw, uh, 96);
+      uw = u; uh = u;
+    } else {
+      uw = clamp(uw, 40, 150);
+      uh = clamp(uh, 40, 120);
+    }
+    const ox = Math.round((W - uw * def.cols) / 2);
+    const oy = Math.round((H - uh * def.rows) / 2);
+    L.layout = { ox, oy, uw, uh };
+  } else {
+    /* 点选类：把几何包围盒缩放居中 */
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+    L.def.shapes.forEach(s => {
+      if (s.kind === 'circle') {
+        minX = Math.min(minX, s.cx - s.r); maxX = Math.max(maxX, s.cx + s.r);
+        minY = Math.min(minY, s.cy - s.r); maxY = Math.max(maxY, s.cy + s.r);
+      } else {
+        s.pts.forEach(p => {
+          minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+          minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+        });
+      }
+    });
+    const gw = maxX - minX, gh = maxY - minY;
+    const scale = Math.min((W - padX * 2) / gw, (H - padY * 2) / gh);
+    const ox = (W - gw * scale) / 2 - minX * scale;
+    const oy = (H - gh * scale) / 2 - minY * scale;
+    L.layout = { ox, oy, scale };
+  }
+}
+
+/* 坐标换算：点选类抽象坐标 -> 画布像素 */
+function tapX(x) { return L.layout.ox + x * L.layout.scale; }
+function tapY(y) { return L.layout.oy + y * L.layout.scale; }
+
+/* 网格类：格坐标 -> 像素 */
+function cellX(c) { return L.layout.ox + c * L.layout.uw; }
+function cellY(r) { return L.layout.oy + r * L.layout.uh; }
+
+/* 分类对应的显示色（frame：分类序号；tap：小中大） */
+function catColorOf(t) {
+  const idx = L.cats.findIndex(c => c.targets.indexOf(t) >= 0);
+  return G.palette.accents[(idx >= 0 ? idx : 0) % G.palette.accents.length];
+}
+function tapColorOf(t) {
+  const idx = ['小', '中', '大'].indexOf(t.cat);
+  return G.palette.accents[(idx >= 0 ? idx : 0) % G.palette.accents.length];
+}
+
+/* ---------------- 绘制：网格类图形 ---------------- */
+function drawFrameFigure() {
+  const def = L.def;
+  const cellSet = new Set(def.cells.map(c => c.join(',')));
+  const cellPiece = new Map();
+  def.pieces.forEach((p, i) => p.forEach(c => cellPiece.set(c.join(','), i)));
+
+  /* 1. 已点亮目标的底色（画在最底层） */
+  L.targets.forEach(t => {
+    if (!t.found) return;
+    const x = cellX(t.c1), y = cellY(t.r1);
+    const w = cellX(t.c2 + 1) - x, h = cellY(t.r2 + 1) - y;
+    const color = catColorOf(t);
+    ctx.fillStyle = hexA(color, 0.26);
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3.5;
+    ctx.setLineDash([9, 5]);
+    ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+    ctx.setLineDash([]);
+    drawBadge(x + w - 3, y + 3, t.order, color);
+  });
+
+  /* 2. 画边线：外轮廓粗、分块边界中等、同块内部不画线 */
+  const outerSegs = [], innerSegs = [];
+  def.cells.forEach(cell => {
+    const r = cell[0], c = cell[1];
+    const x1 = cellX(c), y1 = cellY(r);
+    const x2 = cellX(c + 1), y2 = cellY(r + 1);
+    const pHere = cellPiece.get(r + ',' + c);
+    /* 上边 */
+    if (!cellSet.has((r - 1) + ',' + c)) outerSegs.push([x1, y1, x2, y1]);
+    else if (cellPiece.get((r - 1) + ',' + c) !== pHere) innerSegs.push([x1, y1, x2, y1]);
+    /* 下边 */
+    if (!cellSet.has((r + 1) + ',' + c)) outerSegs.push([x1, y2, x2, y2]);
+    else if (cellPiece.get((r + 1) + ',' + c) !== pHere) innerSegs.push([x1, y2, x2, y2]);
+    /* 左边 */
+    if (!cellSet.has(r + ',' + (c - 1))) outerSegs.push([x1, y1, x1, y2]);
+    else if (cellPiece.get(r + ',' + (c - 1)) !== pHere) innerSegs.push([x1, y1, x1, y2]);
+    /* 右边 */
+    if (!cellSet.has(r + ',' + (c + 1))) outerSegs.push([x2, y1, x2, y2]);
+    else if (cellPiece.get(r + ',' + (c + 1)) !== pHere) innerSegs.push([x2, y1, x2, y2]);
+  });
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#2b3a55';
+  ctx.lineWidth = 2.5;
+  innerSegs.forEach(s => { ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); ctx.stroke(); });
+  ctx.strokeStyle = '#1c2841';
+  ctx.lineWidth = 5;
+  outerSegs.forEach(s => { ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); ctx.stroke(); });
+
+  /* 3. 分块编号（教参"标号法"），图内文字均 ≥20px */
+  const fontSize = def.pieces.length > 6 ? 20 : 26;
+  ctx.font = 'bold ' + fontSize + 'px "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  def.pieces.forEach((p, i) => {
+    let sx = 0, sy = 0;
+    p.forEach(rc => {
+      sx += cellX(rc[1]) + L.layout.uw / 2;
+      sy += cellY(rc[0]) + L.layout.uh / 2;
+    });
+    sx /= p.length; sy /= p.length;
+    ctx.fillStyle = '#2b3a55';
+    ctx.fillText(String(L.pieceLabels[i]), sx, sy);
+  });
+}
+
+/* ---------------- 绘制：点选类图形 ---------------- */
+function drawTapFigure(now) {
+  /* 按面积从大到小绘制，保证小图形的线条清晰可见 */
+  const sorted = L.targets.slice().sort((a, b) => b.area - a.area);
+
+  /* 1. 已点亮的填充 */
+  sorted.forEach(t => {
+    if (!t.found) return;
+    ctx.fillStyle = hexA(tapColorOf(t), 0.30);
+    fillShape(t);
+  });
+
+  /* 2. 提示闪烁：脉冲高亮一个未点亮图形 */
+  if (L.hintTarget && now < L.hintUntil && !L.hintTarget.found) {
+    const alpha = 0.35 + 0.35 * Math.sin(now / 110);
+    ctx.fillStyle = hexA('#f0a52e', alpha);
+    fillShape(L.hintTarget);
+  }
+
+  /* 3. 悬停预览（点选模式）：淡淡的高亮 */
+  if (L.hoverShape && !L.hoverShape.found) {
+    ctx.fillStyle = hexA(G.palette.primary, 0.14);
+    fillShape(L.hoverShape);
+  }
+
+  /* 4. 全部轮廓线 */
+  ctx.strokeStyle = '#2b3a55';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  sorted.forEach(t => {
+    ctx.lineWidth = t.found ? 4 : 3;
+    strokeShape(t);
+  });
+
+  /* 5. 已点亮图形的序号徽章 */
+  sorted.forEach(t => {
+    if (!t.found) return;
+    const anchor = shapeAnchor(t);
+    drawBadge(anchor[0], anchor[1], t.order, tapColorOf(t));
+  });
+}
+
+function fillShape(t) {
+  ctx.beginPath();
+  if (t.kind === 'circle') {
+    ctx.arc(tapX(t.cx), tapY(t.cy), t.r * L.layout.scale, 0, Math.PI * 2);
+  } else {
+    t.pts.forEach((p, i) => {
+      const x = tapX(p[0]), y = tapY(p[1]);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+  }
+  ctx.fill();
+}
+function strokeShape(t) {
+  ctx.beginPath();
+  if (t.kind === 'circle') {
+    ctx.arc(tapX(t.cx), tapY(t.cy), t.r * L.layout.scale, 0, Math.PI * 2);
+  } else {
+    t.pts.forEach((p, i) => {
+      const x = tapX(p[0]), y = tapY(p[1]);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+  }
+  ctx.stroke();
+}
+function shapeAnchor(t) {
+  if (t.kind === 'circle') {
+    /* 徽章放在圆环右上方向，避免遮挡圆心 */
+    const a = -Math.PI / 4;
+    return [tapX(t.cx) + Math.cos(a) * t.r * L.layout.scale,
+            tapY(t.cy) + Math.sin(a) * t.r * L.layout.scale];
+  }
+  /* 多边形：取质心；六角星的大三角形质心在中央，改用其最上方顶点附近 */
+  let sx = 0, sy = 0;
+  t.pts.forEach(p => { sx += tapX(p[0]); sy += tapY(p[1]); });
+  sx /= t.pts.length; sy /= t.pts.length;
+  if (t.cat === '大' && t.area > 1.2) {
+    /* 大三角形：徽章挂在它的顶角内侧，避免多个徽章挤在中心 */
+    let top = t.pts[0];
+    t.pts.forEach(p => { if (tapY(p[1]) < tapY(top[1])) top = p; });
+    return [(sx + tapX(top[0])) / 2, (sy + tapY(top[1])) / 2];
+  }
+  return [sx, sy];
+}
+function drawBadge(x, y, num, color) {
+  ctx.beginPath();
+  ctx.arc(x, y, 14, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#fff';
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(num), x, y + 1);
+}
+function hexA(hex, a) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+}
+
+/* ---------------- 框选拖拽的实时预览 ---------------- */
+function drawDragPreview() {
+  const d = L.drag;
+  if (!d) return;
+  const range = d.preview;
+  const x1 = Math.min(d.x0, d.x1), y1 = Math.min(d.y0, d.y1);
+  const x2 = Math.max(d.x0, d.x1), y2 = Math.max(d.y0, d.y1);
+  if (x2 - x1 < 6 || y2 - y1 < 6) return;
+
+  let color = '#9aa7bd';
+  if (range && range.target) {
+    color = range.target.found ? '#d99a2b' : '#2e9e5b';
+  }
+  /* 吸附框（粗实线）+ 原始拖拽框（细虚线） */
+  if (range) {
+    const px = cellX(range.c1), py = cellY(range.r1);
+    const pw = cellX(range.c2 + 1) - px, ph = cellY(range.r2 + 1) - py;
+    ctx.fillStyle = hexA(color, 0.12);
+    ctx.fillRect(px, py, pw, ph);
+    ctx.strokeStyle = color; ctx.lineWidth = 4;
+    ctx.setLineDash([]);
+    ctx.strokeRect(px, py, pw, ph);
+  }
+  ctx.strokeStyle = hexA(color, 0.8); ctx.lineWidth = 2;
+  ctx.setLineDash([7, 6]);
+  ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  ctx.setLineDash([]);
+}
+
+/* 点亮特效：扩散圆环 */
+function drawFx(now) {
+  L.fx = L.fx.filter(f => now - f.t0 < 600);
+  L.fx.forEach(f => {
+    const p = (now - f.t0) / 600;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, 12 + p * 52, 0, Math.PI * 2);
+    ctx.strokeStyle = hexA(f.color, 0.7 * (1 - p));
+    ctx.lineWidth = 5 * (1 - p) + 1;
+    ctx.stroke();
+  });
+}
+
+/* ---------------- 主渲染循环 ---------------- */
+function renderLoop(now) {
+  requestAnimationFrame(renderLoop);
+  const gameScreen = $('#screen-game');
+  if (!gameScreen || gameScreen.classList.contains('hidden')) return;
+  const W = canvasWrap.clientWidth, H = canvasWrap.clientHeight;
+  ctx.clearRect(0, 0, W, H);
+  if (!L.def || !L.layout) return;
+  if (L.mode === 'frame') {
+    drawFrameFigure();
+    drawDragPreview();
+  } else {
+    drawTapFigure(now);
+  }
+  drawFx(now);
+  renderConfetti();
+}
+requestAnimationFrame(renderLoop);
+
+/* ---------------- 交互：框选模式 ---------------- */
+function snapRangeFromDrag(x1, y1, x2, y2) {
+  /* 把拖拽框边缘吸附到最近的网格线，得到行列范围 */
+  const lay = L.layout, def = L.def;
+  const bL = clamp(Math.round((Math.min(x1, x2) - lay.ox) / lay.uw), 0, def.cols);
+  const bR = clamp(Math.round((Math.max(x1, x2) - lay.ox) / lay.uw), 0, def.cols);
+  const bT = clamp(Math.round((Math.min(y1, y2) - lay.oy) / lay.uh), 0, def.rows);
+  const bB = clamp(Math.round((Math.max(y1, y2) - lay.oy) / lay.uh), 0, def.rows);
+  const c1 = Math.min(bL, bR), c2 = Math.max(bL, bR) - 1;
+  const r1 = Math.min(bT, bB), r2 = Math.max(bT, bB) - 1;
+  if (c1 > c2 || r1 > r2) return null;
+  const target = L.targets.find(t => t.r1 === r1 && t.r2 === r2 && t.c1 === c1 && t.c2 === c2) || null;
+  return { r1, r2, c1, c2, target };
+}
+
+function rangeHasHole(range) {
+  /* 范围内是否存在缺失的格子（说明框到了图形外或空缺处） */
+  const cellSet = new Set(L.def.cells.map(c => c.join(',')));
+  for (let r = range.r1; r <= range.r2; r++) {
+    for (let c = range.c1; c <= range.c2; c++) {
+      if (!cellSet.has(r + ',' + c)) return true;
+    }
+  }
+  return false;
+}
+
+function onPointerDown(pt) {
+  if (L.done || L.revealing) return;
+  if (L.mode === 'frame') {
+    L.drag = { x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y, preview: null, moved: false };
+  } else {
+    handleTap(pt.x, pt.y);
+  }
+}
+function onPointerMove(pt) {
+  if (L.mode === 'frame') {
+    if (!L.drag) return;
+    if (Math.abs(pt.x - L.drag.x0) + Math.abs(pt.y - L.drag.y0) > 6) L.drag.moved = true;
+    L.drag.x1 = pt.x; L.drag.y1 = pt.y;
+    L.drag.preview = snapRangeFromDrag(L.drag.x0, L.drag.y0, L.drag.x1, L.drag.y1);
+  } else if (!L.done && !L.revealing) {
+    /* 悬停预览：显示即将点亮的图形 */
+    L.hoverShape = smallestUnfoundAt(pt.x, pt.y);
+  }
+}
+function onPointerUp() {
+  if (L.mode !== 'frame' || !L.drag) return;
+  const d = L.drag;
+  L.drag = null;
+  if (!d.moved) {
+    setMessage('按住不放并拖动，才能框出一个选框哦！', 'warn');
+    return;
+  }
+  addMove();
+  const range = snapRangeFromDrag(d.x0, d.y0, d.x1, d.y1);
+  if (!range) {
+    shakeCanvas();
+    setMessage('选框太小啦，框住一个完整的' + L.noun + '再松手！', 'warn');
+    return;
+  }
+  if (range.target) {
+    if (range.target.found) {
+      shakeCanvas();
+      setMessage('这个' + L.noun + '已经在收集架里啦，换个目标试试吧！', 'warn');
+    } else {
+      collectTarget(range.target);
+    }
+  } else {
+    shakeCanvas();
+    if (rangeHasHole(range)) {
+      setMessage('选框里有空缺，要恰好框住一个完整的' + L.noun + '哦！', 'warn');
+    } else {
+      setMessage('框线穿过了图形的分块，沿着块的边线重新框一次吧！', 'warn');
+    }
+  }
+}
+
+/* ---------------- 交互：点选模式 ---------------- */
+function shapeHit(t, px, py) {
+  if (t.kind === 'circle') {
+    const dx = px - tapX(t.cx), dy = py - tapY(t.cy);
+    return Math.hypot(dx, dy) <= t.r * L.layout.scale + 9;
+  }
+  return pointInPoly(px, py, t.pts.map(p => [tapX(p[0]), tapY(p[1])]));
+}
+function smallestUnfoundAt(px, py) {
+  const hits = L.targets.filter(t => !t.found && shapeHit(t, px, py));
+  if (!hits.length) return null;
+  hits.sort((a, b) => a.area - b.area);
+  return hits[0];
+}
+function anyFoundAt(px, py) {
+  return L.targets.some(t => t.found && shapeHit(t, px, py));
+}
+function handleTap(px, py) {
+  addMove();
+  const t = smallestUnfoundAt(px, py);
+  if (t) {
+    collectTarget(t);
+  } else if (anyFoundAt(px, py)) {
+    setMessage('这里的' + L.noun + '都已经点亮啦，换个位置试试吧！', 'warn');
+  } else {
+    setMessage('这里没有' + L.noun + '，往图形上点一点吧！', 'warn');
+  }
+}
+
+/* ---------------- 收集目标 ---------------- */
+function collectTarget(t) {
+  t.found = true;
+  t.order = L.targets.filter(x => x.found).length;
+  /* 特效圆环位置 */
+  let fx = 0, fy = 0;
+  if (L.mode === 'frame') {
+    fx = (cellX(t.c1) + cellX(t.c2 + 1)) / 2;
+    fy = (cellY(t.r1) + cellY(t.r2 + 1)) / 2;
+  } else {
+    const a = shapeAnchor(t); fx = a[0]; fy = a[1];
+  }
+  L.fx.push({ x: fx, y: fy, t0: performance.now(), color: G.palette.accents[2] });
+
+  /* 反馈文案（只描述方法与鼓励，不直接泄露各类数量） */
+  const found = t.order, total = L.targets.length;
+  if (L.mode === 'frame') {
+    const combo = t.pieces.map(p => L.pieceLabels[p]).sort((a, b) => a - b).join('+');
+    const msgs = [
+      '太棒了！点亮了「' + combo + '」组成的' + L.noun + '！',
+      '找到啦！' + combo + ' 拼成的' + L.noun + '收进收集架！',
+      '好眼力！第 ' + found + ' 个' + L.noun + '被点亮！'
+    ];
+    setMessage(msgs[found % msgs.length], 'good');
+  } else {
+    const msgs = [
+      '点亮成功！这是一个' + t.cat + L.noun + '！',
+      '找到啦！这个' + t.cat + L.noun + '被点亮！',
+      '好眼力！已收集 ' + found + ' / ' + total + ' 个，继续加油！'
+    ];
+    setMessage(msgs[found % msgs.length], 'good');
+  }
+  updateShelf();
+  updateProgress();
+  if (L.targets.every(x => x.found)) {
+    const gen = L.gen;
+    setTimeout(() => { if (gen === L.gen) levelComplete(); }, 480);
+  }
+}
+
+/* ---------------- 收集架 / 进度 ---------------- */
+function updateShelf() {
+  const total = L.targets.length;
+  const found = L.targets.filter(t => t.found).length;
+  $('#shelf-total').textContent = '已收集 ' + found + ' / ' + total + ' 个' + L.noun;
+  const box = $('#shelf-cats');
+  box.innerHTML = '';
+  L.cats.forEach((cat, ci) => {
+    const foundIn = cat.targets.filter(t => t.found);
+    const div = document.createElement('div');
+    div.className = 'cat-block' + (foundIn.length === cat.targets.length ? ' done' : '');
+    const head = document.createElement('div');
+    head.className = 'cat-head';
+    const nm = document.createElement('span');
+    nm.className = 'cat-name';
+    nm.textContent = cat.label;
+    const ct = document.createElement('span');
+    ct.className = 'cat-count';
+    ct.textContent = foundIn.length + ' / ' + cat.targets.length;
+    head.appendChild(nm); head.appendChild(ct);
+    div.appendChild(head);
+    const chips = document.createElement('div');
+    chips.className = 'cat-chips';
+    cat.targets.forEach(t => {
+      if (!t.found) return;
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.style.background = G.palette.accents[ci % G.palette.accents.length];
+      let txt = String(t.order);
+      if (L.mode === 'frame') {
+        txt = t.pieces.map(p => L.pieceLabels[p]).sort((a, b) => a - b).join('+');
+      }
+      chip.textContent = txt;
+      chip.title = '第 ' + t.order + ' 个收集';
+      chips.appendChild(chip);
+    });
+    div.appendChild(chips);
+    box.appendChild(div);
+  });
+}
+function updateProgress() {
+  const total = L.targets.length;
+  const found = L.targets.filter(t => t.found).length;
+  $('#found-count').textContent = found;
+  $('#total-count').textContent = total;
+  $('#progress-fill').style.width = (total ? (found / total * 100) : 0) + '%';
+}
+
+/* ---------------- 消息条 / 抖动 ---------------- */
+function setMessage(text, kind) {
+  const bar = $('#message-bar');
+  bar.textContent = text;
+  bar.className = 'message-bar ' + (kind || '');
+}
+function shakeCanvas() {
+  canvasWrap.classList.remove('shake');
+  void canvasWrap.offsetWidth;   /* 触发重排以重启动画 */
+  canvasWrap.classList.add('shake');
+}
+
+/* ---------------- 计时与步数 ---------------- */
+function startTimer() {
+  stopTimer();
+  G.timerSec = 0;
+  $('#timer-text').textContent = '00:00';
+  G.timerId = setInterval(() => {
+    G.timerSec++;
+    $('#timer-text').textContent = fmtTime(G.timerSec);
+  }, 1000);
+}
+function stopTimer() { if (G.timerId) { clearInterval(G.timerId); G.timerId = null; } }
+function addMove() {
+  G.moves++;
+  $('#moves-text').textContent = G.moves;
+}
+
+/* ---------------- 游戏流程 ---------------- */
+function startGame(diffKey) {
+  G.diffKey = diffKey;
+  applyPalette();
+  const pool = DIFF_POOLS[diffKey];
+  G.levels = shuffle(pool.defs).slice(0, pool.pick).map(id => FRAME_DEFS[id] || TAP_DEFS[id]);
+  G.levelIdx = 0; G.moves = 0; G.stars = 0; G.levelRecords = [];
+  $('#moves-text').textContent = '0';
+  $('#stars-text').textContent = '0';
+  $('#diff-chip').textContent = pool.label;
+  $('#level-total').textContent = G.levels.length;
+  showScreen('game');
+  startTimer();
+  loadLevel(0);
+}
+
+function loadLevel(i) {
+  G.levelIdx = i;
+  buildLevel(G.levels[i]);
+  $('#level-now').textContent = i + 1;
+  $('#level-tag').textContent = '第11讲 · ' + L.def.src + ' · ' + L.def.name;
+  const q = (L.def.type === 'triangle' || L.def.type === 'circle') ? L.def.question : QUESTIONS[L.def.type];
+  $('#question-text').textContent = q;
+  $('#btn-hint').disabled = false;
+  $('#btn-hint').textContent = '提示（' + L.hintsLeft + '）';
+  $('#btn-reveal').disabled = false;
+  setMessage(L.mode === 'frame'
+    ? '小提示：按住拖动画框，框线会自动吸到图形边线上！'
+    : '小提示：同一位置叠着多个图形时，多点几次由小到大逐个点亮！', '');
+  fitCanvas();
+  updateShelf();
+  updateProgress();
+  $('#modal-level-done').classList.add('hidden');
+}
+
+function levelComplete() {
+  if (L.done) return;
+  L.done = true;
+  const stars = L.revealed ? 1 : 3;
+  G.stars += stars;
+  $('#stars-text').textContent = G.stars;
+  G.levelRecords.push({ name: L.def.src + ' · ' + L.def.name, stars: stars });
+
+  /* 结算弹窗：呈现教参风格的分类解析（此刻才揭晓各类数量与总数） */
+  const total = L.targets.length;
+  const parts = [], nums = [];
+  L.cats.forEach(cat => {
+    parts.push(cat.label.split('（')[0] + ' ' + cat.targets.length + ' 个');
+    nums.push(cat.targets.length);
+  });
+  const classifyName = L.mode === 'frame'
+    ? (L.def.type === 'rect' ? '按构成分类' : '按大小分类')
+    : '按大小分类';
+  $('#done-title').textContent = '第 ' + (G.levelIdx + 1) + ' 关完成！';
+  $('#done-breakdown').innerHTML =
+    '图中共有 <b style="font-size:26px;color:var(--c-primary-deep)">' + total + '</b> 个' + L.noun +
+    '<br><b>' + classifyName + '：</b>' + parts.join(' · ') +
+    '<br><span class="formula">' + nums.join(' + ') + ' = ' + total + '（个）</span>';
+  $('#done-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+  $('#done-note').textContent = L.revealed
+    ? '本关使用了揭示答案，获得 1 颗星星。独立完成可获得 3 颗哦！'
+    : '太厉害了！独立找全了所有' + L.noun + '！';
+  const isLast = G.levelIdx >= G.levels.length - 1;
+  $('#btn-next-level').textContent = isLast ? '查看总成绩' : '进入下一关';
+  $('#modal-level-done').classList.remove('hidden');
+
+  /* 小型庆祝彩纸 */
+  burstConfetti(70);
+}
+
+function nextLevel() {
+  $('#modal-level-done').classList.add('hidden');
+  if (G.levelIdx >= G.levels.length - 1) {
+    finishGame();
+  } else {
+    loadLevel(G.levelIdx + 1);
+  }
+}
+
+function finishGame() {
+  stopTimer();
+  $('#result-stars').textContent = '★'.repeat(Math.min(9, G.stars)) + '☆'.repeat(Math.max(0, 9 - G.stars));
+  $('#result-time').textContent = fmtTime(G.timerSec);
+  $('#result-moves').textContent = G.moves;
+  const box = $('#result-levels');
+  box.innerHTML = '';
+  G.levelRecords.forEach(rec => {
+    const div = document.createElement('div');
+    div.className = 'rl';
+    const s1 = document.createElement('span'); s1.textContent = rec.name;
+    const s2 = document.createElement('span'); s2.textContent = '★'.repeat(rec.stars) + '☆'.repeat(3 - rec.stars);
+    div.appendChild(s1); div.appendChild(s2);
+    box.appendChild(div);
+  });
+  showScreen('result');
+  /* 大型庆祝：连续彩纸 + 烟花式爆开 */
+  burstConfetti(220, true);
+  let bursts = 0;
+  const iv = setInterval(() => {
+    burstConfettiAt(Math.random() * window.innerWidth, window.innerHeight * 0.35, 60);
+    if (++bursts >= 5) clearInterval(iv);
+  }, 420);
+}
+
+/* ---------------- 提示 / 揭示答案 ---------------- */
+function useHint() {
+  if (L.done || L.revealing) return;
+  if (L.hintsLeft <= 0) return;
+  const unfound = L.targets.filter(t => !t.found);
+  if (!unfound.length) return;
+  L.hintsLeft--;
+  L.hintTarget = unfound[Math.floor(Math.random() * unfound.length)];
+  L.hintUntil = performance.now() + 2200;
+  $('#btn-hint').textContent = '提示（' + L.hintsLeft + '）';
+  if (L.hintsLeft <= 0) $('#btn-hint').disabled = true;
+  setMessage('看！闪烁的就是一个还没点亮的' + L.noun + '！', 'good');
+}
+
+function revealAnswers() {
+  if (L.done || L.revealing) return;
+  if (!L.targets.some(t => !t.found)) return;
+  L.revealing = true;
+  L.revealed = true;
+  $('#btn-reveal').disabled = true;
+  $('#btn-hint').disabled = true;
+  setMessage('正在揭示答案……看看它们的分类规律吧！', '');
+  const unfound = L.targets.filter(t => !t.found);
+  const gen = L.gen;
+  unfound.forEach(t => {
+    setTimeout(() => { if (gen === L.gen) collectTarget(t); }, 320 * (unfound.indexOf(t) + 1));
+  });
+  setTimeout(() => { if (gen === L.gen) L.revealing = false; }, 320 * unfound.length + 150);
+}
+
+/* ---------------- 彩纸庆祝引擎 ---------------- */
+const confetti = [];
+const CONFETTI_COLORS = ['#e06a5a', '#4a7de0', '#58b368', '#e8b13a', '#9a6fe0', '#5bc8d9'];
+function burstConfetti(n, fromTop) {
+  const W = window.innerWidth, H = window.innerHeight;
+  for (let i = 0; i < n; i++) {
+    confetti.push({
+      x: Math.random() * W,
+      y: fromTop ? -20 - Math.random() * H * 0.3 : -20 - Math.random() * 200,
+      vx: (Math.random() - 0.5) * 2.4,
+      vy: 2 + Math.random() * 3.2,
+      size: 7 + Math.random() * 8,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.24,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      life: 0
+    });
+  }
+}
+function burstConfettiAt(x, y, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 5;
+    confetti.push({
+      x: x, y: y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+      size: 6 + Math.random() * 7,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.3,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      life: 0
+    });
+  }
+}
+function renderConfetti() {
+  const dpr = window.devicePixelRatio || 1;
+  const W = confettiCv.width / dpr, H = confettiCv.height / dpr;
+  confettiCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  confettiCtx.clearRect(0, 0, W, H);
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const p = confetti[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.rot += p.vr; p.life++;
+    if (p.y > H + 30 || p.life > 700) { confetti.splice(i, 1); continue; }
+    confettiCtx.save();
+    confettiCtx.translate(p.x, p.y);
+    confettiCtx.rotate(p.rot);
+    confettiCtx.fillStyle = p.color;
+    confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.62);
+    confettiCtx.restore();
+  }
+}
+
+/* ---------------- 屏幕切换 ---------------- */
+function showScreen(name) {
+  ['start', 'game', 'result'].forEach(s => {
+    $('#screen-' + s).classList.toggle('hidden', s !== name);
+  });
+}
+
+/* ---------------- 事件绑定 ---------------- */
+document.querySelectorAll('.diff-card').forEach(btn => {
+  btn.addEventListener('click', () => startGame(btn.dataset.diff));
+});
+$('#btn-rules-start').addEventListener('click', () => {
+  $('#modal-rules').classList.remove('hidden');
+});
+$('#btn-rules').addEventListener('click', () => {
+  $('#modal-rules').classList.remove('hidden');
+});
+$('#btn-rules-close').addEventListener('click', () => {
+  $('#modal-rules').classList.add('hidden');
+});
+$('#btn-hint').addEventListener('click', useHint);
+$('#btn-reveal').addEventListener('click', revealAnswers);
+$('#btn-restart').addEventListener('click', () => {
+  /* 重新开始：同难度重新抽题、换配色 */
+  startGame(G.diffKey);
+});
+$('#btn-back').addEventListener('click', () => {
+  stopTimer();
+  showScreen('start');
+});
+$('#btn-next-level').addEventListener('click', nextLevel);
+$('#btn-again').addEventListener('click', () => startGame(G.diffKey));
+$('#btn-change-diff').addEventListener('click', () => {
+  showScreen('start');
+});
+
+/* 画布指针交互（鼠标 + 触摸统一用 Pointer 事件） */
+canvas.addEventListener('pointerdown', (e) => {
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* 某些环境不支持指针捕获，忽略 */ }
+  onPointerDown(eventPos(e));
+});
+canvas.addEventListener('pointermove', (e) => onPointerMove(eventPos(e)));
+canvas.addEventListener('pointerup', () => onPointerUp());
+canvas.addEventListener('pointercancel', () => { L.drag = null; });
+canvas.addEventListener('pointerleave', () => { L.hoverShape = null; });
+
+function eventPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+/* 窗口尺寸变化：重算画布并重绘 */
+window.addEventListener('resize', fitCanvas);
+
+/* 初始化：先随机一套配色装点开始屏 */
+applyPalette();
+fitCanvas();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g022", "name": "\u56fe\u5f62\u5bfb\u5b9d\u5927\u95ef\u5173\u2014\u2014\u5e73\u9762\u56fe\u5f62\u8ba1\u6570\u521d\u6b65\uff08\u4e0b\uff09", "file": "g022.html", "jiaocan": "\u301022\u3011\u7b2c11\u8bb2 \u5e73\u9762\u56fe\u5f62\u8ba1\u6570\u521d\u6b65\uff08\u4e0b\uff09", "unit": "\u7b2c11\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

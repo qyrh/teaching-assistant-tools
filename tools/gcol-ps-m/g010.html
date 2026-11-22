@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>奇妙分物馆 · 认识一个整体的几分之一</title>
+<style>
+/* ================= 全局样式 ================= */
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { width:100%; min-height:100%; font-family:"Microsoft YaHei","PingFang SC",sans-serif; overflow-x:hidden; }
+body { background:linear-gradient(160deg,#667eea 0%,#764ba2 100%); }
+
+/* 顶部信息栏 */
+#topbar { position:fixed; top:0; left:0; right:0; height:64px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:rgba(255,255,255,.16); backdrop-filter:blur(8px); z-index:50; color:#fff; }
+#topbar .logo { font-size:22px; font-weight:900; letter-spacing:2px; text-shadow:0 2px 6px rgba(0,0,0,.25); }
+#hud { display:flex; gap:10px; align-items:center; }
+.hud-chip { background:rgba(0,0,0,.28); border-radius:20px; padding:6px 14px; font-size:18px; font-weight:700; white-space:nowrap; }
+
+/* 面板通用 */
+.screen { display:none; min-height:100vh; padding:80px 16px 40px; }
+.screen.active { display:block; }
+.panel { max-width:960px; margin:0 auto; background:#fff; border-radius:24px; padding:28px 22px; box-shadow:0 16px 48px rgba(0,0,0,.28); }
+
+/* 难度选择 */
+#screen-diff .panel { text-align:center; }
+#screen-diff h1 { font-size:30px; color:#333; margin-bottom:6px; }
+#screen-diff .sub { font-size:18px; color:#888; margin-bottom:22px; }
+.diff-btn { display:block; width:100%; max-width:560px; margin:0 auto 16px; padding:20px 18px; font-size:22px; font-weight:800; color:#fff; border:none; border-radius:18px; cursor:pointer; box-shadow:0 6px 0 rgba(0,0,0,.18); transition:transform .12s; }
+.diff-btn:active { transform:translateY(4px); box-shadow:0 2px 0 rgba(0,0,0,.18); }
+.diff-btn .desc { display:block; font-size:15px; font-weight:500; opacity:.92; margin-top:6px; }
+
+/* 规则面板 */
+#rules-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; display:none; align-items:center; justify-content:center; padding:16px; }
+#rules-overlay.show { display:flex; }
+#rules-box { background:#fff; border-radius:20px; max-width:640px; width:100%; max-height:86vh; overflow-y:auto; padding:26px 24px; }
+#rules-box h2 { font-size:26px; color:#333; margin-bottom:14px; }
+#rules-box li { font-size:18px; color:#555; line-height:1.75; margin:8px 0 8px 22px; }
+#rules-box .demo { font-size:16px; color:#888; margin-top:10px; }
+.btn-main { display:block; margin:18px auto 0; padding:12px 46px; font-size:20px; font-weight:800; color:#fff; border:none; border-radius:14px; cursor:pointer; background:#5b8def; box-shadow:0 4px 0 #3b6cc7; }
+.btn-main:active { transform:translateY(3px); box-shadow:none; }
+.link-btn { background:none; border:none; color:#5b8def; font-size:15px; cursor:pointer; text-decoration:underline; padding:4px; }
+
+/* 关卡头部 */
+#lv-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+#lv-title { font-size:24px; font-weight:900; color:#333; }
+#lv-prog { font-size:17px; font-weight:700; color:#fff; background:#8a93ab; padding:5px 14px; border-radius:16px; }
+
+/* 题面卡 */
+#q-card { background:#f4f7ff; border:3px dashed #9db4e8; border-radius:18px; padding:16px; font-size:21px; color:#333; line-height:1.65; margin-bottom:14px; }
+#q-card .frac-inline { display:inline-block; vertical-align:middle; text-align:center; line-height:1.05; margin:0 4px; transform:translateY(-2px); }
+#q-card .frac-inline .fn { display:block; padding:0 6px; border-bottom:3px solid #333; }
+#q-card .frac-inline .fd { display:block; padding:0 6px; }
+.q-note { display:block; font-size:16px; color:#7a86a8; margin-top:6px; }
+
+/* 操作区 */
+#stage-wrap { position:relative; background:#eef3fb; border-radius:18px; padding:14px; min-height:230px; margin-bottom:14px; touch-action:none; }
+#stage-wrap.canvas-mode { background:#eef8ff; }
+canvas { display:block; margin:0 auto; touch-action:none; }
+
+/* 分数条构建区（题二） */
+#frac-zone { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; padding:10px 0; }
+#frac-zone .lbl { font-size:19px; color:#555; font-weight:700; }
+.slot { min-width:44px; height:58px; border:3px dashed #b7c6e4; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:900; color:#3d4d6b; background:#fff; }
+.slot.ok { border-style:solid; border-color:#27ae60; color:#1e8449; background:#eafff2; }
+.frac-live { display:inline-flex; flex-direction:column; align-items:center; font-weight:900; color:#2c395b; margin:0 6px; transform:translateY(-2px); }
+.frac-live .fn { font-size:26px; padding:0 8px; border-bottom:3px solid #2c395b; }
+.frac-live .fd { font-size:26px; padding:0 8px; }
+
+/* 工具与答案区 */
+#tools { margin-bottom:12px; }
+.tool-row { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.tool-label { font-size:19px; font-weight:800; color:#444; }
+#palette { display:flex; gap:10px; flex-wrap:wrap; }
+.swatch { width:52px; height:52px; border-radius:50%; border:4px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,.22); cursor:pointer; transition:transform .12s; }
+.swatch.sel { transform:scale(1.18); outline:4px solid #333; }
+#palette .swatch.disabled { opacity:.25; cursor:not-allowed; }
+#palette .swatch.fixed-mark { cursor:default; }
+#palette .swatch .sw-cnt { display:block; width:100%; text-align:center; transform:translateY(15px); font-size:19px; font-weight:900; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.6); }
+
+#ans-zone { margin-bottom:12px; }
+#target-frac { display:inline-flex; flex-direction:column; align-items:center; font-weight:900; color:#2c395b; vertical-align:middle; margin:0 8px; }
+#target-frac .fn { font-size:28px; padding:0 10px; border-bottom:3px solid #2c395b; }
+#target-frac .fd { font-size:28px; padding:0 10px; }
+#ans-zone .lbl { font-size:20px; color:#444; font-weight:700; }
+
+#feedback { min-height:34px; font-size:19px; font-weight:800; text-align:center; margin-bottom:10px; }
+#feedback.good { color:#1e8449; }
+#feedback.bad { color:#c0392b; }
+
+/* 按钮组 */
+#btn-row { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+.btn { padding:11px 20px; font-size:18px; font-weight:800; color:#fff; border:none; border-radius:12px; cursor:pointer; box-shadow:0 4px 0 rgba(0,0,0,.2); }
+.btn:active { transform:translateY(3px); box-shadow:none; }
+.btn-check { background:#27ae60; box-shadow:0 4px 0 #1a8749; }
+.btn-reveal { background:#e67e22; box-shadow:0 4px 0 #b86314; }
+.btn-restart { background:#7f8c8d; box-shadow:0 4px 0 #5f6c6d; }
+.btn-back { background:#95a5a6; box-shadow:0 4px 0 #6d7f80; }
+
+/* 完成页 */
+#screen-end .panel { text-align:center; }
+#screen-end h1 { font-size:34px; color:#333; margin-bottom:8px; }
+#screen-end p { font-size:20px; color:#666; margin-bottom:6px; }
+
+/* 庆祝彩纸 */
+.confetti-piece { position:fixed; top:-20px; z-index:200; pointer-events:none; }
+
+/* 移动端微调 */
+@media (max-width:640px){
+  #topbar .logo { font-size:17px; }
+  .hud-chip { font-size:15px; padding:5px 10px; }
+  #q-card { font-size:18px; }
+  #lv-title { font-size:20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏：标识 + 计时器/步数 -->
+<div id="topbar">
+  <div class="logo">🍈 奇妙分物馆</div>
+  <div id="hud">
+    <div class="hud-chip" id="hud-timer">⏱ 00:00</div>
+    <div class="hud-chip" id="hud-steps">👟 0 步</div>
+    <button class="link-btn" id="btn-rules-top" style="color:#fff;font-size:16px;">规则</button>
+  </div>
+</div>
+
+<!-- 屏1：难度选择 -->
+<div class="screen active" id="screen-diff">
+  <div class="panel">
+    <h1>🍈 奇妙分物馆</h1>
+    <div class="sub">把一盘好果子平均分一分、圈一圈，认识"一个整体的几分之一"（课本 P76~77）</div>
+    <button class="diff-btn" id="btn-d1" style="background:#27ae60;">⭐ 初级分物员 · 分桃小站<span class="desc">看图分一分：把盘子里的桃拖到 2 只小猴的餐盘里，平均分</span></button>
+    <button class="diff-btn" id="btn-d2" style="background:#e67e22;">⭐⭐ 中级分物员 · 圈果工坊<span class="desc">听分数指令圈一圈：涂色 + 圈出整体的几分之一</span></button>
+    <button class="diff-btn" id="btn-d3" style="background:#8e44ad;">⭐⭐⭐ 高级分物师 · 分物大师<span class="desc">综合挑战：分糖果、折纸、圈苹果，填出分数并说清道理</span></button>
+    <div style="text-align:center;margin-top:8px;">
+      <button class="link-btn" id="btn-rules-diff">📖 先看看怎么玩</button>
+    </div>
+  </div>
+</div>
+
+<!-- 屏2：关卡 -->
+<div class="screen" id="screen-level">
+  <div class="panel">
+    <div id="lv-head">
+      <div id="lv-title">第 1 关</div>
+      <div id="lv-prog">1 / 4</div>
+    </div>
+    <div id="q-card"></div>
+
+    <div id="stage-wrap">
+      <canvas id="cv"></canvas>
+
+      <!-- 分数条构建区（高级题专用，JS 按题型控制显示） -->
+      <div id="frac-zone" style="display:none;">
+        <span class="lbl" id="lbl-0">把</span>
+        <div class="slot" id="slot-total">?</div>
+        <span class="lbl" id="lbl-1">颗糖平均分成</span>
+        <div class="slot" id="slot-parts">?</div>
+        <span class="lbl" id="lbl-2">份，每人分得</span>
+        <span class="frac-live" id="live-frac-a"><span class="fn" id="live-num">?</span><span class="fd" id="live-den">?</span></span>
+        <span class="lbl" id="lbl-3">，</span>
+        <span class="lbl" id="lbl-4">这张纸对折 2 次 → </span>
+        <div class="slot" id="slot-fold">?</div>
+        <span class="lbl" id="lbl-5">份，每份是它的</span>
+        <span class="frac-live" id="live-frac-b"><span class="fn">1</span><span class="fd" id="live-fold">?</span></span>
+      </div>
+    </div>
+
+    <!-- 工具区：颜色选择 -->
+    <div id="tools">
+      <div class="tool-row">
+        <span class="tool-label" id="tool-label">🎨 选一种颜色：</span>
+        <div id="palette"></div>
+      </div>
+      <div style="text-align:center;margin-top:6px;">
+        <button class="link-btn" id="btn-clear">🧹 擦掉重涂</button>
+      </div>
+    </div>
+
+    <!-- 答案区：圈果题的目标分数 -->
+    <div id="ans-zone" style="display:none;">
+      <span class="lbl" id="ans-lbl">请圈出这些水果的</span>
+      <span id="target-frac"><span class="fn">1</span><span class="fd">2</span></span>
+    </div>
+
+    <div id="feedback"></div>
+    <div id="btn-row">
+      <button class="btn btn-check" id="btn-check">✅ 分好啦，检查</button>
+      <button class="btn btn-reveal" id="btn-reveal">💡 揭示答案</button>
+      <button class="btn btn-restart" id="btn-restart">🔄 重新开始</button>
+      <button class="btn btn-back" id="btn-back">🏠 返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- 屏3：完成 -->
+<div class="screen" id="screen-end">
+  <div class="panel">
+    <h1>🎉 全部通关，你是分物大师！</h1>
+    <p id="end-stats"></p>
+    <p style="margin-top:14px;">回家路上想一想：不管盘子里有 4 个还是 6 个桃，只要平均分成 2 份，每份都是这盘桃的二分之一——分子永远是 1，分母是"平均分的份数"！</p>
+    <button class="btn btn-back" id="btn-back2" style="margin:18px auto 0;">🏠 返回难度选择</button>
+  </div>
+</div>
+
+<!-- 规则弹窗 -->
+<div id="rules-overlay">
+  <div id="rules-box">
+    <h2>📖 游戏规则</h2>
+    <ul>
+      <li>🍐 <b>初级 · 分桃小站</b>：把盘子里的桃<b>拖进</b>下面小猴的餐盘，让 2 只小猴分得<b>同样多</b>（平均分）。分好后按"分好啦，检查"。</li>
+      <li>🍎 <b>中级 · 圈果工坊</b>：先<b>点选颜色</b>给图形涂色（涂出的每一份必须同样大），再<b>用手指/鼠标圈住</b>规定数量的水果，圈出整体的几分之一。</li>
+      <li>🍬 <b>高级 · 分物大师</b>：把糖果<b>拖到</b>小朋友头像下分一分，再把"<b>份数</b>"石块<b>拖进</b>答卷空格，亲自搭出分数条；折纸题要在折痕格纸上<b>涂出 1 份</b>。</li>
+      <li>💡 每一关都可以按"揭示答案"看示范；按"重新开始"换一批新题目再玩。</li>
+      <li>🏆 完成所选难度的全部关卡，就能看到彩纸庆祝动画！</li>
+    </ul>
+    <div class="demo">小提示：分数的分母 = 平均分成的份数，分子 = 取了的份数。表示部分与整体的关系，必须先平均分哦！</div>
+    <button class="btn-main" id="btn-rules-close">明白啦，开始！</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+ * 奇妙分物馆 · 认识一个整体的几分之一（苏教版三下）
+ * 核心玩法：拖拽分物 / 圈选水果 / 拼搭分数条，全程操作式交互
+ * ============================================================ */
+
+/* ---------- 工具函数 ---------- */
+function $(id){ return document.getElementById(id); }
+function shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function mulberry32(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; var t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+/* ---------- 全局状态 ---------- */
+var G = {
+  theme:{},            // 本局随机主题色
+  diff:null,           // 1/2/3
+  levels:[],           // 本局关卡数组
+  li:0,                // 当前关索引
+  steps:0,             // 步数（每次有效操作+1）
+  startTs:0,           // 计时起点
+  timerId:null,
+  revealed:false,      // 本关是否已揭示答案
+  answered:false,      // 本关是否已答对
+  seed:1,
+  rng:Math.random
+};
+
+/* 预设色板：每局随机挑一个主题（G8 配色随机化） */
+var THEMES = [
+  { name:'蜜桃粉',   main:'#e91e63', main2:'#f06292', plate:'#ffe3ee' },
+  { name:'苹果红',   main:'#e53935', main2:'#ef5350', plate:'#ffe0de' },
+  { name:'.青柠绿',  main:'#2e7d32', main2:'#43a047', plate:'#e2f5e3' },
+  { name:'海空蓝',   main:'#1565c0', main2:'#1e88e5', plate:'#ddeeff' },
+  { name:'香芋紫',   main:'#6a1b9a', main2:'#8e24aa', plate:'#f0e2f8' },
+  { name:'蜂蜜橙',   main:'#ef6c00', main2:'#fb8c00', plate:'#ffeeda' }
+];
+THEMES[2].name='青柠绿'; // 修正色板名
+
+/* 关卡类型标识 */
+var T_SPLIT=1, T_CIRCLE=2, T_FILL=3, T_DRAGNUM=4;
+
+/* ---------- 计时器与步数 ---------- */
+function fmtTime(s){ var m=Math.floor(s/60), ss=s%60; return (m<10?'0':'')+m+':'+(ss<10?'0':'')+ss; }
+function tickTimer(){ var s=Math.floor((Date.now()-G.startTs)/1000); $('hud-timer').textContent='⏱ '+fmtTime(s); }
+function addStep(){ G.steps++; $('hud-steps').textContent='👟 '+G.steps+' 步'; }
+
+/* ---------- 难度选择 ---------- */
+function applyTheme(){
+  var t=G.theme;
+  document.body.style.background='linear-gradient(160deg,'+t.main2+' 0%,'+t.main+' 100%)';
+  var d1=$('btn-d1'); d1.style.background=t.main; d1.style.boxShadow='0 6px 0 rgba(0,0,0,.25)';
+  var cols=[t.main,t.main,t.main];
+  $('btn-d2').style.background=t.main2; $('btn-d3').style.background=t.main;
+}
+function startGame(diff){
+  G.theme=pick(THEMES);
+  applyTheme();
+  G.diff=diff;
+  G.steps=0; $('hud-steps').textContent='👟 0 步';
+  G.startTs=Date.now();
+  if(G.timerId) clearInterval(G.timerId);
+  G.timerId=setInterval(tickTimer,1000); tickTimer();
+  buildLevels(diff);
+  G.li=0;
+  showScreen('screen-level');
+  loadLevel();
+}
+function showScreen(id){
+  var ss=document.querySelectorAll('.screen');
+  for(var i=0;i<ss.length;i++) ss[i].classList.remove('active');
+  $(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+/* ============================================================
+ * 关卡生成（题库来自教参 docx，随机抽样+随机化）
+ * 初级 T_SPLIT：例题"一盘桃平均分给2只小猴"+迁移"平均分成3份"
+ * 中级 T_CIRCLE：涂色表示分数 / 圈出苹果的几分之一 / 选能用 1/2 表示的图
+ * 高级 T_DRAGNUM：分糖填分数 / 折纸填份数 + 圈苹果综合
+ * ============================================================ */
+function buildLevels(diff){
+  var L=[];
+  if(diff===1){
+    /* 初级：4 道拖拽分桃题（数量、份数随机） */
+    var peachesPool=shuffle([2,3,4,5,6]);
+    var splitsPool=shuffle([2,3]);
+    for(var i=0;i<4;i++){
+      var n=peachesPool[i]*splitsPool[i%2];
+      L.push(mkSplit(n, splitsPool[i%2]));
+    }
+  } else if(diff===2){
+    /* 中级：1 道涂色表示分数 + 3 道圈果题 */
+    L.push(mkFill());
+    var cir=shuffle(CIRCLE_BANK).slice(0,3);
+    for(var j=0;j<cir.length;j++) L.push(mkCircle(cir[j]));
+  } else {
+    /* 高级：分糖拼分数条 + 折纸拼分数条 + 圈苹果 + 涂色，共 4 关 */
+    var st1=shuffle(SUGAR_BANK).slice(0,2);
+    for(var a=0;a<st1.length;a++) L.push(mkSugar(st1[a]));
+    var fd=shuffle(FOLD_BANK).slice(0,1);
+    for(var b=0;b<fd.length;b++) L.push(mkFold(fd[b]));
+    var cb=shuffle(CIRCLE_BANK_ADV).slice(0,1);
+    L.push(mkCircle(cb[0]));
+  }
+  G.levels=L;
+}
+
+/* ---------- 初级：分桃关卡（T_SPLIT） ---------- */
+function mkSplit(total, parts){
+  /* total 保证是 parts 的倍数；动物随机 */
+  var animal=pick([ {e:'🐒',n:'小猴'}, {e:'🐰',n:'小兔'}, {e:'🐻',n:'小熊'} ]);
+  var fruit=pick([ {e:'🍑',n:'桃'}, {e:'🍓',n:'草莓'}, {e:'🍊',n:'橘子'} ]);
+  return {
+    type:T_SPLIT,
+    total:total, parts:parts,
+    animal:animal, fruit:fruit,
+    title:'把一盘'+fruit.n+'平均分给 '+parts+' 只'+animal.n,
+    q:'把一盘 '+total+' 个'+fruit.n+'平均分给 '+parts+' 只'+animal.n+'，每只'+animal.n+'分得几个'+fruit.n+'？分一分（每盘要一样多），再看：每只'+animal.n+'分得这盘'+fruit.n+'的几分之几？',
+    note:'拖动'+fruit.n+'子放进下面的餐盘，让每只'+animal.n+'的'+fruit.n+'一样多。',
+    /* 答案：每份个数 + 分数 1/parts */
+    ansCount: total/parts,
+    ansFrac: {n:1, d:parts},
+    explain:'把这盘'+fruit.n+'看成一个整体，平均分成 '+parts+' 份，每份是这盘'+fruit.n+'的 '+parts+' 分之一（1/'+parts+'）。不管每份有几个'+fruit.n+'，只要平均分成 '+parts+' 份，每份都是它的 1/'+parts+'。'
+  };
+}
+
+/* ---------- 中级：圈果题库（源自教参举一反三 1(2)、2(1)） ---------- */
+var CIRCLE_BANK=[
+  { total:10, d:2, fruit:{e:'🍎',n:'苹果'} },   // 圈 5 个
+  { total:12, d:3, fruit:{e:'🍎',n:'苹果'} },   // 圈 4 个
+  { total: 9, d:3, fruit:{e:'🍐',n:'梨'}   },
+  { total: 8, d:4, fruit:{e:'🍓',n:'草莓'} },
+  { total: 6, d:2, fruit:{e:'🍊',n:'橘子'} }
+];
+var CIRCLE_BANK_ADV=[
+  { total:12, d:3, fruit:{e:'🍎',n:'苹果'} },
+  { total: 8, d:4, fruit:{e:'🍓',n:'草莓'} },
+  { total:10, d:5, fruit:{e:'🍌',n:'香蕉'} },
+  { total:12, d:4, fruit:{e:'🥝',n:'猕猴桃'} }
+];
+function mkCircle(cfg){
+  return {
+    type:T_CIRCLE,
+    total:cfg.total, parts:cfg.d, fruit:cfg.fruit,
+    title:'圈出这些'+cfg.fruit.n+'的 1/'+cfg.d,
+    q:'分别圈出下列'+cfg.fruit.n+'的 <b>1/'+cfg.d+'</b>（先想一想：把 '+cfg.total+' 个'+cfg.fruit.n+'看成一个整体，平均分成 '+cfg.d+' 份，每份有几个？）',
+    note:'按住不放拖动画圈，把应圈的那一份圈进去（圈 '+cfg.total+'/'+cfg.d+' 个）。',
+    ansCount: cfg.total/cfg.d,
+    ansFrac:{n:1,d:cfg.d},
+    explain:'把 '+cfg.total+' 个'+cfg.fruit.n+'看成一个整体，平均分成 '+cfg.d+' 份，每份 '+cfg.total/cfg.d+' 个，所以圈 '+cfg.total/cfg.d+' 个就表示这些'+cfg.fruit.n+'的 1/'+cfg.d+'。'
+  };
+}
+
+/* ---------- 中级：涂色题（源自例1-2 涂重点） ---------- */
+function mkFill(){
+  var d=pick([2,3,4]);
+  var total=d*pick([2,3,4]);   // 整体个数
+  return {
+    type:T_FILL,
+    total:total, parts:d,
+    title:'涂色表示这些物品的 1/'+d,
+    q:'你会表示下图中每盘 '+total+' 个圆饼的 <b>1/'+d+'</b> 吗？先选颜色，再逐个点涂，涂出其中的 1 份（必须平均分：每份同样多）。',
+    note:'点一下圆饼就涂上所选颜色，再点一下可擦掉。要涂 '+total/d+' 个，而且这 1 份要对应"平均分成 '+d+' 份"中的 1 份。',
+    ansCount: total/d,
+    ansFrac:{n:1,d:d},
+    explain:'把 '+total+' 个圆饼平均分成 '+d+' 份，每份 '+total/d+' 个，涂其中 '+total/d+' 个（1 份），涂色部分就是这些圆饼的 1/'+d+'。每份的个数可以不同吗？只要平均分成 '+d+' 份，每份都是它的 1/'+d+'。'
+  };
+}
+
+/* ---------- 高级：分糖题库（源自举一反三 3(1)：16颗/4人、20颗/4人） ---------- */
+var SUGAR_BANK=[
+  { total:16, kids:4 },
+  { total:20, kids:4 },
+  { total:12, kids:3 },
+  { total:18, kids:3 },
+  { total:12, kids:4 },
+  { total:15, kids:5 }
+];
+function mkSugar(cfg){
+  return {
+    type:T_DRAGNUM,
+    mode:'sugar',
+    total:cfg.total, kids:cfg.kids,
+    title:'分糖果 · 搭出分数条',
+    q:'张老师把 '+cfg.total+' 颗糖平均分给 '+cfg.kids+' 个小朋友。先把糖果拖到每位小朋友下面（每人同样多），再把石块 <b>'+shuffle([cfg.kids,1,cfg.kids*2,cfg.kids+1]).join('</b>、<b>')+'</b> 拖进空格，搭出"每人分得这些糖的几分之几"。想一想：把 '+cfg.total+' 颗糖看成一个整体，平均分给 '+cfg.kids+' 个小朋友，就平均分成 '+cfg.kids+' 份（作分母），每人分得 1 份。',
+    note:'糖拖到小朋友头像下分配；石块拖到空格："分成几份"放分母格，"1"放分子格。',
+    ansPerKid: cfg.total/cfg.kids,
+    ansFrac:{n:1,d:cfg.kids},
+    ansNums: shuffle([cfg.kids,1,cfg.kids*2,cfg.kids+1]),
+    ansTotalSlot: cfg.total,
+    ansPartsSlot: cfg.kids,
+    ansLiveNum:'1', ansLiveDen:String(cfg.kids),
+    ansFoldSlot:null,
+    explain:'把 '+cfg.total+' 颗糖看成一个整体，平均分成 '+cfg.kids+' 份（平均分给 '+cfg.kids+' 个小朋友就平均分成 '+cfg.kids+' 份，作分母），每人分得其中的 1 份，即这些糖的 1/'+cfg.kids+'。我发现：不管多少颗糖，只要平均分给 '+cfg.kids+' 个小朋友，每人就分得这些糖的 1/'+cfg.kids+'。'
+  };
+}
+
+/* ---------- 高级：折纸题库（源自举一反三 3(2)：对折两次/三次） ---------- */
+var FOLD_BANK=[ {folds:2}, {folds:3} ];
+function mkFold(cfg){
+  var parts=Math.pow(2,cfg.folds);
+  return {
+    type:T_DRAGNUM,
+    mode:'fold',
+    folds:cfg.folds, parts:parts,
+    title:'折纸探秘 · 搭出分数条',
+    q:'一张正方形的纸，对折 '+cfg.folds+' 次，把这张纸平均分成了几份？每份是它的几分之几？先把右侧"<b>份数石块</b>"（'+shuffle([parts,parts*2,parts+1,1]).join('、')+'）拖进空格；再到格纸上<b>涂出其中的 1 份</b>（选颜色后点击格子）。这张纸共有几个这样的一份？',
+    note:'石块拖进空格搭出分数；涂色：在右侧折痕格纸上点出 '+parts+' 格中的任意 1 格。',
+    ansFrac:{n:1,d:parts},
+    ansNums: shuffle([parts,parts*2,parts+1,1]),
+    ansTotalSlot:null, ansPartsSlot:null,
+    ansFoldSlot:parts,
+    ansLiveNum:'1', ansLiveDen:String(parts),
+    ansCount:1,
+    explain:'对折 '+cfg.folds+' 次把正方形纸平均分成 '+parts+' 份，每份是它的 1/'+parts+'，这张纸共有 '+parts+' 个这样的一份。'
+  };
+}
+
+/* ============================================================
+ * 关卡渲染与交互
+ * ============================================================ */
+var CV, CTX, DPR;
+var S={};  // 当前关运行时状态
+
+function loadLevel(){
+  var lv=G.levels[G.li];
+  G.revealed=false; G.answered=false;
+  $('lv-title').textContent='第 '+(G.li+1)+' 关 · '+lv.title;
+  $('lv-prog').textContent=(G.li+1)+' / '+G.levels.length;
+  $('feedback').textContent=''; $('feedback').className='';
+  $('btn-check').disabled=false;
+
+  /* 按题型布置界面 */
+  $('frac-zone').style.display='none';
+  $('ans-zone').style.display='none';
+  $('tools').style.display='none';
+  $('stage-wrap').classList.remove('canvas-mode');
+  $('btn-clear').style.display='none';
+
+  if(lv.type===T_SPLIT){
+    $('q-card').innerHTML=esc(lv.q)+'<span class="q-note">'+esc(lv.note)+'</span>';
+    initSplit(lv);
+  } else if(lv.type===T_CIRCLE){
+    $('q-card').innerHTML=lv.q+'<span class="q-note">'+esc(lv.note)+'</span>';
+    $('ans-zone').style.display='block';
+    $('ans-lbl').innerHTML='请圈出这些'+esc(lv.fruit.n)+'的';
+    $('target-frac').innerHTML='<span class="fn">1</span><span class="fd">'+lv.parts+'</span>';
+    initCircle(lv);
+  } else if(lv.type===T_FILL){
+    $('q-card').innerHTML=lv.q+'<span class="q-note">'+esc(lv.note)+'</span>';
+    $('ans-zone').style.display='block';
+    $('ans-lbl').innerHTML='涂色部分要表示这些圆饼的';
+    $('target-frac').innerHTML='<span class="fn">1</span><span class="fd">'+lv.parts+'</span>';
+    initFill(lv);
+  } else { /* T_DRAGNUM */
+    $('q-card').innerHTML=lv.q+'<span class="q-note">'+esc(lv.note)+'</span>';
+    initDragNum(lv);
+  }
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ---------- 画布尺寸自适应 ---------- */
+function fitCanvas(maxW, hRows){
+  CV=$('cv'); CV.style.display='block';
+  var wrap=$('stage-wrap');
+  var availW=Math.min(wrap.clientWidth-8, maxW||900);
+  if(availW<300) availW=300;
+  DPR=window.devicePixelRatio||1;
+  CV.style.width=availW+'px';
+  CV.style.height=hRows+'px';
+  CV.width=Math.round(availW*DPR);
+  CV.height=Math.round(hRows*DPR);
+  CTX=CV.getContext('2d');
+  CTX.setTransform(DPR,0,0,DPR,0,0);
+  return availW;
+}
+
+/* ============ 题型一：拖拽分桃（初级） ============ */
+function initSplit(lv){
+  var W=fitCanvas(860, 430);
+  var fruits=[], plates=[], drag=null;
+  var fsize=Math.max(34, Math.min(46, Math.floor(W/(lv.total+2))));
+  /* 顶部的"盘子"放所有果子 */
+  var trayH=140;
+  var cols=Math.min(lv.total, 8);
+  var rows=Math.ceil(lv.total/cols);
+  for(var i=0;i<lv.total;i++){
+    var c=i%cols, r=Math.floor(i/cols);
+    fruits.push({
+      id:i, x: 40 + (W-80)*(c+0.5)/cols,
+      y: 30 + r*(fsize+26),
+      home:{x:40+(W-80)*(c+0.5)/cols, y:30+r*(fsize+26)},
+      e: lv.fruit.e
+    });
+  }
+  /* 底部餐盘 */
+  var plateW=Math.min(200,(W-60)/lv.parts-16);
+  for(var p=0;p<lv.parts;p++){
+    var px=W*(p+0.5)/lv.parts;
+    plates.push({ x:px, y:trayH+120, w:plateW, h:120 });
+  }
+  S={
+    lv:lv, fruits:fruits, plates:plates, drag:null, fsize:fsize,
+    counts:new Array(lv.parts).fill(0),
+    draw:function(){
+      CTX.clearRect(0,0,W,430);
+      /* 顶盘横幅 */
+      CTX.fillStyle='#fff'; CTX.strokeStyle='#c3cfe8'; CTX.lineWidth=3;
+      roundRect(14,8,W-28,trayH,16); CTX.fill(); CTX.stroke();
+      CTX.fillStyle='#666'; CTX.font='700 18px sans-serif'; CTX.textAlign='center';
+      CTX.fillText(lv.fruit.e+' 一盘'+lv.fruit.n+'（共 '+lv.total+' 个）', W/2, trayH-14);
+      /* 底部餐盘与动物 */
+      for(var p=0;p<plates.length;p++){
+        var pl=plates[p];
+        CTX.fillStyle='#fff'; CTX.strokeStyle=G.theme.main; CTX.lineWidth=4;
+        roundRect(pl.x-pl.w/2, pl.y-pl.h/2, pl.w, pl.h, 18); CTX.fill(); CTX.stroke();
+        CTX.font='44px serif'; CTX.textAlign='center';
+        CTX.fillText(lv.animal.e, pl.x, pl.y-pl.h/2+46);
+        CTX.fillStyle='#555'; CTX.font='700 17px sans-serif';
+        CTX.fillText((p+1)+'号'+lv.animal.n, pl.x, pl.y+pl.h/2-12);
+        /* 盘内果子 */
+        var inside=S.fruits.filter(function(f){ return f.plate===p; });
+        for(var k=0;k<inside.length;k++){
+          drawFruit(inside[k], pl.x-pl.w/2+30+(k%4)*40, pl.y-8+Math.floor(k/4)*44);
+        }
+        /* 计数标签 */
+        CTX.fillStyle=G.theme.main; CTX.font='900 20px sans-serif';
+        CTX.fillText(inside.length+' 个', pl.x, pl.y+pl.h/2+24);
+      }
+      /* 未分配果子画在托盘位置 */
+      for(var i=0;i<S.fruits.length;i++){
+        var f=S.fruits[i];
+        if(f.plate==null) drawFruit(f, f.x, f.y);
+      }
+      /* 拖动中的果子放大提示 */
+      if(S.drag){ drawFruit(S.drag, S.drag.x, S.drag.y, 1.25); }
+    }
+  };
+  bindDrag(function(pt){
+    /* 命中检测：优先盘内果子，其次托盘果子 */
+    var hit=null;
+    for(var p=0;p<plates.length;p++){
+      var inside=S.fruits.filter(function(f){ return f.plate===p; });
+      for(var k=0;k<inside.length;k++){
+        var f=inside[k];
+        var fx=plates[p].x-plates[p].w/2+30+(k%4)*40, fy=plates[p].y-8+Math.floor(k/4)*44;
+        if(dist(pt.x,pt.y,fx,fy)<34){ hit=f; hit.__x=fx; hit.__y=fy; }
+      }
+    }
+    if(!hit){
+      for(var i=0;i<S.fruits.length;i++){
+        if(S.fruits[i].plate==null && dist(pt.x,pt.y,S.fruits[i].x,S.fruits[i].y)<34){ hit=S.fruits[i]; hit.__x=hit.x; hit.__y=hit.y; }
+      }
+    }
+    return hit;
+  }, function(f, pt){ /* drop */
+    var target=null;
+    for(var p=0;p<plates.length;p++){
+      var pl=plates[p];
+      if(pt.x>pl.x-pl.w/2-10 && pt.x<pl.x+pl.w/2+10 && pt.y>pl.y-pl.h/2-10 && pt.y<pl.y+pl.h/2+10) target=p;
+    }
+    if(target!==null){
+      if(f.plate!==target) addStep();
+      f.plate=target;
+    }
+    S.drag=null;
+    S.draw();
+  }, function(f, pt){
+    S.drag=f; f.x=pt.x; f.y=pt.y-30; S.draw();
+  });
+  S.draw();
+}
+function drawFruit(f, x, y, scale){
+  scale=scale||1;
+  CTX.font=Math.round(36*scale)+'px serif'; CTX.textAlign='center'; CTX.textBaseline='middle';
+  CTX.fillText(f.e, x, y);
+  CTX.textBaseline='alphabetic';
+}
+function roundRect(x,y,w,h,r){
+  CTX.beginPath();
+  CTX.moveTo(x+r,y); CTX.arcTo(x+w,y,x+w,y+h,r); CTX.arcTo(x+w,y+h,x,y+h,r);
+  CTX.arcTo(x,y+h,x,y,r); CTX.arcTo(x,y,x+w,y,r); CTX.closePath();
+}
+function dist(a,b,c,d){ return Math.hypot(a-c,b-d); }
+
+/* 通用画布拖拽绑定（鼠标+触摸） */
+function bindDrag(hitTest, onDrop, onMove){
+  var dragging=null;
+  function ptOf(ev){
+    var r=CV.getBoundingClientRect();
+    var cx, cy;
+    if(ev.touches && ev.touches[0]){ cx=ev.touches[0].clientX; cy=ev.touches[0].clientY; }
+    else { cx=ev.clientX; cy=ev.clientY; }
+    return { x:(cx-r.left)*(parseFloat(CV.style.width)/r.width), y:(cy-r.top)*(parseFloat(CV.style.height)/r.height) };
+  }
+  function down(ev){
+    ev.preventDefault();
+    var pt=ptOf(ev);
+    var f=hitTest(pt);
+    if(f){ dragging=f; onMove(f,pt); }
+  }
+  function move(ev){
+    if(!dragging) return;
+    ev.preventDefault();
+    onMove(dragging, ptOf(ev));
+  }
+  function up(ev){
+    if(!dragging) return;
+    var pt = (ev.changedTouches&&ev.changedTouches[0]) ? ptOf({touches:ev.changedTouches}) : ptOf(ev);
+    onDrop(dragging, pt);
+    dragging=null;
+  }
+  CV.addEventListener('mousedown',down); window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+  CV.addEventListener('touchstart',down,{passive:false}); CV.addEventListener('touchmove',move,{passive:false});
+  CV.addEventListener('touchend',up); CV.addEventListener('touchcancel',up);
+  S.unbind=function(){
+    CV.removeEventListener('mousedown',down); window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up);
+    CV.removeEventListener('touchstart',down); CV.removeEventListener('touchmove',move);
+    CV.removeEventListener('touchend',up); CV.removeEventListener('touchcancel',up);
+  };
+}
+
+/* ============ 题型二：圈果（中级） ============ */
+function initCircle(lv){
+  var W=fitCanvas(860, 340);
+  var cols=Math.min(6, lv.total);
+  var items=[];
+  for(var i=0;i<lv.total;i++){
+    var c=i%cols, r=Math.floor(i/cols);
+    var maxRows=Math.ceil(lv.total/cols);
+    var x=60+(W-120)*(c+0.5)/cols;
+    var y=70+(240)*(r+0.5)/maxRows;
+    items.push({x:x,y:y, circled:false});
+  }
+  S={ lv:lv, items:items, stroking:null, strokePts:[],
+    draw:function(){
+      CTX.clearRect(0,0,W,340);
+      /* 整体框 */
+      CTX.strokeStyle='#b9c6e2'; CTX.lineWidth=3; CTX.setLineDash([8,6]);
+      roundRect(20,14,W-40,300,18); CTX.stroke(); CTX.setLineDash([]);
+      CTX.fillStyle='#667'; CTX.font='700 17px sans-serif'; CTX.textAlign='center';
+      CTX.fillText('这些'+lv.fruit.n+'是一个整体（共 '+lv.total+' 个）', W/2, 34);
+      /* 圈选笔迹（半透明主色） */
+      if(S.strokePts.length>1){
+        CTX.strokeStyle=G.theme.main2; CTX.lineWidth=5; CTX.globalAlpha=.75;
+        CTX.lineJoin='round'; CTX.lineCap='round';
+        CTX.beginPath(); CTX.moveTo(S.strokePts[0].x,S.strokePts[0].y);
+        for(var k=1;k<S.strokePts.length;k++) CTX.lineTo(S.strokePts[k].x,S.strokePts[k].y);
+        CTX.stroke(); CTX.globalAlpha=1;
+      }
+      /* 水果 */
+      for(var i=0;i<items.length;i++){
+        CTX.font='44px serif'; CTX.textAlign='center'; CTX.textBaseline='middle';
+        CTX.fillText(lv.fruit.e, items[i].x, items[i].y);
+        CTX.textBaseline='alphabetic';
+        if(items[i].circled){
+          CTX.strokeStyle='#27ae60'; CTX.lineWidth=4;
+          CTX.beginPath(); CTX.ellipse(items[i].x,items[i].y,30,32,0,0,Math.PI*2); CTX.stroke();
+        }
+      }
+      CTX.fillStyle='#889'; CTX.font='700 16px sans-serif';
+      CTX.fillText('已圈住 '+S.countCircled()+' 个（目标：每份 '+lv.ansCount+' 个）', W/2, 326);
+    },
+    countCircled:function(){
+      var c=0; for(var i=0;i<items.length;i++) if(items[i].circled) c++;
+      return c;
+    }
+  };
+  /* 自由画圈：笔迹结束时用射线法判定哪些水果被圈住 */
+  var drawing=false;
+  function ptOf(ev){
+    var r=CV.getBoundingClientRect();
+    var cx,cy;
+    if(ev.touches&&ev.touches[0]){cx=ev.touches[0].clientX;cy=ev.touches[0].clientY;}
+    else{cx=ev.clientX;cy=ev.clientY;}
+    return {x:(cx-r.left)*(parseFloat(CV.style.width)/r.width), y:(cy-r.top)*(parseFloat(CV.style.height)/r.height)};
+  }
+  function down(ev){ ev.preventDefault(); drawing=true; S.strokePts=[ptOf(ev)]; }
+  function move(ev){ if(!drawing)return; ev.preventDefault(); var p=ptOf(ev); S.strokePts.push(p); S.draw(); }
+  function up(ev){
+    if(!drawing) return; drawing=false;
+    if(S.strokePts.length>8){
+      addStep();
+      for(var i=0;i<items.length;i++){
+        if(pointInPoly(items[i], S.strokePts)) items[i].circled=!items[i].circled;
+      }
+    }
+    S.strokePts=[]; S.draw();
+  }
+  CV.addEventListener('mousedown',down); CV.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+  CV.addEventListener('touchstart',down,{passive:false}); CV.addEventListener('touchmove',move,{passive:false});
+  CV.addEventListener('touchend',up); CV.addEventListener('touchcancel',up);
+  S.unbind=function(){
+    CV.removeEventListener('mousedown',down); CV.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up);
+    CV.removeEventListener('touchstart',down); CV.removeEventListener('touchmove',move);
+    CV.removeEventListener('touchend',up); CV.removeEventListener('touchcancel',up);
+  };
+  S.draw();
+}
+function pointInPoly(pt, poly){
+  var inside=false;
+  for(var i=0,j=poly.length-1;i<poly.length;j=i++){
+    var xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    if(((yi>pt.y)!==(yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+/* ============ 题型三：涂色（中级/折纸） ============ */
+var curColor=null;
+function initFill(lv){
+  var W=fitCanvas(860, 330);
+  var cols=Math.min(8, lv.total);
+  var items=[];
+  var maxRows=Math.ceil(lv.total/cols);
+  for(var i=0;i<lv.total;i++){
+    var c=i%cols, r=Math.floor(i/cols);
+    items.push({ x:60+(W-120)*(c+0.5)/cols, y:60+230*(r+0.5)/maxRows, r:34, colored:false });
+  }
+  S={ lv:lv, items:items,
+    coloredCount:function(){ var c=0; for(var i=0;i<items.length;i++) if(items[i].colored)c++; return c; },
+    draw:function(){
+      CTX.clearRect(0,0,W,330);
+      CTX.fillStyle='#667'; CTX.font='700 17px sans-serif'; CTX.textAlign='center';
+      CTX.fillText('一盘圆饼（共 '+lv.total+' 个）· 点一下涂色，再点一下擦掉', W/2, 28);
+      for(var i=0;i<items.length;i++){
+        var it=items[i];
+        CTX.beginPath(); CTX.arc(it.x,it.y,it.r,0,Math.PI*2);
+        CTX.fillStyle=it.colored?curColor:'#fff'; CTX.fill();
+        CTX.strokeStyle='#5b6b8c'; CTX.lineWidth=3.5; CTX.stroke();
+        CTX.beginPath(); CTX.arc(it.x,it.y,it.r*0.55,0,Math.PI*2);
+        CTX.strokeStyle='rgba(90,105,140,.45)'; CTX.lineWidth=2; CTX.stroke();
+      }
+      CTX.fillStyle='#556'; CTX.font='700 16px sans-serif';
+      CTX.fillText('已涂 '+S.coloredCount()+' 个（1 份 = '+lv.ansCount+' 个）', W/2, 316);
+    }
+  };
+  function ptOf(ev){
+    var r=CV.getBoundingClientRect();
+    var cx,cy;
+    if(ev.touches&&ev.touches[0]){cx=ev.touches[0].clientX;cy=ev.touches[0].clientY;}
+    else{cx=ev.clientX;cy=ev.clientY;}
+    return {x:(cx-r.left)*(parseFloat(CV.style.width)/r.width), y:(cy-r.top)*(parseFloat(CV.style.height)/r.height)};
+  }
+  function down(ev){
+    ev.preventDefault();
+    var pt=ptOf(ev);
+    for(var i=0;i<items.length;i++){
+      if(dist(pt.x,pt.y,items[i].x,items[i].y)<items[i].r+6){
+        items[i].colored=!items[i].colored; addStep(); S.draw(); return;
+      }
+    }
+  }
+  CV.addEventListener('mousedown',down); CV.addEventListener('touchstart',down,{passive:false});
+  S.unbind=function(){
+    CV.removeEventListener('mousedown',down); CV.removeEventListener('touchstart',down);
+  };
+  showPalette(false);
+  S.draw();
+}
+
+/* ---------- 颜色选择器（G 系列规范：随机主色板） ---------- */
+var PALETTE_COLORS=['#e74c3c','#3498db','#f1c40f','#2ecc71','#9b59b6','#ff8fab'];
+function showPalette(withFixed){
+  curColor=pick(PALETTE_COLORS);
+  $('tools').style.display='block';
+  $('btn-clear').style.display='inline-block';
+  var pal=$('palette'); pal.innerHTML='';
+  var cols=withFixed? PALETTE_COLORS.concat(['#7f8c8d']) : PALETTE_COLORS;
+  for(var i=0;i<cols.length;i++){
+    (function(c){
+      var b=document.createElement('div');
+      b.className='swatch'; b.style.background=c;
+      if(c==='#7f8c8d') b.classList.add('fixed-mark');
+      b.onclick=function(){
+        curColor=c;
+        var all=pal.querySelectorAll('.swatch');
+        for(var k=0;k<all.length;k++) all[k].classList.remove('sel');
+        b.classList.add('sel');
+        addStep();
+      };
+      pal.appendChild(b);
+    })(cols[i]);
+  }
+  var first=pal.querySelector('.swatch'); if(first) first.classList.add('sel');
+}
+
+/* ============ 题型四：拼搭分数条（高级，分糖/折纸） ============ */
+function initDragNum(lv){
+  var W=fitCanvas(860, 400);
+  var stones=[], slots=[];
+  /* 候选数字石块 */
+  var nums=lv.ansNums;
+  for(var i=0;i<nums.length;i++){
+    stones.push({ num:nums[i], x:0, y:0, slot:null, used:false });
+  }
+  S={ lv:lv, stones:stones, slots:slots, drag:null,
+    sugarCells:[], kidCounts:new Array(lv.kids||0).fill(0),
+    foldCells:[],
+    draw:function(){
+      CTX.clearRect(0,0,W,400);
+      if(lv.mode==='sugar'){
+        /* 上：糖果托盘（每颗糖可拖到小朋友下） */
+        CTX.fillStyle='#fff'; CTX.strokeStyle='#c3cfe8'; CTX.lineWidth=3;
+        roundRect(14,10,W-28,120,14); CTX.fill(); CTX.stroke();
+        var per=Math.min(lv.total,12);
+        var assigned=0;
+        for(var k=0;k<lv.kids;k++) assigned+=S.kidCounts[k];
+        var remain=lv.total-assigned;
+        for(var i=0;i<remain;i++){
+          var c=i%12, r=Math.floor(i/12);
+          CTX.font='34px serif'; CTX.textAlign='center'; CTX.textBaseline='middle';
+          CTX.fillText('🍬', 40+(W-80)*(c+0.5)/Math.max(per,1), 38+r*52);
+        }
+        CTX.fillStyle='#666'; CTX.font='700 16px sans-serif'; CTX.textBaseline='alphabetic';
+        CTX.fillText('待分糖果 '+remain+' 颗（拖到小朋友下方）', W-140, 122);
+        /* 中：小朋友与各自糖堆 */
+        for(var k2=0;k2<lv.kids;k2++){
+          var kx=W*(k2+0.5)/lv.kids;
+          CTX.font='46px serif'; CTX.textAlign='center';
+          CTX.fillText('🧒', kx, 172);
+          CTX.fillStyle='#556'; CTX.font='700 16px sans-serif';
+          CTX.fillText((k2+1)+'号', kx, 196);
+          var cnt=S.kidCounts[k2];
+          for(var m=0;m<cnt;m++){
+            var mc=m%5, mr=Math.floor(m/5);
+            CTX.font='26px serif';
+            CTX.fillText('🍬', kx-60+mc*30, 226+mr*32);
+          }
+          CTX.fillStyle=G.theme.main; CTX.font='900 18px sans-serif';
+          CTX.fillText(cnt+' 颗', kx, 300);
+        }
+        /* 均/不均提示 */
+        var ok=allEqual(S.kidCounts);
+        CTX.fillStyle=ok?'#27ae60':'#c0392b'; CTX.font='800 18px sans-serif';
+        CTX.fillText(ok?'✓ 平均分配中（每人 '+S.kidCounts[0]+' 颗）':'✗ 每人要一样多才算平均分', W/2, 326);
+      } else {
+        /* 折纸：右侧折痕格纸（点击涂 1 格） */
+        var gx=W-250, gy=30, gw=210, gh=210;
+        var n=lv.parts, rc=Math.sqrt(n);
+        var cell=gw/rc;
+        CTX.fillStyle='#fff'; CTX.strokeStyle=G.theme.main; CTX.lineWidth=3;
+        for(var rr=0;rr<rc;rr++) for(var cc=0;cc<rc;cc++){
+          var idx=rr*rc+cc;
+          var x=gx+cc*cell, y=gy+rr*cell;
+          CTX.fillStyle=S.foldCells[idx]?curColor:'#fff';
+          CTX.fillRect(x,y,cell,cell);
+          CTX.strokeStyle=G.theme.main; CTX.strokeRect(x,y,cell,cell);
+          CTX.fillStyle='#8a93ab'; CTX.font='700 15px sans-serif'; CTX.textAlign='center';
+          if(!S.foldCells[idx]) CTX.fillText(String(idx+1), x+cell/2, y+cell/2+5);
+        }
+        CTX.fillStyle='#556'; CTX.font='700 16px sans-serif';
+        CTX.fillText('折了 '+lv.folds+' 次的正方形纸（点击涂色 1 格）', gx+gw/2, gy+gh+24);
+      }
+      /* 下：分数条石块区 */
+      CTX.fillStyle='#f2f0fb'; CTX.strokeStyle='#cbbfe8'; CTX.lineWidth=2.5;
+      roundRect(14,336,W-28,56,14); CTX.fill(); CTX.stroke();
+      CTX.fillStyle='#666'; CTX.font='700 15px sans-serif'; CTX.textAlign='left';
+      CTX.fillText('数字石块（拖到上方空格）：', 26, 370);
+      for(var si=0;si<S.stones.length;si++){
+        var st=S.stones[si];
+        if(st.slot!==null) continue;
+        st.x=210+si*74; st.y=364;
+        drawStone(st);
+      }
+      /* 拖动中的对象：糖果画表情符，石块画放大石块 */
+      if(S.drag){
+        if(S.drag.candy){
+          CTX.font='34px serif'; CTX.textAlign='center'; CTX.textBaseline='middle';
+          CTX.fillText('🍬', S.drag.x, S.drag.y); CTX.textBaseline='alphabetic';
+        } else drawStone(S.drag,1.2);
+      }
+    }
+  };
+  /* 石块与空格位置：空格在 frac-zone（DOM）内，石块在 canvas；
+     采用"点石块→点空格"两步拖放（对触摸更稳），同时支持直接拖拽 */
+  function drawStone(st, scale){
+    scale=scale||1;
+    var s=30*scale;
+    CTX.beginPath(); CTX.arc(st.x,st.y,s,0,Math.PI*2);
+    CTX.fillStyle='#fff';
+    CTX.fill(); CTX.strokeStyle=G.theme.main; CTX.lineWidth=3.5; CTX.stroke();
+    CTX.fillStyle='#2c395b'; CTX.font='900 '+(22*scale)+'px sans-serif'; CTX.textAlign='center'; CTX.textBaseline='middle';
+    CTX.fillText(String(st.num), st.x, st.y);
+    CTX.textBaseline='alphabetic';
+  }
+  S.drawStone=drawStone;
+  /* DOM 空格 */
+  $('frac-zone').style.display='flex';
+  initSlots(lv);
+  /* canvas 交互：糖果拖拽 / 格纸涂色 */
+  function ptOf(ev){
+    var r=CV.getBoundingClientRect();
+    var cx,cy;
+    if(ev.touches&&ev.touches[0]){cx=ev.touches[0].clientX;cy=ev.touches[0].clientY;}
+    else{cx=ev.clientX;cy=ev.clientY;}
+    return {x:(cx-r.left)*(parseFloat(CV.style.width)/r.width), y:(cy-r.top)*(parseFloat(CV.style.height)/r.height)};
+  }
+  if(lv.mode==='sugar'){
+    /* 拖糖果：从托盘拖到某小朋友列区（一次拖一颗） */
+    bindDrag(function(pt){
+      /* 只允许从托盘拿起（y<130 区域且还有剩余糖） */
+      if(pt.y<130){
+        var assigned=0; for(var k=0;k<lv.kids;k++) assigned+=S.kidCounts[k];
+        if(lv.total-assigned>0) return {type:'candy'};
+      }
+      return null;
+    }, function(obj, pt){
+      /* 落点在哪个小朋友列 */
+      var k=Math.max(0,Math.min(lv.kids-1,Math.floor(pt.x/(W/lv.kids))));
+      if(pt.y>140 && pt.y<330){
+        var assigned2=0; for(var k2=0;k2<lv.kids;k2++) assigned2+=S.kidCounts[k2];
+        if(assigned2<lv.total){ S.kidCounts[k]++; addStep(); }
+      }
+      S.drag=null; S.draw();
+    }, function(obj, pt){
+      S.drag={candy:true,x:pt.x,y:pt.y};
+      S.draw();
+    });
+  } else {
+    /* 折纸：点格子涂色（1 格） */
+    function down(ev){
+      ev.preventDefault();
+      var pt=ptOf(ev);
+      var gx=W-250, gy=30, gw=210, n=lv.parts, rc=Math.sqrt(n), cell=gw/rc;
+      if(pt.x>=gx&&pt.x<=gx+gw&&pt.y>=gy&&pt.y<=gy+gw){
+        var cc=Math.floor((pt.x-gx)/cell), rr=Math.floor((pt.y-gy)/cell);
+        var idx=rr*rc+cc;
+        S.foldCells[idx]=!S.foldCells[idx]; addStep(); S.draw();
+      }
+    }
+    CV.addEventListener('mousedown',down); CV.addEventListener('touchstart',down,{passive:false});
+    S.unbind2=function(){
+      CV.removeEventListener('mousedown',down); CV.removeEventListener('touchstart',down);
+    };
+    showPalette(false);
+  }
+  /* 石块两步拖放：canvas 点选石块 → DOM 空格 */
+  S.selectedStone=null;
+  CV.addEventListener('mousedown', pickStone); CV.addEventListener('touchstart', pickStone, {passive:false});
+  function pickStone(ev){
+    if(ev.type==='touchstart') ev.preventDefault();
+    var pt=ptOf(ev);
+    if(pt.y<340) return; /* 只在石块区响应 */
+    for(var i=0;i<S.stones.length;i++){
+      var st=S.stones[i];
+      if(st.slot===null && dist(pt.x,pt.y,st.x,st.y)<34){
+        S.selectedStone=st; addStep();
+        $('feedback').textContent='已拿起数字石块 '+st.num+'，点上方空格放下';
+        S.draw(); highlightStone(st);
+        return;
+      }
+    }
+  }
+  S.draw();
+}
+function allEqual(arr){ if(arr.length===0) return false; for(var i=1;i<arr.length;i++) if(arr[i]!==arr[0]) return false; return true; }
+function highlightStone(st){ /* 已选石块加光圈 */ CTX.beginPath(); CTX.arc(st.x,st.y,36,0,Math.PI*2); CTX.strokeStyle='#f39c12'; CTX.lineWidth=4; CTX.stroke(); }
+
+/* 分数条 DOM 空格初始化与交互 */
+function initSlots(lv){
+  var st=$('slot-total'), sp=$('slot-parts'), sf=$('slot-fold');
+  /* 重置所有空格 */
+  [st,sp,sf].forEach(function(el){ el.textContent='?'; el.className='slot'; el.dataset.val=''; });
+  $('live-num').textContent='?'; $('live-den').textContent='?'; $('live-fold').textContent='?';
+
+  /* 按题型控制显示：
+     分糖题：把 [总数] 颗糖平均分成 [份数] 份，每人分得 1/[分母]
+     折纸题：这张纸对折 N 次 → [份数] 份，每份是它的 1/[分母] */
+  var isSugar=(lv.mode==='sugar');
+  var disp=function(id,show,how){ $(id).style.display=show?(how||'inline'):'none'; };
+  disp('lbl-0',isSugar);           disp('slot-total',isSugar,'flex');
+  disp('lbl-1',isSugar);           disp('slot-parts',isSugar,'flex');
+  disp('lbl-2',isSugar);           disp('live-frac-a',isSugar,'inline-flex');
+  disp('lbl-3',isSugar);
+  disp('lbl-4',!isSugar); $('lbl-4').textContent='这张纸对折 '+lv.folds+' 次 → ';
+  disp('slot-fold',!isSugar,'flex');
+  disp('lbl-5',!isSugar);          disp('live-frac-b',!isSugar,'inline-flex');
+
+  /* 点击空格：拿起石块的状态下放下；否则（该格有值）取回石块 */
+  function slotClick(ev){
+    ev.preventDefault();
+    var el=this;
+    if(!S.selectedStone){
+      if(el.dataset.val){ returnStone(el); }  /* 点已有石块的空格 → 取回 */
+      return;
+    }
+    var stn=S.selectedStone;
+    if(el.dataset.val){ returnStone(el); }    /* 目标格已有石块 → 先退回再放 */
+    el.textContent=stn.num; el.dataset.val=String(stn.num); el.className='slot';
+    stn.slot=el.id; stn.slotEl=el;
+    S.selectedStone=null;
+    $('feedback').textContent='';
+    updateLive(lv);
+    S.draw();
+  }
+  function returnStone(el){
+    for(var i=0;i<S.stones.length;i++){
+      if(S.stones[i].slot===el.id){ S.stones[i].slot=null; S.stones[i].slotEl=null; break; }
+    }
+    el.textContent='?'; el.dataset.val=''; el.className='slot';
+    updateLive(lv); S.draw();
+  }
+  S.returnStone=returnStone;
+  [st,sp,sf].forEach(function(el){
+    el.onmousedown=slotClick; el.ontouchstart=slotClick;
+  });
+}
+function updateLive(lv){
+  var tv=$('slot-total').dataset.val, pv=$('slot-parts').dataset.val, fv=$('slot-fold').dataset.val;
+  if(lv.mode==='sugar'){
+    $('live-num').textContent = '1';
+    $('live-den').textContent = pv||'?';
+  } else {
+    $('live-fold').textContent = fv||'?';
+    $('live-den').textContent = fv||'?';
+  }
+}
+
+/* ============================================================
+ * 判定：检查按钮
+ * ============================================================ */
+function checkAnswer(){
+  if(G.answered) return;
+  var lv=S.lv;
+    var ok=false;
+    if(lv.type===T_SPLIT){
+    /* 每盘数量一致且等于 total/parts */
+    var counts=S.fruits.map(function(f){return f.plate;});
+    var buckets=new Array(lv.parts).fill(0);
+    var unassigned=0;
+    for(var i=0;i<counts.length;i++){
+      if(counts[i]==null) unassigned++;
+      else buckets[counts[i]]++;
+    }
+    ok = unassigned===0 && buckets.every(function(b){return b===lv.ansCount;});
+    if(ok) giveFeedback(true, '太棒了！每只'+lv.animal.n+'分得 '+lv.ansCount+' 个'+lv.fruit.n+'，这盘'+lv.fruit.n+'平均分成 '+lv.parts+' 份，每份是它的 <b>1/'+lv.parts+'</b>。'+esc(lv.explain));
+    else giveFeedback(false, unassigned>0? '还有 '+unassigned+' 个'+lv.fruit.n+'没分完哦，把它们都拖进餐盘吧！' : '还没平均分：每只'+lv.animal.n+'要分得同样多的 '+lv.ansCount+' 个，调整一下再检查。');
+  }
+  else if(lv.type===T_CIRCLE){
+    var c=S.countCircled();
+    ok = (c===lv.ansCount);
+    if(ok) giveFeedback(true, '圈对了！'+lv.ansCount+' 个正好是 '+lv.total+' 个的 <b>1/'+lv.parts+'</b>。'+esc(lv.explain));
+    else giveFeedback(false, c===0? '先在水果上画一个圈，把其中 1 份圈出来吧！' : '圈了 '+c+' 个。想一想：'+lv.total+' 个平均分成 '+lv.parts+' 份，每份应该是 '+(lv.total/lv.parts)+' 个，调整你的圈再检查。');
+  }
+  else if(lv.type===T_FILL){
+    var cc=S.coloredCount();
+    ok = (cc===lv.ansCount);
+    if(ok) giveFeedback(true, '涂对了！'+lv.ansCount+' 个是 '+lv.total+' 个的 <b>1/'+lv.parts+'</b>。'+esc(lv.explain));
+    else giveFeedback(false, '现在涂了 '+cc+' 个。把 '+lv.total+' 个圆饼平均分成 '+lv.parts+' 份，1 份应该是 '+lv.ansCount+' 个，调整颜色数量再检查。');
+  }
+  else { /* T_DRAGNUM */
+    ok = checkDragNum(lv);
+  }
+  if(ok){
+    G.answered=true;
+    $('feedback').className='good';
+    setTimeout(nextLevel, 1400);
+  }
+}
+function checkDragNum(lv){
+  var fb=[];
+  var okAll=true;
+  if(lv.mode==='sugar'){
+    /* 1) 糖果均分且分完 */
+    var assigned=0; for(var k=0;k<lv.kids;k++) assigned+=S.kidCounts[k];
+    var eq=allEqual(S.kidCounts)&&S.kidCounts[0]===lv.ansPerKid&&assigned===lv.total;
+    /* 2) 分数条空格 */
+    var tv=$('slot-total').dataset.val, pv=$('slot-parts').dataset.val;
+    var slotsOK = (tv===String(lv.total) && pv===String(lv.kids));
+    okAll = eq && slotsOK;
+    if(!eq) fb.push('糖果要平均分完：每人 '+lv.ansPerKid+' 颗（现在分别是 '+S.kidCounts.join('、')+' 颗，共分出 '+assigned+' 颗）');
+    if(!slotsOK) fb.push('分数条空格："总数"应放 '+lv.total+'、"分成几份"应放 '+lv.kids+'（平均分给 '+lv.kids+' 个小朋友就平均分成 '+lv.kids+' 份，作分母）');
+  } else {
+    var fv=$('slot-fold').dataset.val;
+    var foldOK = (fv===String(lv.parts));
+    var colored=S.foldCells.filter(Boolean).length;
+    var colorOK = (colored===1);
+    okAll = foldOK && colorOK;
+    if(!foldOK) fb.push('对折 '+lv.folds+' 次会把纸平均分成 '+lv.parts+' 份，空格里应放石块 '+lv.parts);
+    if(!colorOK) fb.push('请在格纸上恰好涂 '+1+' 格（现在涂了 '+colored+' 格）');
+  }
+  if(okAll){
+    giveFeedback(true, '完全正确！'+esc(lv.explain));
+    return true;
+  } else {
+    giveFeedback(false, fb.join('；')+'。再试试！');
+    return false;
+  }
+}
+function giveFeedback(good, msg){
+  var el=$('feedback');
+  el.className = good?'good':'bad';
+  el.innerHTML = (good?'🎉 ':'🤔 ')+msg;
+}
+
+/* ---------- 揭示答案 ---------- */
+function revealAnswer(){
+  if(G.answered) return;
+  G.revealed=true;
+  addStep();
+  var lv=S.lv;
+  if(lv.type===T_SPLIT){
+    /* 动画式示范：依次把果子均分入盘 */
+    /* 全部重置后轮流分入各盘 */
+    S.fruits.forEach(function(f){ f.plate=null; });
+    var demo=S.fruits.slice();
+    var idx=0;
+    var iv=setInterval(function(){
+      if(idx>=demo.length){ clearInterval(iv); S.draw(); giveFeedback(false,'【答案示范】每只'+lv.animal.n+'分 '+lv.ansCount+' 个；平均分成 '+lv.parts+' 份，每份是这盘'+lv.fruit.n+'的 1/'+lv.parts+'。'+esc(lv.explain)); return; }
+      demo[idx].plate = idx % lv.parts;
+      idx++; S.draw();
+    }, 160);
+  }
+  else if(lv.type===T_CIRCLE){
+    /* 自动圈出正确的一份（取前 ansCount 个） */
+    for(var i2=0;i2<S.items.length;i2++) S.items[i2].circled = i2<lv.ansCount;
+    S.strokePts=[]; S.draw();
+    giveFeedback(false,'【答案示范】用射线圈住任意连续 '+lv.ansCount+' 个（一份）。把 '+lv.total+' 个平均分成 '+lv.parts+' 份，每份 '+lv.ansCount+' 个，就是它的 1/'+lv.parts+'。'+esc(lv.explain));
+  }
+  else if(lv.type===T_FILL){
+    for(var i3=0;i3<S.items.length;i3++) S.items[i3].colored = i3<lv.ansCount;
+    S.draw();
+    giveFeedback(false,'【答案示范】涂出 1 份（'+lv.ansCount+' 个）。'+esc(lv.explain));
+  }
+  else {
+    if(lv.mode==='sugar'){
+      for(var k=0;k<lv.kids;k++) S.kidCounts[k]=lv.ansPerKid;
+      setSlot('slot-total', lv.total); setSlot('slot-parts', lv.kids);
+      updateLive(lv); S.draw();
+      giveFeedback(false,'【答案示范】每人 '+lv.ansPerKid+' 颗；总数 '+lv.total+' 颗，平均分成 '+lv.kids+' 份，每人分得这些糖的 1/'+lv.kids+'。'+esc(lv.explain));
+    } else {
+      S.foldCells=new Array(lv.parts).fill(false); S.foldCells[0]=true;
+      setSlot('slot-fold', lv.parts); updateLive(lv); S.draw();
+      giveFeedback(false,'【答案示范】对折 '+lv.folds+' 次平均分成 '+lv.parts+' 份，每份是它的 1/'+lv.parts+'。'+esc(lv.explain));
+    }
+  }
+}
+function setSlot(id,val){
+  var el=$(id); el.textContent=val; el.dataset.val=String(val); el.className='slot ok';
+  for(var i=0;i<(S.stones||[]).length;i++){
+    if(S.stones[i].num===val && S.stones[i].slot===null){ S.stones[i].slot=id; break; }
+  }
+}
+
+/* ---------- 关卡流转 ---------- */
+function nextLevel(){
+  G.li++;
+  if(G.li>=G.levels.length){
+    /* 通关庆祝 */
+    showScreen('screen-end');
+    var s=Math.floor((Date.now()-G.startTs)/1000);
+    $('end-stats').textContent='用时 '+fmtTime(s)+' · 共 '+G.steps+' 步操作 · 完成 '+G.levels.length+' 个'+(G.diff===1?'初级':G.diff===2?'中级':'高级')+'关卡';
+    clearInterval(G.timerId);
+    confetti();
+  } else {
+    loadLevel();
+  }
+}
+
+/* ---------- 庆祝彩纸（CSS 实现，G5） ---------- */
+function confetti(){
+  var colors=['#e74c3c','#f1c40f','#2ecc71','#3498db','#9b59b6','#ff8fab'];
+  for(var i=0;i<90;i++){
+    (function(i){
+      var d=document.createElement('div');
+      d.className='confetti-piece';
+      var c=colors[i%colors.length];
+      var size=8+Math.random()*10;
+      d.style.cssText+='background:'+c+';width:'+size+'px;height:'+(size*0.6)+'px;left:'+(Math.random()*100)+'vw;';
+      d.style.borderRadius = Math.random()>.5?'50%':'2px';
+      document.body.appendChild(d);
+      var dur=2200+Math.random()*2200;
+      d.style.transition='transform '+dur+'ms linear, opacity '+dur+'ms ease-in';
+      requestAnimationFrame(function(){
+        d.style.transform='translateY('+(window.innerHeight+60)+'px) rotate('+(Math.random()*720-360)+'deg)';
+        d.style.opacity='0';
+      });
+      setTimeout(function(){ d.remove(); }, dur+100);
+    })(i);
+  }
+}
+
+/* ---------- 按钮绑定 ---------- */
+$('btn-d1').onclick=function(){ startGame(1); };
+$('btn-d2').onclick=function(){ startGame(2); showRulesOnce(); };
+$('btn-d3').onclick=function(){ startGame(3); showRulesOnce(); };
+var rulesShown=false;
+function showRulesOnce(){ if(!rulesShown){ rulesShown=true; $('rules-overlay').classList.add('show'); } }
+$('btn-d1').addEventListener('click', showRulesOnce);
+$('btn-rules-top').onclick=$('btn-rules-diff').onclick=function(){ $('rules-overlay').classList.add('show'); };
+$('btn-rules-close').onclick=function(){ $('rules-overlay').classList.remove('show'); };
+$('btn-check').onclick=checkAnswer;
+$('btn-reveal').onclick=revealAnswer;
+$('btn-restart').onclick=function(){ if(G.diff) startGame(G.diff); };
+$('btn-back').onclick=$('btn-back2').onclick=function(){ if(G.timerId)clearInterval(G.timerId); showScreen('screen-diff'); };
+$('btn-clear').onclick=function(){
+  /* 擦掉重涂：仅涂色/格纸/圈选有效 */
+  if(S.lv&&S.lv.type===T_FILL){ S.items.forEach(function(it){it.colored=false;}); S.draw(); }
+  else if(S.lv&&S.lv.type===T_CIRCLE){ S.items.forEach(function(it){it.circled=false;}); S.strokePts=[]; S.draw(); }
+  else if(S.lv&&S.lv.type===T_DRAGNUM&&S.lv.mode==='fold'){ S.foldCells=new Array(S.lv.parts).fill(false); S.draw(); }
+};
+
+/* 窗口尺寸变化时重排画布 */
+window.addEventListener('resize', function(){
+  if($('screen-level').classList.contains('active') && S.lv){
+    var keep=S.lv;
+    /* 简单重载当前关但保留数据过于复杂，重新初始化画布布局 */
+    var oldFruits=null, oldItems=null;
+    if(keep.type===T_SPLIT){ oldFruits=S.fruits.map(function(f){return f.plate;}); }
+    if(keep.type===T_CIRCLE){ oldItems=S.items.map(function(f){return f.circled;}); }
+    loadLevel();
+    if(oldFruits){ for(var i=0;i<oldFruits.length;i++) S.fruits[i].plate=oldFruits[i]; S.draw(); }
+    if(oldItems){ for(var j=0;j<oldItems.length;j++) S.items[j].circled=oldItems[j]; S.draw(); }
+  }
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-m/g010", "name": "\u5947\u5999\u5206\u7269\u9986 \u00b7 \u8ba4\u8bc6\u4e00\u4e2a\u6574\u4f53\u7684\u51e0\u5206\u4e4b\u4e00", "file": "g010.html", "jiaocan": "\u301038\u3011\u4e03 \u5206\u6570\u7684\u521d\u6b65\u8ba4\u8bc6(\u4e8c)\uff1a1 \u8ba4\u8bc6\u4e00\u4e2a\u6574\u4f53\u7684\u51e0\u5206\u4e4b\u4e00", "unit": "", "grade": "3\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "M\uff1a\u6559\u6750\u89e3\u8bfb2", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb2\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-m"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

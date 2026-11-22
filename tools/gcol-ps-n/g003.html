@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>蒜叶生长观测站 · 折线统计图互动挑战</title>
+<style>
+/* ============ 全局变量（每局随机换色板） ============ */
+:root{
+  --c-primary:#2f9e44;      /* 主色 */
+  --c-primary-deep:#237032; /* 主色加深 */
+  --c-bg:#f2fbf4;           /* 页面底色 */
+  --c-card:#ffffff;         /* 卡片底色 */
+  --c-accent:#ffd43b;       /* 点缀色 */
+  --c-ink:#1b2a34;          /* 正文墨色 */
+  --c-sun:#e8590c;          /* 阳光下系列：暖橙（固定语义色） */
+  --c-room:#1971c2;         /* 房间里系列：湛蓝（固定语义色） */
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(255,255,255,.85), rgba(255,255,255,0) 42%),
+    radial-gradient(circle at 92% 88%, rgba(255,255,255,.7), rgba(255,255,255,0) 40%),
+    var(--c-bg);
+  color:var(--c-ink);
+  min-height:100vh;
+  -webkit-tap-highlight-color:transparent;
+}
+/* ============ 顶部栏 ============ */
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  padding:12px 22px;background:var(--c-primary);color:#fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.18);position:sticky;top:0;z-index:30;
+}
+#topbar .brand{display:flex;align-items:center;gap:12px;}
+#topbar .logo{width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--c-primary);font-weight:bold;}
+#topbar h1{font-size:23px;letter-spacing:1px;}
+#topbar .sub{font-size:14px;opacity:.92;margin-top:2px;}
+#hud{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.hud-chip{
+  background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.55);
+  border-radius:999px;padding:6px 16px;font-size:18px;font-weight:bold;min-width:120px;text-align:center;
+}
+#hud-reveal{display:none;background:var(--c-accent);color:#7a5a00;border-color:#fff;}
+/* ============ 菜单 ============ */
+.screen{display:none;padding:20px 18px 40px;max-width:1180px;margin:0 auto;}
+.screen.on{display:block;}
+.hero{text-align:center;margin:18px 0 26px;}
+.hero h2{font-size:34px;color:var(--c-primary-deep);}
+.hero p{font-size:19px;margin-top:10px;}
+.menu-cards{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;}
+.dcard{
+  flex:1 1 280px;max-width:340px;background:var(--c-card);border-radius:20px;padding:24px 22px;
+  border-bottom:8px solid var(--c-primary);box-shadow:0 6px 18px rgba(0,0,0,.10);
+  display:flex;flex-direction:column;gap:12px;
+}
+.dcard .badge{align-self:flex-start;background:var(--c-primary);color:#fff;border-radius:999px;padding:4px 14px;font-size:17px;font-weight:bold;}
+.dcard h3{font-size:24px;color:var(--c-primary-deep);}
+.dcard p{font-size:17px;line-height:1.65;flex:1;}
+.dcard .go{
+  border:none;background:var(--c-primary);color:#fff;font-size:20px;font-weight:bold;
+  padding:12px;border-radius:14px;cursor:pointer;transition:transform .12s;
+}
+.dcard .go:hover{transform:translateY(-2px);}
+.menu-foot{text-align:center;margin-top:30px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+/* ============ 通用按钮 ============ */
+.btn{
+  border:none;border-radius:14px;padding:11px 20px;font-size:18px;font-weight:bold;cursor:pointer;
+  background:var(--c-primary);color:#fff;transition:transform .12s,box-shadow .12s;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 5px 12px rgba(0,0,0,.15);}
+.btn.ghost{background:#fff;color:var(--c-primary-deep);border:2.5px solid var(--c-primary);}
+.btn.gold{background:var(--c-accent);color:#7a5a00;border:2px solid #fff;}
+.btn.big{font-size:21px;padding:14px 30px;}
+/* ============ 游戏界面 ============ */
+#stagebar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+#stage-title{font-size:22px;font-weight:bold;color:var(--c-primary-deep);flex:1;min-width:200px;}
+#stage-dots{display:flex;gap:10px;flex-wrap:wrap;}
+.sdot{
+  display:flex;align-items:center;gap:7px;background:var(--c-card);border:2.5px solid #cfd8dc;
+  border-radius:999px;padding:5px 14px 5px 6px;font-size:16px;color:#607d8b;font-weight:bold;
+}
+.sdot .num{
+  width:28px;height:28px;border-radius:50%;background:#cfd8dc;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;
+}
+.sdot.now{border-color:var(--c-primary);color:var(--c-primary-deep);}
+.sdot.now .num{background:var(--c-primary);}
+.sdot.done{border-color:var(--c-primary);color:var(--c-primary-deep);background:#e9f9ec;}
+.sdot.done .num{background:var(--c-accent);color:#7a5a00;}
+.top-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+.card{
+  background:var(--c-card);border-radius:18px;padding:16px 18px;
+  box-shadow:0 4px 12px rgba(0,0,0,.08);border:2px solid rgba(0,0,0,.05);
+}
+#goal-card{flex:1 1 300px;font-size:18px;line-height:1.7;}
+#goal-card b{color:var(--c-primary-deep);}
+#data-card{flex:1.2 1 360px;overflow-x:auto;}
+.main-row{display:flex;gap:16px;flex-wrap:wrap;align-items:stretch;}
+#main-card{flex:2.2 1 460px;display:flex;flex-direction:column;gap:10px;}
+#live-card{flex:1 1 250px;font-size:18px;line-height:1.8;display:flex;flex-direction:column;gap:10px;}
+#live-card .live-title{font-size:17px;font-weight:bold;color:#78909c;border-bottom:2px dashed #cfd8dc;padding-bottom:6px;}
+#live-card b{color:var(--c-primary-deep);}
+#chart-title{font-size:19px;text-align:center;color:var(--c-primary-deep);}
+#chart-legend{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;font-size:17px;margin-bottom:2px;}
+#chart-legend .li{display:flex;align-items:center;gap:8px;font-weight:bold;}
+#chart-legend .sw{width:44px;height:0;border-top:5px solid var(--c-sun);}
+#chart-legend .sw.dash{border-top-style:dashed;border-top-color:var(--c-room);}
+.chart-scroll{overflow-x:auto;}
+.chart-svg{width:100%;height:auto;display:block;touch-action:none;cursor:crosshair;min-width:600px;}
+#btnbar{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:20px;}
+/* ============ 数据表 ============ */
+.tbl-cap{font-size:16px;font-weight:bold;color:var(--c-primary-deep);margin-bottom:8px;}
+.dtable{border-collapse:collapse;font-size:17px;width:100%;}
+.dtable th,.dtable td{border:2px solid #b0bec5;padding:7px 10px;text-align:center;min-width:52px;}
+.dtable th{background:#e8f5e9;color:var(--c-primary-deep);}
+.dtable td.lead{font-weight:bold;}
+.dtable td.lead.sun{color:var(--c-sun);}
+.dtable td.lead.room{color:var(--c-room);}
+/* ============ 连线配对 ============ */
+#match-wrap{position:relative;display:flex;gap:56px;justify-content:space-between;padding:14px 6px;min-height:300px;}
+.match-col{display:flex;flex-direction:column;gap:22px;flex:1;justify-content:center;}
+.mcard{
+  position:relative;background:#fff;border:2.5px solid var(--c-primary);border-radius:14px;
+  padding:14px 44px 14px 16px;font-size:18px;line-height:1.55;box-shadow:0 3px 8px rgba(0,0,0,.08);
+}
+.mcard.locked{background:#e9f9ec;color:var(--c-primary-deep);}
+.mcard .dot{
+  position:absolute;right:-16px;top:50%;transform:translateY(-50%);
+  width:26px;height:26px;border-radius:50%;background:var(--c-primary);border:3px solid #fff;
+  box-shadow:0 0 0 2px var(--c-primary);cursor:grab;touch-action:none;
+}
+.mcard.shake{animation:shakeX .4s;}
+.chipR{
+  background:#fff;border:2.5px solid var(--c-room);color:var(--c-room);border-radius:14px;
+  padding:14px 12px;font-size:19px;font-weight:bold;text-align:center;box-shadow:0 3px 8px rgba(0,0,0,.08);
+}
+.chipR.locked{background:#e3f2fd;}
+.chipR.flash-bad{animation:shakeX .4s;}
+#match-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+/* ============ 弹窗 / 提示 / 结算 ============ */
+#modal-rules,#ov-win{
+  position:fixed;inset:0;background:rgba(20,40,30,.55);display:none;align-items:center;justify-content:center;z-index:60;padding:18px;
+}
+#modal-rules.on,#ov-win.on{display:flex;}
+.modal-box{
+  background:var(--c-card);border-radius:22px;max-width:660px;width:100%;padding:28px 30px;
+  max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);
+}
+.modal-box h2{color:var(--c-primary-deep);font-size:27px;margin-bottom:14px;text-align:center;}
+.modal-box h4{color:var(--c-primary-deep);font-size:19px;margin:14px 0 6px;}
+.modal-box p,.modal-box li{font-size:17.5px;line-height:1.75;}
+.modal-box ul{padding-left:24px;}
+.modal-box .btnrow{display:flex;gap:14px;justify-content:center;margin-top:20px;flex-wrap:wrap;}
+#toast{
+  position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);
+  background:var(--c-ink);color:#fff;font-size:19px;padding:12px 26px;border-radius:999px;
+  opacity:0;pointer-events:none;transition:all .25s;z-index:80;max-width:88vw;text-align:center;
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast.good{background:var(--c-primary);}
+#toast.bad{background:#c94f4f;}
+#confetti-canvas{position:fixed;inset:0;pointer-events:none;z-index:70;display:none;}
+.win-card{text-align:center;}
+.win-card h2{font-size:34px;}
+#win-stars{display:flex;gap:14px;justify-content:center;margin:16px 0;}
+#win-stars svg{width:64px;height:64px;transform:scale(0);animation:starPop .5s forwards;}
+#win-stars svg:nth-child(2){animation-delay:.22s;}
+#win-stars svg:nth-child(3){animation-delay:.44s;}
+.win-stats{font-size:20px;line-height:2;margin:8px 0 6px;}
+.win-stats b{color:var(--c-primary-deep);}
+/* ============ SVG 动画 ============ */
+.pt{transform-box:fill-box;transform-origin:center;animation:pop .35s;}
+.ghost-pt{transform-box:fill-box;transform-origin:center;animation:ghostFade .9s forwards;}
+.wob{transform-box:fill-box;transform-origin:center;animation:shakeX .45s;}
+.locked-star{transform-box:fill-box;transform-origin:center;animation:pop .5s, starGlow 1.6s infinite .5s;}
+@keyframes pop{0%{transform:scale(.2);}70%{transform:scale(1.45);}100%{transform:scale(1);}}
+@keyframes ghostFade{0%{opacity:.95;}100%{opacity:0;}}
+@keyframes shakeX{0%,100%{transform:translateX(0);}25%{transform:translateX(-7px);}50%{transform:translateX(7px);}75%{transform:translateX(-4px);}}
+@keyframes starPop{0%{transform:scale(0) rotate(-40deg);}80%{transform:scale(1.25) rotate(6deg);}100%{transform:scale(1) rotate(0);}}
+@keyframes starGlow{0%,100%{filter:drop-shadow(0 0 2px rgba(255,200,0,.4));}50%{filter:drop-shadow(0 0 10px rgba(255,200,0,.95));}}
+/* ============ 响应式 ============ */
+@media (max-width:760px){
+  #topbar h1{font-size:19px;}
+  .hud-chip{font-size:15px;min-width:96px;padding:5px 10px;}
+  .hero h2{font-size:26px;}
+  #goal-card,#data-card,#main-card,#live-card{flex:1 1 100%;}
+  #match-wrap{gap:34px;}
+  .mcard{font-size:16px;padding-right:36px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== 顶部栏：标题 + 右上角计时/步数 ===== -->
+<header id="topbar">
+  <div class="brand">
+    <div class="logo">蒜</div>
+    <div>
+      <h1>蒜叶生长观测站</h1>
+      <div class="sub">折线统计图 · 互动挑战（数据仅供参考）</div>
+    </div>
+  </div>
+  <div id="hud">
+    <div class="hud-chip" id="hud-time">用时 00:00</div>
+    <div class="hud-chip" id="hud-steps">步数 0</div>
+    <div class="hud-chip" id="hud-reveal">已用揭示</div>
+  </div>
+</header>
+
+<!-- ===== 难度选择界面 ===== -->
+<section class="screen on" id="scr-menu">
+  <div class="hero">
+    <h2>欢迎来到蒜叶生长观测站！</h2>
+    <p>蒜苗宝贝们正在比着长个子。请你当小小研究员，用<b>折线统计图</b>记录它们的成长，完成研究任务、点亮成长勋章！</p>
+  </div>
+  <div class="menu-cards">
+    <div class="dcard">
+      <span class="badge">初级</span>
+      <h3>绿芽观察员</h3>
+      <p>观察水盆里蒜瓣的根须：对照记录表，在统计图上亲手点亮 7 个数据点连成折线，再拖动「生长之星」找出长得最快的一天。</p>
+      <button class="go" data-diff="easy">开始挑战</button>
+    </div>
+    <div class="dcard">
+      <span class="badge">中级</span>
+      <h3>阳光小园丁</h3>
+      <p>两盆蒜瓣大比拼：一盆在阳光下、一盆在房间里。画出两条折线，拖动「差值探针」找相差最大的一天，再连线点亮研究结论。</p>
+      <button class="go" data-diff="mid">开始挑战</button>
+    </div>
+    <div class="dcard">
+      <span class="badge">高级</span>
+      <h3>星级研究员</h3>
+      <p>汇总全班数据：拖动「平均线」找出各小组根须长度的平均数，再拖动「预测之星」为第 18 天的蒜叶长度做一次科学预测。</p>
+      <button class="go" data-diff="hard">开始挑战</button>
+    </div>
+  </div>
+  <div class="menu-foot">
+    <button class="btn ghost big" id="btn-rules-menu">玩法说明</button>
+  </div>
+</section>
+
+<!-- ===== 游戏界面 ===== -->
+<section class="screen" id="scr-game">
+  <div id="stagebar">
+    <div id="stage-title"></div>
+    <div id="stage-dots"></div>
+  </div>
+  <div class="top-row">
+    <div class="card" id="goal-card"></div>
+    <div class="card" id="data-card"></div>
+  </div>
+  <div class="main-row">
+    <div class="card" id="main-card">
+      <h3 id="chart-title"></h3>
+      <div id="chart-legend"></div>
+      <div class="chart-scroll" id="stage-main"></div>
+    </div>
+    <div class="card" id="live-card"><div class="live-title">实时情报板</div><div id="live-body">选择难度后开始探索吧！</div></div>
+  </div>
+  <div id="btnbar">
+    <button class="btn ghost" id="btn-rules">玩法说明</button>
+    <button class="btn gold" id="btn-reveal">揭示答案</button>
+    <button class="btn" id="btn-restart">重新开始</button>
+    <button class="btn ghost" id="btn-back">返回难度选择</button>
+  </div>
+</section>
+
+<!-- ===== 规则弹窗 ===== -->
+<div id="modal-rules">
+  <div class="modal-box">
+    <h2>观测站玩法手册</h2>
+    <p>你是观测站的小小研究员，蒜苗宝贝们正在比着长个子。用<b>折线统计图</b>记录成长，完成全部阶段就能点亮成长勋章！</p>
+    <h4>三种操作</h4>
+    <ul>
+      <li><b>描点</b>：在统计图上<b>按住并拖动</b>，十字准星会显示「第几天 · 多少毫米」，对准记录表里的数据后<b>松手</b>，即可点亮一个数据点，折线会自动连线。</li>
+      <li><b>拖一拖</b>：小星星、探针、平均线都可以按住拖动，边拖边看实时数据，停在正确位置松手就会点亮锁定。</li>
+      <li><b>连一连</b>：按住结论卡右侧的圆点，拖到右边的答案卡上，连对就会亮起来。</li>
+    </ul>
+    <h4>研究小锦囊</h4>
+    <ul>
+      <li>描点先看横轴「第几天」，再看纵轴「多少毫米」，两线交叉的地方就是要找的点。</li>
+      <li>比较两盆蒜叶时，看同一条竖线上下对应的两个点，再算一算相差几毫米。</li>
+      <li>实线表示阳光下，虚线表示房间里。</li>
+    </ul>
+    <p>右上角随时显示<b>用时</b>和<b>步数</b>。卡住了可以点「揭示答案」，不过自己找到答案，星星会更亮哦！</p>
+    <div class="btnrow">
+      <button class="btn big" id="btn-rules-close">开始挑战</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 通关结算 ===== -->
+<div id="ov-win">
+  <div class="modal-box win-card">
+    <h2 id="win-title">研究报告完成！</h2>
+    <div id="win-stars"></div>
+    <div class="win-stats" id="win-stats"></div>
+    <p id="win-note" style="font-size:17px;color:#607d8b;"></p>
+    <div class="btnrow">
+      <button class="btn big" id="btn-again">再玩一次</button>
+      <button class="btn ghost big" id="btn-winmenu">换个难度</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confetti-canvas"></canvas>
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   蒜叶生长观测站 —— 折线统计图互动游戏（单文件，零外部依赖）
+   核心玩法与「折线统计图」深度绑定：
+   描点连线 / 双系列对比 / 差值探针 / 平均线 / 趋势预测
+   ===================================================================== */
+
+/* ---------- 0. 小工具 ---------- */
+var VB = { w: 780, h: 500 };                       // 统计图画布（viewBox 坐标系）
+function ri(n){ return Math.floor(Math.random() * n); }          // [0,n) 随机整数
+function shuffle(a){                                            // 洗牌
+  for(var i = a.length - 1; i > 0; i--){
+    var j = ri(i + 1), t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function el(tag, attrs){                                        // 创建 SVG 元素
+  var n = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  if(attrs){
+    for(var k in attrs){
+      if(k === 'text'){ n.textContent = attrs[k]; }
+      else { n.setAttribute(k, attrs[k]); }
+    }
+  }
+  return n;
+}
+function evtPos(svg, e, w, h){                                  // 事件坐标 → 画布坐标
+  var r = svg.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * w, y: (e.clientY - r.top) / r.height * h };
+}
+function fmtTime(sec){                                          // 秒 → mm:ss
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+}
+
+/* ---------- 1. 色板（每局随机换装，保证常玩常新） ---------- */
+var PALETTES = [
+  { name:'嫩芽绿', primary:'#2f9e44', deep:'#206030', bg:'#f0faf2', accent:'#ffd43b' },
+  { name:'海洋蓝', primary:'#1971c2', deep:'#0f4c81', bg:'#eef5fc', accent:'#ffc078' },
+  { name:'蜜糖橙', primary:'#e8590c', deep:'#a63e06', bg:'#fdf4ec', accent:'#a9e34b' },
+  { name:'葡萄紫', primary:'#7048e8', deep:'#4c33b8', bg:'#f5f2fd', accent:'#ffd43b' },
+  { name:'樱花粉', primary:'#d6336c', deep:'#9c2b50', bg:'#fdf2f6', accent:'#4dabf7' }
+];
+var SUN = '#e8590c';   // 阳光下系列固定暖橙
+var ROOM = '#1971c2';  // 房间里系列固定湛蓝
+function applyPalette(){
+  var p = PALETTES[ri(PALETTES.length)];
+  var root = document.documentElement.style;
+  root.setProperty('--c-primary', p.primary);
+  root.setProperty('--c-primary-deep', p.deep);
+  root.setProperty('--c-bg', p.bg);
+  root.setProperty('--c-accent', p.accent);
+}
+
+/* ---------- 2. 全局状态 ---------- */
+var game = {
+  diff: null,        // 当前难度 easy / mid / hard
+  data: {},          // 本局随机生成的题目数据
+  stages: [],        // 阶段列表
+  stageIdx: 0,       // 当前阶段下标
+  curStage: null,    // 当前阶段对象
+  locked: false,     // 当前阶段是否已锁定（完成后禁止继续操作）
+  steps: 0,          // 步数
+  t0: 0,             // 开始时刻
+  timerId: null,     // 计时器
+  revealedUsed: false// 是否用过揭示
+};
+
+/* ---------- 3. HUD：计时 / 步数 / 提示 ---------- */
+function startTimer(){
+  game.t0 = Date.now();
+  stopTimer();
+  game.timerId = setInterval(function(){
+    document.getElementById('hud-time').textContent = '用时 ' + fmtTime(Math.floor((Date.now() - game.t0) / 1000));
+  }, 500);
+}
+function stopTimer(){
+  if(game.timerId){ clearInterval(game.timerId); game.timerId = null; }
+}
+function addStep(){
+  game.steps++;
+  document.getElementById('hud-steps').textContent = '步数 ' + game.steps;
+}
+function updateHud(){
+  document.getElementById('hud-reveal').style.display = game.revealedUsed ? 'inline-block' : 'none';
+}
+var toastTimer = null;
+function toast(msg, kind){
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'on ' + (kind || '');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.className = ''; }, 1700);
+}
+
+/* ---------- 4. 网格统计图（SVG 通用组件） ---------- */
+function GridChart(cfg){
+  this.cfg = cfg;
+  this.w = VB.w;
+  this.h = cfg.rail ? 560 : 500;          // 带滑轨的图更高，避免文字互相挤碰
+  this.svg = el('svg', { viewBox: '0 0 ' + this.w + ' ' + this.h, 'class': 'chart-svg' });
+  this.x0 = 86; this.x1 = this.w - 30;    // 绘图区左右边界
+  this.y0 = 32; this.y1 = this.h - (cfg.rail ? 150 : 92);  // 绘图区上下边界
+  this.gGrid = el('g', {});               // 网格层
+  this.gData = el('g', {});               // 数据层
+  this.gTop  = el('g', {});               // 交互件层（最上层）
+  this.svg.appendChild(this.gGrid);
+  this.svg.appendChild(this.gData);
+  this.svg.appendChild(this.gTop);
+  this.drawFrame();
+}
+GridChart.prototype.X = function(v){ return this.x0 + (v - this.cfg.x.min) / (this.cfg.x.max - this.cfg.x.min) * (this.x1 - this.x0); };
+GridChart.prototype.Y = function(v){ return this.y1 - (v - this.cfg.y.min) / (this.cfg.y.max - this.cfg.y.min) * (this.y1 - this.y0); };
+GridChart.prototype.invX = function(px){ return this.cfg.x.min + (px - this.x0) / (this.x1 - this.x0) * (this.cfg.x.max - this.cfg.x.min); };
+GridChart.prototype.invY = function(py){ return this.cfg.y.min + (this.y1 - py) / (this.y1 - this.y0) * (this.cfg.y.max - this.cfg.y.min); };
+/* 坐标轴 + 网格 + 标题 */
+GridChart.prototype.drawFrame = function(){
+  var c = this.cfg, i;
+  // 横向网格线 + 纵轴刻度
+  for(i = 0; i < c.y.lines.length; i++){
+    var yv = c.y.lines[i], yy = this.Y(yv);
+    this.gGrid.appendChild(el('line', { x1:this.x0, y1:yy, x2:this.x1, y2:yy, stroke:'#c9d6dd', 'stroke-width': yv === c.y.lines[0] ? 0 : 1.4 }));
+    this.gGrid.appendChild(el('text', { x:this.x0 - 10, y:yy + 6, 'text-anchor':'end', 'font-size':19, fill:'#455a64', text:yv, 'class':'halo' }));
+  }
+  // 纵向网格线 + 横轴刻度
+  for(i = 0; i < c.x.ticks.length; i++){
+    var tk = c.x.ticks[i], xx = this.X(tk.v);
+    this.gGrid.appendChild(el('line', { x1:xx, y1:this.y0, x2:xx, y2:this.y1, stroke:'#dde7ec', 'stroke-width':1.2 }));
+    this.gGrid.appendChild(el('text', { x:xx, y:this.y1 + 30, 'text-anchor':'middle', 'font-size':19, fill:'#455a64', text:tk.label, 'class':'halo' }));
+  }
+  // 绘图区外框
+  this.gGrid.appendChild(el('rect', { x:this.x0, y:this.y0, width:this.x1 - this.x0, height:this.y1 - this.y0, fill:'none', stroke:'#90a4ae', 'stroke-width':2.5 }));
+  // 轴名称（带滑轨时上移，给滑轨和日期标签留出空间）
+  var titleY = c.rail ? this.y1 + 58 : this.y1 + 78;
+  this.gGrid.appendChild(el('text', { x:(this.x0 + this.x1) / 2, y:titleY, 'text-anchor':'middle', 'font-size':21, 'font-weight':'bold', fill:'#37474f', text:c.x.title }));
+  this.gGrid.appendChild(el('text', { x:24, y:(this.y0 + this.y1) / 2, 'text-anchor':'middle', 'font-size':21, 'font-weight':'bold', fill:'#37474f', text:c.y.title, transform:'rotate(-90 24 ' + (this.y0 + this.y1) / 2 + ')' }));
+};
+/* 吸附：横坐标吸附到允许的天数列表，纵坐标按 1 毫米取整 */
+GridChart.prototype.snapDay = function(px){
+  var raw = this.invX(px), list = this.cfg.x.snap, best = list[0], d2;
+  for(var i = 1; i < list.length; i++){
+    if(Math.abs(list[i] - raw) < Math.abs(best - raw)){ best = list[i]; }
+  }
+  return best;
+};
+GridChart.prototype.snapVal = function(py){
+  var v = Math.round(this.invY(py));
+  if(v < this.cfg.y.min){ v = this.cfg.y.min; }
+  if(v > this.cfg.y.max){ v = this.cfg.y.max; }
+  return v;
+};
+/* 添加数据点（带弹跳动画） */
+GridChart.prototype.addPoint = function(d, v, color, r){
+  this.gData.appendChild(el('circle', { cx:this.X(d), cy:this.Y(v), r:r || 8, fill:color, stroke:'#fff', 'stroke-width':3, 'class':'pt' }));
+};
+/* 添加线段（可虚线） */
+GridChart.prototype.addSeg = function(d1, v1, d2, v2, color, dash, width){
+  var a = { x1:this.X(d1), y1:this.Y(v1), x2:this.X(d2), y2:this.Y(v2), stroke:color, 'stroke-width':width || 5 };
+  if(dash){ a['stroke-dasharray'] = dash; }
+  this.gData.appendChild(el('line', a));
+};
+/* 添加数值标签（靠近边界时自动换到另一侧，避免压住坐标轴） */
+GridChart.prototype.addValLabel = function(d, v, txt, pos, color){
+  var dy = pos === 'below' ? 30 : -18;
+  if(pos === 'below' && this.Y(v) + dy > this.y1 - 2){ dy = -18; }
+  if(pos === 'above' && this.Y(v) + dy < this.y0 + 18){ dy = 30; }
+  this.gData.appendChild(el('text', { x:this.X(d), y:this.Y(v) + dy, 'text-anchor':'middle', 'font-size':18, 'font-weight':'bold', fill:color, text:txt, 'class':'halo' }));
+};
+/* 放错的残影提示 */
+GridChart.prototype.ghost = function(d, v){
+  var g = el('g', { 'class':'ghost-pt' });
+  g.appendChild(el('circle', { cx:this.X(d), cy:this.Y(v), r:10, fill:'none', stroke:'#e03131', 'stroke-width':4 }));
+  g.appendChild(el('text', { x:this.X(d), y:this.Y(v) - 16, 'text-anchor':'middle', 'font-size':17, fill:'#e03131', 'font-weight':'bold', text:v + '毫米', 'class':'halo' }));
+  this.gTop.appendChild(g);
+  var self = this;
+  setTimeout(function(){ self.gTop.removeChild(g); }, 900);
+};
+/* 整条折线快速画出（回顾 / 已完成态） */
+GridChart.prototype.drawSeries = function(days, vals, color, dash, labelPos, withLabels){
+  for(var i = 0; i < days.length; i++){
+    if(i > 0){ this.addSeg(days[i - 1], vals[i - 1], days[i], vals[i], color, dash); }
+    this.addPoint(days[i], vals[i], color);
+    if(withLabels){ this.addValLabel(days[i], vals[i], String(vals[i]), labelPos || 'above', color); }
+  }
+};
+/* 十字准星（按住拖动时显示） */
+GridChart.prototype.makeCross = function(){
+  var g = el('g', { visibility:'hidden' });
+  this.cV = el('line', { y1:this.y0, y2:this.y1, stroke:'#ff922b', 'stroke-width':2, 'stroke-dasharray':'6 5' });
+  this.cH = el('line', { x1:this.x0, x2:this.x1, stroke:'#ff922b', 'stroke-width':2, 'stroke-dasharray':'6 5' });
+  this.cT = el('text', { y:this.y0 + 22, 'text-anchor':'middle', 'font-size':20, 'font-weight':'bold', fill:'#e8590c', text:'', 'class':'halo' });
+  g.appendChild(this.cV); g.appendChild(this.cH); g.appendChild(this.cT);
+  this.gTop.appendChild(g);
+  this.crossG = g;
+};
+GridChart.prototype.crossAt = function(px, py, txt){
+  if(px < this.x0){ px = this.x0; } if(px > this.x1){ px = this.x1; }
+  if(py < this.y0){ py = this.y0; } if(py > this.y1){ py = this.y1; }
+  this.cV.setAttribute('x1', px); this.cV.setAttribute('x2', px);
+  this.cH.setAttribute('y1', py); this.cH.setAttribute('y2', py);
+  var lx = px; if(lx < this.x0 + 80){ lx = this.x0 + 80; } if(lx > this.x1 - 80){ lx = this.x1 - 80; }
+  this.cT.setAttribute('x', lx);
+  this.cT.textContent = txt;
+  this.crossG.setAttribute('visibility', 'visible');
+};
+GridChart.prototype.crossHide = function(){ this.crossG.setAttribute('visibility', 'hidden'); };
+
+/* —— 交互绑定 1：按住拖动 → 松手落点（描点用） —— */
+GridChart.prototype.bindPlace = function(onSnap){
+  var self = this, pressing = false;
+  this.makeCross();
+  function posOf(e){
+    var p = evtPos(self.svg, e, self.w, self.h);
+    var d = self.snapDay(p.x), v = self.snapVal(p.y);
+    return { px:p.x, py:p.y, d:d, v:v };
+  }
+  this.svg.addEventListener('pointerdown', function(e){
+    if(game.locked){ return; }
+    pressing = true;
+    try{ self.svg.setPointerCapture(e.pointerId); }catch(err){}
+    var q = posOf(e);
+    self.crossAt(q.px, q.py, '第' + q.d + '天 · ' + q.v + '毫米');
+    e.preventDefault();
+  });
+  this.svg.addEventListener('pointermove', function(e){
+    if(!pressing || game.locked){ return; }
+    var q = posOf(e);
+    self.crossAt(q.px, q.py, '第' + q.d + '天 · ' + q.v + '毫米');
+  });
+  this.svg.addEventListener('pointerup', function(e){
+    if(!pressing || game.locked){ return; }
+    pressing = false;
+    self.crossHide();
+    var q = posOf(e);
+    onSnap(q.d, q.v);
+  });
+};
+/* —— 交互绑定 2：自由拖动（星星 / 探针 / 平均线 / 预测点） —— */
+GridChart.prototype.bindDrag = function(hooks){
+  var self = this, dragging = false;
+  this.svg.addEventListener('pointerdown', function(e){
+    if(game.locked){ return; }
+    dragging = true;
+    try{ self.svg.setPointerCapture(e.pointerId); }catch(err){}
+    if(hooks.onStart){ hooks.onStart(evtPos(self.svg, e, self.w, self.h)); }
+    e.preventDefault();
+  });
+  this.svg.addEventListener('pointermove', function(e){
+    if(!dragging || game.locked){ return; }
+    if(hooks.onMove){ hooks.onMove(evtPos(self.svg, e, self.w, self.h)); }
+  });
+  this.svg.addEventListener('pointerup', function(e){
+    if(!dragging){ return; }
+    dragging = false;
+    if(hooks.onEnd){ hooks.onEnd(evtPos(self.svg, e, self.w, self.h)); }
+  });
+};
+
+/* ---------- 5. 题目数据生成（每局随机，源自教参并做变式） ---------- */
+/* 5.1 根须生长（教参：第2天约5毫米起，每天生长，第8天约24毫米） */
+function genRoot(){
+  for(var tries = 0; tries < 600; tries++){
+    var days = [2, 3, 4, 5, 6, 7, 8];
+    var vals = [4 + ri(3)], i;
+    for(i = 1; i < 7; i++){ vals.push(vals[i - 1] + 2 + ri(3)); }
+    var incs = [];
+    for(i = 1; i < 7; i++){ incs.push(vals[i] - vals[i - 1]); }
+    var mx = Math.max.apply(null, incs), cnt = 0;
+    for(i = 0; i < 6; i++){ if(incs[i] === mx){ cnt++; } }
+    if(vals[6] < 20 || vals[6] > 26 || cnt !== 1){ continue; }
+    return { days:days, vals:vals, incs:incs, maxInc:mx, maxDay:days[1 + incs.indexOf(mx)] };
+  }
+  return { days:[2,3,4,5,6,7,8], vals:[5,8,11,14,17,21,24], incs:[3,3,3,3,4,3], maxInc:4, maxDay:7 };
+}
+/* 5.2 蒜叶生长（50% 用教材原表，50% 生成同结构变式表） */
+function leafMeta(o){
+  var diffs = [], i;
+  for(i = 0; i < o.days.length; i++){ diffs.push(o.room[i] - o.sun[i]); }
+  var mx = Math.max.apply(null, diffs);
+  o.diffs = diffs; o.maxDiff = mx; o.maxIdx = diffs.indexOf(mx);
+  return o;
+}
+function genLeaf(){
+  if(Math.random() < 0.5){
+    return leafMeta({ days:[6,8,10,12,14,16], sun:[40,45,60,65,72,80], room:[50,58,70,82,90,95], tag:'教材记录' });
+  }
+  for(var tries = 0; tries < 900; tries++){
+    var days = [6,8,10,12,14,16], i;
+    var sun = [38 + ri(7)], room = [sun[0] + 9 + ri(6)];
+    var ok = true;
+    for(i = 1; i < 6; i++){
+      sun.push(sun[i - 1] + 4 + ri(6));      // 每两天长 4~9 毫米
+      room.push(room[i - 1] + 5 + ri(9));    // 每两天长 5~13 毫米
+      var gap = room[i] - sun[i];
+      if(gap < 8 || gap > 20){ ok = false; break; }
+    }
+    if(!ok || sun[5] > 90 || room[5] > 98){ continue; }
+    var o = leafMeta({ days:days, sun:sun, room:room, tag:'新一批蒜苗' });
+    var cnt = 0;
+    for(i = 0; i < 6; i++){ if(o.diffs[i] === o.maxDiff){ cnt++; } }
+    if(cnt === 1){ return o; }
+  }
+  return leafMeta({ days:[6,8,10,12,14,16], sun:[40,45,60,65,72,80], room:[50,58,70,82,90,95], tag:'教材记录' });
+}
+/* 5.3 各小组根须平均数（教参第(2)问：汇总各小组数据求平均数） */
+function genAvg(){
+  var m3 = 9 + ri(3), m6 = 19 + ri(3);
+  var d3 = shuffle([-2, -1, 1, 2]), d6 = shuffle([-3, -1, 1, 3]);
+  var v3 = [], v6 = [], i;
+  for(i = 0; i < 4; i++){ v3.push(m3 + d3[i]); v6.push(m6 + d6[i]); }
+  return { rounds:[ { label:'第3天', mean:m3, vals:v3 }, { label:'第6天', mean:m6, vals:v6 } ] };
+}
+/* 5.4 预测（教参回顾反思：基于数据做简单预测） */
+function genPredict(){
+  var lf = genLeaf();
+  var inc = lf.sun[5] - lf.sun[4];
+  var center = lf.sun[5] + inc;
+  return { leaf:lf, inc:inc, center:center, lo:center - 3, hi:center + 3 };
+}
+
+/* ---------- 6. 记录表 HTML ---------- */
+function rootTableHTML(root){
+  var rows = '', i;
+  for(i = 0; i < root.days.length; i++){
+    rows += '<tr><td>第' + root.days[i] + '天</td><td><b>' + root.vals[i] + '</b> 毫米</td></tr>';
+  }
+  return '<div class="tbl-cap">根须生长记录表（种在水里的蒜瓣）</div>' +
+    '<table class="dtable"><tr><th>天数</th><th>根须长度</th></tr>' + rows + '</table>';
+}
+function leafTableHTML(leaf){
+  var head = '<tr><th>长度/mm</th>', i;
+  for(i = 0; i < leaf.days.length; i++){ head += '<th>第' + leaf.days[i] + '天</th>'; }
+  head += '</tr>';
+  var r1 = '<tr><td class="lead sun">阳光下</td>', r2 = '<tr><td class="lead room">房间里</td>';
+  for(i = 0; i < leaf.days.length; i++){
+    r1 += '<td><b>' + leaf.sun[i] + '</b></td>';
+    r2 += '<td><b>' + leaf.room[i] + '</b></td>';
+  }
+  return '<div class="tbl-cap">蒜叶生长情况记录表（最长叶片 · ' + leaf.tag + '）</div>' +
+    '<table class="dtable">' + head + r1 + '</tr>' + r2 + '</tr></table>';
+}
+function avgTableHTML(avg){
+  var rows = '', i;
+  for(i = 0; i < 4; i++){
+    rows += '<tr><td>第' + (i + 1) + '小组</td><td><b>' + avg.rounds[0].vals[i] + '</b> 毫米</td><td><b>' + avg.rounds[1].vals[i] + '</b> 毫米</td></tr>';
+  }
+  return '<div class="tbl-cap">全班各小组根须长度汇总表</div>' +
+    '<table class="dtable"><tr><th>小组</th><th>第3天根须</th><th>第6天根须</th></tr>' + rows + '</table>';
+}
+
+/* ---------- 7. 阶段实现 ---------- */
+/* 阶段上下文：方便各阶段填充界面 */
+function stageCtx(){
+  var goal = document.getElementById('goal-card');
+  var data = document.getElementById('data-card');
+  var main = document.getElementById('stage-main');
+  var legend = document.getElementById('chart-legend');
+  var ctitle = document.getElementById('chart-title');
+  var live = document.getElementById('live-body');
+  return {
+    goal: function(h){ goal.innerHTML = h; },
+    data: function(h){ data.innerHTML = h; },
+    chartTitle: function(h){ ctitle.textContent = h; },
+    legend: function(h){ legend.innerHTML = h; },
+    main: function(node){ main.innerHTML = ''; main.appendChild(node); },
+    live: function(h){ live.innerHTML = h; },
+    done: onStageDone
+  };
+}
+
+/* ===== 阶段 E1：点亮根须折线（描点） ===== */
+function stageRootPlot(root){
+  return {
+    title: '阶段一 · 点亮根须折线', short: '描点',
+    mount: function(ctx){
+      var self = this;
+      ctx.goal('<p>种在<b>水盆</b>里的蒜瓣，根须正在悄悄生长！</p>' +
+        '<p>请对照<b>根须生长记录表</b>，在统计图上<b>按住拖动瞄准、松手放置</b>：从<b>第2天到第8天</b>依次点亮 7 个数据点，连成根须生长折线。</p>' +
+        '<p style="color:#607d8b;font-size:16px;">小提示：先看横轴第几天，再看纵轴多少毫米，十字准星会帮你读数。</p>');
+      ctx.data(rootTableHTML(root));
+      ctx.legend('');
+      ctx.chartTitle('第1小组蒜瓣根须生长情况统计图 · 2025年4月（数据仅供参考）');
+      var ticks = [], i;
+      for(i = 2; i <= 8; i++){ ticks.push({ v:i, label:'第' + i + '天' }); }
+      var chart = new GridChart({
+        x:{ min:1, max:9, ticks:ticks, snap:[2,3,4,5,6,7,8], title:'天数（第几天）' },
+        y:{ min:0, max:30, lines:[0,5,10,15,20,25,30], title:'根须长度/mm' }
+      });
+      ctx.main(chart.svg);
+      var idx = 0;
+      var placedDays = [], placedVals = [];
+      function liveNext(){
+        if(idx < root.days.length){
+          ctx.live('正在描点：<b>第' + root.days[idx] + '天</b>（长度对照记录表）<br>已点亮 <b>' + idx + ' / ' + root.days.length + '</b> 枚数据点');
+        }
+      }
+      chart.bindPlace(function(d, v){
+        addStep();
+        if(d === root.days[idx] && v === root.vals[idx]){
+          chart.addPoint(d, v, 'var(--c-primary)');
+          chart.addValLabel(d, v, String(v), 'above', 'var(--c-primary-deep)');
+          if(placedDays.length > 0){
+            chart.addSeg(placedDays[placedDays.length - 1], placedVals[placedVals.length - 1], d, v, 'var(--c-primary)');
+          }
+          placedDays.push(d); placedVals.push(v);
+          idx++;
+          toast('点亮成功：第' + d + '天 · ' + v + '毫米', 'good');
+          liveNext();
+          if(idx === root.days.length){ finish(); }
+        }else{
+          chart.ghost(d, v);
+          toast('放到了 第' + d + '天 · ' + v + '毫米，再对照记录表看看～', 'bad');
+        }
+      });
+      function finish(){
+        game.locked = true;
+        ctx.live('折线点亮完成！<br>根须从<b>第2天</b>开始冒头（约' + root.vals[0] + '毫米），之后<b>每天都在变长</b>，到第8天大约长到 <b>' + root.vals[6] + '毫米</b>。');
+        setTimeout(ctx.done, 1000);
+      }
+      self.reveal = function(){
+        game.revealedUsed = true; updateHud();
+        while(idx < root.days.length){
+          var d = root.days[idx], v = root.vals[idx];
+          chart.addPoint(d, v, 'var(--c-primary)');
+          chart.addValLabel(d, v, String(v), 'above', 'var(--c-primary-deep)');
+          if(idx > 0){ chart.addSeg(root.days[idx - 1], root.vals[idx - 1], d, v, 'var(--c-primary)'); }
+          idx++;
+        }
+        finish();
+      };
+      liveNext();
+    }
+  };
+}
+
+/* ===== 阶段 E2：生长之星（找增长最快的一天） ===== */
+function stageRootStar(root){
+  return {
+    title: '阶段二 · 生长之星大搜索', short: '找星',
+    mount: function(ctx){
+      var self = this;
+      ctx.goal('<p>折线画好了，现在去寻找<b>生长之星</b>！</p>' +
+        '<p><b>按住小星星沿滑轨左右拖动</b>，停在「<b>比前一天长得最多</b>」的那一天上再松手。拖动时右侧会实时播报每天的生长量，边拖边比一比！</p>');
+      ctx.data(rootTableHTML(root));
+      ctx.legend('');
+      ctx.chartTitle('第1小组蒜瓣根须生长情况统计图 · 2025年4月（数据仅供参考）');
+      var ticks = [], i;
+      for(i = 2; i <= 8; i++){ ticks.push({ v:i, label:'第' + i + '天' }); }
+      var chart = new GridChart({
+        rail:true,
+        x:{ min:1, max:9, ticks:ticks, snap:[2,3,4,5,6,7,8], title:'天数（第几天）' },
+        y:{ min:0, max:30, lines:[0,5,10,15,20,25,30], title:'根须长度/mm' }
+      });
+      ctx.main(chart.svg);
+      chart.drawSeries(root.days, root.vals, 'var(--c-primary)', null, 'above', true);
+      /* 星星滑轨 */
+      var railY = chart.y1 + 96;
+      chart.gTop.appendChild(el('line', { x1:chart.x0, y1:railY, x2:chart.x1, y2:railY, stroke:'#90a4ae', 'stroke-width':3, 'stroke-linecap':'round' }));
+      var STAR_PATH = 'M0,-16 L3.8,-5.3 L15.2,-4.9 L6.2,2 L9.4,12.9 L0,6.5 L-9.4,12.9 L-6.2,2 L-15.2,-4.9 L-3.8,-5.3 Z';
+      /* 星星用外层 g 定位，动画类加在内层 path 上，避免 CSS 动画覆盖定位 */
+      var starG = el('g', { transform:'translate(' + chart.X(root.days[1]) + ',' + railY + ') scale(1.25)' });
+      var star = el('path', { d:STAR_PATH, fill:'var(--c-accent)', stroke:'#b8860b', 'stroke-width':2 });
+      starG.appendChild(star);
+      chart.gTop.appendChild(starG);
+      var dayLab = el('text', { x:chart.X(root.days[1]) + 30, y:railY + 8, 'text-anchor':'start', 'font-size':20, 'font-weight':'bold', fill:'var(--c-primary-deep)', text:'第' + root.days[1] + '天', 'class':'halo' });
+      chart.gTop.appendChild(dayLab);
+      var curDay = root.days[1];
+      function moveStar(d){
+        curDay = d;
+        starG.setAttribute('transform', 'translate(' + chart.X(d) + ',' + railY + ') scale(1.25)');
+        dayLab.setAttribute('x', chart.X(d) + 30);
+        dayLab.textContent = '第' + d + '天';
+      }
+      function liveOfDay(d){
+        var i = root.days.indexOf(d);
+        if(i >= 1){
+          ctx.live('第' + d + '天：长到 <b>' + root.vals[i] + '毫米</b>，比前一天多长 <b>' + root.incs[i - 1] + '毫米</b><br>——把每天都扫一遍，谁最多？');
+        }else{
+          ctx.live('第' + d + '天：这是第1个记录点，还没有「前一天」可以比哦。');
+        }
+      }
+      chart.bindDrag({
+        onStart: function(p){ moveStar(chart.snapDay(p.x)); liveOfDay(curDay); },
+        onMove: function(p){ moveStar(chart.snapDay(p.x)); liveOfDay(curDay); },
+        onEnd: function(){
+          if(game.locked){ return; }
+          addStep();
+          if(curDay === root.maxDay){
+            game.locked = true;
+            star.setAttribute('fill', '#ff922b');
+            star.setAttribute('class', 'locked-star');
+            var incTxt = [], i;
+            for(i = 0; i < root.incs.length; i++){ incTxt.push(root.incs[i]); }
+            ctx.live('<b>生长之星找到了，属于第' + root.maxDay + '天！</b><br>这一天根须比前一天多长 <b>' + root.maxInc + '毫米</b>，是七天里长得最多的一天。<br>各天增长量（毫米）：' + incTxt.join('、'));
+            toast('太棒了！生长之星点亮！', 'good');
+            setTimeout(ctx.done, 1200);
+          }else{
+            star.setAttribute('class', 'wob');
+            setTimeout(function(){ star.setAttribute('class', ''); }, 500);
+            toast('这一天不是最多的，再扫一扫其他日子～', 'bad');
+          }
+        }
+      });
+      liveOfDay(curDay);
+      self.reveal = function(){
+        game.revealedUsed = true; updateHud();
+        moveStar(root.maxDay);
+        game.locked = true;
+        star.setAttribute('fill', '#ff922b');
+        star.setAttribute('class', 'locked-star');
+        ctx.live('<b>生长之星在第' + root.maxDay + '天</b>：这一天比前一天多长 <b>' + root.maxInc + '毫米</b>，最多！');
+        setTimeout(ctx.done, 1000);
+      };
+    }
+  };
+}
+
+/* ===== 阶段 M1：双线齐描（阳光下 + 房间里） ===== */
+function stageLeafPlot(leaf){
+  return {
+    title: '阶段一 · 双线齐描', short: '双线',
+    mount: function(ctx){
+      var self = this;
+      ctx.goal('<p>两盆蒜瓣大比拼：一盆放在<b>阳光下</b>，一盆放在<b>房间里</b>。</p>' +
+        '<p>从第6天起每两天测一次最长叶片。请先点亮<b>阳光下（实线）</b>的 6 个点，再点亮<b>房间里（虚线）</b>的 6 个点，画出两条折线。</p>');
+      ctx.data(leafTableHTML(leaf));
+      ctx.legend('<div class="li"><span class="sw"></span>阳光下（实线）</div><div class="li"><span class="sw dash"></span>房间里（虚线）</div>');
+      ctx.chartTitle('第1小组蒜叶生长情况统计图 · 2025年4月（数据仅供参考）');
+      var ticks = [], i;
+      for(i = 6; i <= 16; i += 2){ ticks.push({ v:i, label:'第' + i + '天' }); }
+      var chart = new GridChart({
+        x:{ min:4, max:18, ticks:ticks, snap:[6,8,10,12,14,16], title:'天数（第几天）' },
+        y:{ min:35, max:100, lines:[40,50,60,70,80,90,100], title:'最长叶片长/mm' }
+      });
+      ctx.main(chart.svg);
+      var SERIES = [
+        { name:'阳光下', vals:leaf.sun, color:SUN, dash:null, labelPos:'below' },
+        { name:'房间里', vals:leaf.room, color:ROOM, dash:'8 6', labelPos:'above' }
+      ];
+      var si = 0, idx = 0;
+      var placed = [[], []];
+      function liveNext(){
+        var s = SERIES[si];
+        ctx.live('正在画：<b style="color:' + s.color + '">' + s.name + '</b>' + (s.dash ? '（虚线）' : '（实线）') +
+          ' · 下一枚：<b>第' + leaf.days[idx] + '天</b><br>总进度 <b>' + (si * 6 + idx) + ' / 12</b> 枚');
+      }
+      chart.bindPlace(function(d, v){
+        if(si >= 2){ return; }
+        addStep();
+        var s = SERIES[si];
+        if(d === leaf.days[idx] && v === s.vals[idx]){
+          chart.addPoint(d, v, s.color);
+          chart.addValLabel(d, v, String(v), s.labelPos, s.color);
+          var pd = placed[si];
+          if(pd.length > 0){
+            chart.addSeg(pd[pd.length - 1].d, pd[pd.length - 1].v, d, v, s.color, s.dash);
+          }
+          pd.push({ d:d, v:v });
+          idx++;
+          toast(s.name + '：第' + d + '天 · ' + v + '毫米 点亮！', 'good');
+          if(idx === 6){
+            if(si === 0){
+              si = 1; idx = 0;
+              toast('阳光下画好啦！接下来画房间里（虚线）', 'good');
+            }else{
+              finish();
+              return;
+            }
+          }
+          liveNext();
+        }else{
+          chart.ghost(d, v);
+          toast('放到了 第' + d + '天 · ' + v + '毫米，对照记录表再看看～', 'bad');
+        }
+      });
+      function finish(){
+        game.locked = true;
+        ctx.live('两条折线都画好啦！<br>看一看：<b>两盆蒜叶都在慢慢变长，生长趋势大致相同</b>；同一竖线上比一比，你发现谁更长了吗？');
+        setTimeout(ctx.done, 1100);
+      }
+      self.reveal = function(){
+        game.revealedUsed = true; updateHud();
+        function fillAll(){
+          while(si < 2){
+            var s = SERIES[si];
+            while(idx < 6){
+              var d = leaf.days[idx], v = s.vals[idx];
+              chart.addPoint(d, v, s.color);
+              chart.addValLabel(d, v, String(v), s.labelPos, s.color);
+              var pd = placed[si];
+              if(pd.length > 0){
+                chart.addSeg(pd[pd.length - 1].d, pd[pd.length - 1].v, d, v, s.color, s.dash);
+              }
+              pd.push({ d:d, v:v });
+              idx++;
+            }
+            si++; idx = 0;
+          }
+        }
+        fillAll();
+        finish();
+      };
+      liveNext();
+    }
+  };
+}
+
+/* ===== 阶段 M2：差值探针（找相差最大的一天） ===== */
+function stageDiffProbe(leaf){
+  return {
+    title: '阶段二 · 差值探针出动', short: '探针',
+    mount: function(ctx){
+      var self = this;
+      ctx.goal('<p>两条折线已经画好。<b>按住底部的差值探针左右拖动</b>，探针停在哪一天，就会测出那一天两盆蒜叶的长度差。</p>' +
+        '<p>找到<b>两盆相差最大</b>的那一天，把探针停在那里松手，探针就会点亮！</p>');
+      ctx.data(leafTableHTML(leaf));
+      ctx.legend('<div class="li"><span class="sw"></span>阳光下（实线）</div><div class="li"><span class="sw dash"></span>房间里（虚线）</div>');
+      ctx.chartTitle('第1小组蒜叶生长情况统计图 · 2025年4月（数据仅供参考）');
+      var ticks = [], i;
+      for(i = 6; i <= 16; i += 2){ ticks.push({ v:i, label:'第' + i + '天' }); }
+      var chart = new GridChart({
+        rail:true,
+        x:{ min:4, max:18, ticks:ticks, snap:[6,8,10,12,14,16], title:'天数（第几天）' },
+        y:{ min:35, max:100, lines:[40,50,60,70,80,90,100], title:'最长叶片长/mm' }
+      });
+      ctx.main(chart.svg);
+      chart.drawSeries(leaf.days, leaf.sun, SUN, null, 'below', true);
+      chart.drawSeries(leaf.days, leaf.room, ROOM, '8 6', 'above', true);
+      /* 探针：竖线 + 底部手柄 */
+      var railY = chart.y1 + 96;
+      chart.gTop.appendChild(el('line', { x1:chart.x0, y1:railY, x2:chart.x1, y2:railY, stroke:'#90a4ae', 'stroke-width':3, 'stroke-linecap':'round' }));
+      var probeLine = el('line', { x1:chart.X(6), y1:chart.y0, x2:chart.X(6), y2:railY, stroke:'#6741d9', 'stroke-width':4, 'stroke-dasharray':'9 6' });
+      var handle = el('circle', { cx:chart.X(6), cy:railY, r:15, fill:'#6741d9', stroke:'#fff', 'stroke-width':3.5, 'class':'pt' });
+      chart.gTop.appendChild(probeLine);
+      chart.gTop.appendChild(handle);
+      var curDay = 6;
+      function moveProbe(d){
+        curDay = d;
+        var x = chart.X(d);
+        probeLine.setAttribute('x1', x); probeLine.setAttribute('x2', x);
+        handle.setAttribute('cx', x);
+      }
+      function liveOfDay(d){
+        var i = leaf.days.indexOf(d);
+        if(i < 0){ return; }
+        ctx.live('第' + d + '天：<b style="color:' + SUN + '">阳光下 ' + leaf.sun[i] + '毫米</b> · <b style="color:' + ROOM + '">房间里 ' + leaf.room[i] + '毫米</b><br>相差 <b>' + leaf.diffs[i] + '毫米</b>（' + Math.max(leaf.sun[i], leaf.room[i]) + '−' + Math.min(leaf.sun[i], leaf.room[i]) + '）');
+      }
+      chart.bindDrag({
+        onStart: function(p){ moveProbe(chart.snapDay(p.x)); liveOfDay(curDay); },
+        onMove: function(p){ moveProbe(chart.snapDay(p.x)); liveOfDay(curDay); },
+        onEnd: function(){
+          if(game.locked){ return; }
+          addStep();
+          if(curDay === leaf.days[leaf.maxIdx]){
+            game.locked = true;
+            handle.setAttribute('fill', '#2f9e44');
+            probeLine.setAttribute('stroke', '#2f9e44');
+            probeLine.setAttribute('stroke-dasharray', 'none');
+            var dAll = [], i;
+            for(i = 0; i < 6; i++){ dAll.push(leaf.diffs[i]); }
+            ctx.live('<b>探针点亮！相差最大的是第' + leaf.days[leaf.maxIdx] + '天：' + leaf.room[leaf.maxIdx] + '−' + leaf.sun[leaf.maxIdx] + '＝<b>' + leaf.maxDiff + '毫米</b>。</b><br>各天差（毫米）：' + dAll.join('、') + '<br>把差的变化特点讲给同桌听吧！');
+            toast('探针点亮，测量成功！', 'good');
+            setTimeout(ctx.done, 1300);
+          }else{
+            handle.setAttribute('class', 'wob');
+            setTimeout(function(){ handle.setAttribute('class', ''); }, 500);
+            toast('这一天不是相差最大的，再拖一拖比一比～', 'bad');
+          }
+        }
+      });
+      liveOfDay(curDay);
+      self.reveal = function(){
+        game.revealedUsed = true; updateHud();
+        moveProbe(leaf.days[leaf.maxIdx]);
+        game.locked = true;
+        handle.setAttribute('fill', '#2f9e44');
+        probeLine.setAttribute('stroke', '#2f9e44');
+        probeLine.setAttribute('stroke-dasharray', 'none');
+        liveOfDay(leaf.days[leaf.maxIdx]);
+        ctx.live('<b>相差最大的是第' + leaf.days[leaf.maxIdx] + '天，相差 ' + leaf.maxDiff + '毫米。</b>');
+        setTimeout(ctx.done, 1000);
+      };
+    }
+  };
+}
+
+/* ===== 阶段 M3：研究结论连线 ===== */
+function stageMatch(leaf){
+  return {
+    title: '阶段三 · 研究结论连线', short: '连线',
+    mount: function(ctx){
+      var self = this;
+      ctx.goal('<p>观测数据都齐了，来发布研究结论！</p>' +
+        '<p><b>按住左侧结论卡右端的圆点</b>，拖到右侧正确的答案卡上松手，连对就会点亮。三张全部连对，研究报告就完成啦！</p>');
+      ctx.data(leafTableHTML(leaf));
+      ctx.legend('');
+      ctx.chartTitle('蒜叶研究发布厅');
+      var wrap = document.createElement('div');
+      wrap.id = 'match-wrap';
+      var left = document.createElement('div'); left.className = 'match-col';
+      var right = document.createElement('div'); right.className = 'match-col';
+      var msvg = el('svg', { id:'match-svg' });
+      wrap.appendChild(left); wrap.appendChild(right); wrap.appendChild(msvg);
+      /* 三张结论卡（依据本局数据自动生成，答案唯一） */
+      var statements = shuffle([
+        { txt:'第16天长得较长的一盆（' + Math.max(leaf.sun[5], leaf.room[5]) + '毫米）', key:'房间里' },
+        { txt:'从第6天起，每次测量长度一直稍短的一盆', key:'阳光下' },
+        { txt:'两盆蒜叶的生长变化趋势：都在慢慢变长、趋势大致相同', key:'两盆都是' }
+      ]);
+      var pool = shuffle(['阳光下', '房间里', '两盆都是']);
+      var doneCnt = 0, wrongCnt = 0;
+      statements.forEach(function(st){
+        var c = document.createElement('div');
+        c.className = 'mcard';
+        c.innerHTML = st.txt + '<div class="dot"></div>';
+        left.appendChild(c);
+        var dot = c.querySelector('.dot');
+        var locked = false;
+        dot.addEventListener('pointerdown', function(e){
+          if(locked || game.locked){ return; }
+          e.preventDefault();
+          try{ dot.setPointerCapture(e.pointerId); }catch(err){}
+          var line = el('line', { stroke:'#888', 'stroke-width':5, 'stroke-linecap':'round' });
+          msvg.appendChild(line);
+          function centerOf(nd){
+            var wr = wrap.getBoundingClientRect(), r = nd.getBoundingClientRect();
+            return { x:r.left + r.width / 2 - wr.left, y:r.top + r.height / 2 - wr.top };
+          }
+          var a = centerOf(dot);
+          function mv(ev){
+            var wr = wrap.getBoundingClientRect();
+            var b = { x:ev.clientX - wr.left, y:ev.clientY - wr.top };
+            line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+            line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+          }
+          function up(ev){
+            dot.removeEventListener('pointermove', mv);
+            dot.removeEventListener('pointerup', up);
+            var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+            var chip = hit ? hit.closest('.chipR') : null;
+            if(chip && !chip.classList.contains('locked')){
+              addStep();
+              if(chip.getAttribute('data-key') === st.key){
+                locked = true;
+                c.classList.add('locked');
+                chip.classList.add('locked');
+                line.setAttribute('stroke', '#2f9e44');
+                var b = centerOf(chip);
+                line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+                doneCnt++;
+                ctx.live('已连对 <b>' + doneCnt + ' / 3</b> 条结论' + (doneCnt < 3 ? '，继续！' : '！'));
+                toast('连对了：' + st.key, 'good');
+                if(doneCnt === 3){ finish(); }
+                return;
+              }else{
+                wrongCnt++;
+                line.setAttribute('stroke', '#e03131');
+                chip.classList.add('flash-bad');
+                setTimeout(function(){ chip.classList.remove('flash-bad'); }, 450);
+                c.classList.add('shake');
+                setTimeout(function(){ c.classList.remove('shake'); }, 450);
+                if(wrongCnt >= 2){
+                  toast('小提示：回看记录表，逐列比一比两盆的长度～', 'bad');
+                }else{
+                  toast('这条结论连得不合适，换一张答案卡试试～', 'bad');
+                }
+              }
+            }
+            setTimeout(function(){ if(msvg.contains(line)){ msvg.removeChild(line); } }, 350);
+          }
+          dot.addEventListener('pointermove', mv);
+          dot.addEventListener('pointerup', up);
+          mv(e);
+        });
+      });
+      pool.forEach(function(k){
+        var chip = document.createElement('div');
+        chip.className = 'chipR';
+        chip.setAttribute('data-key', k);
+        chip.textContent = k;
+        right.appendChild(chip);
+      });
+      ctx.main(wrap);
+      ctx.live('按住结论卡右端的<b>圆点</b>拖到右边答案卡上。<br>答案都藏在记录表里，逐列比一比！');
+      function finish(){
+        game.locked = true;
+        ctx.live('<b>三条结论全部点亮！</b><br>阳光下的一盆一直稍短一些；房间里的一盆在第16天长到了 ' + leaf.room[5] + '毫米；两盆的生长趋势大致相同。');
+        setTimeout(ctx.done, 1200);
+      }
+      self.reveal = function(){
+        game.revealedUsed = true; updateHud();
+        game.locked = true;
+        var cards = left.querySelectorAll('.mcard');
+        var chips = right.querySelectorAll('.chipR');
+        statements.forEach(function(st, i){
+          cards[i].classList.add('locked');
+          for(var j = 0; j < chips.length; j++){
+            if(chips[j].getAttribute('data-key') === st.key){
+              chips[j].classList.add('locked');
+              var a = { x:0, y:0 }, b = { x:0, y:0 };
+              var wr = wrap.getBoundingClientRect();
+              var ra = cards[i].querySelector('.dot').getBoundingClientRect();
+              var rb = chips[j].getBoundingClientRect();
+              a = { x:ra.left + ra.width / 2 - wr.left, y:ra.top + ra.height / 2 - wr.top };
+              b = { x:rb.left + rb.width / 2 - wr.left, y:rb.top + rb.height / 2 - wr.top };
+              msvg.appendChild(el('line', { x1:a.x, y1:a.y, x2:b.x, y2:b.y, stroke:'#2f9e44', 'stroke-width':5, 'stroke-linecap':'round' }));
+              break;
+            }
+          }
+        });
+        ctx.live('<b>揭示完成：</b>较长的是房间里，稍短的是阳光下，趋势相同的是两盆都是。');
+        setTimeout(ctx.done, 1100);
+      };
+    }
+  };
+}
+
+/* ===== 阶段 H1：平均线挑战 ===== */
+function stageAvg(avg){
+  return {
+    title: '阶段一 · 平均线挑战', short: '平均',
+    mount: function(ctx){
+      var self = this;
+      ctx.goal('<p>汇总全班 4 个小组的根须数据！</p>' +
+        '<p><b>按住平均线上下拖动</b>，让它正好停在 4 个小组数据的<b>平均数</b>上再松手。第3天、第6天各挑战一次。</p>' +
+        '<p style="color:#607d8b;font-size:16px;">想一想：平均数 = 四个数之和 ÷ 4。</p>');
+      ctx.data(avgTableHTML(avg));
+      ctx.legend('');
+      ctx.chartTitle('全班各小组根须长度统计图（数据仅供参考）');
+      var round = 0, wrongCnt = 0;
+      var chart = null, avgLine = null, avgHandle = null, avgLab = null;
+      function buildChart(){
+        var ticks = [], i;
+        for(i = 1; i <= 4; i++){ ticks.push({ v:i, label:'第' + i + '小组' }); }
+        chart = new GridChart({
+          x:{ min:0.4, max:4.6, ticks:ticks, snap:[1,2,3,4], title:'小组' },
+          y:{ min:0, max:26, lines:[0,5,10,15,20,25], title:'根须长度/mm' }
+        });
+        var r = avg.rounds[round];
+        for(i = 0; i < 4; i++){
+          var bx = chart.X(i + 1), by = chart.Y(r.vals[i]), bh = chart.Y(0) - chart.Y(r.vals[i]);
+          chart.gData.appendChild(el('rect', { x:bx - 34, y:by, width:68, height:bh, fill:'var(--c-primary)', opacity:0.82, rx:6 }));
+          chart.gData.appendChild(el('text', { x:bx, y:by - 10, 'text-anchor':'middle', 'font-size':19, 'font-weight':'bold', fill:'var(--c-primary-deep)', text:r.vals[i], 'class':'halo' }));
+        }
+        /* 平均线（初始停在低位） */
+        var v0 = 2;
+        avgLine = el('line', { x1:chart.x0, y1:chart.Y(v0), x2:chart.x1, y2:chart.Y(v0), stroke:'#e8590c', 'stroke-width':5 });
+        avgHandle = el('circle', { cx:chart.x1 - 22, cy:chart.Y(v0), r:15, fill:'#e8590c', stroke:'#fff', 'stroke-width':3.5 });
+        avgLab = el('text', { x:chart.x1 - 46, y:chart.Y(v0) - 14, 'text-anchor':'end', 'font-size':20, 'font-weight':'bold', fill:'#e8590c', text:'平均线 2毫米', 'class':'halo' });
+        chart.gTop.appendChild(avgLine);
+        chart.gTop.appendChild(avgHandle);
+        chart.gTop.appendChild(avgLab);
+        ctx.main(chart.svg);
+        ctx.live('当前挑战：<b>' + r.label + '</b> 的平均根须长度。<br>拖动橙色平均线，停在平均数上松手！');
+        chart.bindDrag({
+          onStart: function(p){ moveLine(chart.snapVal(p.y)); },
+          onMove: function(p){ moveLine(chart.snapVal(p.y)); },
+          onEnd: function(){
+            if(game.locked){ return; }
+            addStep();
+            /* 从平均线当前的像素位置反算它停在了多少毫米 */
+            var cur = Math.round(chart.invY(parseFloat(avgLine.getAttribute('y1'))));
+            var r2 = avg.rounds[round];
+            if(cur === r2.mean){
+              game.locked = true;
+              avgLine.setAttribute('stroke', '#2f9e44');
+              avgHandle.setAttribute('fill', '#2f9e44');
+              avgLab.setAttribute('fill', '#2f9e44');
+              ctx.live('<b>平均线点亮！</b><br>' + r2.label + '：(' + r2.vals.join(' + ') + ') ÷ 4 = <b>' + r2.mean + '（毫米）</b>');
+              toast('平均线停对啦！', 'good');
+              if(round === 0){
+                setTimeout(function(){
+                  round = 1; wrongCnt = 0; game.locked = false;
+                  buildChart();
+                  toast('第二轮：第6天的平均数！', 'good');
+                }, 1600);
+              }else{
+                setTimeout(function(){
+                  ctx.live('<b>两轮平均线全部点亮！</b><br>第3天平均 ' + avg.rounds[0].mean + '毫米 → 第6天平均 ' + avg.rounds[1].mean + '毫米，根须越长越壮，长的速度也越来越快！');
+                  setTimeout(ctx.done, 1300);
+                }, 900);
+              }
+            }else{
+              wrongCnt++;
+              avgHandle.setAttribute('class', 'wob');
+              setTimeout(function(){ avgHandle.setAttribute('class', ''); }, 500);
+              if(wrongCnt >= 2){
+                toast('小提示：先把四个数加起来，再除以 4～', 'bad');
+              }else{
+                toast('现在停在 ' + cur + '毫米，再算一算～', 'bad');
+              }
+            }
+          }
+        });
+      }
+      function moveLine(v){
+        var y = chart.Y(v);
+        avgLine.setAttribute('y1', y); avgLine.setAttribute('y2', y);
+        avgHandle.setAttribute('cy', y);
+        avgLab.setAttribute('y', y - 14);
+        avgLab.textContent = '平均线 ' + v + '毫米';
+      }
+      buildChart();
+      self.reveal = function(){
+        game.revealedUsed = true; updateHud();
+        var r2 = avg.rounds[round];
+        moveLine(r2.mean);
+        game.locked = true;
+        avgLine.setAttribute('stroke', '#2f9e44');
+        avgHandle.setAttribute('fill', '#2f9e44');
+        avgLab.setAttribute('fill', '#2f9e44');
+        ctx.live('<b>揭示：</b>' + r2.label + '平均数 = (' + r2.vals.join(' + ') + ') ÷ 4 = ' + r2.mean + '毫米。');
+        if(round === 0){
+          setTimeout(function(){
+            round = 1; game.locked = false;
+            buildChart();
+            var r3 = avg.rounds[1];
+            moveLine(r3.mean);
+            avgLine.setAttribute('stroke', '#2f9e44');
+            avgHandle.setAttribute('fill', '#2f9e44');
+            avgLab.setAttribute('fill', '#2f9e44');
+            game.locked = true;
+            ctx.live('<b>揭示：</b>第6天平均数 = (' + r3.vals.join(' + ') + ') ÷ 4 = ' + r3.mean + '毫米。');
+            setTimeout(ctx.done, 1200);
+          }, 1400);
+        }else{
+          setTimeout(ctx.done, 1100);
+        }
+      };
+    }
+  };
+}
+
+/* ===== 阶段 H2：预测未来之星 ===== */
+function stagePredict(pred){
+  return {
+    title: '阶段二 · 预测未来之星', short: '预测',
+    mount: function(ctx){
+      var self = this;
+      var leaf = pred.leaf;
+      ctx.goal('<p>蒜叶还在长！如果继续养到<b>第18天</b>，阳光下的最长叶片可能长到多少毫米？</p>' +
+        '<p><b>按住预测之星沿第18天的虚线上下拖动</b>，停在你的预测位置松手。预测落在<b>合理区间</b>内就能点亮！</p>' +
+        '<p style="color:#607d8b;font-size:16px;">先研究折线最近几天的势头，再大胆预测。</p>');
+      var rows = '', i;
+      for(i = 3; i < 6; i++){ rows += '<tr><td>第' + leaf.days[i] + '天</td><td><b>' + leaf.sun[i] + '</b> 毫米</td></tr>'; }
+      ctx.data('<div class="tbl-cap">阳光下最长叶片记录（最近三次）</div><table class="dtable"><tr><th>天数</th><th>长度</th></tr>' + rows + '</table>');
+      ctx.legend('<div class="li"><span class="sw"></span>阳光下（实线）</div>');
+      ctx.chartTitle('蒜叶生长预测统计图 · 2025年4月（数据仅供参考）');
+      var ticks = [];
+      for(i = 6; i <= 16; i += 2){ ticks.push({ v:i, label:'第' + i + '天' }); }
+      ticks.push({ v:18, label:'第18天' });
+      var chart = new GridChart({
+        x:{ min:4, max:19, ticks:ticks, snap:[6,8,10,12,14,16,18], title:'天数（第几天）' },
+        y:{ min:35, max:105, lines:[40,50,60,70,80,90,100], title:'最长叶片长/mm' }
+      });
+      ctx.main(chart.svg);
+      chart.drawSeries(leaf.days, leaf.sun, SUN, null, 'below', true);
+      /* 第18天预测导轨 */
+      var gx = chart.X(18);
+      chart.gData.appendChild(el('line', { x1:gx, y1:chart.y0, x2:gx, y2:chart.y1, stroke:'#adb5bd', 'stroke-width':3, 'stroke-dasharray':'8 7' }));
+      chart.gData.appendChild(el('text', { x:gx + 8, y:chart.y0 + 20, 'font-size':17, fill:'#868e96', text:'预测区', 'class':'halo' }));
+      /* 预测之星（外层 g 定位，内层 path 挂动画类） */
+      var STAR_PATH = 'M0,-16 L3.8,-5.3 L15.2,-4.9 L6.2,2 L9.4,12.9 L0,6.5 L-9.4,12.9 L-6.2,2 L-15.2,-4.9 L-3.8,-5.3 Z';
+      var starYv = leaf.sun[5];
+      var starG = el('g', { transform:'translate(' + gx + ',' + chart.Y(starYv) + ')' });
+      var star = el('path', { d:STAR_PATH, fill:'var(--c-accent)', stroke:'#b8860b', 'stroke-width':2 });
+      starG.appendChild(star);
+      chart.gTop.appendChild(starG);
+      var starLab = el('text', { x:gx - 14, y:chart.Y(starYv) - 22, 'text-anchor':'end', 'font-size':19, 'font-weight':'bold', fill:'#b8860b', text:'预测 ' + starYv + '毫米', 'class':'halo' });
+      chart.gTop.appendChild(starLab);
+      var curV = starYv, wrongCnt = 0;
+      function moveStar(v){
+        curV = v;
+        var y = chart.Y(v);
+        starG.setAttribute('transform', 'translate(' + gx + ',' + y + ')');
+        starLab.setAttribute('y', y - 22);
+        starLab.setAttribute('x', gx - 16);
+        starLab.textContent = '预测 ' + v + '毫米';
+      }
+      function liveHint(){
+        ctx.live('最近势头：第' + leaf.days[3] + '天 ' + leaf.sun[3] + '毫米 → 第' + leaf.days[4] + '天 ' + leaf.sun[4] + '毫米 → 第' + leaf.days[5] + '天 <b>' + leaf.sun[5] + '毫米</b><br>每两天大约长 <b>' + pred.inc + '毫米</b>，第18天你预测多少毫米？');
+      }
+      chart.bindDrag({
+        onStart: function(p){ moveStar(chart.snapVal(p.y)); },
+        onMove: function(p){ moveStar(chart.snapVal(p.y)); },
+        onEnd: function(){
+          if(game.locked){ return; }
+          addStep();
+          if(curV >= pred.lo && curV <= pred.hi){
+            game.locked = true;
+            star.setAttribute('fill', '#2f9e44');
+            star.setAttribute('class', 'locked-star');
+            /* 揭示合理区间 */
+            var bandY1 = chart.Y(pred.hi), bandY2 = chart.Y(pred.lo);
+            chart.gData.appendChild(el('rect', { x:gx - 26, y:bandY1, width:52, height:bandY2 - bandY1, fill:'#2f9e44', opacity:0.2, rx:8 }));
+            chart.gData.appendChild(el('text', { x:gx + 32, y:chart.Y(pred.center) + 6, 'font-size':17, fill:'#2f9e44', 'font-weight':'bold', text:'合理区间 ' + pred.lo + '~' + pred.hi + '毫米', 'class':'halo' }));
+            ctx.live('<b>预测之星点亮！你的预测：第18天 ' + curV + '毫米。</b><br>理由：第' + leaf.days[4] + '→' + leaf.days[5] + '天长了 ' + pred.inc + '毫米，按这个势头第18天大约长 ' + pred.inc + '毫米左右，所以 <b>' + pred.lo + '~' + pred.hi + '毫米</b> 都是很棒的预测！');
+            toast('预测成功，研究达人！', 'good');
+            setTimeout(ctx.done, 1400);
+          }else{
+            wrongCnt++;
+            star.setAttribute('class', 'wob');
+            setTimeout(function(){ star.setAttribute('class', ''); }, 500);
+            if(wrongCnt >= 2){
+              toast('小提示：用第16天的长度加上最近两天的增长量估一估～', 'bad');
+            }else{
+              toast('预测要贴合最近的生长势头哦，再调一调～', 'bad');
+            }
+          }
+        }
+      });
+      liveHint();
+      self.reveal = function(){
+        game.revealedUsed = true; updateHud();
+        moveStar(pred.center);
+        game.locked = true;
+        star.setAttribute('fill', '#2f9e44');
+        star.setAttribute('class', 'locked-star');
+        var bandY1 = chart.Y(pred.hi), bandY2 = chart.Y(pred.lo);
+        chart.gData.appendChild(el('rect', { x:gx - 26, y:bandY1, width:52, height:bandY2 - bandY1, fill:'#2f9e44', opacity:0.2, rx:8 }));
+        chart.gData.appendChild(el('text', { x:gx + 32, y:chart.Y(pred.center) + 6, 'font-size':17, fill:'#2f9e44', 'font-weight':'bold', text:'合理区间 ' + pred.lo + '~' + pred.hi + '毫米', 'class':'halo' }));
+        ctx.live('<b>揭示：</b>合理区间为 ' + pred.lo + '~' + pred.hi + '毫米（第16天 ' + leaf.sun[5] + '毫米 + 最近增长 ' + pred.inc + '毫米左右）。');
+        setTimeout(ctx.done, 1200);
+      };
+    }
+  };
+}
+
+/* ---------- 8. 难度与流程控制 ---------- */
+var PAR_STEPS = { easy:10, mid:16, hard:7 };   // 步数基准（用于星级评价）
+var DIFFS = {
+  easy: { name:'初级 · 绿芽观察员', build:function(d){ return [stageRootPlot(d.root), stageRootStar(d.root)]; } },
+  mid:  { name:'中级 · 阳光小园丁', build:function(d){ return [stageLeafPlot(d.leaf), stageDiffProbe(d.leaf), stageMatch(d.leaf)]; } },
+  hard: { name:'高级 · 星级研究员', build:function(d){ return [stageAvg(d.avg), stagePredict(d.pred)]; } }
+};
+function startDifficulty(key){
+  game.diff = key;
+  game.steps = 0;
+  game.stageIdx = 0;
+  game.revealedUsed = false;
+  game.locked = false;
+  applyPalette();                       // 每局随机换一套配色
+  updateHud();
+  document.getElementById('hud-steps').textContent = '步数 0';
+  document.getElementById('hud-time').textContent = '用时 00:00';
+  /* 生成本局随机数据 */
+  game.data = { root:genRoot(), leaf:genLeaf(), avg:genAvg(), pred:genPredict() };
+  game.stages = DIFFS[key].build(game.data);
+  document.getElementById('scr-menu').classList.remove('on');
+  document.getElementById('scr-game').classList.add('on');
+  buildDots();
+  startTimer();
+  startStage(0);
+}
+function buildDots(){
+  var box = document.getElementById('stage-dots');
+  box.innerHTML = '';
+  game.stages.forEach(function(st, i){
+    var d = document.createElement('div');
+    d.className = 'sdot';
+    d.innerHTML = '<span class="num">' + (i + 1) + '</span>' + st.short;
+    box.appendChild(d);
+  });
+}
+function refreshDots(){
+  var dots = document.querySelectorAll('.sdot');
+  dots.forEach(function(d, i){
+    d.className = 'sdot' + (i < game.stageIdx ? ' done' : (i === game.stageIdx ? ' now' : ''));
+  });
+}
+function startStage(i){
+  game.stageIdx = i;
+  game.locked = false;
+  refreshDots();
+  var st = game.stages[i];
+  game.curStage = st;
+  document.getElementById('stage-title').textContent = DIFFS[game.diff].name + ' ｜ ' + st.title;
+  toast(st.title);
+  st.mount(stageCtx());
+}
+function onStageDone(){
+  var dots = document.querySelectorAll('.sdot');
+  if(dots[game.stageIdx]){ dots[game.stageIdx].className = 'sdot done'; }
+  if(game.stageIdx >= game.stages.length - 1){
+    toast('全部阶段完成！', 'good');
+    setTimeout(celebrate, 700);
+  }else{
+    toast('本阶段完成，即将进入下一阶段！', 'good');
+    setTimeout(function(){ startStage(game.stageIdx + 1); }, 1100);
+  }
+}
+
+/* ---------- 9. 通关结算 + 彩纸庆祝 ---------- */
+function celebrate(){
+  stopTimer();
+  var par = PAR_STEPS[game.diff];
+  var stars = game.steps <= par ? 3 : (game.steps <= Math.round(par * 1.7) ? 2 : 1);
+  var box = document.getElementById('win-stars');
+  box.innerHTML = '';
+  for(var i = 0; i < 3; i++){
+    box.innerHTML += '<svg viewBox="0 0 34 34"><path d="M17 2 L21 12 L31.5 13 L23.5 20 L26 30.5 L17 25 L8 30.5 L10.5 20 L2.5 13 L13 12 Z" fill="' + (i < stars ? '#ffd43b' : '#dfe6e9') + '" stroke="#b8860b" stroke-width="1.5"/></svg>';
+  }
+  document.getElementById('win-title').textContent = '研究报告完成！';
+  document.getElementById('win-stats').innerHTML =
+    '难度：<b>' + DIFFS[game.diff].name + '</b><br>' +
+    '用时 <b>' + fmtTime(Math.floor((Date.now() - game.t0) / 1000)) + '</b> · 步数 <b>' + game.steps + '</b> · 评价 <b>' + stars + ' 星</b>';
+  document.getElementById('win-note').textContent = game.revealedUsed ? '这次借助了揭示答案，下次独立完成会更亮哦！' : '全程自己完成，你是观测站最亮的研究之星！';
+  document.getElementById('ov-win').classList.add('on');
+  launchConfetti();
+}
+/* 彩纸粒子（Canvas 实现） */
+var confettiRaf = null;
+function launchConfetti(){
+  var cv = document.getElementById('confetti-canvas');
+  cv.style.display = 'block';
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  var ctx = cv.getContext('2d');
+  var colors = ['#2f9e44', '#ffd43b', '#1971c2', '#e8590c', '#7048e8', '#d6336c', '#40c057'];
+  var parts = [], i;
+  for(i = 0; i < 150; i++){
+    parts.push({
+      x:Math.random() * cv.width, y:-20 - Math.random() * cv.height * 0.5,
+      w:7 + Math.random() * 8, h:10 + Math.random() * 10,
+      vy:2 + Math.random() * 3.2, vx:-1.6 + Math.random() * 3.2,
+      rot:Math.random() * Math.PI, vr:-0.12 + Math.random() * 0.24,
+      c:colors[ri(colors.length)]
+    });
+  }
+  var t0 = Date.now();
+  function frame(){
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for(var j = 0; j < parts.length; j++){
+      var p = parts[j];
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if(p.y > cv.height + 30){ p.y = -20; p.x = Math.random() * cv.width; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if(Date.now() - t0 < 6000 && document.getElementById('ov-win').classList.contains('on')){
+      confettiRaf = requestAnimationFrame(frame);
+    }else{
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      cv.style.display = 'none';
+      confettiRaf = null;
+    }
+  }
+  if(confettiRaf){ cancelAnimationFrame(confettiRaf); }
+  frame();
+}
+
+/* ---------- 10. 界面事件绑定与启动 ---------- */
+function showMenu(){
+  stopTimer();
+  document.getElementById('ov-win').classList.remove('on');
+  document.getElementById('scr-game').classList.remove('on');
+  document.getElementById('scr-menu').classList.add('on');
+}
+document.querySelectorAll('.dcard .go').forEach(function(b){
+  b.addEventListener('click', function(){ startDifficulty(b.getAttribute('data-diff')); });
+});
+document.getElementById('btn-rules-menu').addEventListener('click', function(){
+  document.getElementById('modal-rules').classList.add('on');
+});
+document.getElementById('btn-rules').addEventListener('click', function(){
+  document.getElementById('modal-rules').classList.add('on');
+});
+document.getElementById('btn-rules-close').addEventListener('click', function(){
+  document.getElementById('modal-rules').classList.remove('on');
+});
+document.getElementById('btn-reveal').addEventListener('click', function(){
+  if(game.curStage && !game.locked && game.curStage.reveal){
+    game.curStage.reveal();
+  }else if(game.locked){
+    toast('本阶段已完成，等待进入下一阶段～');
+  }
+});
+document.getElementById('btn-restart').addEventListener('click', function(){
+  if(game.diff){ toast('重新开始，换了新数据哦！'); startDifficulty(game.diff); }
+});
+document.getElementById('btn-back').addEventListener('click', showMenu);
+document.getElementById('btn-again').addEventListener('click', function(){
+  document.getElementById('ov-win').classList.remove('on');
+  startDifficulty(game.diff);
+});
+document.getElementById('btn-winmenu').addEventListener('click', showMenu);
+
+/* 启动：应用随机配色，并自动弹出玩法手册 */
+applyPalette();
+document.getElementById('modal-rules').classList.add('on');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-n/g003", "name": "\u849c\u53f6\u751f\u957f\u89c2\u6d4b\u7ad9 \u00b7 \u6298\u7ebf\u7edf\u8ba1\u56fe\u4e92\u52a8\u6311\u6218", "file": "g003.html", "jiaocan": "\u301011\u3011\u4e8c\u3001\u6298\u7ebf\u7edf\u8ba1\u56fe\uff1a\u849c\u53f6\u7684\u751f\u957f", "unit": "", "grade": "5\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "N\uff1a\u6559\u6750\u89e3\u8bfb3", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb3\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-n"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

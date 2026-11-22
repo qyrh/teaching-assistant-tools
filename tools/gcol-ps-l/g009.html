@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>观察物体 · 方块建筑工坊</title>
+<style>
+/* ============ 全局样式（配色随色板变化，随机主色调） ============ */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+  background: linear-gradient(160deg, hsl(var(--hue), 45%, 96%), hsl(var(--hue), 38%, 89%));
+  color: #26313d;
+  user-select: none;
+  touch-action: manipulation;
+  min-height: 100%;
+}
+.hidden { display: none !important; }
+
+/* ============ 顶部栏 ============ */
+header {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  background: linear-gradient(120deg, hsl(var(--hue), 62%, 42%), hsl(calc(var(--hue) + 30), 62%, 48%));
+  color: #fff; padding: 12px 20px; box-shadow: 0 3px 12px rgba(0,0,0,.15);
+}
+#titleBox { font-size: 26px; font-weight: 800; letter-spacing: 2px; }
+#titleBox small { font-size: 15px; font-weight: 500; opacity: .9; margin-left: 10px; }
+#statusBox {
+  background: rgba(255,255,255,.18); border-radius: 999px; padding: 8px 18px;
+  font-size: 19px; font-weight: 700; white-space: nowrap;
+}
+
+/* ============ 消息条 ============ */
+#msgBar {
+  margin: 10px auto 0; max-width: 1080px; width: calc(100% - 24px);
+  background: #fff; border-left: 7px solid hsl(var(--hue), 60%, 45%);
+  border-radius: 10px; padding: 10px 16px; font-size: 19px; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07); min-height: 44px;
+}
+#msgBar.good { border-left-color: #1d9e44; color: #14622b; }
+#msgBar.bad  { border-left-color: #e07b1a; color: #9c5405; }
+
+/* ============ 主区域 ============ */
+main { max-width: 1080px; margin: 0 auto; padding: 12px; }
+
+/* ---- 难度选择菜单 ---- */
+#menuScreen { text-align: center; padding: 16px 0 40px; }
+#menuScreen h2 { font-size: 30px; margin: 18px 0 6px; color: hsl(var(--hue), 55%, 32%); }
+#menuScreen .sub { font-size: 18px; color: #5a6a79; margin-bottom: 22px; }
+.diffRow { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+.diffCard {
+  flex: 1 1 250px; max-width: 310px; background: #fff; border-radius: 18px; padding: 22px 18px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.10); cursor: pointer; border-top: 8px solid hsl(var(--hue), 60%, 45%);
+  transition: transform .15s, box-shadow .15s;
+}
+.diffCard:hover { transform: translateY(-6px); box-shadow: 0 10px 22px rgba(0,0,0,.16); }
+.diffCard h3 { font-size: 25px; color: hsl(var(--hue), 55%, 34%); margin-bottom: 8px; }
+.diffCard .star { font-size: 20px; color: #f2a10e; letter-spacing: 3px; }
+.diffCard p { font-size: 17px; color: #4c5a68; line-height: 1.6; margin-top: 8px; text-align: left; }
+#paletteTip { margin-top: 26px; font-size: 17px; color: #67757f; }
+
+/* ---- 游戏界面 ---- */
+#roundBar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  background: #fff; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+#roundTitle { font-size: 21px; font-weight: 800; color: hsl(var(--hue), 55%, 34%); }
+#roundGoal { font-size: 18px; font-weight: 600; color: #33404d; flex: 1 1 300px; }
+#roundProg { font-size: 18px; font-weight: 800; color: #b06000; background: #fff2dc; border-radius: 999px; padding: 4px 14px; }
+
+#gameLayout { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+#boardWrap {
+  flex: 1 1 420px; background: #fff; border-radius: 16px; padding: 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.09);
+}
+#board { display: block; width: 100%; max-width: 620px; margin: 0 auto; cursor: pointer; }
+#boardHint { text-align: center; font-size: 16px; color: #67757f; padding: 4px 6px 8px; line-height: 1.5; }
+
+#viewsWrap { flex: 1 1 320px; display: flex; flex-direction: column; gap: 12px; }
+.vcard {
+  background: #fff; border-radius: 14px; padding: 10px 12px;
+  box-shadow: 0 3px 10px rgba(0,0,0,.08); border-top: 5px solid hsl(var(--hue), 60%, 45%);
+}
+.vhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vname { font-size: 20px; font-weight: 800; color: #2c3944; }
+.badge { font-size: 16px; font-weight: 700; border-radius: 999px; padding: 3px 12px; background: #e8edf2; color: #5a6a79; }
+.badge.ok { background: #ddf4e1; color: #0e7a2b; }
+.badge.no { background: #fdeadb; color: #b3541e; }
+.vsub { font-size: 14px; color: #7b8894; margin: 3px 0 6px; }
+.vgrids { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.vblock .vtag { font-size: 15px; font-weight: 700; color: #55636f; margin-bottom: 4px; }
+.vgrid { display: grid; gap: 4px; }
+.cell {
+  width: 36px; height: 36px; border-radius: 7px; background: #e7ecf1;
+  border: 2px solid #b9c4cf; transition: background .12s, transform .1s;
+}
+.cell.paintable { cursor: pointer; }
+.cell.paintable:hover { transform: scale(1.12); border-color: hsl(var(--hue), 55%, 45%); }
+.cell.on { background: hsl(var(--hue), 62%, 47%); border-color: hsl(var(--hue), 60%, 32%); }
+.cell.reveal { background: #ffb02e; border-color: #c07d00; }
+.cell.t { background: hsl(var(--hue), 62%, 47%); border-color: hsl(var(--hue), 60%, 32%); }
+.cell.f { background: #f4f7fa; border-color: #cfd8e0; }
+
+/* ---- 控制按钮 ---- */
+#ctrlBar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+button.btn {
+  font-family: inherit; font-size: 19px; font-weight: 700; border: none; cursor: pointer;
+  border-radius: 999px; padding: 11px 24px; color: #fff;
+  background: hsl(var(--hue), 55%, 44%); box-shadow: 0 3px 8px rgba(0,0,0,.18);
+  transition: transform .12s, filter .12s;
+}
+button.btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+button.btn.ghost { background: #fff; color: hsl(var(--hue), 55%, 36%); border: 2px solid hsl(var(--hue), 50%, 55%); }
+button.btn.warnB { background: #e8890c; }
+button.btn:disabled { opacity: .45; cursor: default; transform: none; }
+
+/* ---- 弹窗 ---- */
+#modalMask {
+  position: fixed; inset: 0; background: rgba(20, 30, 40, .5); z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+#modalCard {
+  background: #fff; border-radius: 20px; max-width: 640px; width: 100%; max-height: 86vh; overflow-y: auto;
+  padding: 26px 28px; box-shadow: 0 14px 40px rgba(0,0,0,.3); text-align: center;
+  animation: pop .25s ease-out;
+}
+@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+#modalCard h3 { font-size: 27px; color: hsl(var(--hue), 55%, 34%); margin-bottom: 12px; }
+#modalCard .body { font-size: 18px; color: #3a4753; line-height: 1.75; text-align: left; }
+#modalCard .body b { color: hsl(var(--hue), 55%, 34%); }
+#modalCard .btns { margin-top: 18px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.bigStars { font-size: 46px; color: #f2a10e; letter-spacing: 8px; margin: 10px 0; animation: starIn .6s ease-out; }
+@keyframes starIn { from { transform: scale(0) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
+.ruleTag { display: inline-block; background: hsl(var(--hue), 55%, 92%); color: hsl(var(--hue), 55%, 34%); font-weight: 700; border-radius: 8px; padding: 2px 10px; margin: 2px; }
+
+/* ---- 彩带层 ---- */
+#confetti { position: fixed; inset: 0; pointer-events: none; z-index: 99; }
+
+@media (max-width: 640px) {
+  #titleBox { font-size: 20px; }
+  #statusBox { font-size: 16px; padding: 6px 12px; }
+  .cell { width: 30px; height: 30px; border-radius: 6px; }
+  #roundGoal { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div id="titleBox">观察物体 · 方块建筑工坊<small>四上 · 第三单元</small></div>
+  <div id="statusBox">⏱ <span id="timerTxt">00:00</span>　🧤 操作 <span id="stepTxt">0</span> 次</div>
+</header>
+
+<div id="msgBar">欢迎来到方块建筑工坊！先看看玩法说明吧。</div>
+
+<main>
+  <!-- 难度选择 -->
+  <section id="menuScreen">
+    <h2>选择挑战等级</h2>
+    <div class="sub">摆一摆、看一看、涂一涂——玩着玩着就学会“观察物体”啦！</div>
+    <div class="diffRow">
+      <div class="diffCard" data-mode="easy">
+        <h3>初级 · 火眼金睛</h3>
+        <div class="star">★☆☆</div>
+        <p>面前有一堆积木。把从<b>前面、上面、右面</b>看到的形状，在方格里<b>涂</b>出来！点击格子即可涂色或擦除。</p>
+      </div>
+      <div class="diffCard" data-mode="mid">
+        <h3>中级 · 神奇复原</h3>
+        <div class="star">★★☆</div>
+        <p>只给你三个方向的视图，请你<b>亲手搭</b>出这个立体图形！点空地或积木顶面放方块，点积木侧面取走。</p>
+      </div>
+      <div class="diffCard" data-mode="hard">
+        <h3>高级 · 添减大师</h3>
+        <div class="star">★★★</div>
+        <p>变式挑战：哪些方块<b>取走</b>后三个视图都不变？在哪里<b>添</b>方块视图才不变？考验你的空间想象力！</p>
+      </div>
+    </div>
+    <div id="paletteTip"></div>
+    <div style="margin-top:16px"><button class="btn ghost" id="menuHelpBtn">玩法说明</button></div>
+  </section>
+
+  <!-- 游戏主界面 -->
+  <section id="gameScreen" class="hidden">
+    <div id="roundBar">
+      <span id="roundTitle"></span>
+      <span id="roundGoal"></span>
+      <span id="roundProg"></span>
+    </div>
+    <div id="gameLayout">
+      <div id="boardWrap">
+        <canvas id="board" width="620" height="560"></canvas>
+        <div id="boardHint">看图指南：立体图中<b>左下方</b>的面是「前面」，<b>右下方</b>的面是「右面」，「上面」是从头顶往下看。<span id="opHint"></span></div>
+      </div>
+      <div id="viewsWrap"></div>
+    </div>
+    <div id="ctrlBar">
+      <button class="btn ghost" id="helpBtn">规则说明</button>
+      <button class="btn warnB" id="revealBtn">揭示答案</button>
+      <button class="btn ghost" id="restartBtn">重新开始</button>
+      <button class="btn ghost" id="backBtn">返回难度选择</button>
+    </div>
+  </section>
+</main>
+
+<!-- 弹窗 -->
+<div id="modalMask" class="hidden">
+  <div id="modalCard"></div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+'use strict';
+/* ==================================================================
+ * 观察物体 · 方块建筑工坊
+ * 核心玩法：学生在等距立体画布上“放方块 / 取方块”，或在视图方格上
+ * “涂色”，通过操作本身完成三视图的辨认、复原与添减变换。
+ * 坐标约定：h[z][x]，z=0 是最后一排（后排），z 最大是前排；
+ *           x=0 是最左列。每个位置从下往上堆满（高度 = 该列方块数）。
+ * ================================================================== */
+
+/* ---------------- 小工具 ---------------- */
+function $(id) { return document.getElementById(id); }
+function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function cloneH(h) { return h.map(function (r) { return r.slice(); }); }
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+/* ---------------- 色板（每局随机一个主色） ---------------- */
+var PALETTES = [
+  { name: '薄荷绿', hue: 152 }, { name: '海洋蓝', hue: 206 },
+  { name: '向日葵', hue: 44 }, { name: '蜜桃粉', hue: 336 },
+  { name: '葡萄紫', hue: 272 }, { name: '珊瑚橙', hue: 18 }
+];
+
+/* ---------------- 立体图形题库（高度图，来自教参题型改编+变式） ---------------- */
+var SOLID_POOL = [
+  { name: '小台阶',   h: [[1, 1, 1], [2, 2, 2], [3, 3, 3]] },
+  { name: '拐角楼',   h: [[2, 0, 0], [2, 1, 0], [2, 1, 1]] },
+  { name: '城墙',     h: [[2, 2, 2], [1, 1, 1], [2, 2, 2]] },
+  { name: '凹字池',   h: [[2, 2, 2], [2, 0, 2], [2, 2, 2]] },
+  { name: '小山丘',   h: [[1, 1, 1], [1, 2, 1], [1, 1, 1]] },
+  { name: '高台',     h: [[1, 1], [2, 2], [3, 3]] },
+  { name: 'L形楼',    h: [[3, 3, 0], [3, 0, 0]] },
+  { name: '风琴阶',   h: [[1, 2, 3], [1, 2, 3]] },
+  { name: '中心塔',   h: [[1, 1, 1], [1, 3, 1], [1, 1, 1]] },
+  { name: '双塔城门', h: [[2, 0, 2], [2, 0, 2], [2, 2, 2]] },
+  { name: '城堡',     h: [[3, 3, 3], [1, 1, 1], [3, 3, 3]] },
+  { name: '舞台',     h: [[3, 1, 3], [3, 1, 3], [3, 3, 3]] },
+  { name: '大剧院',   h: [[3, 3, 3], [3, 1, 3], [3, 3, 3]] },
+  { name: '水池',     h: [[3, 3, 3], [3, 2, 3], [3, 3, 3]] },
+  { name: '斜坡',     h: [[1, 2], [2, 3]] },
+  { name: '口字城',   h: [[2, 2, 2, 2], [2, 0, 0, 2], [2, 2, 2, 2]] },
+  { name: '四合院',   h: [[3, 3, 3, 3], [3, 1, 1, 3], [3, 1, 1, 3], [3, 3, 3, 3]] },
+  { name: '讲堂',     h: [[3, 1, 3], [3, 3, 3]] },
+  { name: '大沙发',   h: [[3, 3, 1], [3, 3, 3], [1, 1, 1]] },
+  { name: '双人沙发', h: [[3, 1], [3, 3], [1, 1]] },
+  { name: '大看台',   h: [[3, 3, 3, 1], [3, 3, 3, 1], [3, 3, 3, 3], [1, 1, 1, 1]] }
+];
+
+/* ---------------- 三视图计算 ---------------- */
+/* 计算一个高度图的三视图：
+   frontMax[x]：从前面看，第 x 列的最高层数
+   rightMax[z]：从右面看，第 z 排的最高层数
+   top[z][x]：从上面看，该位置是否有方块
+   maxH：整体最高层数  cubes：方块总数 */
+function viewsOf(h) {
+  const nZ = h.length, nX = h[0].length;
+  const frontMax = new Array(nX).fill(0);
+  const rightMax = new Array(nZ).fill(0);
+  const top = h.map(function (r) { return r.map(function (v) { return v > 0; }); });
+  let maxH = 0, cubes = 0;
+  for (let z = 0; z < nZ; z++) {
+    for (let x = 0; x < nX; x++) {
+      const v = h[z][x];
+      cubes += v;
+      if (v > frontMax[x]) frontMax[x] = v;
+      if (v > rightMax[z]) rightMax[z] = v;
+      if (v > maxH) maxH = v;
+    }
+  }
+  return { frontMax: frontMax, rightMax: rightMax, top: top, maxH: maxH, cubes: cubes, nX: nX, nZ: nZ };
+}
+/* 两个视图是否完全一致 */
+function viewsEqual(a, b) {
+  if (a.nX !== b.nX || a.nZ !== b.nZ) return false;
+  for (let i = 0; i < a.nX; i++) if (a.frontMax[i] !== b.frontMax[i]) return false;
+  for (let i = 0; i < a.nZ; i++) if (a.rightMax[i] !== b.rightMax[i]) return false;
+  for (let z = 0; z < a.nZ; z++) for (let x = 0; x < a.nX; x++)
+    if (a.top[z][x] !== b.top[z][x]) return false;
+  return true;
+}
+/* 模拟取走 (z,x) 列顶端方块后，哪些方向的视图会变化。返回如 ['front','top'] */
+function changedAfterRemove(h, z, x) {
+  if (h[z][x] <= 0) return ['top'];
+  const h2 = cloneH(h); h2[z][x]--;
+  const v1 = viewsOf(h), v2 = viewsOf(h2);
+  const out = [];
+  for (let i = 0; i < v1.nX; i++) if (v1.frontMax[i] !== v2.frontMax[i]) { out.push('front'); break; }
+  for (let i = 0; i < v1.nZ; i++) if (v1.rightMax[i] !== v2.rightMax[i]) { out.push('right'); break; }
+  for (let zz = 0; zz < v1.nZ; zz++) for (let xx = 0; xx < v1.nX; xx++)
+    if (v1.top[zz][xx] !== v2.top[zz][xx]) { out.push('top'); return out; }
+  return out;
+}
+/* 当前局面下，哪些“列顶方块”可以取走且三个视图都不变（动态计算） */
+function removableNow(h) {
+  const res = [];
+  for (let z = 0; z < h.length; z++)
+    for (let x = 0; x < h[0].length; x++)
+      if (h[z][x] > 0 && changedAfterRemove(h, z, x).length === 0) res.push({ z: z, x: x });
+  return res;
+}
+/* 不改变三视图时最多能添几个方块：每列（已有方块的列）最终可增至
+   min(该列从前面看的最高层数, 该排从右面看的最高层数) */
+function maxAddInfo(h) {
+  const v = viewsOf(h);
+  let total = 0;
+  const bound = h.map(function (row, z) {
+    return row.map(function (val, x) {
+      const b = Math.min(v.frontMax[x], v.rightMax[z]);
+      const add = val > 0 ? Math.max(0, b - val) : 0;
+      total += add;
+      return b;
+    });
+  });
+  return { total: total, bound: bound };
+}
+/* 定向取走目标：枚举每个列顶方块取走后会变化的方向集合 */
+function directedOptions(h) {
+  const opts = {};
+  for (let z = 0; z < h.length; z++)
+    for (let x = 0; x < h[0].length; x++) {
+      if (h[z][x] <= 0) continue;
+      const set = changedAfterRemove(h, z, x);
+      if (set.length === 0) continue;
+      const key = set.join('+');
+      if (!opts[key]) opts[key] = [];
+      opts[key].push({ z: z, x: x });
+    }
+  return opts;
+}
+var FACE_NAME = { front: '前面', right: '右面', top: '上面' };
+function setLabel(set) {
+  const names = set.map(function (s) { return '从' + FACE_NAME[s] + '看'; });
+  if (set.length === 1) return '只有' + names[0] + '到的形状会变化';
+  return names.slice(0, set.length - 1).join('、') + '和' + names[names.length - 1] + '到的形状会变化';
+}
+/* —— 可见性工具 ——
+   等距投影里，沿视线方向 (x+1,z+1,L+1) 的方块会遮住后面的位置。
+   判断某位置 (x,z,L) 的“顶面菱形中心”是否被更近的方块轮廓挡住，
+   用于关卡筛选：确保需要点击的位置学生真的能点到。
+   （测试只用相对坐标，与画面平移无关） */
+/* 把多边形朝重心收缩，避免“正好贴在邻居边缘”的临界判定 */
+function shrunkPoly(poly, f) {
+  let cx = 0, cy = 0;
+  for (let i = 0; i < poly.length; i++) { cx += poly[i].x; cy += poly[i].y; }
+  cx /= poly.length; cy /= poly.length;
+  return poly.map(function (v) { return { x: cx + (v.x - cx) * f, y: cy + (v.y - cy) * f }; });
+}
+function posVisible(board, x, z, L) {
+  const a = anchor(x, z, L);
+  const pt = { x: a.nx, y: a.nyb - SH + TH };
+  const myKey = (x + z) * 100 + L;
+  for (let zz = 0; zz < board.length; zz++) {
+    for (let xx = 0; xx < board[0].length; xx++) {
+      for (let LL = 0; LL < board[zz][xx]; LL++) {
+        if ((xx + zz) * 100 + LL <= myKey) continue;
+        /* 遮挡物轮廓向内收缩后再判定：贴边的临界情况按“看得见”处理，
+           与点击判定保持一致——判为可见的位置，中心点一定能点中 */
+        if (pointInPoly(pt.x, pt.y, shrunkPoly(cubeHex(xx, zz, LL), 0.85))) return false;
+      }
+    }
+  }
+  return true;
+}
+
+/* ---------------- 全局状态 ---------------- */
+var G = {
+  pal: null,          // 本局色板
+  mode: null,         // 'easy' | 'mid' | 'hard'
+  rounds: [],         // 本局关卡列表
+  ri: 0,              // 当前关卡下标
+  round: null,        // 当前关卡数据
+  steps: 0,           // 操作次数
+  stars: 0,           // 获得星星
+  started: false,     // 计时是否开始
+  t0: 0,              // 开始时刻
+  locked: false,      // 过关或揭示后锁定操作
+  revealed: false,    // 本关是否已揭示
+  usedNames: {}       // 本局已用图形名（避免重复）
+};
+
+/* ==================================================================
+ * 立体画布（等距渲染 + 点击检测）
+ * ================================================================== */
+var cv = $('board'), ctx = cv.getContext('2d');
+var CW = 620, CH = 560;          // 逻辑画布尺寸
+var TW = 34, TH = 17, SH = 36;   // 等距方块参数：菱形半宽/半高、侧面高
+var MAXL = 4;                    // 最高 4 层
+var OX = CW / 2, OY = 0;         // 原点（OY 每帧按内容自动居中）
+var renderShapes = { cubes: [], markers: [] }; // 本帧的点击区域
+var flash = null;                // 点击错误时的红色闪烁 {poly, until}
+var revealInfo = null;           // 揭示答案时的高亮信息
+
+function dpr() { return window.devicePixelRatio || 1; }
+function setupCanvas() {
+  const r = dpr();
+  cv.width = CW * r; cv.height = CH * r;
+  cv.style.aspectRatio = CW + '/' + CH;
+  ctx.setTransform(r, 0, 0, r, 0, 0);
+}
+/* 单元格锚点：方块 (x,z,层L) 底面菱形“北角”的屏幕坐标 */
+function anchor(x, z, L) {
+  return { nx: OX + (x - z) * TW, nyb: OY + (x + z) * TH - L * SH };
+}
+/* 一个方块的六边形轮廓（用于绘制与点击检测） */
+function cubeHex(x, z, L) {
+  const a = anchor(x, z, L);
+  const nt = a.nyb - SH; // 顶面菱形北角
+  return [
+    { x: a.nx, y: nt },                 // N 顶北
+    { x: a.nx + TW, y: nt + TH },       // E 顶东
+    { x: a.nx + TW, y: nt + TH + SH },  // Eb 底东
+    { x: a.nx, y: nt + 2 * TH + SH },   // Sb 底南
+    { x: a.nx - TW, y: nt + TH + SH },  // Wb 底西
+    { x: a.nx - TW, y: nt + TH }        // W 顶西
+  ];
+}
+function pointInPoly(px, py, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+/* 生成当前局面要画的东西：地面格 + 方块 + 空地放置菱形 + 顶面脉冲提示 */
+function buildScene() {
+  const r = G.round;
+  const scene = { ground: [], cubes: [], markers: [], tops: [] };
+  if (!r) return scene;
+  const h = r.board;
+  const nZ = h.length, nX = h[0].length;
+  for (let z = 0; z < nZ; z++)
+    for (let x = 0; x < nX; x++) scene.ground.push({ x: x, z: z });
+  /* 允许“放方块”的模式：中级全部位置；高级·添方块 */
+  const showAdd = (r.kind === 'mid') || (r.kind === 'hard' && r.sub === 'add');
+  for (let z = 0; z < nZ; z++) {
+    for (let x = 0; x < nX; x++) {
+      for (let L = 0; L < h[z][x]; L++) {
+        const isTop = (L === h[z][x] - 1);
+        /* 添方块挑战中高于原始高度的方块是学生新添的，用亮色区分 */
+        const isNew = (r.kind === 'hard' && r.sub === 'add') && (L >= r.solid.h[z][x]);
+        scene.cubes.push({
+          x: x, z: z, L: L,
+          num: (isTop && r.numMap) ? r.numMap[z][x] : null,
+          isNew: isNew
+        });
+      }
+      /* 空地：显示虚线放置菱形（点击可放第 1 块） */
+      if (showAdd && h[z][x] === 0) scene.markers.push({ x: x, z: z, L: 0 });
+      /* 有方块的列：顶面显示脉冲小菱形（点击顶面＝再摞一块） */
+      if (showAdd && h[z][x] > 0 && h[z][x] < MAXL) scene.tops.push({ x: x, z: z, L: h[z][x] - 1 });
+    }
+  }
+  return scene;
+}
+/* 计算内容包围盒，让画面垂直居中 */
+function measureScene(scene) {
+  let minY = 1e9, maxY = -1e9;
+  function acc(pts) {
+    for (let i = 0; i < pts.length; i++) {
+      if (pts[i].y < minY) minY = pts[i].y;
+      if (pts[i].y > maxY) maxY = pts[i].y;
+    }
+  }
+  for (let i = 0; i < scene.ground.length; i++) {
+    const g = scene.ground[i];
+    acc(cubeHex(g.x, g.z, 0)); // 地面格近似
+  }
+  for (let i = 0; i < scene.cubes.length; i++) {
+    const c = scene.cubes[i];
+    acc(cubeHex(c.x, c.z, c.L));
+  }
+  for (let i = 0; i < scene.markers.length; i++) {
+    const m = scene.markers[i];
+    acc(cubeHex(m.x, m.z, m.L));
+  }
+  if (minY > maxY) { minY = 0; maxY = 100; }
+  return { minY: minY, maxY: maxY };
+}
+
+/* 面向绘制的主循环 */
+function renderFrame(ts) {
+  const r = G.round;
+  ctx.clearRect(0, 0, CW, CH);
+  renderShapes = { cubes: [], markers: [] };
+  if (!r) { requestAnimationFrame(renderFrame); return; }
+
+  const scene = buildScene();
+  const box = measureScene(scene);
+  OX = CW / 2;
+  OY = 40 + (CH - 80 - (box.maxY - box.minY)) / 2 - box.minY;
+  const hue = G.pal.hue;
+  const cTop = 'hsl(' + hue + ', 66%, 74%)';
+  const cLeft = 'hsl(' + hue + ', 52%, 56%)';
+  const cRight = 'hsl(' + hue + ', 55%, 40%)';
+  const cLine = 'hsl(' + hue + ', 45%, 24%)';
+  const cNew = 'hsl(' + ((hue + 40) % 360) + ', 75%, 70%)';
+
+  /* 1. 地面网格 */
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(90,105,120,.4)';
+  for (let i = 0; i < scene.ground.length; i++) {
+    const g = scene.ground[i];
+    const a = anchor(g.x, g.z, 0);
+    ctx.beginPath();
+    ctx.moveTo(a.nx, a.nyb);
+    ctx.lineTo(a.nx + TW, a.nyb + TH);
+    ctx.lineTo(a.nx, a.nyb + 2 * TH);
+    ctx.lineTo(a.nx - TW, a.nyb + TH);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  /* 2. 方块 / 空地菱形 / 顶面脉冲 合并成一个列表，按画家算法排序绘制：
+     远处的先画、近处的后画——被挡住的空地菱形自然被盖住，视觉与点击一致 */
+  const drawList = [];
+  for (let i = 0; i < scene.cubes.length; i++) {
+    const c = scene.cubes[i];
+    drawList.push({ type: 'cube', x: c.x, z: c.z, L: c.L, num: c.num, isNew: c.isNew, key: ((c.x + c.z) * 100 + c.L) * 10 });
+  }
+  for (let i = 0; i < scene.markers.length; i++) {
+    const m = scene.markers[i];
+    drawList.push({ type: 'gmark', x: m.x, z: m.z, L: 0, key: ((m.x + m.z) * 100) * 10 + 4 });
+  }
+  for (let i = 0; i < scene.tops.length; i++) {
+    const t = scene.tops[i];
+    drawList.push({ type: 'top', x: t.x, z: t.z, L: t.L, key: ((t.x + t.z) * 100 + t.L) * 10 + 6 });
+  }
+  drawList.sort(function (a, b) { return a.key - b.key; });
+  const pulse = 0.55 + 0.45 * Math.sin(ts / 300);
+  for (let i = 0; i < drawList.length; i++) {
+    const it = drawList[i];
+    if (it.type === 'cube') {
+      const c = it;
+      const hex = cubeHex(c.x, c.z, c.L);
+      const N = hex[0], E = hex[1], Eb = hex[2], Sb = hex[3], Wb = hex[4], W = hex[5];
+      const fillTop = c.isNew ? cNew : cTop;
+      const fillL = c.isNew ? 'hsl(' + ((hue + 40) % 360) + ', 60%, 58%)' : cLeft;
+      const fillR = c.isNew ? 'hsl(' + ((hue + 40) % 360) + ', 62%, 44%)' : cRight;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = cLine;
+      /* 左面（朝向前面观察者）：西→南（顶面菱形下边）→南底→西底 */
+      ctx.fillStyle = fillL;
+      ctx.beginPath();
+      ctx.moveTo(W.x, W.y);
+      ctx.lineTo(N.x, N.y + 2 * TH);
+      ctx.lineTo(Sb.x, Sb.y); ctx.lineTo(Wb.x, Wb.y);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      /* 右面（朝向右面观察者）：南→东→东底→南底 */
+      ctx.fillStyle = fillR;
+      ctx.beginPath();
+      ctx.moveTo(N.x, N.y + 2 * TH);
+      ctx.lineTo(E.x, E.y);
+      ctx.lineTo(Eb.x, Eb.y); ctx.lineTo(Sb.x, Sb.y);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      /* 顶面：北→东→南→西 */
+      ctx.fillStyle = fillTop;
+      ctx.beginPath();
+      ctx.moveTo(N.x, N.y); ctx.lineTo(E.x, E.y);
+      ctx.lineTo(N.x, N.y + 2 * TH); ctx.lineTo(W.x, W.y);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      /* 顶面编号（仅需要编号的关卡） */
+      if (c.num != null) {
+        ctx.fillStyle = '#1d2833';
+        ctx.font = 'bold 16px "Microsoft YaHei", sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(c.num), N.x, N.y + TH + 1);
+      }
+      renderShapes.cubes.push({ x: c.x, z: c.z, L: c.L, poly: hex });
+    } else if (it.type === 'gmark') {
+      /* 空地放置菱形（脉动虚线，画在地面层） */
+      const dia = groundDiamond(it);
+      ctx.save();
+      ctx.setLineDash([7, 5]);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'hsla(' + hue + ', 60%, 42%, ' + pulse.toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.moveTo(dia[0].x, dia[0].y);
+      for (let k = 1; k < dia.length; k++) ctx.lineTo(dia[k].x, dia[k].y);
+      ctx.closePath(); ctx.stroke();
+      ctx.restore();
+      const ccy = dia[0].y + TH;
+      ctx.fillStyle = 'hsla(' + hue + ', 60%, 45%, ' + (0.3 + 0.35 * pulse).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.moveTo(dia[0].x, ccy - 6); ctx.lineTo(dia[0].x + 10, ccy);
+      ctx.lineTo(dia[0].x, ccy + 6); ctx.lineTo(dia[0].x - 10, ccy);
+      ctx.closePath(); ctx.fill();
+      renderShapes.markers.push({ x: it.x, z: it.z, L: 0, poly: dia });
+    } else {
+      /* 顶面脉冲小菱形（提示：点顶面可以再摞一块） */
+      const a = anchor(it.x, it.z, it.L);
+      const cy = a.nyb - SH + TH;
+      ctx.strokeStyle = 'hsla(' + hue + ', 65%, 28%, ' + (0.35 + 0.4 * pulse).toFixed(2) + ')';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(a.nx, cy - 8); ctx.lineTo(a.nx + 13, cy);
+      ctx.lineTo(a.nx, cy + 8); ctx.lineTo(a.nx - 13, cy);
+      ctx.closePath(); ctx.stroke();
+    }
+  }
+
+  /* 3. 揭示答案时的高亮 */
+  if (revealInfo && revealInfo.type === 'cubes') {
+    const list = revealInfo.list; // [{z,x}]
+    for (let i = 0; i < list.length; i++) {
+      const hh = r.board, L = hh[list[i].z][list[i].x] - 1;
+      if (L < 0) continue;
+      const hex = cubeHex(list[i].x, list[i].z, L);
+      ctx.save();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#f2a10e';
+      ctx.shadowColor = 'rgba(242,161,14,.9)';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.moveTo(hex[0].x, hex[0].y);
+      for (let k = 1; k < hex.length; k++) ctx.lineTo(hex[k].x, hex[k].y);
+      ctx.closePath(); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  if (revealInfo && revealInfo.type === 'ghost') {
+    const list = revealInfo.list; // [{z,x,L}]
+    ctx.save();
+    ctx.setLineDash([7, 6]);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#f2a10e';
+    for (let i = 0; i < list.length; i++) {
+      const hex = cubeHex(list[i].x, list[i].z, list[i].L);
+      ctx.beginPath();
+      ctx.moveTo(hex[0].x, hex[0].y);
+      for (let k = 1; k < hex.length; k++) ctx.lineTo(hex[k].x, hex[k].y);
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* 4. 点错的红色闪烁 */
+  if (flash && ts < flash.until) {
+    ctx.save();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(224,60,60,' + (0.35 + 0.4 * Math.abs(Math.sin(ts / 90))).toFixed(2) + ')';
+    ctx.beginPath();
+    ctx.moveTo(flash.poly[0].x, flash.poly[0].y);
+    for (let k = 1; k < flash.poly.length; k++) ctx.lineTo(flash.poly[k].x, flash.poly[k].y);
+    ctx.closePath(); ctx.stroke();
+    ctx.restore();
+  } else if (flash && ts >= flash.until) {
+    flash = null;
+  }
+
+  /* 6. 方向标注：前面在左下、右面在右下、上面从头顶往下看 */
+  ctx.font = 'bold 17px "Microsoft YaHei", sans-serif';
+  ctx.fillStyle = '#4c5a68';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const nZ2 = r.board.length, nX2 = r.board[0].length;
+  const frontP = anchor(0, nZ2 - 1, 0);          // 左下角（前面方向）
+  const rightP = anchor(nX2 - 1, 0, 0);          // 右下角（右面方向）
+  ctx.fillText('前面', frontP.nx - 58, frontP.nyb + TH + 26);
+  ctx.fillText('右面', rightP.nx + 58, rightP.nyb + TH + 26);
+  ctx.fillStyle = '#7b8894';
+  ctx.fillText('（上面＝从头顶往下看）', OX, CH - 14);
+
+  requestAnimationFrame(renderFrame);
+}
+
+/* ---------------- 画布点击 ---------------- */
+function evtPos(e) {
+  const rect = cv.getBoundingClientRect();
+  return { x: (e.clientX - rect.left) * (CW / rect.width), y: (e.clientY - rect.top) * (CH / rect.height) };
+}
+/* 一个方块的“顶面菱形”（点击它＝在这一列加方块） */
+function topDiamond(item) {
+  const a = anchor(item.x, item.z, item.L);
+  const nt = a.nyb - SH;
+  return [
+    { x: a.nx, y: nt },             // 北
+    { x: a.nx + TW, y: nt + TH },   // 东
+    { x: a.nx, y: nt + 2 * TH },    // 南
+    { x: a.nx - TW, y: nt + TH }    // 西
+  ];
+}
+/* 空地放置标记的“地面菱形”（画在地面上、点击它＝放第 1 块） */
+function groundDiamond(item) {
+  const a = anchor(item.x, item.z, 0);
+  return [
+    { x: a.nx, y: a.nyb },
+    { x: a.nx + TW, y: a.nyb + TH },
+    { x: a.nx, y: a.nyb + 2 * TH },
+    { x: a.nx - TW, y: a.nyb + TH }
+  ];
+}
+cv.addEventListener('click', function (e) {
+  if (!G.round || G.locked) return;
+  const p = evtPos(e);
+  /* 方块与空地菱形合成一个列表，按画家算法键值（远→近）排序，
+     从最近的对象开始检测，保证视觉层次与点击判定一致：
+     - 空地菱形内点击＝在空地放第 1 块；
+     - 方块“顶面菱形”内点击＝在这一列再摞一块（仅可加方块的关卡）；
+     - 方块其他部位（侧面）点击＝取走 / 拆除。 */
+  const all = renderShapes.cubes.map(function (c) {
+    return { kind: 'cube', x: c.x, z: c.z, L: c.L, poly: c.poly, key: (c.x + c.z) * 100 + c.L };
+  }).concat(renderShapes.markers.map(function (m) {
+    return { kind: 'marker', x: m.x, z: m.z, L: m.L, poly: m.poly, key: (m.x + m.z) * 100 + m.L };
+  }));
+  all.sort(function (a, b) { return a.key - b.key; });
+  for (let i = all.length - 1; i >= 0; i--) {
+    const o = all[i];
+    if (o.kind === 'marker') {
+      if (pointInPoly(p.x, p.y, groundDiamond(o))) { onMarkerClick(o); return; }
+    } else if (pointInPoly(p.x, p.y, shrunkPoly(o.poly, 0.85))) {
+      /* 方块判定区也向内收缩：紧贴邻居边缘的点击不会被邻居抢走 */
+      const onTop = pointInPoly(p.x, p.y, topDiamond(o));
+      if (onTop && canStackHere(o)) { onMarkerClick({ x: o.x, z: o.z, L: G.round.board[o.z][o.x] }); return; }
+      if (onTop && G.round.board[o.z][o.x] >= MAXL &&
+          (G.round.kind === 'mid' || (G.round.kind === 'hard' && G.round.sub === 'add'))) {
+        setMsg('这一列已经摆到最高（' + MAXL + ' 层）啦，换个位置吧。', 'bad');
+        flashAt(o);
+        return;
+      }
+      onCubeClick(o, onTop ? 'top' : 'side');
+      return;
+    }
+  }
+});
+/* 当前关卡是否允许通过“点顶面”在该列加方块 */
+function canStackHere(c) {
+  const r = G.round;
+  if (!r) return false;
+  if (!(r.kind === 'mid' || (r.kind === 'hard' && r.sub === 'add'))) return false;
+  if (c.L !== r.board[c.z][c.x] - 1) return false; /* 必须是这一列的最上面的方块 */
+  if (r.board[c.z][c.x] >= MAXL) return false;
+  return true;
+}
+
+/* ==================================================================
+ * 视图卡片（右侧三张卡片：目标/涂色/实时视图）
+ * ================================================================== */
+function gridHtml(rows, opt) {
+  /* rows: 二维布尔数组（true=实心）。opt: {paint:bool, reveal:bool} */
+  let html = '<div class="vgrid" style="grid-template-columns:repeat(' + (rows[0] ? rows[0].length : 1) + ',auto)">';
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      const on = rows[r][c] ? ' on' : '';
+      const rv = (opt && opt.reveal && rows[r][c]) ? ' reveal' : '';
+      const pa = (opt && opt.paint) ? ' paintable' : '';
+      html += '<div class="cell' + on + rv + pa + '" data-r="' + r + '" data-c="' + c + '"></div>';
+    }
+  }
+  return html + '</div>';
+}
+/* 三个视图矩阵（统一方向约定）：
+   front：列=x 左→右，行=上→下（高层在上）
+   top  ：列=x 左→右，行=上→下（后排在上、前排在下）
+   right：列=左→右为 前排→后排，行=上→下（高层在上） */
+function frontRows(v) {
+  const rows = [];
+  for (let top = v.maxH - 1; top >= 0; top--) {
+    const bottom = v.maxH - 1 - top;
+    rows.push(v.frontMax.map(function (m) { return m > bottom; }));
+  }
+  return rows;
+}
+function topRows(v) {
+  return v.top.map(function (row) { return row.slice(); }); /* z=0(后) 在上 */
+}
+function rightRows(v) {
+  const rows = [];
+  for (let top = v.maxH - 1; top >= 0; top--) {
+    const bottom = v.maxH - 1 - top;
+    const line = [];
+    for (let z = v.nZ - 1; z >= 0; z--) line.push(v.rightMax[z] > bottom); /* 前排在左 */
+    rows.push(line);
+  }
+  return rows;
+}
+var CARDS = [
+  { key: 'front', name: '从前面看', sub: '左→右 = 物体的左→右' },
+  { key: 'top', name: '从上面看', sub: '上排=后排，下排=前排' },
+  { key: 'right', name: '从右面看', sub: '左列=前排，右列=后排' }
+];
+function rowsFor(key, v) {
+  if (key === 'front') return frontRows(v);
+  if (key === 'top') return topRows(v);
+  return rightRows(v);
+}
+/* 构建右侧卡片（按模式不同） */
+function buildViewCards() {
+  const r = G.round;
+  const wrap = $('viewsWrap');
+  wrap.innerHTML = '';
+  if (r.kind === 'easy') {
+    /* 涂色模式：学生涂出三个视图 */
+    CARDS.forEach(function (c) {
+      const rows = r.paint[c.key];
+      const div = document.createElement('div');
+      div.className = 'vcard';
+      div.innerHTML =
+        '<div class="vhead"><span class="vname">' + c.name + '</span><span class="badge" id="bdg-' + c.key + '">再想想</span></div>' +
+        '<div class="vsub">' + c.sub + '　<b>点击格子涂色 / 再点擦除</b></div>' +
+        gridHtml(rows, { paint: true });
+      div.dataset.dir = c.key;
+      wrap.appendChild(div);
+    });
+    wrap.addEventListener('click', onPaintClick);
+  } else if (r.kind === 'mid') {
+    /* 复原模式：目标视图 + 当前实时视图 */
+    CARDS.forEach(function (c) {
+      const div = document.createElement('div');
+      div.className = 'vcard';
+      div.innerHTML =
+        '<div class="vhead"><span class="vname">' + c.name + '</span><span class="badge" id="bdg-' + c.key + '">还不一致</span></div>' +
+        '<div class="vgrids">' +
+        '<div class="vblock"><div class="vtag">目标</div><div id="tg-' + c.key + '">' + gridHtml(rowsFor(c.key, r.target), {}) + '</div></div>' +
+        '<div class="vblock"><div class="vtag">你搭出的</div><div id="cur-' + c.key + '">' + gridHtml(rowsFor(c.key, viewsOf(r.board)), {}) + '</div></div>' +
+        '</div><div class="vsub" style="margin-top:6px">' + c.sub + '</div>';
+      wrap.appendChild(div);
+    });
+  } else {
+    /* 高级：实时视图 + 与原来对比 */
+    CARDS.forEach(function (c) {
+      const div = document.createElement('div');
+      div.className = 'vcard';
+      div.innerHTML =
+        '<div class="vhead"><span class="vname">' + c.name + '</span><span class="badge ok" id="bdg-' + c.key + '">与原来相同</span></div>' +
+        '<div id="cur-' + c.key + '">' + gridHtml(rowsFor(c.key, viewsOf(r.board)), {}) + '</div>' +
+        '<div class="vsub" style="margin-top:6px">' + c.sub + '</div>';
+      wrap.appendChild(div);
+    });
+  }
+}
+/* 更新实时视图与徽章（中级/高级） */
+function refreshCards() {
+  const r = G.round;
+  if (!r) return;
+  const cur = viewsOf(r.board);
+  CARDS.forEach(function (c) {
+    const el = $('cur-' + c.key);
+    if (el) el.innerHTML = gridHtml(rowsFor(c.key, cur), {});
+    const bdg = $('bdg-' + c.key);
+    if (!bdg) return;
+    if (r.kind === 'mid') {
+      const ok = (c.key === 'front' && arrEq(r.target.frontMax, cur.frontMax)) ||
+                 (c.key === 'top' && topEq(r.target, cur)) ||
+                 (c.key === 'right' && arrEq(r.target.rightMax, cur.rightMax));
+      bdg.textContent = ok ? '一致啦' : '还不一致';
+      bdg.className = 'badge ' + (ok ? 'ok' : 'no');
+    } else if (r.kind === 'hard') {
+      const ok = (c.key === 'front' && arrEq(r.orig.frontMax, cur.frontMax)) ||
+                 (c.key === 'top' && topEq(r.orig, cur)) ||
+                 (c.key === 'right' && arrEq(r.orig.rightMax, cur.rightMax));
+      bdg.textContent = ok ? '与原来相同' : '变了！';
+      bdg.className = 'badge ' + (ok ? 'ok' : 'no');
+    }
+  });
+}
+function arrEq(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+function topEq(a, b) {
+  if (a.nZ !== b.nZ || a.nX !== b.nX) return false;
+  for (let z = 0; z < a.nZ; z++) for (let x = 0; x < a.nX; x++)
+    if (a.top[z][x] !== b.top[z][x]) return false;
+  return true;
+}
+/* 初级：涂色点击 */
+function onPaintClick(e) {
+  const cell = e.target.closest ? e.target.closest('.cell.paintable') : null;
+  if (!cell || G.locked) return;
+  const card = cell.closest('.vcard');
+  const dir = card.dataset.dir;
+  const r = G.round;
+  const rows = r.paint[dir];
+  const rr = parseInt(cell.dataset.r, 10), cc = parseInt(cell.dataset.c, 10);
+  rows[rr][cc] = !rows[rr][cc];
+  cell.classList.toggle('on');
+  G.steps++; $('stepTxt').textContent = G.steps;
+  /* 逐卡核对 */
+  const truth = rowsFor(dir, r.view);
+  let ok = matEq(rows, truth);
+  const bdg = $('bdg-' + dir);
+  bdg.textContent = ok ? '正确！' : '再想想';
+  bdg.className = 'badge ' + (ok ? 'ok' : 'no');
+  if (ok) setMsg('「' + faceTitle(dir) + '」涂对啦！', 'good');
+  checkWin();
+}
+function matEq(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].length !== b[i].length) return false;
+    for (let j = 0; j < a[i].length; j++) if (a[i][j] !== b[i][j]) return false;
+  }
+  return true;
+}
+function faceTitle(key) {
+  return { front: '从前面看', top: '从上面看', right: '从右面看' }[key];
+}
+
+/* ==================================================================
+ * 关卡流程
+ * ================================================================== */
+var MODE_META = {
+  easy: { title: '初级 · 火眼金睛', cnt: 3 },
+  mid: { title: '中级 · 神奇复原', cnt: 3 },
+  hard: { title: '高级 · 添减大师', cnt: 3 }
+};
+function pickSolids(filter, n) {
+  /* 从题库随机抽 n 个满足 filter 的图形（本局尽量不重复） */
+  const out = [];
+  const pool = shuffle(SOLID_POOL);
+  for (let i = 0; i < pool.length && out.length < n; i++) {
+    const s = pool[i];
+    if (G.usedNames[s.name]) continue;
+    if (filter && !filter(s)) continue;
+    out.push(s);
+    G.usedNames[s.name] = 1;
+  }
+  /* 若不重复的不够，放宽重复限制 */
+  for (let i = 0; i < pool.length && out.length < n; i++) {
+    const s = pool[i];
+    if (out.indexOf(s) >= 0) continue;
+    if (filter && !filter(s)) continue;
+    out.push(s);
+  }
+  return out;
+}
+function startDifficulty(mode) {
+  G.mode = mode;
+  G.pal = choice(PALETTES);
+  document.documentElement.style.setProperty('--hue', G.pal.hue);
+  G.rounds = [];
+  G.ri = 0; G.stars = 0; G.usedNames = {};
+  if (!G.started) { G.started = true; G.t0 = Date.now(); }
+  if (mode === 'easy') {
+    pickSolids(null, MODE_META.easy.cnt).forEach(function (s) { G.rounds.push(makeEasyRound(s)); });
+  } else if (mode === 'mid') {
+    pickSolids(null, MODE_META.mid.cnt).forEach(function (s) { G.rounds.push(makeMidRound(s)); });
+  } else {
+    /* 高级：三类变式打乱顺序 */
+    const subs = shuffle(['remove', 'add', 'directed']);
+    subs.forEach(function (sub) {
+      const s = pickSolids(filterFor(sub), 1)[0];
+      if (s) G.rounds.push(makeHardRound(s, sub));
+    });
+    while (G.rounds.length < MODE_META.hard.cnt) {
+      const s = pickSolids(null, 1)[0];
+      if (!s) break;
+      G.rounds.push(makeHardRound(s, 'remove'));
+    }
+  }
+  $('menuScreen').classList.add('hidden');
+  $('gameScreen').classList.remove('hidden');
+  $('revealBtn').disabled = false;
+  setupRound(0);
+  showRules(true);
+}
+function filterFor(sub) {
+  if (sub === 'remove') return function (s) {
+    /* 1~6 个可取方块，且至少有一个一开始就看得见、点得到 */
+    const rem = removableNow(s.h);
+    if (rem.length < 1 || rem.length > 6) return false;
+    return rem.some(function (p) { return posVisible(s.h, p.x, p.z, s.h[p.z][p.x] - 1); });
+  };
+  if (sub === 'add') return function (s) {
+    /* 至少能添 2 个，且每次“点顶面加高”时要点的顶面都看得见、点得到
+       （把该列从 h 加到 bound，点击的是 h-1 到 bound-2 层的顶面） */
+    const info = maxAddInfo(s.h);
+    if (info.total < 2) return false;
+    for (let z = 0; z < s.h.length; z++)
+      for (let x = 0; x < s.h[0].length; x++)
+        for (let L = s.h[z][x] - 1; L < info.bound[z][x] - 1; L++)
+          if (!posVisible(s.h, x, z, L)) return false;
+    return true;
+  };
+  return function (s) {
+    /* 定向取走：至少存在一组“全部可见”的目标方块 */
+    const opts = directedOptions(s.h);
+    for (const key of Object.keys(opts))
+      if (opts[key].every(function (p) { return posVisible(s.h, p.x, p.z, s.h[p.z][p.x] - 1); })) return true;
+    return false;
+  };
+}
+/* ---- 关卡构造 ---- */
+function makeEasyRound(s) {
+  const view = viewsOf(s.h);
+  const blank = function (rows) { return rows.map(function (r) { return r.map(function () { return false; }); }); };
+  return {
+    kind: 'easy', solid: s, view: view, board: cloneH(s.h),
+    paint: { front: blank(frontRows(view)), top: blank(topRows(view)), right: blank(rightRows(view)) }
+  };
+}
+function makeMidRound(s) {
+  const nZ = s.h.length, nX = s.h[0].length;
+  const board = [];
+  for (let z = 0; z < nZ; z++) { board.push(new Array(nX).fill(0)); }
+  return { kind: 'mid', solid: s, target: viewsOf(s.h), board: board };
+}
+function makeHardRound(s, sub) {
+  const r = { kind: 'hard', sub: sub, solid: s, board: cloneH(s.h), orig: viewsOf(s.h) };
+  if (sub === 'add') {
+    r.maxAdd = maxAddInfo(s.h).total;
+    r.added = 0;
+  }
+  if (sub === 'remove' || sub === 'directed') {
+    /* 给“列顶方块”编号：前排优先、从左到右 */
+    r.numMap = s.h.map(function (row) { return row.map(function () { return 0; }); });
+    let num = 0;
+    for (let z = s.h.length - 1; z >= 0; z--)
+      for (let x = 0; x < s.h[0].length; x++)
+        if (s.h[z][x] > 0) r.numMap[z][x] = ++num;
+  }
+  if (sub === 'directed') {
+    const opts = directedOptions(s.h);
+    /* 只保留“全部点得到（可见）”的目标组，再优先“只变一个方向”的 */
+    const vis = Object.keys(opts).filter(function (k) {
+      return opts[k].every(function (p) { return posVisible(s.h, p.x, p.z, s.h[p.z][p.x] - 1); });
+    });
+    const pool = vis.length ? vis : Object.keys(opts);
+    const one = pool.filter(function (k) { return k.indexOf('+') < 0; });
+    const key = one.length ? choice(one) : choice(pool);
+    r.objective = { set: key.split('+'), list: opts[key] };
+  }
+  if (sub === 'remove') {
+    r.total = removableNow(s.h).length;
+    r.done = 0;
+  }
+  return r;
+}
+
+function setupRound(i) {
+  G.ri = i;
+  G.round = G.rounds[i];
+  G.locked = false;
+  G.revealed = false;
+  revealInfo = null;
+  flash = null;
+  $('revealBtn').disabled = false;
+  /* 重新构建视图区（先移除旧监听） */
+  const wrap = $('viewsWrap');
+  wrap.removeEventListener('click', onPaintClick);
+  wrap.innerHTML = '';
+  buildViewCards();
+  refreshRoundBar();
+  refreshCards();
+  setOpHint();
+  setMsg(roundIntroMsg(), '');
+}
+/* 画布下方的操作提示（按模式变化） */
+function setOpHint() {
+  const r = G.round, el = $('opHint');
+  if (!r) { el.textContent = ''; return; }
+  if (r.kind === 'mid') el.textContent = '操作：点空地虚线菱形＝放第 1 块；点积木顶面＝再摞一块；点积木侧面＝取走它。';
+  else if (r.kind === 'hard' && r.sub === 'add') el.textContent = '操作：点积木顶面试着添方块（亮色是你添的，点它的侧面可取回）；空地放了会让视图变化。';
+  else if (r.kind === 'hard') el.textContent = '操作：点击方块把它取走（被压住的要先取上面的）。';
+  else el.textContent = '本关立体图只用于观察，请在右侧方格里涂色作答。';
+}
+function roundIntroMsg() {
+  const r = G.round;
+  if (r.kind === 'easy') return '仔细观察左边的「' + r.solid.name + '」，把三个方向看到的形状涂出来吧！';
+  if (r.kind === 'mid') return '目标视图在右侧。提示：先看「从上面看」确定哪些位置有方块，再用另外两个视图定高度；先搭后排更顺手。';
+  if (r.sub === 'remove') return '想一想：哪些方块躲在“看不见”的地方？点击把它取走。';
+  if (r.sub === 'add') return '虚线框都可以尝试。放之前先想好：会不会让某个视图变化？';
+  return '先在心里想一想：取走哪个方块，才会恰好' + setLabel(r.objective.set) + '？';
+}
+function refreshRoundBar() {
+  const r = G.round;
+  const total = G.rounds.length;
+  $('roundTitle').textContent = (MODE_META[G.mode].title) + '　第 ' + (G.ri + 1) + '/' + total + ' 关';
+  let goal = '', prog = '';
+  if (r.kind === 'easy') {
+    goal = '看积木，涂出「前面 / 上面 / 右面」三个视图（点击格子涂色）';
+    prog = '图形：' + r.solid.name;
+  } else if (r.kind === 'mid') {
+    goal = '按目标三视图搭出立体图形（点空地/积木顶面放，点积木侧面取）';
+    prog = '三个视图都要一致';
+  } else if (r.sub === 'remove') {
+    goal = '找出并取走“取走后三个视图都不变”的方块，直到一个也找不出';
+    prog = '已取走 ' + r.done + ' 个';
+  } else if (r.sub === 'add') {
+    goal = '添方块：三个视图必须保持不变，比一比你能添几个（点击虚线框）';
+    prog = '已添 ' + r.added + ' 个';
+  } else {
+    goal = '取走一个方块，使' + setLabel(r.objective.set);
+    prog = '只需取走 1 个';
+  }
+  $('roundGoal').textContent = goal;
+  $('roundProg').textContent = prog;
+}
+
+/* ---------------- 交互逻辑 ---------------- */
+function onMarkerClick(m) {
+  const r = G.round;
+  G.steps++; $('stepTxt').textContent = G.steps;
+  if (r.kind === 'mid') {
+    /* 复原模式：直接放一个方块 */
+    r.board[m.z][m.x]++;
+    refreshCards();
+    checkWin();
+    return;
+  }
+  if (r.kind === 'hard' && r.sub === 'add') {
+    /* 添方块：模拟添一个，看哪些视图会变 */
+    const h2 = cloneH(r.board);
+    h2[m.z][m.x]++;
+    const v2 = viewsOf(h2);
+    const changed = [];
+    if (!arrEq(r.orig.frontMax, v2.frontMax)) changed.push('前面');
+    if (!arrEq(r.orig.rightMax, v2.rightMax)) changed.push('右面');
+    if (!topEq(r.orig, v2)) changed.push('上面');
+    if (changed.length === 0) {
+      r.board = h2;
+      r.added++;
+      setMsg('放好啦！三个视图都没变。已添 ' + r.added + ' 个，继续！', 'good');
+      refreshRoundBar(); refreshCards();
+      checkWin();
+    } else {
+      flash = { poly: cubeHex(m.x, m.z, m.L), until: performance.now() + 700 };
+      setMsg('这里不能放：会让从' + changed.join('、') + '看到的形状变化。换个更“隐蔽”的位置试试！', 'bad');
+    }
+  }
+}
+function onCubeClick(c) {
+  const r = G.round;
+  G.steps++; $('stepTxt').textContent = G.steps;
+  const h = r.board;
+  const isTop = (c.L === h[c.z][c.x] - 1);
+  if (r.kind === 'mid') {
+    if (!isTop) { setMsg('上面的方块要先取走哦（从最上面开始拆）。', 'bad'); flashAt(c); return; }
+    h[c.z][c.x]--;
+    refreshCards();
+    checkWin();
+    return;
+  }
+  if (r.kind === 'hard' && r.sub === 'add') {
+    const origH = r.solid.h[c.z][c.x];
+    if (c.L >= origH && c.L === h[c.z][c.x] - 1) {
+      /* 取走自己添的方块（只允许拆最上面的） */
+      h[c.z][c.x]--;
+      r.added--;
+      setMsg('取走了一个自己添的方块。已添 ' + r.added + ' 个。', '');
+      refreshRoundBar(); refreshCards();
+    } else if (c.L >= origH) {
+      setMsg('上面的方块要先取走哦。', 'bad');
+      flashAt(c);
+    } else {
+      setMsg('这是原来的积木，不能拆走哦。', 'bad');
+      flashAt(c);
+    }
+    return;
+  }
+  if (r.kind === 'hard' && (r.sub === 'remove' || r.sub === 'directed')) {
+    if (!isTop) {
+      setMsg('这个方块被上面的方块压着，先取走上面的。', 'bad');
+      flashAt(c);
+      return;
+    }
+    const changed = changedAfterRemove(h, c.z, c.x);
+    const num = r.numMap[c.z][c.x];
+    if (r.sub === 'remove') {
+      if (changed.length === 0) {
+        h[c.z][c.x]--;
+        r.done++;
+        setMsg('太棒了！取走 ' + num + ' 号后，前面、上面、右面看到的形状都没变。', 'good');
+        refreshRoundBar(); refreshCards();
+        checkWin();
+      } else {
+        const names = changed.map(function (s) { return '从' + FACE_NAME[s] + '看'; }).join('、');
+        setMsg('取走 ' + num + ' 号会改变' + names + '到的形状，不符合要求。它是不是“露”在外面？', 'bad');
+        flashAt(c);
+      }
+    } else {
+      /* 定向取走 */
+      const okSet = changed.length === r.objective.set.length &&
+        r.objective.set.every(function (s) { return changed.indexOf(s) >= 0; });
+      if (okSet) {
+        h[c.z][c.x]--;
+        setMsg('完全正确！取走 ' + num + ' 号后，恰好' + setLabel(r.objective.set) + '。', 'good');
+        refreshCards();
+        roundWin();
+      } else {
+        const names = changed.length === 0 ? '三个视图都不变' :
+          changed.map(function (s) { return '从' + FACE_NAME[s] + '看'; }).join('、') + '到的形状会变化';
+        setMsg('取走 ' + num + ' 号的话：' + names + '。目标是' + setLabel(r.objective.set) + '，再找找！', 'bad');
+        flashAt(c);
+      }
+    }
+  }
+}
+function flashAt(c) {
+  flash = { poly: cubeHex(c.x, c.z, c.L), until: performance.now() + 700 };
+}
+function checkWin() {
+  const r = G.round;
+  if (r.kind === 'easy') {
+    const okAll = CARDS.every(function (c) { return matEq(r.paint[c.key], rowsFor(c.key, r.view)); });
+    if (okAll) roundWin();
+  } else if (r.kind === 'mid') {
+    if (viewsEqual(viewsOf(r.board), r.target)) roundWin();
+  } else if (r.sub === 'remove') {
+    /* 点得到的可取方块一个都不剩 = 通关（藏起来点不到的不影响） */
+    const rem = removableNow(r.board);
+    const anyVisible = rem.some(function (p) {
+      return posVisible(r.board, p.x, p.z, r.board[p.z][p.x] - 1);
+    });
+    if (rem.length === 0 || !anyVisible) roundWin();
+  } else if (r.sub === 'add') {
+    if (r.added >= r.maxAdd) roundWin();
+  }
+}
+
+/* ---------------- 过关 / 揭示 / 重开 ---------------- */
+function roundWin() {
+  G.locked = true;
+  $('revealBtn').disabled = true;
+  const getStar = !G.revealed;
+  if (getStar) G.stars++;
+  boomConfetti(140);
+  const r = G.round;
+  let detail = '';
+  if (r.kind === 'hard' && r.sub === 'add') detail = '这个图形最多能添 ' + r.maxAdd + ' 个方块，你全找到了！';
+  if (r.kind === 'hard' && r.sub === 'remove') detail = '你一共取走了 ' + r.done + ' 个“藏起来”的方块。';
+  if (r.kind === 'mid') detail = '你搭出的图形三个视图全部吻合，用了 ' + viewsOf(r.board).cubes + ' 个方块。';
+  showModal(
+    '<h3>' + (getStar ? '本关完成！' : '答案已揭示') + '</h3>' +
+    '<div class="bigStars">' + (getStar ? '★' : '☆') + '</div>' +
+    '<div class="body">' + detail + '本关' + (getStar ? '获得 1 颗星！' : '因为看了答案，本关不获得星星。') + '</div>' +
+    '<div class="btns"><button class="btn" id="nextBtn">' + (G.ri + 1 < G.rounds.length ? '下一关' : '查看总成绩') + '</button></div>',
+    function () { $('nextBtn').onclick = nextStep; }
+  );
+}
+function nextStep() {
+  hideModal();
+  if (G.ri + 1 < G.rounds.length) {
+    setupRound(G.ri + 1);
+  } else {
+    /* 全部通关 */
+    const total = G.rounds.length;
+    boomConfetti(260);
+    showModal(
+      '<h3>全部通关，太厉害啦！</h3>' +
+      '<div class="bigStars">' + '★'.repeat(G.stars) + '☆'.repeat(Math.max(0, total - G.stars)) + '</div>' +
+      '<div class="body">「' + MODE_META[G.mode].title + '」共 ' + total + ' 关，你获得了 <b>' + G.stars + '</b> 颗星。<br>' +
+      '总用时 <b>' + fmtTime(elapsed()) + '</b>，操作 <b>' + G.steps + '</b> 次。换个难度或者再来一局，题目会重新随机哦！</div>' +
+      '<div class="btns"><button class="btn" id="againBtn">再玩一局</button><button class="btn ghost" id="menuBtn">返回难度选择</button></div>',
+      function () {
+        $('againBtn').onclick = function () { hideModal(); startDifficulty(G.mode); };
+        $('menuBtn').onclick = function () { hideModal(); backToMenu(); };
+      }
+    );
+  }
+}
+function revealAnswer() {
+  const r = G.round;
+  if (!r || G.locked) return;
+  G.revealed = true;
+  if (r.kind === 'easy') {
+    /* 把正确视图涂上（橙色）并锁定 */
+    CARDS.forEach(function (c) {
+      const truth = rowsFor(c.key, r.view);
+      const card = document.querySelector('.vcard[data-dir="' + c.key + '"]');
+      const grid = card.querySelector('.vgrid');
+      grid.innerHTML = gridHtml(truth, { reveal: true });
+      const bdg = $('bdg-' + c.key);
+      bdg.textContent = '答案';
+      bdg.className = 'badge ok';
+    });
+    setMsg('答案已揭示（橙色格子）。对照想一想：为什么是这样？', '');
+  } else if (r.kind === 'mid') {
+    r.board = cloneH(r.solid.h);
+    refreshCards();
+    setMsg('答案已揭示：这就是符合三视图的一种搭法。', '');
+  } else if (r.sub === 'remove') {
+    const list = removableNow(r.board);
+    revealInfo = { type: 'cubes', list: list };
+    const nums = list.map(function (p) { return r.numMap[p.z][p.x]; });
+    setMsg('答案已揭示：金色框住的 ' + nums.join('、') + ' 号方块都可以取走（视图不变）。', '');
+  } else if (r.sub === 'add') {
+    /* 幽灵方块：在所有可添位置画虚线框 */
+    const info = maxAddInfo(r.solid.h);
+    const list = [];
+    for (let z = 0; z < r.solid.h.length; z++)
+      for (let x = 0; x < r.solid.h[0].length; x++) {
+        const b = info.bound[z][x];
+        if (r.solid.h[z][x] > 0) for (let L = r.solid.h[z][x]; L < b; L++) list.push({ z: z, x: x, L: L });
+      }
+    revealInfo = { type: 'ghost', list: list };
+    setMsg('答案已揭示：虚线框就是能添方块的位置，共 ' + info.total + ' 个。', '');
+  } else {
+    revealInfo = { type: 'cubes', list: r.objective.list };
+    const nums = r.objective.list.map(function (p) { return r.numMap[p.z][p.x]; });
+    setMsg('答案已揭示：' + nums.join('、') + ' 号都符合要求（任取其一即可）。', '');
+  }
+  roundWin(); /* 以“已揭示”结算本关 */
+}
+function restartRound() {
+  if (!G.round) return;
+  const idx = G.ri;
+  /* 用同一图形重开本关；定向取走关卡保留原目标要求 */
+  const r = G.round;
+  let fresh;
+  if (r.kind === 'easy') fresh = makeEasyRound(r.solid);
+  else if (r.kind === 'mid') fresh = makeMidRound(r.solid);
+  else fresh = makeHardRound(r.solid, r.sub);
+  if (r.kind === 'hard' && r.sub === 'directed' && r.objective) fresh.objective = r.objective;
+  G.rounds[idx] = fresh;
+  setupRound(idx);
+  setMsg('本关已重新开始，加油！', '');
+}
+function backToMenu() {
+  G.round = null; G.locked = false;
+  revealInfo = null;
+  $('gameScreen').classList.add('hidden');
+  $('menuScreen').classList.remove('hidden');
+  newPalette();
+  setMsg('回到选择页。每一局图形与配色都会重新随机！', '');
+}
+function newPalette() {
+  G.pal = choice(PALETTES);
+  document.documentElement.style.setProperty('--hue', G.pal.hue);
+  $('paletteTip').textContent = '本局主色调：' + G.pal.name + '（每局随机更换）';
+}
+
+/* ---------------- 消息 / 弹窗 ---------------- */
+var msgTimer = 0;
+function setMsg(txt, cls) {
+  const bar = $('msgBar');
+  bar.textContent = txt;
+  bar.className = cls || '';
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(function () { bar.className = ''; }, 4000);
+}
+function showModal(html, after) {
+  $('modalCard').innerHTML = html;
+  $('modalMask').classList.remove('hidden');
+  if (after) after();
+}
+function hideModal() { $('modalMask').classList.add('hidden'); }
+
+/* ---------------- 规则说明 ---------------- */
+function rulesHtml(inRound) {
+  let extra = '';
+  if (inRound && G.round && G.round.kind === 'easy') {
+    extra = '<p><b>本关玩法（初级）：</b>左边是立体图形，右边三张卡片分别是从前面、上面、右面看的方向。' +
+      '<b>点击格子</b>把看到的形状涂出来，涂对会亮绿章。三张全部正确即过关！</p>';
+  } else if (inRound && G.round && G.round.kind === 'mid') {
+    extra = '<p><b>本关玩法（中级）：</b>右侧给出目标三视图。<b>点空地虚线菱形</b>放第 1 块，' +
+      '<b>点积木顶面</b>往上再摞一块，<b>点积木侧面</b>把它取走（小提示：先搭后排再搭前排，不容易被挡住）。' +
+      '当三个“你搭出的”视图都与目标一致，就过关啦！</p>';
+  } else if (inRound && G.round) {
+    extra = '<p><b>本关玩法（高级）：</b>分三种变式——' +
+      '<span class="ruleTag">取走挑战</span>找出取走后三个视图都不变的方块，全部找完；' +
+      '<span class="ruleTag">添方块挑战</span>在不改变三个视图的前提下，把能添的位置全部添满；' +
+      '<span class="ruleTag">定向取走</span>按题目要求，取走恰好让指定视图变化的方块。</p>';
+  }
+  return '<h3>玩法说明</h3><div class="body">' +
+    '<p><b>三个方向怎么看：</b>立体图中<b>左下方</b>的面朝向「前面」，<b>右下方</b>的面朝向「右面」，' +
+    '「上面」就是从头顶往下看。</p>' +
+    '<p><b>看图口诀：</b>从前面看——左右是左右、上下是高低；从上面看——看见的是每个位置有没有方块；' +
+    '从右面看——左右变成前后。</p>' +
+    extra +
+    '<p><b>小提示：</b>被前面、右面更高方块“挡住”、上面又有人“盖住”的方块，取走它三个视图都不会变；' +
+    '添方块则要添在“影子里”——不超过该方向看到的最高层。</p>' +
+    '<p>右上角有<b>计时器和操作次数</b>。随时可以「揭示答案」「重新开始」或「返回难度选择」。</p>' +
+    '</div><div class="btns"><button class="btn" id="ruleOkBtn">知道啦，出发！</button></div>';
+}
+function showRules(inRound) {
+  showModal(rulesHtml(inRound), function () {
+    $('ruleOkBtn').onclick = hideModal;
+  });
+}
+
+/* ---------------- 计时器 ---------------- */
+function elapsed() { return G.started ? Math.floor((Date.now() - G.t0) / 1000) : 0; }
+function fmtTime(s) { return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60); }
+setInterval(function () {
+  if (G.started) $('timerTxt').textContent = fmtTime(elapsed());
+}, 1000);
+
+/* ---------------- 彩带庆祝 ---------------- */
+var confCv = $('confetti'), confCtx = confCv.getContext('2d');
+var confParts = [], confRun = false;
+function sizeConf() {
+  confCv.width = window.innerWidth; confCv.height = window.innerHeight;
+}
+window.addEventListener('resize', sizeConf);
+sizeConf();
+function boomConfetti(n) {
+  const colors = ['#f94144', '#f8961e', '#f9c74f', '#90be6d', '#43aa8b', '#577590', '#f3722c', '#c77dff'];
+  for (let i = 0; i < n; i++) {
+    confParts.push({
+      x: Math.random() * confCv.width,
+      y: -20 - Math.random() * confCv.height * 0.4,
+      vx: (Math.random() - 0.5) * 2.4,
+      vy: 2 + Math.random() * 3.4,
+      w: 7 + Math.random() * 8,
+      h: 10 + Math.random() * 8,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.25,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    });
+  }
+  if (!confRun) { confRun = true; requestAnimationFrame(confLoop); }
+}
+function confLoop() {
+  confCtx.clearRect(0, 0, confCv.width, confCv.height);
+  for (let i = confParts.length - 1; i >= 0; i--) {
+    const p = confParts[i];
+    p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+    if (p.y > confCv.height + 30) { confParts.splice(i, 1); continue; }
+    confCtx.save();
+    confCtx.translate(p.x, p.y);
+    confCtx.rotate(p.rot);
+    confCtx.fillStyle = p.color;
+    confCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    confCtx.restore();
+  }
+  if (confParts.length > 0) {
+    requestAnimationFrame(confLoop);
+  } else {
+    confRun = false;
+    confCtx.clearRect(0, 0, confCv.width, confCv.height);
+  }
+}
+
+/* ---------------- 事件绑定与启动 ---------------- */
+document.querySelectorAll('.diffCard').forEach(function (card) {
+  card.addEventListener('click', function () { startDifficulty(card.dataset.mode); });
+});
+$('menuHelpBtn').onclick = function () { showRules(false); };
+$('helpBtn').onclick = function () { showRules(true); };
+$('revealBtn').onclick = revealAnswer;
+$('restartBtn').onclick = restartRound;
+$('backBtn').onclick = function () {
+  showModal(
+    '<h3>要返回难度选择吗？</h3><div class="body">当前进度将不再保留（计时和操作次数会继续累计）。</div>' +
+    '<div class="btns"><button class="btn" id="yesBack">返回</button><button class="btn ghost" id="noBack">继续玩</button></div>',
+    function () {
+      $('yesBack').onclick = function () { hideModal(); backToMenu(); };
+      $('noBack').onclick = hideModal;
+    }
+  );
+};
+
+setupCanvas();
+window.addEventListener('resize', setupCanvas);
+newPalette();
+setMsg('欢迎来到方块建筑工坊！先看玩法说明，再选一个难度开始挑战吧。', '');
+showRules(false);
+requestAnimationFrame(renderFrame);
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-l/g009", "name": "\u89c2\u5bdf\u7269\u4f53 \u00b7 \u65b9\u5757\u5efa\u7b51\u5de5\u574a", "file": "g009.html", "jiaocan": "\u301018\u3011\u4e09 \u89c2\u5bdf\u7269\u4f53\uff1a\u5355\u5143\u57f9\u4f18\u8bad\u7ec3", "unit": "", "grade": "4\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "L\uff1a\u6559\u6750\u89e3\u8bfb1", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb1\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-l"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>数字王国寻宝记 · 第8讲 数与数字（下）</title>
+<style>
+/* ================= 全局配色变量（每局随机换色板，保证常玩常新） ================= */
+:root{
+  --bg:#FFF3E0; --panel:#FFE0B2; --ink:#263238;
+  --primary:#F57C00; --deep:#E65100; --accent:#4FC3F7;
+  --card:#FFFFFF; --line:#B0BEC5; --good:#2E7D32; --bad:#C62828;
+}
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ min-height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC","Hiragino Sans GB",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:18px; line-height:1.5;
+  transition:background .5s; overflow-x:hidden;
+}
+/* ================= 顶栏：标题 + 计时/步数（右上角实时） ================= */
+#topbar{
+  display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+  padding:10px 14px; background:var(--panel); border-bottom:4px solid var(--primary);
+  position:sticky; top:0; z-index:50; transition:background .5s;
+}
+#logo{ width:46px; height:46px; border-radius:50%; background:var(--primary); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:bold; flex:0 0 auto;}
+#gametitle{ font-size:22px; font-weight:bold; color:var(--deep); margin-right:auto; }
+.hud{ background:#fff; border:3px solid var(--primary); border-radius:14px; padding:4px 12px;
+  font-size:19px; font-weight:bold; color:var(--ink); white-space:nowrap;}
+.hud b{ color:var(--deep); font-size:21px; }
+#dots{ display:inline-flex; gap:6px; align-items:center; margin-left:8px;}
+.dot{ width:15px; height:15px; border-radius:50%; background:#fff; border:3px solid var(--line); display:inline-block;}
+.dot.on{ background:var(--primary); border-color:var(--deep); }
+/* 操作按钮条 */
+#actionbar{ display:flex; flex-wrap:wrap; gap:12px; padding:10px 14px; background:var(--panel);
+  border-bottom:3px solid var(--line); position:sticky; top:66px; z-index:49; transition:background .5s;}
+button{ font-family:inherit; cursor:pointer; border:none; border-radius:14px; }
+.abtn{
+  background:var(--primary); color:#fff; font-size:19px; font-weight:bold;
+  padding:8px 18px; box-shadow:0 3px 0 var(--deep); transition:transform .1s; touch-action:manipulation;
+}
+.abtn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--deep); }
+.abtn.gray{ background:#78909C; box-shadow:0 3px 0 #455A64; }
+.abtn.green{ background:var(--good); box-shadow:0 3px 0 #1B5E20; }
+.hidden{ display:none !important; }
+/* ================= 主区域 ================= */
+main{ max-width:980px; margin:0 auto; padding:14px 12px 46px; }
+/* ---- 开始界面：难度选择 ---- */
+#screen-start{ text-align:center; padding-top:8px; }
+#screen-start h1{ font-size:34px; color:var(--deep); margin:8px 0 4px; }
+#screen-start .sub{ font-size:20px; margin-bottom:18px; }
+#diffbox{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; }
+.diffcard{
+  width:272px; background:var(--card); border:4px solid var(--primary); border-radius:20px;
+  padding:16px 14px; box-shadow:0 6px 0 var(--line); cursor:pointer; transition:transform .15s;
+}
+.diffcard:hover{ transform:translateY(-4px); }
+.diffcard h2{ font-size:24px; color:var(--deep); margin-bottom:6px; }
+.diffcard .dtag{ display:inline-block; background:var(--accent); color:#fff; border-radius:10px;
+  padding:2px 10px; font-size:17px; font-weight:bold; margin-bottom:8px;}
+.diffcard p{ font-size:17px; text-align:left; }
+#starttips{ margin-top:22px; background:var(--card); border:3px dashed var(--primary);
+  border-radius:16px; padding:12px 16px; font-size:18px; text-align:left; }
+/* ---- 游戏界面通用 ---- */
+.roundhead{ display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:10px; }
+.srctag{ background:var(--accent); color:#fff; border-radius:10px; padding:3px 12px; font-size:17px; font-weight:bold;}
+.tasktext{ font-size:21px; font-weight:bold; background:var(--card); border-radius:14px;
+  padding:10px 14px; border-left:10px solid var(--primary); margin-bottom:12px;}
+.zonetitle{ font-size:19px; font-weight:bold; color:var(--deep); margin:12px 0 6px;}
+.tips{ margin-top:16px; background:var(--card); border:3px dotted var(--primary); border-radius:14px;
+  padding:8px 14px; font-size:17px; }
+/* ---- 拖拽卡片通用 ---- */
+.drag-card{ touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; position:relative;}
+.drag-card.dragging{ z-index:999; pointer-events:none; }
+.pop{ animation:pop .3s ease; }
+@keyframes pop{ 0%{transform:scale(1.35);} 100%{transform:scale(1);} }
+.wiggle{ animation:wig .35s ease; }
+@keyframes wig{ 0%,100%{transform:rotate(0);} 25%{transform:rotate(-6deg);} 75%{transform:rotate(6deg);} }
+.shake{ animation:shk .5s ease; }
+@keyframes shk{ 0%,100%{transform:translateX(0);} 20%{transform:translateX(-7px);} 40%{transform:translateX(7px);}
+  60%{transform:translateX(-5px);} 80%{transform:translateX(5px);} }
+/* ---- 初级：数字果子与百宝箱 ---- */
+#m0-tray{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; background:var(--card);
+  border-radius:18px; padding:14px; min-height:110px; border:3px solid var(--line);}
+.num-card{ width:74px; height:74px; background:var(--primary); color:#fff; border-radius:16px;
+  display:flex; align-items:center; justify-content:center; font-size:31px; font-weight:bold;
+  box-shadow:0 4px 0 var(--deep); border:3px solid #fff;}
+#m0-boxwrap{ margin-top:16px; display:flex; gap:16px; flex-wrap:wrap; align-items:stretch; justify-content:center;}
+#m0-box{ flex:1 1 320px; min-height:190px; background:var(--card); border:5px dashed var(--primary);
+  border-radius:22px; padding:12px; }
+#m0-boxhead{ font-size:21px; font-weight:bold; color:var(--deep); text-align:center; margin-bottom:6px;}
+#m0-boxbody{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; min-height:64px; align-content:flex-start;}
+.num-card.mini{ width:58px; height:58px; font-size:25px; cursor:default; background:var(--good); box-shadow:0 3px 0 #1B5E20;}
+#m0-side{ flex:0 1 260px; display:flex; flex-direction:column; gap:12px; justify-content:center;}
+.condbanner{ background:var(--accent); color:#fff; border-radius:16px; padding:10px 14px; text-align:center;}
+.condbanner .c1{ font-size:24px; font-weight:bold; }
+.condbanner .c2{ font-size:17px; }
+#m0-count{ background:var(--card); border-radius:16px; padding:8px 12px; text-align:center; font-size:20px; font-weight:bold;}
+#m0-count b{ color:var(--deep); font-size:24px;}
+/* ---- 中级：卡片工坊（数位格） ---- */
+#m1-hand{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; background:var(--card);
+  border-radius:18px; padding:14px; min-height:120px; border:3px solid var(--line);}
+.digit-card{ width:88px; height:106px; background:#fff; color:var(--ink); border-radius:18px;
+  border:5px solid var(--primary); display:flex; flex-direction:column; align-items:center; justify-content:center;
+  box-shadow:0 5px 0 var(--line); }
+.digit-card .dv{ font-size:46px; font-weight:bold; line-height:1; }
+.digit-card .dl{ font-size:16px; color:#78909C; margin-top:4px;}
+.digit-card.rotatable .dv{ color:var(--deep); }
+.flip-btn{ position:absolute; top:-12px; right:-12px; width:38px; height:38px; border-radius:50%;
+  background:var(--accent); color:#fff; font-size:16px; font-weight:bold; border:3px solid #fff;
+  box-shadow:0 2px 0 rgba(0,0,0,.25);}
+.flip-btn.spun{ animation:spin .4s ease; }
+@keyframes spin{ 0%{transform:rotate(0);} 100%{transform:rotate(360deg);} }
+#m1-slots{ display:flex; gap:16px; justify-content:center; margin-top:16px; flex-wrap:wrap;}
+.place-slot{ width:104px; min-height:152px; border:5px dashed var(--primary); border-radius:18px;
+  background:var(--card); padding:8px 6px; display:flex; flex-direction:column; align-items:center; gap:8px;}
+.place-slot .sl{ font-size:19px; font-weight:bold; color:var(--deep); }
+.place-slot.off{ border-color:var(--line); opacity:.45; }
+.place-slot.wrong{ border-color:var(--bad); background:#FFEBEE; }
+.place-slot.ok{ border-style:solid; border-color:var(--good); }
+.place-slot .hint0{ font-size:16px; color:#90A4AE; margin-top:24px;}
+#m1-formed{ text-align:center; margin-top:14px; font-size:21px; font-weight:bold; }
+#m1-formed b{ font-size:30px; color:var(--deep); letter-spacing:4px; }
+/* ---- 高级：角色卡 / 年龄标签 / 领奖台 ---- */
+#m2-chars{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; }
+.mchar{ width:168px; background:var(--card); border:4px solid var(--primary); border-radius:18px;
+  padding:10px 8px; text-align:center; box-shadow:0 4px 0 var(--line);}
+.mchar .avatar{ width:64px; height:64px; margin:0 auto; border-radius:50%; background:var(--accent);
+  color:#fff; font-size:30px; font-weight:bold; display:flex; align-items:center; justify-content:center;
+  border:3px solid #fff; box-shadow:0 0 0 3px var(--line);}
+.mchar .cname{ font-size:20px; font-weight:bold; margin-top:4px; }
+.mchar .say{ font-size:16px; background:var(--panel); border-radius:10px; padding:4px 6px; margin-top:4px;}
+.mchar .badge-slot{ min-height:42px; margin-top:6px; display:flex; justify-content:center; align-items:center;}
+.tag{ background:var(--primary); color:#fff; border-radius:12px; padding:6px 14px; font-size:21px;
+  font-weight:bold; box-shadow:0 3px 0 var(--deep); border:3px solid #fff;}
+.tag.stuck{ background:var(--good); box-shadow:0 2px 0 #1B5E20; font-size:19px; padding:3px 10px; }
+#m2-pool{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; background:var(--card);
+  border-radius:18px; padding:14px; margin-top:6px; border:3px solid var(--line); min-height:70px;}
+#m2-stage2{ margin-top:18px; }
+#m2-ranks{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; }
+.rank-slot{ width:104px; min-height:160px; border:5px dashed var(--accent); border-radius:18px;
+  background:var(--card); padding:6px 4px; display:flex; flex-direction:column; align-items:center; gap:6px;}
+.rank-slot .rk{ font-size:16px; font-weight:bold; color:var(--deep); text-align:center;}
+.rank-slot.wrong{ border-color:var(--bad); background:#FFEBEE; }
+.rank-slot.ok{ border-style:solid; border-color:var(--good); }
+.mchar.in-rank{ width:96px; padding:6px 2px; box-shadow:none; }
+.mchar.in-rank .avatar{ width:52px; height:52px; font-size:24px;}
+.mchar.in-rank .say, .mchar.in-rank .badge-slot{ display:none; }
+.mchar.in-rank .cname{ font-size:17px; }
+.num-card.in-rank{ width:64px; height:64px; font-size:27px; }
+/* ---- 弹层 / 提示 / 彩纸 ---- */
+#toast{ position:fixed; top:150px; left:50%; transform:translateX(-50%); z-index:400;
+  background:var(--ink); color:#fff; font-size:20px; font-weight:bold; padding:10px 22px;
+  border-radius:16px; max-width:86vw; text-align:center; opacity:0; pointer-events:none;
+  transition:opacity .25s; border:3px solid var(--accent);}
+#toast.show{ opacity:1; }
+#flash{ position:fixed; top:42%; left:0; right:0; text-align:center; z-index:380; pointer-events:none;
+  font-size:44px; font-weight:bold; color:var(--deep); text-shadow:0 0 12px #fff, 0 3px 0 #fff;
+  opacity:0; }
+#flash.show{ animation:fl 1.3s ease; }
+@keyframes fl{ 0%{opacity:0;transform:scale(.5);} 20%{opacity:1;transform:scale(1.15);}
+  70%{opacity:1;transform:scale(1);} 100%{opacity:0;transform:scale(1.05);} }
+.modal{ position:fixed; inset:0; background:rgba(38,50,56,.55); z-index:500; display:flex;
+  align-items:center; justify-content:center; padding:16px;}
+.mbox{ background:#fff; border-radius:22px; border:6px solid var(--primary); max-width:640px; width:100%;
+  max-height:86vh; overflow-y:auto; padding:20px 22px; }
+.mbox h2{ color:var(--deep); font-size:26px; margin-bottom:10px; text-align:center;}
+.mbox .mtext{ font-size:19px; margin-bottom:10px; }
+.mbox .mtext b{ color:var(--deep); }
+.mbox ul{ margin:0 0 10px 22px; }
+.mbox li{ font-size:18px; margin:6px 0; }
+.mbox .btnrow{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:12px;}
+.answerbox{ background:var(--panel); border-radius:14px; padding:10px 14px; font-size:19px; margin:8px 0; font-weight:bold;}
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:600; }
+/* ---- 结算 ---- */
+#final-stars{ display:flex; gap:10px; justify-content:center; margin:10px 0; }
+#final-stats{ font-size:20px; text-align:center; margin-bottom:8px;}
+#final-stats b{ color:var(--deep); font-size:24px;}
+/* ---- 窄屏 / 触摸适配 ---- */
+@media (max-width:640px){
+  body{ font-size:17px; }
+  #gametitle{ font-size:19px; }
+  #actionbar{ position:static; }
+  .hud{ font-size:16px; padding:3px 9px;}
+  .num-card{ width:62px; height:62px; font-size:26px;}
+  .digit-card{ width:78px; height:96px;}
+  .digit-card .dv{ font-size:40px;}
+  .place-slot{ width:92px; min-height:140px;}
+  .mchar{ width:150px;}
+  .rank-slot{ width:88px; min-height:146px;}
+  #flash{ font-size:34px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== 顶栏：标题 + 右上角计时/步数/关卡 ===================== -->
+<div id="topbar">
+  <div id="logo">数</div>
+  <div id="gametitle">数字王国寻宝记 · 数与数字（下）</div>
+  <div class="hud">时间 <b id="hud-time">0:00</b></div>
+  <div class="hud">步数 <b id="hud-steps">0</b></div>
+  <div class="hud">关卡 <b id="hud-round">1</b>/3 <span id="dots"></span></div>
+</div>
+<div id="actionbar">
+  <button class="abtn" id="btn-rules">规则说明</button>
+  <button class="abtn green" id="btn-reveal">揭示答案</button>
+  <button class="abtn gray" id="btn-restart">重新开始</button>
+  <button class="abtn gray" id="btn-back">返回难度选择</button>
+</div>
+
+<main>
+  <!-- ===================== 开始界面：三档难度 ===================== -->
+  <section id="screen-start">
+    <h1>数字王国寻宝记</h1>
+    <div class="sub">第8讲 数与数字（下）· 比较数的大小 · 按要求摆数 · 排顺序</div>
+    <div id="diffbox">
+      <div class="diffcard" data-mode="0">
+        <h2>初级 · 彩虹果园</h2>
+        <div class="dtag">不大于 与 不小于</div>
+        <p>果园里散落着数字果子，看清条件，把符合条件的果子统统拖进百宝箱！记住：不大于＝小于或等于，不小于＝大于或等于。</p>
+      </div>
+      <div class="diffcard" data-mode="1">
+        <h2>中级 · 卡片工坊</h2>
+        <div class="dtag">按要求摆数</div>
+        <p>三张数字卡片，拖进数位格拼出要求的数：最大的、最小的……小心！0 不能站在最前面，卡片 9 转一转还会变成 6！</p>
+      </div>
+      <div class="diffcard" data-mode="2">
+        <h2>高级 · 智慧领奖台</h2>
+        <div class="dtag">猜年龄 · 排顺序</div>
+        <p>小伙伴们有的直接报年龄，有的只给线索。先拖年龄标签算出每个人的岁数，再按从大到小把他们请上领奖台！</p>
+      </div>
+    </div>
+    <div id="starttips">
+      玩法小贴士：所有卡片都可以用手指或鼠标<b>拖动</b>；放错了卡片会自动弹回；点一下已放入的卡片可以把它收回来。右上角有<b>计时和步数</b>，卡住了可以点<b>揭示答案</b>。每局题目随机抽取、颜色随机换新，多玩几局都不重样！
+    </div>
+  </section>
+
+  <!-- ===================== 游戏界面：三个模式容器 ===================== -->
+  <section id="screen-game" class="hidden">
+    <!-- 初级：彩虹果园 -->
+    <div id="mode0" class="mode hidden">
+      <div class="roundhead">
+        <span class="srctag" id="m0-src">例4</span>
+        <span style="font-size:19px;font-weight:bold;">把符合条件的数字果子拖进百宝箱（有几个就收几个）</span>
+      </div>
+      <div class="tasktext" id="m0-task">条件加载中……</div>
+      <div class="zonetitle">果园 · 数字果子</div>
+      <div id="m0-tray" data-role="tray"></div>
+      <div id="m0-boxwrap">
+        <div id="m0-box" data-role="box">
+          <div id="m0-boxhead">百宝箱</div>
+          <div id="m0-boxbody"></div>
+        </div>
+        <div id="m0-side">
+          <div class="condbanner">
+            <div class="c1" id="m0-cond">不大于 80</div>
+            <div class="c2" id="m0-cond2">意思是：小于或等于 80</div>
+          </div>
+          <div id="m0-count">已收集 <b id="m0-got">0</b> / <span id="m0-need">0</span> 个</div>
+        </div>
+      </div>
+      <div class="tips" id="m0-tip"></div>
+    </div>
+
+    <!-- 中级：卡片工坊 -->
+    <div id="mode1" class="mode hidden">
+      <div class="roundhead">
+        <span class="srctag" id="m1-src">例5</span>
+        <span style="font-size:19px;font-weight:bold;">用下面的三张数字卡片摆一摆</span>
+      </div>
+      <div class="tasktext" id="m1-task">任务加载中……</div>
+      <div class="zonetitle">数位格（点已放入的卡片可收回）</div>
+      <div id="m1-slots"></div>
+      <div id="m1-formed">当前拼出的数：<b id="m1-num">－</b></div>
+      <div class="zonetitle">我的卡片</div>
+      <div id="m1-hand" data-role="hand"></div>
+      <div class="tips" id="m1-tip"></div>
+    </div>
+
+    <!-- 高级：智慧领奖台 -->
+    <div id="mode2" class="mode hidden">
+      <div class="roundhead">
+        <span class="srctag" id="m2-src">例6</span>
+        <span style="font-size:19px;font-weight:bold;" id="m2-headtext">先猜年龄，再按从大到小排上领奖台</span>
+      </div>
+      <div class="tasktext" id="m2-task">题目加载中……</div>
+      <div class="zonetitle" id="m2-char-title">小伙伴们的悄悄话</div>
+      <div id="m2-chars" data-role="bench"></div>
+      <div class="zonetitle" id="m2-pool-title">年龄标签（拖到对应小伙伴身上）</div>
+      <div id="m2-pool" data-role="pool"></div>
+      <div id="m2-stage2" class="hidden">
+        <div class="zonetitle">领奖台 · 从大到小排一排（第1名放最大，拖到已有卡片的位置可交换）</div>
+        <div id="m2-ranks"></div>
+      </div>
+      <div class="tips" id="m2-tip"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== 提示与动效层 ===================== -->
+<div id="toast"></div>
+<div id="flash"></div>
+<canvas id="fx"></canvas>
+
+<!-- ===================== 规则弹窗（进入时弹出，可随时再看） ===================== -->
+<div class="modal hidden" id="modal-rules">
+  <div class="mbox">
+    <h2 id="rules-title">规则说明</h2>
+    <div id="rules-body"></div>
+    <div class="btnrow"><button class="abtn green" id="rules-go">开始挑战</button></div>
+  </div>
+</div>
+
+<!-- ===================== 揭示答案弹窗 ===================== -->
+<div class="modal hidden" id="modal-reveal">
+  <div class="mbox">
+    <h2>答案揭晓</h2>
+    <div id="reveal-body"></div>
+    <div class="btnrow"><button class="abtn green" id="reveal-go">我记住了，继续</button></div>
+  </div>
+</div>
+
+<!-- ===================== 通关结算弹窗 ===================== -->
+<div class="modal hidden" id="modal-final">
+  <div class="mbox" style="text-align:center;">
+    <h2>恭喜通关！寻宝成功！</h2>
+    <div id="final-stars"></div>
+    <div id="final-stats"></div>
+    <div class="mtext" id="final-word"></div>
+    <div class="btnrow">
+      <button class="abtn" id="final-again">再玩一次</button>
+      <button class="abtn gray" id="final-back">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+ * 数字王国寻宝记 —— 第8讲 数与数字（下）
+ * 教参来源：【16】第8讲 数与数字（下）.docx
+ * 核心考点：
+ *   （1）不大于（≤）/ 不小于（≥）的数字分类 —— 例4、练习10~12
+ *   （2）按要求摆数（最大/最小，0 不开头，9 可旋转成 6）—— 例5、练习13~15
+ *   （3）猜年龄（比某人大用加法、小用减法）+ 从大到小排顺序 —— 例6、练习16、练习17
+ * 交互方式：自定义指针拖拽（鼠标/触摸通用），机制与题型深度绑定
+ * ===================================================================== */
+
+/* ---------------- 色板（每局随机一种主配色，G8 配色随机化） ---------------- */
+var PALETTES = [
+  { name:"蜜桃橙", bg:"#FFF3E0", panel:"#FFE0B2", primary:"#F57C00", deep:"#E65100", accent:"#4FC3F7" },
+  { name:"薄荷绿", bg:"#E8F5E9", panel:"#C8E6C9", primary:"#2E7D32", deep:"#1B5E20", accent:"#FFB300" },
+  { name:"天空蓝", bg:"#E3F2FD", panel:"#BBDEFB", primary:"#1565C0", deep:"#0D47A1", accent:"#FF7043" },
+  { name:"葡萄紫", bg:"#F3E5F5", panel:"#E1BEE7", primary:"#6A1B9A", deep:"#4A148C", accent:"#FFCA28" },
+  { name:"樱花粉", bg:"#FCE4EC", panel:"#F8BBD0", primary:"#C2185B", deep:"#880E4F", accent:"#26C6DA" },
+  { name:"柠檬黄", bg:"#FFFDE7", panel:"#FFF9C4", primary:"#F9A825", deep:"#F57F17", accent:"#7E57C2" }
+];
+
+/* ---------------- 初级题库：数字分类（数字集与条件全部来自 docx 原题） ----------------
+ * kind:'le' 不大于（≤）/ 'ge' 不小于（≥）
+ * 与 docx 参考答案逐题核对过（例4、练习10、练习11、练习12） */
+var MODE0_LIB = [
+  { src:"例4(1)",    kind:"le", v:80,  nums:[25,100,72,98,60,152,39,80,15,215] },
+  { src:"例4(2)",    kind:"ge", v:100, nums:[25,100,72,98,60,152,39,80,15,215] },
+  { src:"练习10(1)", kind:"le", v:78,  nums:[17,8,39,26,159,207,131,78,22,45] },
+  { src:"练习10(2)", kind:"ge", v:131, nums:[17,8,39,26,159,207,131,78,22,45] },
+  { src:"练习11(1)", kind:"ge", v:50,  nums:[28,10,37,88,161,61,32,70,105,50] },
+  { src:"练习11(2)", kind:"le", v:70,  nums:[28,10,37,88,161,61,32,70,105,50] },
+  { src:"练习12(1)", kind:"le", v:80,  nums:[27,56,15,8,49,76,80,99,35,150] },
+  { src:"练习12(2)", kind:"ge", v:40,  nums:[27,56,15,8,49,76,80,99,35,150] }
+];
+
+/* ---------------- 中级题库：按要求摆数（例5/练习13/14/15 + 2 道同型变式） ----------------
+ * digits:本关启用的数位个数；rot:该卡组的 9 可旋转成 6 */
+var MODE1_LIB = [
+  { src:"例5",     cards:[8,5,3], kind:"max2",   digits:2, answer:"85",
+    reveal:"十位放最大的 8，个位放剩下的最大数字 5，最大的两位数是 85。" },
+  { src:"例5",     cards:[8,5,3], kind:"maxAny", digits:3, answer:"853",
+    reveal:"卡片只有三张，最大的数是三位数：从高位到低位依次放最大数字，853。" },
+  { src:"例5",     cards:[8,5,3], kind:"minAny", digits:1, answer:"3",
+    reveal:"没有规定位数，最小的数只要一位：三张卡片里最小的是 3。" },
+  { src:"练习13",  cards:[7,4,2], kind:"max2",   digits:2, answer:"74",
+    reveal:"十位放最大的 7，个位放 4，最大的两位数是 74。" },
+  { src:"练习13",  cards:[7,4,2], kind:"maxAny", digits:3, answer:"742",
+    reveal:"从高位到低位依次放最大数字：742。" },
+  { src:"练习13",  cards:[7,4,2], kind:"minAny", digits:1, answer:"2",
+    reveal:"没有规定位数，最小的数只要一位：最小卡片是 2。" },
+  { src:"练习14",  cards:[8,4,0], kind:"min2",   digits:2, answer:"40",
+    reveal:"0 不能站在最前面！十位选最小的 4，个位放 0，最小的两位数是 40。" },
+  { src:"练习14",  cards:[8,4,0], kind:"maxAny", digits:3, answer:"840",
+    reveal:"百位 8、十位 4、个位 0，最大的数是 840。" },
+  { src:"练习15",  cards:[9,8,7], kind:"min2",   digits:2, answer:"67", rot:true,
+    reveal:"卡片 9 旋转一下变成 6！十位放 6、个位放 7，最小的两位数是 67。" },
+  { src:"练习15",  cards:[9,8,7], kind:"maxAny", digits:3, answer:"987", rot:true,
+    reveal:"百位 9、十位 8、个位 7，最大的数是 987（这时 9 不用旋转）。" },
+  { src:"练习15",  cards:[9,8,7], kind:"minAny", digits:1, answer:"6", rot:true,
+    reveal:"9 旋转成 6，比 7 还小，所以最小的数是 6。" },
+  { src:"变式·摆数1", cards:[6,1,0], kind:"min2", digits:2, answer:"10",
+    reveal:"0 不能开头，十位放 1、个位放 0，最小的两位数是 10。" },
+  { src:"变式·摆数2", cards:[3,8,1], kind:"max2", digits:2, answer:"83",
+    reveal:"十位放最大的 8，个位放 3，最大的两位数是 83。" }
+];
+
+/* ---------------- 高级题库：猜年龄排顺序 / 直接排顺序 ----------------
+ * 例6、练习16、练习17 来自 docx 原题；另配 2 道同型变式丰富抽取 */
+var MODE2_LIB = [
+  { kindT:"age", src:"例6",
+    task:"一起来玩比年龄的游戏吧！先猜猜他们的年龄（把年龄标签拖到对应小伙伴身上），再按照从大到小的顺序排上领奖台。",
+    chars:[
+      { name:"猪弟弟", av:"猪", say:"我今年28岁", age:28 },
+      { name:"狗姐姐", av:"狗", say:"我今年35岁", age:35 },
+      { name:"大象",   av:"象", say:"我今年47岁", age:47 },
+      { name:"小猴",   av:"猴", say:"我今年9岁",  age:9  },
+      { name:"猪哥哥", av:"猪", say:"我比猪弟弟大2岁", age:30, calc:"猪哥哥＝28＋2＝30岁（比某人大，用加法）" },
+      { name:"狗妹妹", av:"狗", say:"我比狗姐姐小3岁", age:32, calc:"狗妹妹＝35－3＝32岁（比某人小，用减法）" }
+    ],
+    extras:[26,38] },
+  { kindT:"age", src:"练习16",
+    task:"先来猜猜他们的年龄（把年龄标签拖到对应小伙伴身上），再按照从大到小的顺序排上领奖台。",
+    chars:[
+      { name:"A", av:"A", say:"我25岁", age:25 },
+      { name:"B", av:"B", say:"我39岁", age:39 },
+      { name:"C", av:"C", say:"我比A大3岁", age:28, calc:"C＝25＋3＝28岁（比某人大，用加法）" },
+      { name:"D", av:"D", say:"我41岁", age:41 },
+      { name:"E", av:"E", say:"我比D小10岁", age:31, calc:"E＝41－10＝31岁（比某人小，用减法）" },
+      { name:"F", av:"F", say:"我比B大1岁", age:40, calc:"F＝39＋1＝40岁（比某人大，用加法）" }
+    ],
+    extras:[22,51] },
+  { kindT:"age", src:"变式·全家福",
+    task:"先算出全家人的年龄（把年龄标签拖到对应的人身上），再按照从大到小的顺序排上领奖台。",
+    chars:[
+      { name:"爷爷", av:"爷", say:"我今年66岁", age:66 },
+      { name:"奶奶", av:"奶", say:"我今年60岁", age:60 },
+      { name:"爸爸", av:"爸", say:"我比爷爷小32岁", age:34, calc:"爸爸＝66－32＝34岁（比某人小，用减法）" },
+      { name:"妈妈", av:"妈", say:"我比爸爸大2岁", age:36, calc:"妈妈＝34＋2＝36岁（比某人大，用加法）" },
+      { name:"姐姐", av:"姐", say:"我今年12岁", age:12 },
+      { name:"弟弟", av:"弟", say:"我比姐姐小4岁", age:8, calc:"弟弟＝12－4＝8岁（比某人小，用减法）" }
+    ],
+    extras:[98,32] },
+  { kindT:"sort", src:"练习17",
+    task:"把下面的数按从大到小的顺序拖上领奖台（第1名放最大的数）。",
+    nums:[18,35,72,43,64,29,89,55] },
+  { kindT:"sort", src:"变式·排一排",
+    task:"把下面的数按从大到小的顺序拖上领奖台（第1名放最大的数）。",
+    nums:[95,8,41,100,76,23,60,5] }
+];
+
+/* ---------------- 全局游戏状态 ---------------- */
+var G = {
+  mode:-1,         // 0初级 1中级 2高级；-1 未开始
+  rounds:[],       // 本局随机抽出的 3 关（反重复：每局随机抽样）
+  idx:0,           // 当前关序号（0~2）
+  steps:0,         // 步数：每次拖放计 1 步
+  reveals:0,       // 使用"揭示答案"的次数
+  sec:0,           // 计时秒数
+  timer:null,      // 计时器句柄
+  roundOver:false, // 当前关是否已结束（结束后禁止再判定，防止重复通关）
+  phase:1,         // 高级模式内部阶段：1=贴年龄标签，2=排领奖台
+  judging:null,    // 自动判定的延时句柄
+  token:0,         // 关卡令牌：换关/重开后作废未触发的延时回调，防止误跳关
+  started:false    // 本局是否已渲染过第一关（配合规则弹窗）
+};
+/* 带令牌的延时：若期间发生了换关/重开（token 变化），回调自动作废 */
+function later(fn, ms){
+  var tk = G.token;
+  return setTimeout(function(){ if (G.token === tk) fn(); }, ms);
+}
+
+/* ---------------- 小工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+function shuffle(arr){
+  var a = arr.slice();
+  for (var i=a.length-1;i>0;i--){
+    var j = Math.floor(Math.random()*(i+1));
+    var t=a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+function pick(arr,n){ return shuffle(arr).slice(0,n); }
+function fmtTime(s){ return Math.floor(s/60)+":"+("0"+(s%60)).slice(-2); }
+function setHud(){
+  $("hud-time").textContent = fmtTime(G.sec);
+  $("hud-steps").textContent = G.steps;
+  $("hud-round").textContent = Math.min(G.idx+1,3);
+}
+var toastTimer=null;
+function toast(msg, ms){
+  var t=$("toast"); t.textContent=msg; t.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ t.classList.remove("show"); }, ms||2400);
+}
+function flash(txt){
+  var f=$("flash"); f.textContent=txt; f.classList.remove("show");
+  void f.offsetWidth; f.classList.add("show");
+}
+var PRAISE=["收对啦！","眼力真棒！","太厉害了！","好眼光！"];
+function praise(){ return PRAISE[Math.floor(Math.random()*PRAISE.length)]; }
+
+/* ---------------- 随机色板应用（每局换色） ---------------- */
+function applyPalette(){
+  var p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  var r = document.documentElement.style;
+  r.setProperty("--bg",p.bg); r.setProperty("--panel",p.panel);
+  r.setProperty("--primary",p.primary); r.setProperty("--deep",p.deep);
+  r.setProperty("--accent",p.accent);
+  FX.colors = [p.primary,p.deep,p.accent,"#FFD54F","#FFFFFF"];
+}
+
+/* ---------------- 彩纸庆祝（Canvas 粒子动画，G5 庆祝动画） ---------------- */
+var FX = { parts:[], colors:["#F57C00","#E65100","#4FC3F7","#FFD54F","#FFFFFF"], raf:0 };
+FX.burst = function(n,big){
+  var cv=$("fx");
+  cv.width=innerWidth; cv.height=innerHeight;
+  for (var i=0;i<n;i++){
+    FX.parts.push({
+      x: cv.width/2+(Math.random()-0.5)*cv.width*(big?0.9:0.5),
+      y: big ? cv.height*0.25 : cv.height*0.35,
+      vx:(Math.random()-0.5)*(big?11:7),
+      vy:-Math.random()*(big?13:9)-3,
+      s: 5+Math.random()*7,
+      c: FX.colors[Math.floor(Math.random()*FX.colors.length)],
+      r: Math.random()*Math.PI, vr:(Math.random()-0.5)*0.3, life:1
+    });
+  }
+  if (!FX.raf) FX.raf=requestAnimationFrame(FX.tick);
+};
+FX.tick=function(){
+  var cv=$("fx"), ctx=cv.getContext("2d");
+  ctx.clearRect(0,0,cv.width,cv.height);
+  for (var i=FX.parts.length-1;i>=0;i--){
+    var p=FX.parts[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.28; p.r+=p.vr; p.life-=0.008;
+    if (p.life<=0 || p.y>cv.height+30){ FX.parts.splice(i,1); continue; }
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r);
+    ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
+    ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.62); ctx.restore();
+  }
+  if (FX.parts.length){ FX.raf=requestAnimationFrame(FX.tick); }
+  else { FX.raf=0; ctx.clearRect(0,0,cv.width,cv.height); }
+};
+
+/* =====================================================================
+ * 自定义拖拽引擎（pointer events：鼠标、触摸、手写笔通吃，G11）
+ * 卡片带 .drag-card 即可拖动；放置目标带 data-role 标记
+ * ===================================================================== */
+var drag=null;
+document.addEventListener("pointerdown", function(e){
+  if (e.target.closest(".flip-btn")) return;            // 旋转按钮单独处理，不触发拖拽
+  var el=e.target.closest(".drag-card");
+  if (!el || el.classList.contains("locked")) return;
+  drag={ el:el, x:e.clientX, y:e.clientY, moved:false };
+  try{ el.setPointerCapture(e.pointerId); }catch(err){}
+});
+document.addEventListener("pointermove", function(e){
+  if (!drag) return;
+  var dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+  if (!drag.moved && Math.abs(dx)+Math.abs(dy)>7){
+    drag.moved=true; drag.el.classList.add("dragging");
+  }
+  if (drag.moved){ drag.el.style.transform="translate("+dx+"px,"+dy+"px)"; }
+});
+document.addEventListener("pointerup", function(e){
+  if (!drag) return;
+  var el=drag.el, moved=drag.moved; drag=null;
+  if (!moved){ handleTap(el); return; }
+  G.steps++; setHud();                                   // 每次拖放计一步（G7 步数统计）
+  var zone=zoneAt(e.clientX,e.clientY);                  // 拖拽中自身 pointer-events:none，不会挡住命中
+  var ok=false;
+  try{ ok=dispatchDrop(el,zone); }catch(err){ ok=false; }
+  el.classList.remove("dragging");
+  if (ok){
+    el.style.transform=""; el.classList.add("pop");
+    setTimeout(function(){ el.classList.remove("pop"); },320);
+  } else bounceBack(el);
+});
+document.addEventListener("pointercancel", function(){
+  if (!drag) return;
+  drag.el.classList.remove("dragging"); drag.el.style.transform=""; drag=null;
+});
+function zoneAt(x,y){
+  var t=document.elementFromPoint(x,y);
+  return t ? t.closest("[data-role]") : null;
+}
+function bounceBack(el){
+  el.style.transition="transform .28s ease";
+  requestAnimationFrame(function(){ el.style.transform="translate(0,0)"; });
+  setTimeout(function(){ el.style.transition=""; },320);
+}
+/* 单击（没拖动）已放入的卡片 → 收回；点普通卡片 → 摇一摇提示 */
+function handleTap(el){
+  if (G.roundOver) return;
+  if (el.classList.contains("in-slot")){                 // 中级：从数位格收回
+    $("m1-hand").appendChild(el); el.classList.remove("in-slot");
+    updateFormed(); toast("卡片已收回，重新摆一摆");
+  } else if (el.classList.contains("in-rank")){          // 高级：从领奖台收回
+    $("m2-chars").appendChild(el); el.classList.remove("in-rank");
+    scheduleJudge2(); toast("先收回来，重新排。");
+  } else {
+    el.classList.add("wiggle"); setTimeout(function(){ el.classList.remove("wiggle"); },380);
+  }
+}
+/* 按当前模式分配放置逻辑；返回 true 表示目标接收了这张卡片 */
+function dispatchDrop(el,zone){
+  if (G.roundOver) return false;
+  if (!zone) return false;
+  var role=zone.dataset.role;
+  if (G.mode===0) return dropM0(el,role);
+  if (G.mode===1) return dropM1(el,zone,role);
+  return dropM2(el,zone,role);
+}
+
+/* =====================================================================
+ * 流程控制：开始游戏 / 关卡推进 / 结算
+ * ===================================================================== */
+function startGame(mode, skipRules){
+  G.mode=mode; G.rounds=sampleRounds(mode); G.idx=0;
+  G.steps=0; G.reveals=0; G.sec=0; G.roundOver=false; G.started=false; G.token++;
+  applyPalette();
+  if (G.timer) clearInterval(G.timer);
+  G.timer=setInterval(function(){ if(!isFinalOpen()){ G.sec++; setHud(); } },1000);
+  $("screen-start").classList.add("hidden");
+  $("screen-game").classList.remove("hidden");
+  var dots=$("dots"); dots.innerHTML="";
+  for (var i=0;i<3;i++){ var d=document.createElement("span"); d.className="dot"; dots.appendChild(d); }
+  setHud();
+  if (skipRules) renderRound();       // 重新开始/再玩一次：不再弹规则
+  else showRules();                   // 从难度选择进入：先弹规则（G6）
+}
+function isFinalOpen(){ return !$("modal-final").classList.contains("hidden"); }
+function sampleRounds(mode){
+  if (mode===0) return pick(MODE0_LIB,3);
+  if (mode===1){
+    var rot=MODE1_LIB.filter(function(r){ return r.rot; });
+    var others=MODE1_LIB.filter(function(r){ return !r.rot; });
+    var sel=pick(rot,1).concat(pick(others,2));   // 每局保证出现一关"9旋转"挑战（核心易错点）
+    return shuffle(sel);
+  }
+  return pick(MODE2_LIB,3);
+}
+function renderRound(){
+  G.roundOver=false; G.phase=1; G.token++;
+  if (G.judging){ clearTimeout(G.judging); G.judging=null; }
+  var modes=["mode0","mode1","mode2"];
+  modes.forEach(function(id){ $(id).classList.add("hidden"); });
+  var dots=document.querySelectorAll(".dot");
+  dots.forEach(function(d,i){ d.classList.toggle("on", i<G.idx); });
+  var r=G.rounds[G.idx];
+  if (G.mode===0) renderM0(r);
+  else if (G.mode===1) renderM1(r);
+  else renderM2(r);
+}
+function completeRound(revealed){
+  if (revealed) G.reveals++;
+  var dots=document.querySelectorAll(".dot");
+  dots.forEach(function(d,i){ d.classList.toggle("on", i<G.idx+1); });
+  G.idx++;
+  setHud();
+  if (G.idx>=G.rounds.length) finishGame();
+  else renderRound();
+}
+function finishGame(){
+  G.roundOver=true;
+  if (G.timer){ clearInterval(G.timer); G.timer=null; }
+  FX.burst(150,true);
+  setTimeout(function(){ FX.burst(80,true); },500);
+  var stars = G.reveals===0?3:(G.reveals===1?2:1);
+  var box=$("final-stars"); box.innerHTML="";
+  for (var i=0;i<3;i++){
+    box.insertAdjacentHTML("beforeend",
+      '<svg viewBox="0 0 24 24" width="54" height="54"><path fill="'+(i<stars?"#FFC107":"#CFD8DC")+
+      '" d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8z"/></svg>');
+  }
+  $("final-stats").innerHTML="用时 <b>"+fmtTime(G.sec)+"</b>　·　步数 <b>"+G.steps+
+      "</b>　·　使用揭示 <b>"+G.reveals+"</b> 次";
+  $("final-word").textContent = stars===3 ? "三星寻宝王！全部自己动手完成，太了不起啦！"
+    : stars===2 ? "很棒的成绩！下次不靠提示，试试三星通关吧！" : "完成寻宝！多练几局，你会越来越熟练！";
+  $("modal-final").classList.remove("hidden");
+}
+
+/* =====================================================================
+ * 初级 · 彩虹果园（数字分类拖宝箱）
+ * 机制与题型绑定：每个数逐一同条件比较，自己决定收不收；
+ * 关键易错点：不大于/不小于包含"等于"，边界数本身也要收。
+ * 说明：不符合条件的数留在果园里即可（docx 原题即"有几个填几个"），
+ *       因此不会出现"无处可放"的死局。
+ * ===================================================================== */
+function condOk(r,n){ return r.kind==="le" ? n<=r.v : n>=r.v; }
+function condText(r){ return r.kind==="le" ? ("不大于 "+r.v) : ("不小于 "+r.v); }
+function condMean(r){ return r.kind==="le" ? ("意思是：小于或等于 "+r.v) : ("意思是：大于或等于 "+r.v); }
+function renderM0(r){
+  $("mode0").classList.remove("hidden");
+  $("m0-src").textContent="题目来源："+r.src;
+  $("m0-task").textContent="请选出符合条件的数：把「"+condText(r)+"」的数全部拖进百宝箱，有几个就收几个；不符合的数留在果园里。";
+  $("m0-cond").textContent=condText(r);
+  $("m0-cond2").textContent=condMean(r);
+  $("m0-tip").textContent="学习小贴士：不大于＝小于或等于；不小于＝大于或等于。刚好等于的数也要收进宝箱哦！";
+  $("m0-tray").innerHTML=""; $("m0-boxbody").innerHTML="";
+  r.expected = r.nums.filter(function(n){ return condOk(r,n); });
+  r.got=0;
+  $("m0-got").textContent="0"; $("m0-need").textContent=r.expected.length;
+  shuffle(r.nums).forEach(function(n){
+    var c=document.createElement("div");
+    c.className="num-card drag-card"; c.dataset.val=n; c.textContent=n;
+    $("m0-tray").appendChild(c);
+  });
+}
+function dropM0(el,role){
+  if (role!=="box") return false;
+  var r=G.rounds[G.idx], n=+el.dataset.val;
+  if (!condOk(r,n)){
+    var why = r.kind==="le"
+      ? (n+" 比 "+r.v+" 大，「"+condText(r)+"」表示要小于或等于 "+r.v+"，它不用进宝箱哦")
+      : (n+" 比 "+r.v+" 小，「"+condText(r)+"」表示要大于或等于 "+r.v+"，它不用进宝箱哦");
+    toast(why,3200);
+    return false;
+  }
+  el.classList.remove("drag-card"); el.classList.add("mini","locked");
+  $("m0-boxbody").appendChild(el);
+  r.got++;
+  $("m0-got").textContent=r.got;
+  if (n===r.v){ toast("关键一步！"+n+" 本身刚好等于 "+r.v+"，等于也算数，收对了！",3400); }
+  else toast(praise()+"「"+n+"」进了百宝箱");
+  if (r.got>=r.expected.length){
+    G.roundOver=true;
+    FX.burst(40,false); flash("收集完成！");
+    later(function(){ completeRound(false); },1300);
+  }
+  return true;
+}
+
+/* =====================================================================
+ * 中级 · 卡片工坊（数位格摆数）
+ * 机制与题型绑定：摆最大/最小数＝把数字卡片调度到数位上（构造式操作）；
+ * 特殊规则：首位不能为 0；可旋转卡组的 9 能转成 6（练习15 关键点）。
+ * ===================================================================== */
+var SLOT_NAMES=["百位","十位","个位"];
+function renderM1(r){
+  $("mode1").classList.remove("hidden");
+  $("m1-src").textContent="题目来源："+r.src;
+  var taskMap={ max2:"摆出最大的两位数", maxAny:"摆出最大的数（位数不限）",
+    min2:"摆出最小的两位数", minAny:"摆出最小的数（位数不限）" };
+  $("m1-task").textContent="用三张数字卡片摆一摆："+taskMap[r.kind]+"。";
+  $("m1-tip").textContent = r.rot
+    ? "学习小贴士：最大的数从高位到低位数字越来越小，最小的数越来越大；0 不能站在最前面；这张卡片 9 角上有「转」按钮，转一转会变成 6 哦！"
+    : "学习小贴士：最大的数从高位到低位数字越来越小；最小的数从高位到低位数字越来越大；0 不能站在最前面哦。";
+  r.flipped=false;                                      // 记录本关 9 是否已旋转成 6
+  r.activeFrom = 3-r.digits;                            // digits=2 启用十位个位；1 只启用个位
+  var slots=$("m1-slots"); slots.innerHTML="";
+  for (var i=0;i<3;i++){
+    var s=document.createElement("div");
+    s.className="place-slot"+(i<r.activeFrom?" off":"");
+    s.dataset.role="slot"; s.dataset.slot=i;
+    s.innerHTML='<div class="sl">'+SLOT_NAMES[i]+'</div>'+
+      (i<r.activeFrom?'<div class="hint0">本关不用</div>':'');
+    slots.appendChild(s);
+  }
+  $("m1-hand").innerHTML="";
+  shuffle(r.cards).forEach(function(cd){
+    var c=document.createElement("div");
+    c.className="digit-card drag-card"; c.dataset.val=cd; c.dataset.face=cd;
+    c.innerHTML='<div class="dv">'+cd+'</div><div class="dl">数字卡</div>';
+    if (r.rot && cd===9){
+      c.classList.add("rotatable");
+      var b=document.createElement("button");
+      b.className="flip-btn"; b.type="button"; b.textContent="转";
+      b.setAttribute("aria-label","把9旋转成6");
+      c.appendChild(b);
+    }
+    $("m1-hand").appendChild(c);
+  });
+  updateFormed();
+}
+/* 卡片 9 的旋转按钮：9 与 6 互相转换 */
+document.addEventListener("click", function(e){
+  var b=e.target.closest(".flip-btn");
+  if (!b) return;
+  var card=b.closest(".digit-card");
+  if (G.mode!==1 || G.roundOver || !card) return;
+  var r=G.rounds[G.idx];
+  var face=+card.dataset.face;
+  var to = face===9?6:9;
+  card.dataset.face=to;
+  card.querySelector(".dv").textContent=to;
+  b.classList.remove("spun"); void b.offsetWidth; b.classList.add("spun");
+  r.flipped = (to===6);
+  toast(to===6 ? "咔嗒！9 旋转过来变成 6 啦，它变得更小了！" : "又转回去啦，现在是 9。");
+  updateFormed();
+  scheduleJudge1();
+});
+function activeSlots(){
+  var all=Array.prototype.slice.call(document.querySelectorAll("#m1-slots .place-slot"));
+  return all.filter(function(s){ return !s.classList.contains("off"); });
+}
+function slotValue(s){
+  var c=s.querySelector(".digit-card");
+  return c ? c.dataset.face : "";
+}
+function updateFormed(){
+  var vals=activeSlots().map(slotValue);
+  var full = vals.length>0 && vals.every(function(v){ return v!==""; });
+  $("m1-num").textContent = full ? vals.join("") : vals.map(function(v){ return v===""?"□":v; }).join("－");
+  return full;
+}
+function dropM1(el,zone,role){
+  var r=G.rounds[G.idx];
+  if (role==="hand"){                                   // 拖回手区＝收回
+    if (!el.classList.contains("in-slot")) return false;
+    zone.appendChild(el); el.classList.remove("in-slot");
+    updateFormed(); toast("卡片已收回。");
+    return true;
+  }
+  if (role!=="slot") return false;
+  if (zone.classList.contains("off")){ toast("这一位本关用不到哦，看亮着的数位格。"); return false; }
+  if (zone.querySelector(".digit-card")){ toast("这个数位已经有卡片啦，先点它收回再放。"); return false; }
+  var i=+zone.dataset.slot;
+  if (r.digits>=2 && i===r.activeFrom && el.dataset.face==="0"){   // 首位不能为 0
+    toast("0 不能站在最前面哦！它表示一个都没有，放在最前面这个数就读不出来了。",3400);
+    return false;
+  }
+  zone.appendChild(el); el.classList.add("in-slot");
+  updateFormed(); scheduleJudge1();
+  return true;
+}
+function scheduleJudge1(){
+  if (G.judging) clearTimeout(G.judging);
+  G.judging=setTimeout(function(){
+    G.judging=null;
+    if (G.mode!==1 || G.roundOver) return;
+    if (!updateFormed()) return;      // 数位没摆满不判定
+    judge1();
+  },380);
+}
+function judge1(){
+  var r=G.rounds[G.idx];
+  var slots=activeSlots();
+  var numStr=slots.map(function(s){ return slotValue(s); }).join("");
+  if (numStr===r.answer){
+    G.roundOver=true;
+    slots.forEach(function(s){
+      s.classList.add("ok");
+      var c=s.querySelector(".digit-card"); if (c) c.classList.add("locked");
+    });
+    FX.burst(40,false); flash("摆对啦！");
+    toast("正确！"+r.reveal,4400);
+    later(function(){ completeRound(false); },2000);
+  } else {
+    slots.forEach(function(s){
+      s.classList.add("shake","wrong");
+      setTimeout(function(){ s.classList.remove("shake","wrong"); },650);
+    });
+    var hint = (r.kind==="max2"||r.kind==="maxAny")
+      ? "想摆最大的数：把大的数字放在高位，从高位到低位数字越来越小。"
+      : "想摆最小的数：把小的数字放在高位，从高位到低位数字越来越大。";
+    if (r.rot && (r.kind==="min2"||r.kind==="minAny") && !r.flipped){
+      hint += " 悄悄提醒：卡片 9 转一转会变成 6，更小哦！";
+    }
+    toast("现在拼出的是 "+numStr+"，还不是要求的数。点卡片收回，"+hint,4400);
+  }
+}
+
+/* =====================================================================
+ * 高级 · 智慧领奖台（贴年龄标签 + 从大到小排位）
+ * 机制与题型绑定：先用加减法把线索算成年龄（比某人大→加，小→减），
+ * 再按"先位数、再高位"的比较方法从大到小排上领奖台。
+ * ===================================================================== */
+function renderM2(r){
+  $("mode2").classList.remove("hidden");
+  $("m2-src").textContent="题目来源："+r.src;
+  $("m2-task").textContent=r.task;
+  $("m2-tip").textContent="学习小贴士：比某人大用加法，比某人小用减法；比较数的大小先看位数，位数相同先看十位、再看个位。";
+  $("m2-chars").innerHTML=""; $("m2-pool").innerHTML=""; $("m2-ranks").innerHTML="";
+  $("m2-stage2").classList.add("hidden");
+  if (r.kindT==="age"){
+    $("m2-headtext").textContent="先猜年龄，再按从大到小排上领奖台";
+    $("m2-char-title").textContent="小伙伴们的悄悄话";
+    $("m2-pool-title").classList.remove("hidden"); $("m2-pool").classList.remove("hidden");
+    r.tagged=0;
+    shuffle(r.chars).forEach(function(ch){
+      var c=document.createElement("div");
+      c.className="mchar"; c.dataset.role="char"; c.dataset.name=ch.name;
+      c.dataset.val=ch.age; c.dataset.age=ch.age;
+      c.dataset.calc=ch.calc||""; c.dataset.say=ch.say;
+      c.innerHTML='<div class="avatar">'+ch.av+'</div><div class="cname">'+ch.name+
+        '</div><div class="say">「'+ch.say+'」</div><div class="badge-slot"></div>';
+      $("m2-chars").appendChild(c);
+    });
+    var tagVals=r.chars.map(function(ch){ return ch.age; }).concat(r.extras);  // 正确年龄+干扰标签
+    shuffle(tagVals).forEach(function(v){
+      var t=document.createElement("div");
+      t.className="tag drag-card"; t.dataset.val=v; t.textContent=v+"岁";
+      $("m2-pool").appendChild(t);
+    });
+  } else {                                              // 纯排序关卡（练习17 型）
+    $("m2-headtext").textContent="把数按从大到小排上领奖台";
+    $("m2-char-title").textContent="数字卡片区（点领奖台上的卡片可收回）";
+    $("m2-pool-title").classList.add("hidden"); $("m2-pool").classList.add("hidden");
+    shuffle(r.nums).forEach(function(n){
+      var c=document.createElement("div");
+      c.className="num-card drag-card"; c.dataset.val=n; c.textContent=n;
+      $("m2-chars").appendChild(c);
+    });
+    enterStage2(r);                                     // 排序关卡直接进入排位阶段
+  }
+}
+function enterStage2(r){
+  G.phase=2;
+  $("m2-ranks").innerHTML="";
+  var count = r.kindT==="age" ? r.chars.length : r.nums.length;
+  for (var i=0;i<count;i++){
+    var s=document.createElement("div");
+    s.className="rank-slot"; s.dataset.role="rank"; s.dataset.i=i;
+    s.innerHTML='<div class="rk">第'+(i+1)+(i===0?"名·最大":(i===count-1?"名·最小":"名"))+'</div>';
+    $("m2-ranks").appendChild(s);
+  }
+  var chars=$("m2-chars").querySelectorAll(".mchar,.num-card");
+  Array.prototype.forEach.call(chars, function(c){ c.classList.add("drag-card"); });
+  $("m2-stage2").classList.remove("hidden");
+  if (r.kindT==="age") toast("年龄全部猜对啦！现在把小伙伴们从大到小拖上领奖台！",3400);
+}
+function dropM2(el,zone,role){
+  var r=G.rounds[G.idx];
+  if (G.phase===1){                                     // ---- 阶段一：贴年龄标签 ----
+    if (role!=="char" || !el.classList.contains("tag")) return false;
+    var v=+el.dataset.val;
+    var age=+zone.dataset.age, calc=zone.dataset.calc, name=zone.dataset.name;
+    if (v===age){
+      el.classList.remove("drag-card"); el.classList.add("stuck","locked");
+      zone.querySelector(".badge-slot").appendChild(el);
+      r.tagged++;
+      if (calc) toast("算对啦！"+calc,3400);
+      else toast("贴对啦！"+name+" 就是 "+age+" 岁。");
+      if (r.tagged>=r.chars.length) later(function(){ enterStage2(r); },700);
+      return true;
+    }
+    var owner=null;
+    r.chars.forEach(function(ch){ if (ch.age===v) owner=ch; });
+    if (calc) toast("再算一算："+calc,3600);
+    else if (owner) toast(v+" 岁好像是"+owner.name+"的年龄哦，别贴错啦。",3000);
+    else toast("这个年龄不属于任何小伙伴。想一想：比某人大用加法，比某人小用减法。",3600);
+    return false;
+  }
+  /* ---- 阶段二：排领奖台（角色卡或数字卡） ---- */
+  if (role==="rank"){
+    var occupant=zone.querySelector(".mchar,.num-card");
+    if (occupant===el) return false;
+    if (occupant){                                      // 拖到已有卡片的位置＝交换
+      var from=el.parentElement;
+      if (from.classList.contains("rank-slot")) from.appendChild(occupant);
+      else { $("m2-chars").appendChild(occupant); occupant.classList.remove("in-rank"); }
+    }
+    zone.appendChild(el);
+    el.classList.add("in-rank");
+    scheduleJudge2();
+    return true;
+  }
+  if (role==="bench" || role==="char" || role==="pool"){  // 收回到等候区
+    if (el.classList.contains("in-rank")){
+      $("m2-chars").appendChild(el); el.classList.remove("in-rank");
+      scheduleJudge2(); toast("先收回来，重新排。");
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+function scheduleJudge2(){
+  if (G.judging) clearTimeout(G.judging);
+  G.judging=setTimeout(function(){
+    G.judging=null;
+    if (G.mode!==2 || G.roundOver || G.phase!==2) return;
+    var slots=Array.prototype.slice.call(document.querySelectorAll("#m2-ranks .rank-slot"));
+    var placed=slots.every(function(s){ return !!s.querySelector(".mchar,.num-card"); });
+    if (placed) judge2();                               // 全部就位才判定
+  },420);
+}
+function judge2(){
+  var r=G.rounds[G.idx];
+  var slots=Array.prototype.slice.call(document.querySelectorAll("#m2-ranks .rank-slot"));
+  var items = r.kindT==="age"
+    ? r.chars.map(function(ch){ return { v:ch.age, label:ch.name+ch.age }; })
+    : r.nums.map(function(n){ return { v:n, label:""+n }; });
+  var expect=items.slice().sort(function(a,b){ return b.v-a.v; });
+  var allOk=true;
+  slots.forEach(function(s,i){
+    var c=s.querySelector(".mchar,.num-card");
+    if (!c || +c.dataset.val!==expect[i].v){
+      allOk=false;
+      s.classList.add("wrong");
+      setTimeout(function(){ s.classList.remove("wrong"); },1600);
+    }
+  });
+  if (allOk){
+    G.roundOver=true;
+    slots.forEach(function(s){
+      s.classList.add("ok");
+      var c=s.querySelector(".mchar,.num-card"); if (c) c.classList.add("locked");
+    });
+    FX.burst(60,false); flash("排列正确！");
+    toast("从大到小："+expect.map(function(x){ return x.label; }).join(" ＞ "),5200);
+    later(function(){ completeRound(false); },2200);
+  } else {
+    toast("有位置排错啦！从大到小：先比位数，位数相同先看十位、再看个位。点卡片可收回重排。",4400);
+  }
+}
+
+/* =====================================================================
+ * 规则弹窗（G6）/ 揭示答案（G4）/ 结算与全局按钮
+ * ===================================================================== */
+var RULES_TEXT={
+  0:'<div class="mtext"><b>初级 · 彩虹果园</b>（数字分类）</div><ul>'+
+    '<li>果园里有 10 个数字果子，先看清宝箱上的条件，比如「不大于 80」。</li>'+
+    '<li>把<b>所有符合条件</b>的果子拖进百宝箱；不符合的留在果园里，不用管它们。</li>'+
+    '<li>放错了果子会弹回来并告诉你原因；刚好等于条件的数也要收哦！</li>'+
+    '<li>知识锦囊：<b>不大于＝小于或等于</b>；<b>不小于＝大于或等于</b>。</li></ul>',
+  1:'<div class="mtext"><b>中级 · 卡片工坊</b>（按要求摆数）</div><ul>'+
+    '<li>把数字卡片拖进亮着的<b>数位格</b>（百位、十位、个位），拼出任务要求的数。</li>'+
+    '<li>点一下已放入的卡片可以收回重摆；灰色的数位格本关用不到。</li>'+
+    '<li>卡片 9 角上有「<b>转</b>」按钮——转一转，9 变成 6，会变得更小！</li>'+
+    '<li>知识锦囊：最大＝大数字放高位；最小＝小数字放高位；<b>0 不能站在最前面</b>。</li></ul>',
+  2:'<div class="mtext"><b>高级 · 智慧领奖台</b>（猜年龄 + 排顺序）</div><ul>'+
+    '<li>第一步：把<b>年龄标签</b>拖到对应的小伙伴身上。有的直接说了年龄，有的只给线索：</li>'+
+    '<li>线索小提示：「比某人大几岁」→ 用<b>加法</b>；「比某人小几岁」→ 用<b>减法</b>。</li>'+
+    '<li>第二步：把小伙伴按<b>从大到小</b>拖上领奖台，第1名放最大的；拖到已有卡片的位置可以交换。</li>'+
+    '<li>知识锦囊：比大小先看位数，位数相同先看十位、再看个位。</li></ul>'
+};
+function showRules(){
+  var key = (G.mode>=0 && RULES_TEXT[G.mode]) ? G.mode : "all";
+  if (key==="all"){
+    $("rules-title").textContent="游戏规则总览";
+    $("rules-body").innerHTML=RULES_TEXT[0]+RULES_TEXT[1]+RULES_TEXT[2]+
+      '<div class="mtext">回到首页选一个难度，开始你的寻宝之旅吧！</div>';
+  } else {
+    $("rules-title").textContent="关卡规则 · "+["初级","中级","高级"][key];
+    $("rules-body").innerHTML=RULES_TEXT[key];
+  }
+  $("modal-rules").classList.remove("hidden");
+}
+$("rules-go").addEventListener("click", function(){
+  $("modal-rules").classList.add("hidden");
+  if (!$("screen-game").classList.contains("hidden") && !G.started){
+    G.started=true;
+    renderRound();
+  }
+});
+$("btn-rules").addEventListener("click", function(){
+  if (!$("screen-start").classList.contains("hidden")) G.mode=-1;   // 首页状态看总览
+  showRules();
+});
+/* 揭示答案：展示当前关完整正确答案与思路，然后完成本关（计入揭示次数） */
+$("btn-reveal").addEventListener("click", function(){
+  if ($("screen-game").classList.contains("hidden")){ toast("请先选择难度开始游戏。"); return; }
+  if (G.roundOver){ toast("本关已经完成啦。"); return; }
+  var r=G.rounds[G.idx], html="";
+  if (G.mode===0){
+    var list=r.expected.join("、");
+    var bound = (r.nums.indexOf(r.v)>=0) ? " 别忘了 "+r.v+" 本身刚好等于 "+r.v+"，也要收！" : "";
+    html='<div class="answerbox">宝箱应收：'+list+'（共 '+r.expected.length+' 个）</div>'+
+      '<div class="mtext">「'+condText(r)+'」＝'+(r.kind==="le"?"小于或等于":"大于或等于")+" "+r.v+
+      "，把每个果子都和 "+r.v+" 比一比。"+bound+'</div>';
+  } else if (G.mode===1){
+    html='<div class="answerbox">应拼出的数：'+r.answer+'</div><div class="mtext">'+r.reveal+'</div>';
+  } else if (r.kindT==="age"){
+    var ages=r.chars.map(function(ch){
+      return ch.name+" "+ch.age+"岁"+(ch.calc?"（"+(ch.calc.indexOf("＋")>0?"加法":"减法")+"）":"");
+    }).join("、");
+    var order=r.chars.slice().sort(function(a,b){ return b.age-a.age; })
+      .map(function(ch){ return ch.name+ch.age; }).join(" ＞ ");
+    html='<div class="answerbox">年龄：'+ages+'</div><div class="answerbox">从大到小：'+order+'</div>';
+  } else {
+    var ds=r.nums.slice().sort(function(a,b){ return b-a; }).join(" ＞ ");
+    html='<div class="answerbox">从大到小：'+ds+'</div>'+
+      '<div class="mtext">先看位数（三位数＞两位数＞一位数），位数相同先比十位、再比个位。</div>';
+  }
+  $("reveal-body").innerHTML=html+
+    '<div class="mtext" style="color:#78909C;">看过答案也算完成本关。下一关试着自己完成，争取三星！</div>';
+  $("modal-reveal").classList.remove("hidden");
+});
+$("reveal-go").addEventListener("click", function(){
+  $("modal-reveal").classList.add("hidden");
+  if (!G.roundOver) completeRound(true);
+});
+$("btn-restart").addEventListener("click", function(){
+  if ($("screen-game").classList.contains("hidden")){ toast("请先选择难度开始游戏。"); return; }
+  var m=G.mode;
+  startGame(m,true);
+  toast("新的寻宝开始！题目已重新抽取，颜色也换新啦。");
+});
+$("btn-back").addEventListener("click", function(){
+  $("modal-final").classList.add("hidden");
+  $("modal-reveal").classList.add("hidden");
+  $("modal-rules").classList.add("hidden");
+  if (G.timer){ clearInterval(G.timer); G.timer=null; }
+  G.mode=-1; G.started=false;
+  $("screen-game").classList.add("hidden");
+  $("screen-start").classList.remove("hidden");
+  applyPalette();
+});
+$("final-again").addEventListener("click", function(){
+  $("modal-final").classList.add("hidden");
+  startGame(G.mode,true);
+});
+$("final-back").addEventListener("click", function(){
+  $("modal-final").classList.add("hidden");
+  $("btn-back").click();
+});
+var diffCards=document.querySelectorAll(".diffcard");
+Array.prototype.forEach.call(diffCards, function(card){
+  card.addEventListener("click", function(){ startGame(+card.dataset.mode,false); });
+});
+
+/* ---------------- 页面初始化：随机色板 + HUD ---------------- */
+applyPalette();
+setHud();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g016", "name": "\u6570\u5b57\u738b\u56fd\u5bfb\u5b9d\u8bb0 \u00b7 \u7b2c8\u8bb2 \u6570\u4e0e\u6570\u5b57\uff08\u4e0b\uff09", "file": "g016.html", "jiaocan": "\u301016\u3011\u7b2c8\u8bb2 \u6570\u4e0e\u6570\u5b57\uff08\u4e0b\uff09", "unit": "\u7b2c8\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>时光小工匠 · 钟表修理店</title>
+<style>
+/* ==================== 全局重置与基础样式 ==================== */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; min-height: 100vh;
+  font-family: "Microsoft YaHei", "PingFang SC", "Heiti SC", sans-serif;
+  color: #2c2c2c; overflow-x: hidden;
+  touch-action: manipulation;
+}
+body {
+  /* 主背景渐变，由JS按色板动态注入（每局随机，多次玩不腻） */
+  background: linear-gradient(135deg, #ffe0b2 0%, #ffcc80 100%);
+  transition: background 0.6s ease;
+  padding-bottom: 20px;
+}
+
+/* ==================== 顶部状态栏（计时器+步数，右上角实时显示） ==================== */
+header {
+  width: 100%; background: rgba(0,0,0,0.78); color: #fff;
+  padding: 12px 20px; display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 10px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 50;
+}
+header .title { font-size: 22px; font-weight: bold; letter-spacing: 2px; }
+header .title .icon { display: inline-block; margin-right: 6px; }
+header .stats { display: flex; gap: 18px; font-size: 18px; font-weight: bold; }
+header .stats span { background: rgba(255,255,255,0.15); padding: 6px 14px; border-radius: 20px; white-space: nowrap; }
+header .stats .num { color: #ffeb3b; }
+header .btn-rules {
+  background: #ffc107; color: #333; border: none; padding: 8px 16px;
+  border-radius: 20px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit;
+}
+header .btn-rules:hover { background: #ffb300; }
+
+/* ==================== 主菜单（三档难度选择） ==================== */
+#menu {
+  max-width: 900px; margin: 30px auto; padding: 20px;
+  text-align: center;
+}
+#menu h1 {
+  font-size: 42px; color: #d84315; margin-bottom: 8px;
+  text-shadow: 3px 3px 0 #fff, 5px 5px 0 rgba(0,0,0,0.15);
+  letter-spacing: 4px;
+}
+#menu .subtitle { font-size: 20px; color: #5d4037; margin-bottom: 30px; }
+.diff-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 22px; margin-top: 20px;
+}
+.diff-card {
+  background: #fff; border-radius: 22px; padding: 28px 18px; cursor: pointer;
+  box-shadow: 0 8px 0 rgba(0,0,0,0.12), 0 12px 24px rgba(0,0,0,0.15);
+  transition: transform 0.15s, box-shadow 0.15s; border: 4px solid #eee;
+  position: relative; overflow: hidden;
+}
+.diff-card:hover { transform: translateY(-4px); }
+.diff-card:active { transform: translateY(2px); box-shadow: 0 4px 0 rgba(0,0,0,0.12), 0 6px 12px rgba(0,0,0,0.15); }
+.diff-card .badge {
+  font-size: 56px; line-height: 1; margin-bottom: 10px; display: block;
+}
+.diff-card h2 { font-size: 26px; margin-bottom: 8px; }
+.diff-card p { font-size: 15px; color: #666; line-height: 1.6; }
+.diff-card .tag {
+  display: inline-block; margin-top: 10px; padding: 4px 12px; border-radius: 12px;
+  font-size: 13px; color: #fff;
+}
+
+/* ==================== 游戏主区域 ==================== */
+#game {
+  max-width: 900px; margin: 20px auto; padding: 0 15px;
+  display: none;
+}
+#game.active { display: block; }
+.task-bar {
+  background: #fff; border-radius: 16px; padding: 14px 20px; margin-bottom: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex;
+  align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.customer {
+  width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; color: #fff; font-weight: bold;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+}
+.task-text { flex: 1; min-width: 200px; font-size: 17px; line-height: 1.5; }
+.task-text .who { font-weight: bold; color: var(--mc); }
+.task-text .desc { color: #555; }
+.target-time {
+  background: var(--mc); color: #fff; padding: 10px 20px; border-radius: 14px;
+  font-size: 36px; font-weight: bold; letter-spacing: 2px;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.2); font-family: "Consolas", monospace;
+}
+.progress-bar {
+  width: 100%; height: 14px; background: #e0e0e0; border-radius: 7px;
+  overflow: hidden; margin-bottom: 16px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+.progress-bar .fill {
+  height: 100%; background: linear-gradient(90deg, var(--mc), var(--ac));
+  width: 0%; transition: width 0.4s ease; border-radius: 7px;
+}
+.progress-label { text-align: center; font-size: 15px; color: #666; margin-bottom: 10px; font-weight: bold; }
+
+/* ==================== 钟面区域 ==================== */
+.clock-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  background: #fff; border-radius: 24px; padding: 20px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+#clock {
+  width: 100%; max-width: 420px; height: auto; aspect-ratio: 1 / 1;
+  display: block; touch-action: none; cursor: grab;
+}
+#clock.dragging { cursor: grabbing; }
+.hand-handle { cursor: grab; }
+.hand-handle:active { cursor: grabbing; }
+.hint-text {
+  margin-top: 14px; font-size: 16px; color: #555; text-align: center;
+  min-height: 24px; padding: 6px 14px; background: #fff8e1;
+  border-radius: 12px; border-left: 5px solid var(--mc);
+  max-width: 420px;
+}
+.feedback { font-size: 18px; font-weight: bold; min-height: 28px; margin-top: 10px; text-align: center; }
+.feedback.ok { color: #2e7d32; }
+.feedback.no { color: #c62828; }
+
+/* ==================== 按钮组 ==================== */
+.btn-group {
+  display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+  margin-top: 18px;
+}
+.btn {
+  border: none; padding: 14px 24px; border-radius: 30px;
+  font-size: 17px; font-weight: bold; cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.2); transition: transform 0.1s, box-shadow 0.1s;
+  font-family: inherit;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.2); }
+.btn-check { background: var(--mc); color: #fff; font-size: 20px; padding: 16px 38px; }
+.btn-reveal { background: #fff; color: #555; border: 2px solid #ccc; }
+.btn-reset { background: #fff; color: #555; border: 2px solid #ccc; }
+.btn-back { background: #fff; color: #555; border: 2px solid #ccc; }
+
+/* ==================== 弹窗（规则说明，可随时再看） ==================== */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+}
+.modal-mask.show { display: flex; }
+.modal {
+  background: #fff; border-radius: 20px; padding: 30px;
+  max-width: 520px; width: 100%; max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.modal h2 { color: var(--mc); margin-bottom: 16px; font-size: 26px; text-align: center; }
+.modal p, .modal li { font-size: 16px; line-height: 1.8; color: #444; }
+.modal ul { padding-left: 24px; margin: 12px 0; }
+.modal li { margin-bottom: 6px; }
+.modal .ok-btn {
+  display: block; margin: 22px auto 0; background: var(--mc); color: #fff;
+  border: none; padding: 12px 36px; border-radius: 25px; font-size: 18px;
+  font-weight: bold; cursor: pointer; font-family: inherit;
+}
+
+/* ==================== 庆祝动画Canvas ==================== */
+#celebrate {
+  position: fixed; inset: 0; pointer-events: none; z-index: 200; display: none;
+}
+#celebrate.show { display: block; }
+
+/* ==================== 通关结算屏 ==================== */
+#victory {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  display: none; align-items: center; justify-content: center; z-index: 150; padding: 20px;
+}
+#victory.show { display: flex; }
+.victory-card {
+  background: linear-gradient(135deg, #fffde7, #fff); border-radius: 24px;
+  padding: 36px 30px; text-align: center; max-width: 420px; width: 100%;
+  box-shadow: 0 0 40px rgba(255,215,0,0.6);
+  animation: popIn 0.6s cubic-bezier(.18,.89,.32,1.28);
+}
+@keyframes popIn { 0%{transform:scale(0.5);opacity:0;} 100%{transform:scale(1);opacity:1;} }
+.victory-card .star { font-size: 64px; }
+.victory-card h2 { font-size: 32px; color: #f57f17; margin: 10px 0; }
+.victory-card p { font-size: 18px; color: #555; margin: 8px 0; }
+.victory-card .big-num { font-size: 28px; font-weight: bold; color: var(--mc); }
+.victory-card .btns { margin-top: 22px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 600px) {
+  header .title { font-size: 18px; }
+  header .stats { gap: 8px; font-size: 14px; }
+  header .stats span { padding: 4px 10px; }
+  #menu h1 { font-size: 30px; }
+  .diff-card { padding: 20px 12px; }
+  .target-time { font-size: 28px; padding: 8px 16px; }
+  .task-text { font-size: 15px; }
+  .btn { padding: 12px 18px; font-size: 15px; }
+  .btn-check { padding: 14px 28px; font-size: 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 顶部状态栏 ==================== -->
+<header>
+  <div class="title"><span class="icon">🔧</span>时光小工匠 · 钟表修理店</div>
+  <div class="stats">
+    <span>⏱ <span class="num" id="timer">00:00</span></span>
+    <span>🔧 <span class="num" id="steps">0</span> 次</span>
+  </div>
+  <button class="btn-rules" onclick="showRules()">📖 玩法</button>
+</header>
+
+<!-- ==================== 主菜单（初级/中级/高级三档难度） ==================== -->
+<section id="menu">
+  <h1>🔧 时光小工匠</h1>
+  <p class="subtitle">钟表修理店开张啦！拖动指针，帮小动物们修好钟表吧～</p>
+  <div class="diff-grid">
+    <div class="diff-card" style="border-color:#4caf50;" onclick="startGame('easy')">
+      <span class="badge">🌱</span>
+      <h2 style="color:#2e7d32;">初级 · 整时入门（简单）</h2>
+      <p>整时练习<br>分针已锁在12<br>只需拖动<b>时针</b>到正确数字</p>
+      <span class="tag" style="background:#4caf50;">例如 3:00</span>
+    </div>
+    <div class="diff-card" style="border-color:#2196f3;" onclick="startGame('mid')">
+      <span class="badge">⭐</span>
+      <h2 style="color:#1565c0;">中级 · 整时半时（进阶）</h2>
+      <p>整时与半时<br>拖动<b>时针和分针</b><br>分针指向12或6</p>
+      <span class="tag" style="background:#2196f3;">例如 4:30</span>
+    </div>
+    <div class="diff-card" style="border-color:#ff5722;" onclick="startGame('hard')">
+      <span class="badge">🏆</span>
+      <h2 style="color:#bf360c;">高级 · 几时几分（挑战）</h2>
+      <p>几时几分<br>精确拖动两根针<br>分针对准小格</p>
+      <span class="tag" style="background:#ff5722;">例如 7:25</span>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 游戏主区 ==================== -->
+<section id="game">
+  <div class="task-bar">
+    <div class="customer" id="customer">🐱</div>
+    <div class="task-text">
+      <div class="who" id="custName">小猫咪</div>
+      <div class="desc" id="taskDesc">的钟表坏啦，请把指针拨到正确时间～</div>
+    </div>
+    <div class="target-time" id="targetTime">3:00</div>
+  </div>
+  <div class="progress-label" id="progLabel">第 1 / 6 块</div>
+  <div class="progress-bar"><div class="fill" id="progFill"></div></div>
+
+  <div class="clock-wrap">
+    <!-- SVG钟面，由JS动态构建保证数字/刻度精确 -->
+    <svg id="clock" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="hint-text" id="hint">拖动粗短的【时针】（橙色手柄）到正确数字</div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-check" onclick="checkAnswer()">✓ 检查修理</button>
+    <button class="btn btn-reveal" onclick="revealAnswer()">💡 揭示答案</button>
+    <button class="btn btn-reset" onclick="resetLevel()">🔄 重新开始</button>
+    <button class="btn btn-back" onclick="backToMenu()">🏠 返回选关</button>
+  </div>
+</section>
+
+<!-- ==================== 规则说明弹窗 ==================== -->
+<div class="modal-mask" id="rulesModal">
+  <div class="modal">
+    <h2>📖 游戏玩法</h2>
+    <p>欢迎来到<b>钟表修理店</b>！小动物们的钟表坏了，需要你这位小工匠帮忙修理。</p>
+    <ul>
+      <li><b>任务</b>：每关会显示一个目标时间（如 3:30），你要把钟面上的<b>时针</b>和<b>分针</b>拖到正确位置。</li>
+      <li><b>时针</b>：粗短的那根（橙色手柄球）。</li>
+      <li><b>分针</b>：细长的那根（主色手柄球）。</li>
+      <li><b>操作</b>：用鼠标或手指按住指针末端的圆球，转动到目标角度。</li>
+      <li><b>检查</b>：拨好后点【检查修理】，正确则进入下一关。</li>
+      <li><b>整时</b>：分针指向12，时针指向几就是几时。</li>
+      <li><b>半时</b>：分针指向6，时针走到两数中间。</li>
+      <li><b>几时几分</b>：时针过几是几时，分针数小格是几分。</li>
+    </ul>
+    <button class="ok-btn" onclick="hideRules()">明白啦，开始！</button>
+  </div>
+</div>
+
+<!-- ==================== 通关结算屏 ==================== -->
+<div id="victory">
+  <div class="victory-card">
+    <div class="star">🎉🏆🎉</div>
+    <h2 id="vTitle">全部修好啦！</h2>
+    <p>你是真正的<b>时光大师</b>！</p>
+    <p>用时 <span class="big-num" id="vTime">00:00</span></p>
+    <p>共检查 <span class="big-num" id="vSteps">0</span> 次</p>
+    <div class="btns">
+      <button class="btn btn-check" onclick="restartSame()">🔁 再来一局</button>
+      <button class="btn btn-back" onclick="backToMenu()">🏠 换个难度</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 庆祝动画Canvas ==================== -->
+<canvas id="celebrate"></canvas>
+
+<script>
+/* ============================================================
+   时光小工匠 · 钟表修理店  —— 主程序
+   核心玩法：拖动时针/分针到正确位置，匹配目标时间（真操作交互）
+   题库数值全部提炼自教参答案区，每局随机抽样
+   ============================================================ */
+
+/* ---------- 一、色板（每局随机选一套主色） ---------- */
+const PALETTES = [
+  { mc: '#ff6f00', ac: '#ffc107', bg1: '#ffe0b2', bg2: '#ffcc80' }, // 暖橙
+  { mc: '#1565c0', ac: '#00bcd4', bg1: '#b3e5fc', bg2: '#81d4fa' }, // 海蓝
+  { mc: '#2e7d32', ac: '#cddc39', bg1: '#dcedc8', bg2: '#c5e1a5' }, // 森绿
+  { mc: '#7b1fa2', ac: '#e91e63', bg1: '#f8bbd0', bg2: '#f48fb1' }, // 紫粉
+  { mc: '#bf360c', ac: '#ff5722', bg1: '#ffccbc', bg2: '#ffab91' }, // 日落
+  { mc: '#00695c', ac: '#ffa000', bg1: '#b2dfdb', bg2: '#80cbc4' }, // 薄荷金
+];
+function applyPalette() {
+  const p = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  const root = document.documentElement;
+  root.style.setProperty('--mc', p.mc);
+  root.style.setProperty('--ac', p.ac);
+  document.body.style.background = `linear-gradient(135deg, ${p.bg1} 0%, ${p.bg2} 100%)`;
+  return p;
+}
+
+/* ---------- 二、题库（提炼自教参答案区 + 同型变式，随机抽样） ---------- */
+// 整时：分针指向12（教参 例1/练习1/练习8 等）
+const BANK_EASY = ['1:00','2:00','3:00','4:00','5:00','6:00','7:00','8:00','9:00','10:00','11:00','12:00'];
+// 整时+半时：分针指向12或6（教参 练习2/练习4/练习12 等）
+const BANK_MID = ['1:30','2:30','3:30','4:30','5:30','6:30','7:30','8:30','9:30','10:30','11:30','12:30',
+                  '2:00','5:00','7:00','10:00','12:00','3:00'];
+// 几时几分（教参 例3/练习3~练习17 答案 + 同型变式补充）
+const BANK_HARD = ['8:15','10:20','12:25','1:05','9:14','10:26','2:35','6:05','3:25','1:55',
+                   '5:58','2:19','7:36','10:02','11:35','3:55','4:15','6:23','8:46','9:25',
+                   '11:39','4:17','3:06','1:50','9:09','6:32','12:43','5:07','7:22','8:48'];
+
+/* ---------- 三、小动物顾客（呼应教参例1"小动物身上的钟表"） ---------- */
+const CUSTOMERS = [
+  {name:'小猫咪', emoji:'🐱'}, {name:'小狗狗', emoji:'🐶'}, {name:'小松鼠', emoji:'🐿️'},
+  {name:'小兔子', emoji:'🐰'}, {name:'小熊熊', emoji:'🐻'}, {name:'小象象', emoji:'🐘'},
+  {name:'小鹿鹿', emoji:'🦌'}, {name:'小狐狸', emoji:'🦊'}, {name:'小企鹅', emoji:'🐧'},
+  {name:'小熊猫', emoji:'🐼'}, {name:'小老虎', emoji:'🐯'}, {name:'小斑马', emoji:'🦓'},
+  {name:'小青蛙', emoji:'🐸'}, {name:'小鸭子', emoji:'🦆'},
+];
+function pickCustomers(n) {
+  const arr = [...CUSTOMERS];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, n);
+}
+
+/* ---------- 四、工具函数 ---------- */
+// 数组洗牌
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+// 从题库随机抽n个（不重复，保证每局题目不同）
+function sample(bank, n) {
+  return shuffle(bank).slice(0, n);
+}
+// 时间字符串"3:05" -> {h:3, m:5}
+function parseTime(s) {
+  const [h, m] = s.split(':').map(Number);
+  return { h, m };
+}
+// 角度差（考虑360度环绕，返回0~180）
+function angleDiff(a, b) {
+  let d = Math.abs(a - b) % 360;
+  if (d > 180) d = 360 - d;
+  return d;
+}
+
+/* ---------- 五、钟面构建（SVG 现场绘制，数字/刻度精确） ---------- */
+const CX = 200, CY = 200;       // 钟面中心
+const R_OUT = 185;               // 外圆半径
+const R_NUM = 152;               // 数字距圆心距离
+const CLOCK_SVG = document.getElementById('clock');
+
+function buildClockFace() {
+  let svg = '';
+  // 外圆（钟面背景）
+  svg += `<circle cx="${CX}" cy="${CY}" r="${R_OUT}" fill="#fffbe6" stroke="#5d4037" stroke-width="6"/>`;
+  svg += `<circle cx="${CX}" cy="${CY}" r="${R_OUT-10}" fill="none" stroke="#d7ccc8" stroke-width="2"/>`;
+
+  // 60个小刻度，每6度一个；每5个为大刻度
+  for (let i = 0; i < 60; i++) {
+    const ang = (i * 6 - 90) * Math.PI / 180; // -90使0度=12点方向
+    const isMajor = (i % 5 === 0);
+    const r1 = R_OUT - 14;
+    const r2 = R_OUT - (isMajor ? 28 : 20);
+    const x1 = CX + r1 * Math.cos(ang), y1 = CY + r1 * Math.sin(ang);
+    const x2 = CX + r2 * Math.cos(ang), y2 = CY + r2 * Math.sin(ang);
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+              stroke="${isMajor ? '#3e2723' : '#a1887f'}"
+              stroke-width="${isMajor ? 4 : 2}" stroke-linecap="round"/>`;
+  }
+
+  // 12个数字（30px 大字，投影清晰）
+  for (let n = 1; n <= 12; n++) {
+    const ang = (n * 30 - 90) * Math.PI / 180;
+    const x = CX + R_NUM * Math.cos(ang);
+    const y = CY + R_NUM * Math.sin(ang);
+    svg += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central"
+              font-size="30" font-weight="bold" fill="#3e2723"
+              font-family="Microsoft YaHei, sans-serif">${n}</text>`;
+  }
+
+  // 中心装饰
+  svg += `<circle cx="${CX}" cy="${CY}" r="14" fill="#5d4037"/>`;
+  svg += `<circle cx="${CX}" cy="${CY}" r="7" fill="#ffd54f"/>`;
+
+  // 分针（细长，主色手柄球）与时针（粗短，橙色手柄球）
+  // 时针后绘制（画在分针之上），更容易点中
+  // 分针
+  svg += `<g id="minuteHand" class="hand" style="transform-origin:${CX}px ${CY}px;transform:rotate(0deg);">`;
+  svg += `<line x1="${CX}" y1="${CY}" x2="${CX}" y2="${CY-125}" stroke="var(--mc)" stroke-width="7" stroke-linecap="round"/>`;
+  svg += `<circle cx="${CX}" cy="${CY-125}" r="15" fill="var(--mc)" stroke="#fff" stroke-width="3" class="hand-handle" data-hand="minute"/>`;
+  svg += `</g>`;
+
+  // 时针
+  svg += `<g id="hourHand" class="hand" style="transform-origin:${CX}px ${CY}px;transform:rotate(0deg);">`;
+  svg += `<line x1="${CX}" y1="${CY}" x2="${CX}" y2="${CY-82}" stroke="#5d4037" stroke-width="12" stroke-linecap="round"/>`;
+  svg += `<circle cx="${CX}" cy="${CY-82}" r="17" fill="#ff7043" stroke="#fff" stroke-width="3" class="hand-handle" data-hand="hour"/>`;
+  svg += `</g>`;
+
+  CLOCK_SVG.innerHTML = svg;
+}
+
+/* ---------- 六、指针拖拽逻辑（Pointer Events，鼠标触摸通用） ---------- */
+let dragging = null;   // 当前拖拽的指针类型: 'hour' | 'minute' | null
+let hourAngle = 0;     // 时针当前角度（0~360，0=12点方向）
+let minuteAngle = 0;   // 分针当前角度
+
+// 鼠标/触摸点 -> 相对钟心的角度（0=12点，顺时针递增）
+function pointToAngle(clientX, clientY) {
+  const rect = CLOCK_SVG.getBoundingClientRect();
+  // 转换到SVG坐标（viewBox 0 0 400 400）
+  const x = (clientX - rect.left) / rect.width * 400;
+  const y = (clientY - rect.top) / rect.height * 400;
+  const dx = x - CX, dy = y - CY;
+  // atan2(dx, -dy): 以12点方向为0度，顺时针为正
+  let deg = Math.atan2(dx, -dy) * 180 / Math.PI;
+  if (deg < 0) deg += 360;
+  return deg;
+}
+
+function setHourAngle(deg) {
+  hourAngle = ((deg % 360) + 360) % 360;
+  document.getElementById('hourHand').style.transform = `rotate(${hourAngle}deg)`;
+}
+function setMinuteAngle(deg) {
+  minuteAngle = ((deg % 360) + 360) % 360;
+  document.getElementById('minuteHand').style.transform = `rotate(${minuteAngle}deg)`;
+}
+function setHandAngle(hand, deg) {
+  if (hand === 'hour') setHourAngle(deg);
+  else setMinuteAngle(deg);
+}
+
+function onPointerDown(e) {
+  const handle = e.target.classList && e.target.classList.contains('hand-handle') ? e.target : null;
+  if (!handle) return; // 未点中手柄则忽略
+  const hand = handle.getAttribute('data-hand');
+  if (hand === 'minute' && STATE.difficulty === 'easy') {
+    // 初级分针锁定在12，只考时针
+    flashHint('初级中，分针已锁在12，只需拖动【时针】哦～');
+    return;
+  }
+  dragging = hand;
+  CLOCK_SVG.classList.add('dragging');
+  // 拖拽时去掉transition保证跟手
+  document.getElementById(hand + 'Hand').style.transition = 'none';
+  e.preventDefault();
+}
+function onPointerMove(e) {
+  if (!dragging) return;
+  const deg = pointToAngle(e.clientX, e.clientY);
+  setHandAngle(dragging, deg);
+  e.preventDefault();
+}
+function onPointerUp() {
+  if (!dragging) return;
+  document.getElementById(dragging + 'Hand').style.transition = '';
+  dragging = null;
+  CLOCK_SVG.classList.remove('dragging');
+}
+CLOCK_SVG.addEventListener('pointerdown', onPointerDown);
+window.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointerup', onPointerUp);
+window.addEventListener('pointercancel', onPointerUp);
+
+/* ---------- 七、游戏状态 ---------- */
+const STATE = {
+  difficulty: null,
+  levels: [],          // 本局题目数组 [{target:{h,m}, customer:{...}}, ...]
+  idx: 0,              // 当前关卡索引
+  steps: 0,            // 检查次数
+  startTime: 0,        // 开始时间
+  timerId: null,
+  usedReveal: false,   // 本关是否用过揭示
+};
+
+/* ---------- 八、游戏流程 ---------- */
+function startGame(diff) {
+  applyPalette();
+  STATE.difficulty = diff;
+  // 每关 6 块钟表
+  const N = 6;
+  const bank = diff === 'easy' ? BANK_EASY : diff === 'mid' ? BANK_MID : BANK_HARD;
+  const times = sample(bank, N); // 随机抽样，每局不同
+  const customers = pickCustomers(N);
+  STATE.levels = times.map((t, i) => ({ target: parseTime(t), customer: customers[i] }));
+  STATE.idx = 0;
+  STATE.steps = 0;
+  STATE.startTime = Date.now();
+  if (STATE.timerId) clearInterval(STATE.timerId);
+  STATE.timerId = setInterval(updateTimer, 1000);
+  updateTimer();
+  document.getElementById('steps').textContent = '0';
+
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('game').classList.add('active');
+  buildClockFace();
+  loadLevel();
+}
+
+function loadLevel() {
+  const lv = STATE.levels[STATE.idx];
+  STATE.usedReveal = false;
+  // 重置指针到12:00
+  setHourAngle(0);
+  setMinuteAngle(0);
+  // 显示顾客与目标
+  const c = lv.customer;
+  document.getElementById('customer').textContent = c.emoji;
+  document.getElementById('customer').style.background = 'var(--mc)';
+  document.getElementById('custName').textContent = c.name;
+  const t = lv.target;
+  const tStr = `${t.h}:${String(t.m).padStart(2,'0')}`;
+  document.getElementById('targetTime').textContent = tStr;
+  document.getElementById('taskDesc').textContent =
+    STATE.difficulty === 'easy' ? '的钟表坏啦，请把【时针】拨到正确数字～' :
+    STATE.difficulty === 'mid'  ? '的钟表坏啦，请拨好【时针】和【分针】～' :
+                                  '的钟表坏啦，请精确拨好两根针到每一小格～';
+  // 进度
+  const prog = (STATE.idx) / STATE.levels.length * 100;
+  document.getElementById('progFill').style.width = prog + '%';
+  document.getElementById('progLabel').textContent = `第 ${STATE.idx + 1} / ${STATE.levels.length} 块`;
+  // 提示
+  updateHint();
+  // 清除反馈
+  const fb = document.getElementById('feedback');
+  fb.textContent = '';
+  fb.className = 'feedback';
+}
+
+function updateHint() {
+  const t = STATE.levels[STATE.idx].target;
+  let h = '';
+  if (STATE.difficulty === 'easy') {
+    h = `👉 这是<b>整时</b>：分针已锁在12，只需把<b>时针</b>（橙色球）拖到数字 <b>${t.h}</b>`;
+  } else if (STATE.difficulty === 'mid') {
+    if (t.m === 0) {
+      h = `👉 <b>整时</b>：分针指向12，时针指向数字 <b>${t.h}</b>`;
+    } else {
+      // 半时：分针指6，时针走到 h 和 h+1 中间（12点的下一格是1）
+      h = `👉 <b>半时</b>：分针指向6（30分），时针走到 <b>${t.h}</b> 和 <b>${(t.h%12)+1}</b> 中间`;
+    }
+  } else {
+    h = `👉 时针过 <b>${t.h}</b>，分针走 <b>${t.m}</b> 小格（每数字间是5小格）`;
+  }
+  document.getElementById('hint').innerHTML = h;
+}
+
+function flashHint(msg) {
+  const el = document.getElementById('hint');
+  const old = el.innerHTML;
+  el.innerHTML = '⚠️ ' + msg;
+  el.style.background = '#ffebee';
+  el.style.borderLeftColor = '#c62828';
+  setTimeout(() => {
+    el.innerHTML = old;
+    el.style.background = '';
+    el.style.borderLeftColor = '';
+  }, 1800);
+}
+
+/* ---------- 九、答案判定（时针角=(h%12)*30+m*0.5，分针角=m*6） ---------- */
+function checkAnswer() {
+  if (STATE.idx >= STATE.levels.length) return;
+  STATE.steps++;
+  document.getElementById('steps').textContent = STATE.steps;
+
+  const target = STATE.levels[STATE.idx].target;
+  const tMinA = target.m * 6;                            // 分针目标角度
+  const tHourA = (target.h % 12) * 30 + target.m * 0.5;  // 时针目标角度（含分钟偏移）
+
+  // 容差：分针±7度（约1分钟），时针按难度放宽
+  const TOL_MIN = 7;
+  const TOL_HOUR = STATE.difficulty === 'hard' ? 9 : 13;
+
+  const dMin = angleDiff(minuteAngle, tMinA);
+  const dHour = angleDiff(hourAngle, tHourA);
+
+  const okMin = dMin < TOL_MIN;
+  const okHour = dHour < TOL_HOUR;
+
+  // 初级只考时针（分针已锁定12）
+  const pass = STATE.difficulty === 'easy' ? okHour : (okMin && okHour);
+
+  const fb = document.getElementById('feedback');
+  if (pass) {
+    fb.textContent = '🎉 太棒了！修好啦！';
+    fb.className = 'feedback ok';
+    // 短暂停留后进入下一关
+    setTimeout(() => {
+      STATE.idx++;
+      if (STATE.idx >= STATE.levels.length) {
+        gameVictory();
+      } else {
+        loadLevel();
+      }
+    }, 900);
+  } else {
+    // 给出具体提示，不直接给答案
+    const why = [];
+    if (!okHour) why.push('时针位置不对');
+    if (!okMin && STATE.difficulty !== 'easy') why.push('分针位置不对');
+    fb.textContent = '❌ 还差一点：' + why.join('，') + '，再试试～';
+    fb.className = 'feedback no';
+    // 抖动效果
+    const cw = document.querySelector('.clock-wrap');
+    cw.style.animation = 'none';
+    void cw.offsetWidth;
+    cw.style.animation = 'shake 0.4s';
+  }
+}
+
+/* 抖动动画 keyframes 动态注入 */
+const shakeStyle = document.createElement('style');
+shakeStyle.textContent = `@keyframes shake {0%,100%{transform:translateX(0);}25%{transform:translateX(-8px);}75%{transform:translateX(8px);}}`;
+document.head.appendChild(shakeStyle);
+
+/* ---------- 十、揭示答案 / 重置 / 返回 ---------- */
+function revealAnswer() {
+  const target = STATE.levels[STATE.idx].target;
+  const tMinA = target.m * 6;
+  const tHourA = (target.h % 12) * 30 + target.m * 0.5;
+  // 加transition让指针平滑转到正确位置
+  document.getElementById('hourHand').style.transition = 'transform 0.6s ease';
+  document.getElementById('minuteHand').style.transition = 'transform 0.6s ease';
+  setHourAngle(tHourA);
+  setMinuteAngle(tMinA);
+  STATE.usedReveal = true;
+  flashHint('已揭示答案。点【检查修理】确认，或【重新开始】再自己试一次～');
+}
+
+function resetLevel() {
+  setHourAngle(0);
+  setMinuteAngle(0);
+  STATE.usedReveal = false;
+  const fb = document.getElementById('feedback');
+  fb.textContent = '';
+  fb.className = 'feedback';
+  updateHint();
+}
+
+function backToMenu() {
+  if (STATE.timerId) clearInterval(STATE.timerId);
+  STATE.timerId = null;
+  document.getElementById('game').classList.remove('active');
+  document.getElementById('menu').style.display = 'block';
+  document.getElementById('victory').classList.remove('show');
+  stopCelebrate();
+}
+
+function restartSame() {
+  document.getElementById('victory').classList.remove('show');
+  stopCelebrate();
+  startGame(STATE.difficulty);
+}
+
+/* ---------- 十一、计时器 ---------- */
+function updateTimer() {
+  const sec = Math.floor((Date.now() - STATE.startTime) / 1000);
+  const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+  const ss = String(sec % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${mm}:${ss}`;
+}
+
+/* ---------- 十二、通关庆祝 ---------- */
+function gameVictory() {
+  if (STATE.timerId) clearInterval(STATE.timerId);
+  STATE.timerId = null;
+  document.getElementById('vTime').textContent = document.getElementById('timer').textContent;
+  document.getElementById('vSteps').textContent = STATE.steps;
+  document.getElementById('vTitle').textContent =
+    STATE.difficulty === 'easy' ? '初级毕业啦！' :
+    STATE.difficulty === 'mid'  ? '中级认证！' : '高级·时光大师！';
+  document.getElementById('victory').classList.add('show');
+  startCelebrate();
+}
+
+/* ---------- 十三、彩纸庆祝动画（Canvas，零依赖） ---------- */
+const cvs = document.getElementById('celebrate');
+const ctx = cvs.getContext('2d');
+let confetti = [];
+let confettiId = null;
+function resizeCanvas() {
+  cvs.width = window.innerWidth;
+  cvs.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function startCelebrate() {
+  cvs.classList.add('show');
+  resizeCanvas();
+  confetti = [];
+  const colors = ['#ff6f00','#1565c0','#2e7d32','#7b1fa2','#bf360c','#00695c','#ffc107','#e91e63','#cddc39'];
+  // 生成150片彩纸
+  for (let i = 0; i < 150; i++) {
+    confetti.push({
+      x: Math.random() * cvs.width,
+      y: -Math.random() * cvs.height,
+      w: 8 + Math.random() * 8,
+      h: 6 + Math.random() * 10,
+      c: colors[Math.floor(Math.random() * colors.length)],
+      vy: 2 + Math.random() * 4,
+      vx: -2 + Math.random() * 4,
+      rot: Math.random() * 360,
+      vr: -6 + Math.random() * 12,
+    });
+  }
+  if (confettiId) cancelAnimationFrame(confettiId);
+  animateConfetti();
+}
+function stopCelebrate() {
+  cvs.classList.remove('show');
+  if (confettiId) cancelAnimationFrame(confettiId);
+  confettiId = null;
+  ctx.clearRect(0, 0, cvs.width, cvs.height);
+}
+function animateConfetti() {
+  ctx.clearRect(0, 0, cvs.width, cvs.height);
+  confetti.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.rot += p.vr;
+    if (p.y > cvs.height + 20) {
+      p.y = -20;
+      p.x = Math.random() * cvs.width;
+    }
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot * Math.PI / 180);
+    ctx.fillStyle = p.c;
+    ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+    ctx.restore();
+  });
+  confettiId = requestAnimationFrame(animateConfetti);
+}
+
+/* ---------- 十四、规则弹窗 ---------- */
+function showRules() { document.getElementById('rulesModal').classList.add('show'); }
+function hideRules() { document.getElementById('rulesModal').classList.remove('show'); }
+// 点击遮罩关闭
+document.getElementById('rulesModal').addEventListener('click', function(e){
+  if (e.target === this) hideRules();
+});
+
+/* ---------- 十五、初始化 ---------- */
+applyPalette();
+buildClockFace();
+// 首次进入弹出玩法说明
+window.addEventListener('load', () => {
+  setTimeout(showRules, 300);
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g009", "name": "\u65f6\u5149\u5c0f\u5de5\u5320 \u00b7 \u949f\u8868\u4fee\u7406\u5e97", "file": "g009.html", "jiaocan": "\u30109\u3011\u7b2c5\u8bb2 \u65f6\u95f4\u7684\u8ba4\u77e5\uff08\u4e0a\uff09", "unit": "\u7b2c5\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

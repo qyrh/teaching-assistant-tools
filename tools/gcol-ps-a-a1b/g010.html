@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>巧移小能手 · 第5讲 巧移物体（下）</title>
+<style>
+/* ============ 全局样式 ============ */
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+:root{
+  --main:#1aa3a3;        /* 主色（每局随机覆盖） */
+  --main-dark:#0d7a7a;
+  --main-light:#d4f5f5;
+  --bg:#fffdf7;          /* 暖色纸面背景 */
+  --ink:#222;            /* 主文字色 */
+  --soft:#666;
+  --ok:#2e9e4a;
+  --ok-bg:#e6f7ec;
+  --err:#e25555;
+  --err-bg:#fdeaea;
+  --gold:#f5a623;
+}
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.5;
+  overflow-x:hidden;
+  user-select:none;
+  -webkit-user-select:none;
+}
+/* 背景纸纹 */
+body::before{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255,235,180,.5), transparent 40%),
+    radial-gradient(circle at 80% 90%, rgba(180,235,255,.45), transparent 45%);
+}
+
+/* ============ 顶部状态栏 ============ */
+#topbar{
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 16px; background:var(--main); color:#fff;
+  box-shadow:0 2px 10px rgba(0,0,0,.12);
+}
+#topbar .title{ font-size:18px; font-weight:700; letter-spacing:1px; }
+#topbar .stats{ display:flex; gap:14px; align-items:center; font-size:15px; font-weight:600; }
+.stat-pill{
+  background:rgba(255,255,255,.22); padding:5px 12px; border-radius:20px;
+  white-space:nowrap;
+}
+#btnHelp{
+  background:rgba(255,255,255,.25); border:none; color:#fff;
+  width:38px; height:38px; border-radius:50%; font-size:22px; font-weight:700;
+  cursor:pointer; flex:0 0 auto;
+}
+#btnHelp:active{ transform:scale(.92); }
+
+/* ============ 难度选择页 ============ */
+.page{ display:none; padding:20px 16px 60px; }
+.page.active{ display:block; }
+#difficultyPage{ min-height:calc(100vh - 60px); display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding-top:30px; }
+#difficultyPage.active{ display:flex; }
+.brand{
+  text-align:center; margin-bottom:6px;
+}
+.brand h1{
+  font-size:34px; color:var(--main-dark); letter-spacing:2px;
+  text-shadow:2px 2px 0 #fff, 4px 4px 0 var(--main-light);
+}
+.brand p{ color:var(--soft); font-size:15px; margin-top:6px; }
+.diff-grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:18px; width:100%; max-width:760px; margin-top:10px;
+}
+.diff-card{
+  background:#fff; border:4px solid var(--main); border-radius:20px;
+  padding:24px 18px; cursor:pointer; text-align:center;
+  box-shadow:0 6px 0 var(--main-dark), 0 10px 20px rgba(0,0,0,.08);
+  transition:transform .12s, box-shadow .12s;
+}
+.diff-card:active{ transform:translateY(4px); box-shadow:0 2px 0 var(--main-dark),0 4px 10px rgba(0,0,0,.1); }
+.diff-card .badge{ font-size:42px; line-height:1; }
+.diff-card h3{ font-size:22px; color:var(--main-dark); margin:10px 0 6px; }
+.diff-card p{ color:var(--soft); font-size:14px; }
+.diff-card .stars{ color:var(--gold); font-size:18px; margin-top:8px; letter-spacing:3px; }
+
+/* ============ 游戏页通用 ============ */
+.gameHead{ text-align:center; margin:8px 0 4px; }
+.gameHead .levelTag{
+  display:inline-block; background:var(--main-light); color:var(--main-dark);
+  padding:4px 14px; border-radius:14px; font-size:13px; font-weight:700;
+}
+.gameHead h2{ font-size:20px; margin-top:8px; color:var(--ink); }
+.clue{
+  background:#fff; border:2px dashed var(--main); border-radius:14px;
+  padding:12px 16px; margin:12px auto; max-width:760px; font-size:17px;
+  text-align:center; font-weight:600; color:var(--main-dark);
+  box-shadow:0 4px 0 rgba(0,0,0,.04);
+}
+.clue .hl{ background:var(--gold); color:#fff; padding:1px 8px; border-radius:8px; }
+
+/* 场区：行 */
+.area{ max-width:780px; margin:0 auto; }
+.row{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:#fff; border:3px solid var(--main); border-radius:18px;
+  padding:14px; margin:12px 0; min-height:74px;
+  box-shadow:0 4px 0 var(--main-dark);
+}
+.rowLabel{
+  flex:0 0 92px; font-weight:700; color:var(--main-dark); font-size:16px;
+  text-align:center; line-height:1.2;
+}
+.rowLabel .who{ font-size:14px; color:var(--soft); display:block; }
+.rowSlots{
+  flex:1; display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  min-height:46px; padding:4px; border-radius:10px;
+  background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(0,0,0,.03) 8px,rgba(0,0,0,.03) 16px);
+}
+.row.dropHover{ background:var(--main-light); border-color:var(--gold); }
+.rowCount{
+  flex:0 0 auto; font-size:18px; font-weight:800; color:#fff;
+  background:var(--main); border-radius:12px; padding:6px 12px; min-width:48px; text-align:center;
+}
+.rowCount.target{ background:var(--gold); }
+
+/* 物品（可拖动） */
+.item{
+  width:40px; height:40px; border-radius:50%;
+  background:var(--main); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; font-weight:700;
+  touch-action:none; cursor:grab;
+  box-shadow:0 3px 0 var(--main-dark), inset 0 2px 4px rgba(255,255,255,.4);
+  transition:transform .08s;
+}
+.item:active{ cursor:grabbing; }
+.item.dragging{ opacity:.35; }
+.item.clone{
+  position:fixed; z-index:9999; pointer-events:none; opacity:.9; transform:scale(1.15);
+  box-shadow:0 8px 20px rgba(0,0,0,.3);
+}
+/* 空位（中级填数用） */
+.slot{
+  width:40px; height:40px; border-radius:50%;
+  border:3px dashed var(--soft); opacity:.5;
+}
+/* 占位问号 */
+.qMark{
+  width:40px; height:40px; border-radius:50%;
+  background:#fff; border:3px solid var(--gold); color:var(--gold);
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; font-weight:800;
+}
+
+/* 供应盘（中级给球填入未知行） */
+.tray{
+  max-width:780px; margin:14px auto; background:#fffaf0;
+  border:2px solid var(--gold); border-radius:14px; padding:10px;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.tray .tlabel{ font-weight:700; color:#a07000; font-size:15px; margin-right:6px; }
+.trayItems{ display:flex; flex-wrap:wrap; gap:8px; }
+.tray .item{ background:var(--gold); box-shadow:0 3px 0 #c8860e; }
+.tray .item.empty{ visibility:hidden; }
+
+/* ============ 按钮组 ============ */
+.controls{
+  max-width:780px; margin:18px auto 10px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+}
+.btn{
+  border:none; border-radius:14px; padding:12px 20px; font-size:16px; font-weight:700;
+  cursor:pointer; color:#fff; transition:transform .1s; font-family:inherit;
+  box-shadow:0 4px 0 rgba(0,0,0,.18);
+}
+.btn:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.18); }
+.btn.primary{ background:var(--main); box-shadow:0 4px 0 var(--main-dark); }
+.btn.check{ background:var(--ok); box-shadow:0 4px 0 #1f7a37; }
+.btn.reveal{ background:var(--gold); box-shadow:0 4px 0 #c8860e; }
+.btn.neutral{ background:#888; box-shadow:0 4px 0 #555; }
+.btn.big{ font-size:18px; padding:14px 30px; }
+
+/* 关卡进度 */
+.progress{
+  text-align:center; font-size:15px; color:var(--soft); margin:6px 0 2px; font-weight:600;
+}
+.progress .now{ color:var(--main-dark); font-size:18px; }
+
+/* 反馈条 */
+.feedback{
+  max-width:780px; margin:10px auto; padding:12px 16px; border-radius:12px;
+  font-size:16px; font-weight:600; text-align:center; display:none;
+}
+.feedback.show{ display:block; }
+.feedback.ok{ background:var(--ok-bg); color:var(--ok); border:2px solid var(--ok); }
+.feedback.err{ background:var(--err-bg); color:var(--err); border:2px solid var(--err); }
+
+/* ============ 规则弹层 ============ */
+.modal{
+  position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.55);
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+.modal.show{ display:flex; }
+.modalBox{
+  background:#fff; border-radius:20px; max-width:560px; width:100%;
+  max-height:85vh; overflow-y:auto; padding:24px 22px; position:relative;
+  animation:pop .25s ease;
+}
+@keyframes pop{ from{transform:scale(.85);opacity:0;} to{transform:scale(1);opacity:1;} }
+.modalBox h2{ color:var(--main-dark); font-size:24px; margin-bottom:12px; text-align:center; }
+.modalBox h3{ color:var(--main-dark); margin:14px 0 6px; font-size:18px; }
+.modalBox p, .modalBox li{ font-size:15px; color:var(--ink); line-height:1.7; }
+.modalBox ul{ padding-left:22px; }
+.modalBox .example{
+  background:var(--main-light); border-radius:10px; padding:10px 14px; margin:10px 0;
+  font-size:15px; color:var(--main-dark); font-weight:600;
+}
+.modalClose{
+  position:absolute; top:10px; right:12px; background:#eee; color:#555;
+  border:none; width:34px; height:34px; border-radius:50%; font-size:20px; cursor:pointer; font-weight:700;
+}
+.modalClose:active{ background:#ddd; }
+.modalBtns{ display:flex; gap:10px; justify-content:center; margin-top:18px; flex-wrap:wrap; }
+
+/* ============ 通关庆祝 ============ */
+#celebrate{
+  position:fixed; inset:0; z-index:300; display:none;
+  align-items:center; justify-content:center; flex-direction:column;
+  background:rgba(0,0,0,.6); color:#fff;
+}
+#celebrate.show{ display:flex; }
+#celebrate h1{ font-size:42px; letter-spacing:3px; text-shadow:0 4px 12px rgba(0,0,0,.5); animation:zoom 1s ease infinite alternate; }
+@keyframes zoom{ from{transform:scale(1);} to{transform:scale(1.08);} }
+#celebrate p{ font-size:20px; margin-top:10px; }
+#celebrate .summary{ background:rgba(255,255,255,.15); padding:14px 24px; border-radius:14px; margin-top:18px; text-align:center; font-size:18px; }
+#celebrate .modalBtns{ margin-top:24px; }
+canvas#fx{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.medal{ font-size:80px; margin-bottom:6px; animation:spin 2s linear infinite; display:inline-block; }
+@keyframes spin{ from{transform:rotate(-8deg);} to{transform:rotate(8deg);} }
+
+/* ============ 移动端适配 ============ */
+@media (max-width:560px){
+  #topbar .title{ font-size:15px; }
+  #topbar .stats{ gap:8px; font-size:13px; }
+  .stat-pill{ padding:4px 8px; }
+  .brand h1{ font-size:26px; }
+  .gameHead h2{ font-size:17px; }
+  .clue{ font-size:15px; padding:10px; }
+  .rowLabel{ flex:0 0 70px; font-size:14px; }
+  .item,.slot,.qMark{ width:34px; height:34px; font-size:17px; }
+  .row{ padding:10px; }
+  .btn{ font-size:15px; padding:11px 16px; }
+  #celebrate h1{ font-size:32px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ====== 顶部状态栏 ====== -->
+<div id="topbar">
+  <button id="btnHelp" title="规则说明">?</button>
+  <div class="title">巧移小能手</div>
+  <div class="stats">
+    <div class="stat-pill">⏱ <span id="timer">00:00</span></div>
+    <div class="stat-pill">🅰 <span id="stepCount">0</span> 步</div>
+  </div>
+</div>
+
+<!-- ====== 难度选择页 ====== -->
+<div id="difficultyPage" class="active">
+  <div class="brand">
+    <h1>巧移物体（下）</h1>
+    <p>把数学方法变成动手游戏：拖一拖、移一移，玩着玩着就懂了！</p>
+  </div>
+  <div class="diff-grid">
+    <div class="diff-card" data-diff="beginner" style="border-color:#2e9e4a;box-shadow:0 6px 0 #1f7a37,0 10px 20px rgba(0,0,0,.08);">
+      <div class="badge">🌱</div>
+      <h3>初级·凑同样多</h3>
+      <p>两行数量不同，动手拖移让两行一样多</p>
+      <div class="stars">★☆☆</div>
+    </div>
+    <div class="diff-card" data-diff="intermediate" style="border-color:#f5a623;box-shadow:0 6px 0 #c8860e,0 10px 20px rgba(0,0,0,.08);">
+      <div class="badge">🔍</div>
+      <h3>中级·原来有几个</h3>
+      <p>看移动线索，画出被遮住的"原来数量"</p>
+      <div class="stars">★★☆</div>
+    </div>
+    <div class="diff-card" data-diff="advanced" style="border-color:#e25555;box-shadow:0 6px 0 #b13a3a,0 10px 20px rgba(0,0,0,.08);">
+      <div class="badge">🏆</div>
+      <h3>高级·三人平衡</h3>
+      <p>三人物品总数不变，拖到三人都相等</p>
+      <div class="stars">★★★</div>
+    </div>
+  </div>
+  <p style="color:var(--soft);font-size:13px;margin-top:10px;text-align:center;">点击难度卡片开始 · 每局题目随机抽取</p>
+</div>
+
+<!-- ====== 初级游戏页 ====== -->
+<div id="beginnerPage" class="page">
+  <div class="gameHead">
+    <span class="levelTag">🌱 初级 · 凑同样多</span>
+    <h2>把多出来的平均分一分，让两行一样多</h2>
+  </div>
+  <div class="clue" id="begClue"></div>
+  <div class="progress">第 <span class="now" id="begLv">1</span> / <span id="begTotal">4</span> 关</div>
+  <div class="area" id="begArea"></div>
+  <div class="feedback" id="begFb"></div>
+  <div class="controls">
+    <button class="btn neutral" id="begRestart">重新开始本关</button>
+    <button class="btn reveal" id="begReveal">揭示答案</button>
+    <button class="btn primary" id="begBack">返回难度选择</button>
+  </div>
+</div>
+
+<!-- ====== 中级游戏页 ====== -->
+<div id="intermediatePage" class="page">
+  <div class="gameHead">
+    <span class="levelTag">🔍 中级 · 原来有几个</span>
+    <h2>从"移动几个就一样多"倒推原来的数量</h2>
+  </div>
+  <div class="clue" id="intClue"></div>
+  <div class="progress">第 <span class="now" id="intLv">1</span> / <span id="intTotal">4</span> 关</div>
+  <div class="area" id="intArea"></div>
+  <div class="tray" id="intTray">
+    <span class="tlabel">🧺 供应盘（拖到"?"行）：</span>
+    <div class="trayItems" id="intTrayItems"></div>
+  </div>
+  <div class="feedback" id="intFb"></div>
+  <div class="controls">
+    <button class="btn check" id="intCheck">✅ 检验：模拟移动</button>
+    <button class="btn neutral" id="intClear">清空"?"行</button>
+    <button class="btn neutral" id="intRestart">重新开始本关</button>
+    <button class="btn reveal" id="intReveal">揭示答案</button>
+    <button class="btn primary" id="intBack">返回难度选择</button>
+  </div>
+</div>
+
+<!-- ====== 高级游戏页 ====== -->
+<div id="advancedPage" class="page">
+  <div class="gameHead">
+    <span class="levelTag">🏆 高级 · 三人平衡</span>
+    <h2>总数不变，移动物品让三人都一样多</h2>
+  </div>
+  <div class="clue" id="advClue"></div>
+  <div class="progress">第 <span class="now" id="advLv">1</span> / <span id="advTotal">3</span> 关</div>
+  <div class="area" id="advArea"></div>
+  <div class="feedback" id="advFb"></div>
+  <div class="controls">
+    <button class="btn neutral" id="advRestart">重新开始本关</button>
+    <button class="btn reveal" id="advReveal">揭示答案</button>
+    <button class="btn primary" id="advBack">返回难度选择</button>
+  </div>
+</div>
+
+<!-- ====== 规则弹层 ====== -->
+<div class="modal" id="rulesModal">
+  <div class="modalBox">
+    <button class="modalClose" id="rulesClose">×</button>
+    <h2 id="rulesTitle">游戏规则</h2>
+    <div id="rulesBody"></div>
+    <div class="modalBtns">
+      <button class="btn primary" id="rulesOk">明白，开始玩！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 通关庆祝层 ====== -->
+<div id="celebrate">
+  <canvas id="fx"></canvas>
+  <div class="medal" id="medal">🏆</div>
+  <h1 id="celTitle">全部通关！</h1>
+  <p id="celSub">你真是巧移小能手！</p>
+  <div class="summary" id="celSummary"></div>
+  <div class="modalBtns">
+    <button class="btn big primary" id="celAgain">再玩一局（新题目）</button>
+    <button class="btn big neutral" id="celHome">回主菜单</button>
+  </div>
+</div>
+
+<script>
+/* ====================================================================
+   巧移小能手 · 互动游戏
+   核心数学方法（源自教参《巧移物体（下）》）：
+     方法一·画图法：移动 n 个后两行一样多 → 原来两行相差 2n
+     方法二·总数不变：所有数量加起来 → 平均分给每行/每人
+   本游戏把这两种方法转化为"拖一拖、移一移"的动手操作。
+==================================================================== */
+
+/* ---------- 工具函数 ---------- */
+const $ = id => document.getElementById(id);
+const rand = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+const shuffle = arr => { for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; };
+const pick = (arr,n) => shuffle(arr.slice()).slice(0,n);
+const sum = arr => arr.reduce((a,b)=>a+b,0);
+
+/* ---------- 配色随机化（每局从预设色板里挑一个主色） ---------- */
+const PALETTE = [
+  {main:'#1aa3a3', dark:'#0d7a7a', light:'#d4f5f5'}, // 青绿
+  {main:'#e25555', dark:'#b13a3a', light:'#fbe2e2'}, // 珊瑚红
+  {main:'#3a7bd5', dark:'#27569b', light:'#dde9f7'}, // 海蓝
+  {main:'#9b59b6', dark:'#723b87', light:'#ecdcf3'}, // 紫
+  {main:'#e67e22', dark:'#b35f12', light:'#fbe6d2'}, // 橙
+  {main:'#16a085', dark:'#0d6b58', light:'#cdeee7'}, // 翡翠
+  {main:'#d4356f', dark:'#9e234f', light:'#f8d8e6'}, // 玫红
+];
+const ITEM_EMOJIS = ['🍗','🍬','🌱','⭐','🍒','🔵','🟢','🔺','🌸','🍪'];
+
+function applyPalette(){
+  const p = PALETTE[rand(0,PALETTE.length-1)];
+  const root = document.documentElement;
+  root.style.setProperty('--main', p.main);
+  root.style.setProperty('--main-dark', p.dark);
+  root.style.setProperty('--main-light', p.light);
+  return p;
+}
+
+/* ---------- 全局状态 ---------- */
+const state = {
+  difficulty: null,
+  timerInt: null,
+  startTs: 0,
+  steps: 0,
+  paused: false,
+  // 各难度当前关卡队列
+  beg: { queue:[], idx:0, solved:0 },
+  int: { queue:[], idx:0, solved:0 },
+  adv: { queue:[], idx:0, solved:0 },
+};
+
+/* ====================================================================
+   题库（基于教参，含题目与变式）
+   ----------------------------------------------------------------
+   beginner：两行已知数量，"拖动"让两行一样多（总数不变·平均分）
+     解法：两数和 / 2 = 平均数，多的一方拖 (多-平均) 个到少的一方
+   intermediate：一行已知+移动线索，求另一行原来几个（画图法·倒推）
+     A 已知，"从 A 移 n 到 B 后两行一样多" → B 原来 = 平均数 - n
+     B 已知，"从 B 移 n 到 A 后两行一样多" → B 原来 = 平均数 + n
+   advanced：三人物品总数不变，拖到三人都相等（平均分·多人版）
+==================================================================== */
+const BANK = {
+  beginner: [
+    // [aCount, bCount, labelA, labelB, story]
+    [9, 3, '田田', '丁丁', '田田有9株仙人掌，丁丁有3株，拖一拖让两人一样多。'],
+    [11, 5, '小白', '小红', '小白11支铅笔，小红5支，让两人铅笔一样多。'],
+    [9, 3, '田田', '牛牛', '田田9颗弹珠，牛牛3颗，把弹珠移到两人一样多。'],
+    [8, 4, '哥哥', '弟弟', '哥哥8块糖，弟弟4块，移到两人一样多。'],
+    [10, 6, '甲队', '乙队', '甲队10人，乙队6人，调整到两队人数相同。'],
+    [7, 3, '花坛A', '花坛B', 'A花坛7朵花，B花坛3朵花，凑成同样多。'],
+    [12, 6, '小军', '小华', '小军12张贴纸，小华6张，变成一样多。'],
+    [10, 4, '上层', '下层', '书架上层10本，下层4本，移到同样多。'],
+  ],
+  intermediate: [
+    // {knownRow:'top'|'bottom', knownCount, moveFrom, moveTo, moveN, answer, story, item}
+    // 含义：moveFrom 行 移 moveN 个 到 moveTo 行 后两行一样多；求未知行原来数量
+    {moveFrom:'top', moveTo:'bottom', knownRow:'top', knownCount:10, moveN:3, story:'第一行10个鸡腿。从第一行移3个到第二行，两行就一样多。第二行原来有几个鸡腿？', item:'🍗'},
+    {moveFrom:'bottom', moveTo:'top', knownRow:'top', knownCount:3, moveN:2, story:'第一行原来有3朵花。从第二行移2朵到第一行，两行就一样多。第二行原来有几朵花？', item:'🌸'},
+    {moveFrom:'bottom', moveTo:'top', knownRow:'bottom', knownCount:12, moveN:4, story:'第二行原来有12个皮球。从第二行移4个到第一行，两行就一样多。第一行原来有几个？', item:'🔵'},
+    {moveFrom:'bottom', moveTo:'top', knownRow:'top', knownCount:7, moveN:2, story:'第一行原来有7颗瓜子。从第二行移2颗到第一行，两行就一样多。第二行原来有几颗？', item:'🌱'},
+    {moveFrom:'top', moveTo:'bottom', knownRow:'top', knownCount:12, moveN:4, story:'第一行12只甲壳虫。从第一行移4只到第二行，两行一样多。第二行原来有几只？', item:'⭐'},
+    {moveFrom:'bottom', moveTo:'top', knownRow:'top', knownCount:2, moveN:5, story:'第一行原来有2个正方形。从第二行移5个到第一行，两行一样多。第二行原来有几个？', item:'🔺'},
+    {moveFrom:'bottom', moveTo:'top', knownRow:'bottom', knownCount:10, moveN:2, story:'田田买了10个核桃。田田给牛牛2个后两人一样多。牛牛原来买了几个核桃？', item:'🍪'},
+    {moveFrom:'bottom', moveTo:'top', knownRow:'top', knownCount:12, moveN:3, story:'牛牛买了12颗樱桃。田田给牛牛3颗后两人一样多。田田原来有多少颗樱桃？', item:'🍒'},
+    // 变式（自创，扩大数字范围）
+    {moveFrom:'top', moveTo:'bottom', knownRow:'top', knownCount:14, moveN:4, story:'第一行14个苹果。从第一行移4个到第二行，两行就一样多。第二行原来有几个？', item:'🍒'},
+    {moveFrom:'bottom', moveTo:'top', knownRow:'top', knownCount:6, moveN:3, story:'第一行原来6颗糖。从第二行移3颗到第一行后一样多。第二行原来有几颗？', item:'🍬'},
+  ],
+  advanced: [
+    // 三人/多人 总数不变·平均分；counts 为各人初始数量，names 为对应名字
+    {counts:[9,4,5], names:['田田','丁丁','牛牛'], item:'🌱', story:'田田9株、丁丁4株、牛牛5株仙人掌，总数不变，让三人一样多。'},
+    {counts:[11,5,14], names:['小白','小红','小兰'], item:'✏️', story:'小白11支、小红5支、小兰14支铅笔，总数不变，让三人一样多。'},
+    {counts:[9,3,3,5], names:['田田','牛牛','阿普','丁丁'], item:'🔵', story:'4个人：田田9颗、牛牛3颗、阿普3颗、丁丁5颗弹珠，让4人都相等。'},
+    {counts:[10,6,8], names:['甲','乙','丙'], item:'⭐', story:'甲10个、乙6个、丙8个，总数不变，让三人一样多。'},
+    {counts:[15,9,6], names:['小明','小亮','小刚'], item:'🍒', story:'小明15颗、小亮9颗、小刚6颗，让三人樱桃一样多。'},
+  ],
+};
+
+/* 从题库随机抽 N 道并返回（保证题目少于6道时补足变式） */
+function buildQueue(diff){
+  const src = BANK[diff].slice();
+  if(diff==='beginner'){
+    // 至少6条：不够则按同规律自创变式
+    while(src.length < 6){
+      const a = rand(7,13), b = rand(2,6);
+      src.push([a, b, 'A行', 'B行', `A行${a}个、B行${b}个，凑成同样多。`]);
+    }
+    return pick(src, 4);
+  }
+  if(diff==='intermediate'){
+    while(src.length < 6){
+      const knownCount = rand(6,14), moveN = rand(2,5);
+      const fromTop = Math.random()<.5;
+      src.push({moveFrom:fromTop?'top':'bottom', moveTo:fromTop?'bottom':'top',
+        knownRow:fromTop?'top':'bottom', knownCount, moveN, item:'🔵',
+        story:`${fromTop?'第一':'第二'}行原来有${knownCount}个。从${fromTop?'第一':'第二'}行移${moveN}个到${fromTop?'第二':'第一'}行后两行一样多。${fromTop?'第二':'第一'}行原来有几个？`});
+    }
+    return pick(src, 4);
+  }
+  if(diff==='advanced'){
+    while(src.length < 4){
+      const n = 3, base = rand(3,6);
+      const counts = [base+rand(3,6), base, base+rand(1,4)];
+      src.push({counts, names:['甲','乙','丙'], item:'⭐', story:`甲${counts[0]}、乙${counts[1]}、丙${counts[2]}，让三人一样多。`});
+    }
+    return pick(src, 3);
+  }
+}
+
+/* 计算中级答案 */
+function solveInt(p){
+  // 已知行 = knownCount；移动后两行平均数 = knownCount - moveN（若knownRow是moveFrom）或 knownCount + moveN（若knownRow是moveTo）
+  // 未知行原来 = 平均数 - (moveTo是未知行 ? moveN : -moveN)
+  let avg;
+  if(p.knownRow === p.moveFrom){ avg = p.knownCount - p.moveN; }
+  else { avg = p.knownCount + p.moveN; }
+  // 未知行：移动后它变成 avg。若它被移入(moveTo)，则 avg = 原来数 + moveN → 原来 = avg - moveN
+  //        若它是移出方(moveFrom)，则 avg = 原来数 - moveN → 原来 = avg + moveN
+  let answer;
+  const unknownIsMoveTo = (p.moveTo !== p.knownRow); // 未知行就是被移入方
+  if(unknownIsMoveTo){ answer = avg - p.moveN; }
+  else { answer = avg + p.moveN; }
+  return {avg, answer};
+}
+
+/* ====================================================================
+   计时与步数
+==================================================================== */
+function startTimer(){
+  state.startTs = Date.now(); state.steps = 0; $('stepCount').textContent = '0';
+  clearInterval(state.timerInt);
+  state.timerInt = setInterval(()=>{
+    if(state.paused) return;
+    const s = Math.floor((Date.now()-state.startTs)/1000);
+    const m = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    $('timer').textContent = `${m}:${ss}`;
+  },500);
+}
+function addStep(n=1){ state.steps += n; $('stepCount').textContent = state.steps; }
+function resetStep(){ state.steps = 0; $('stepCount').textContent='0'; }
+
+/* ====================================================================
+   通用：创建物品元素
+==================================================================== */
+function makeItem(emoji){
+  const el = document.createElement('div');
+  el.className = 'item';
+  el.textContent = emoji;
+  return el;
+}
+
+/* ====================================================================
+   通用：基于 Pointer Events 的拖拽（同时支持鼠标/触摸/手写笔）
+   拖动 item 到目标行（dropZone）即从源行移除、加到目标行
+==================================================================== */
+function enableDrag(item, getRows, onMove){
+  item.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    // 生成漂浮克隆
+    const clone = item.cloneNode(true);
+    clone.classList.add('clone');
+    clone.style.left = (startX-20)+'px';
+    clone.style.top  = (startY-20)+'px';
+    document.body.appendChild(clone);
+    item.classList.add('dragging');
+    let lastHover = null;
+
+    function move(ev){
+      const cx = ev.clientX, cy = ev.clientY;
+      clone.style.left = (cx-20)+'px';
+      clone.style.top  = (cy-20)+'px';
+      // 检测当前悬停的行
+      clone.style.display='none';
+      const under = document.elementFromPoint(cx,cy);
+      clone.style.display='';
+      const row = under ? under.closest('.row') : null;
+      if(row !== lastHover){
+        if(lastHover) lastHover.classList.remove('dropHover');
+        if(row) row.classList.add('dropHover');
+        lastHover = row;
+      }
+    }
+    function up(ev){
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      const cx = ev.clientX, cy = ev.clientY;
+      clone.style.display='none';
+      const under = document.elementFromPoint(cx,cy);
+      clone.style.display='';
+      const targetRow = under ? under.closest('.row') : null;
+      clone.remove();
+      item.classList.remove('dragging');
+      if(lastHover) lastHover.classList.remove('dropHover');
+
+      const rows = getRows();
+      const srcRow = item.closest('.row');
+      // 找到 item 所属的 slots 容器
+      if(targetRow && targetRow !== srcRow){
+        const slots = targetRow.querySelector('.rowSlots');
+        if(slots){
+          // 限制：供应盘 item 直接放进；行间 item 互相移动
+          slots.appendChild(item);
+          addStep(1);
+          if(onMove) onMove();
+        }
+      }
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  });
+}
+
+/* ====================================================================
+   初级游戏：两行拖动凑同样多
+==================================================================== */
+function renderBeginner(){
+  const q = state.beg.queue[state.beg.idx];
+  $('begLv').textContent = state.beg.idx+1;
+  $('begTotal').textContent = state.beg.queue.length;
+  $('begClue').innerHTML = q[4];
+  $('begFb').classList.remove('show','ok','err');
+  const [a,b,nameA,nameB] = q;
+  const emoji = ITEM_EMOJIS[rand(0,ITEM_EMOJIS.length-1)];
+  const avg = (a+b)/2; // 必为整数（题库保证 a+b 偶数）
+
+  const area = $('begArea');
+  area.innerHTML = '';
+
+  // 行 A
+  const rowA = makeRow(nameA, '第一行');
+  const slotsA = rowA.querySelector('.rowSlots');
+  for(let i=0;i<a;i++) slotsA.appendChild(makeItem(emoji));
+  // 行 B
+  const rowB = makeRow(nameB, '第二行');
+  const slotsB = rowB.querySelector('.rowSlots');
+  for(let i=0;i<b;i++) slotsB.appendChild(makeItem(emoji));
+
+  const countA = rowA.querySelector('.rowCount');
+  const countB = rowB.querySelector('.rowCount');
+
+  area.appendChild(rowA);
+  area.appendChild(rowB);
+
+  // 启用拖拽
+  area.querySelectorAll('.item').forEach(it=>{
+    enableDrag(it, ()=>[rowA,rowB], ()=>{
+      recount(countA, slotsA); recount(countB, slotsB);
+      checkBegWin(countA, countB, avg, q);
+    });
+  });
+  recount(countA, slotsA); recount(countB, slotsB);
+}
+function makeRow(label, sub){
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<div class="rowLabel">${label}<span class="who">${sub}</span></div>
+    <div class="rowSlots"></div>
+    <div class="rowCount">0</div>`;
+  return row;
+}
+function recount(el, slots){ el.textContent = slots.querySelectorAll('.item').length; }
+
+function checkBegWin(cA, cB, avg, q){
+  const a = +cA.textContent, b = +cB.textContent;
+  if(a>0 && b>0 && a===b){
+    $('begFb').className = 'feedback ok show';
+    $('begFb').innerHTML = `🎉 太棒了！两行都是 <b>${a}</b> 个，一样多啦！<br>小窍门：总数 ${a+b} ÷ 2 = ${avg}，就是把多出来的平均分。`;
+    state.beg.solved++;
+    setTimeout(()=> nextOrCelebrate('beg', renderBeginner), 1200);
+  }
+}
+
+/* ====================================================================
+   中级游戏：已知一行 + 移动线索，求未知行原数
+   交互：把供应盘的球拖进"?"行（猜测原来的数量），点"检验"看是否平衡
+==================================================================== */
+function renderIntermediate(){
+  const p = state.int.queue[state.int.idx];
+  const {avg, answer} = solveInt(p);
+  p._avg = avg; p._answer = answer;
+  $('intLv').textContent = state.int.idx+1;
+  $('intTotal').textContent = state.int.queue.length;
+  $('intClue').innerHTML = p.story.replace(/(\d+个|\d+颗|\d+只|\d+朵|\d+块)/g, '<span class="hl">$1</span>');
+  $('intFb').classList.remove('show','ok','err');
+
+  const area = $('intArea'); area.innerHTML = '';
+
+  const isTopKnown = (p.knownRow === 'top');
+  const topRow = makeRow(isTopKnown ? '第一行（已知）' : '第一行（？）', p.moveFrom==='top'?'移出方':'移入方');
+  const botRow = makeRow(isTopKnown ? '第二行（？）' : '第二行（已知）', p.moveFrom==='bottom'?'移出方':'移入方');
+  const slotsTop = topRow.querySelector('.rowSlots');
+  const slotsBot = botRow.querySelector('.rowSlots');
+  const countTop = topRow.querySelector('.rowCount');
+  const countBot = botRow.querySelector('.rowCount');
+
+  if(isTopKnown){
+    for(let i=0;i<p.knownCount;i++) slotsTop.appendChild(makeItem(p.item));
+    // 未知行放占位问号
+    const q = document.createElement('div'); q.className='qMark'; q.textContent='?';
+    slotsBot.appendChild(q);
+    slotsBot.dataset.unknown = '1';
+  } else {
+    for(let i=0;i<p.knownCount;i++) slotsBot.appendChild(makeItem(p.item));
+    const q = document.createElement('div'); q.className='qMark'; q.textContent='?';
+    slotsTop.appendChild(q);
+    slotsTop.dataset.unknown = '1';
+  }
+  area.appendChild(topRow);
+  area.appendChild(botRow);
+
+  // 供应盘：提供足够多的球（最多 answer+6）让学生拖入未知行
+  const trayItems = $('intTrayItems'); trayItems.innerHTML='';
+  const supply = answer + 6;
+  for(let i=0;i<supply;i++){
+    const it = makeItem(p.item);
+    trayItems.appendChild(it);
+    enableDrag(it, ()=>[topRow,botRow], ()=>{
+      // 一旦学生开始拖入未知行，清掉问号占位
+      [slotsTop, slotsBot].forEach(sl=>{
+        if(sl.dataset.unknown){
+          const q = sl.querySelector('.qMark'); if(q) q.remove();
+        }
+      });
+      recount(countTop, slotsTop); recount(countBot, slotsBot);
+    });
+  }
+  // 已知行的 item 也可拖（仅允许在两行间互换，避免破坏已知数；此处禁止移出已知行以简化：不绑定已知行item拖拽）
+  // 实际只允许供应盘 → 未知行
+  recount(countTop, slotsTop); recount(countBot, slotsBot);
+}
+
+$('intCheck').onclick = ()=>{
+  const p = state.int.queue[state.int.idx];
+  const rows = $('intArea').querySelectorAll('.row');
+  const slotsTop = rows[0].querySelector('.rowSlots');
+  const slotsBot = rows[1].querySelector('.rowSlots');
+  const topCount = slotsTop.querySelectorAll('.item').length;
+  const botCount = slotsBot.querySelectorAll('.item').length;
+  const isTopKnown = (p.knownRow==='top');
+  const unknownCount = isTopKnown ? botCount : topCount;
+  // 模拟移动：从 moveFrom 移 moveN 个到 moveTo
+  // 移动后：moveFrom 行数量 - moveN；moveTo 行数量 + moveN
+  let topAfter = topCount, botAfter = botCount;
+  if(p.moveFrom==='top'){ topAfter -= p.moveN; botAfter += p.moveN; }
+  else { botAfter -= p.moveN; topAfter += p.moveN; }
+
+  if(unknownCount === p._answer && topAfter === botAfter && topAfter>0){
+    $('intFb').className = 'feedback ok show';
+    $('intFb').innerHTML = `🎉 正确！未知行原来是 <b>${p._answer}</b> 个。<br>移动后两行都变成 <b>${p._avg}</b>，一样多！`;
+    addStep(1);
+    state.int.solved++;
+    setTimeout(()=> nextOrCelebrate('int', renderIntermediate), 1300);
+  } else {
+    $('intFb').className = 'feedback err show';
+    $('intFb').innerHTML = `再想想：你现在 "?" 行放了 ${unknownCount} 个。模拟从${p.moveFrom==='top'?'第一':'第二'}行移 ${p.moveN} 个后，第一行=${topAfter}，第二行=${botAfter}。${topAfter===botAfter?'数量相等但原数不对哦':'还没一样多，继续调整！'}`;
+    addStep(1);
+  }
+};
+$('intClear').onclick = ()=>{
+  const rows = $('intArea').querySelectorAll('.row');
+  const isTopKnown = (state.int.queue[state.int.idx].knownRow==='top');
+  const slots = isTopKnown ? rows[1].querySelector('.rowSlots') : rows[0].querySelector('.rowSlots');
+  // 移除所有 item，恢复问号
+  slots.querySelectorAll('.item').forEach(i=>i.remove());
+  if(!slots.querySelector('.qMark')){
+    const q=document.createElement('div'); q.className='qMark'; q.textContent='?'; slots.appendChild(q);
+  }
+  const ct = isTopKnown ? rows[1].querySelector('.rowCount') : rows[0].querySelector('.rowCount');
+  recount(ct, slots);
+  $('intFb').classList.remove('show');
+};
+
+/* ====================================================================
+   高级游戏：三人/多人 平均分（拖动让所有人都相等）
+==================================================================== */
+function renderAdvanced(){
+  const q = state.adv.queue[state.adv.idx];
+  $('advLv').textContent = state.adv.idx+1;
+  $('advTotal').textContent = state.adv.queue.length;
+  $('advClue').innerHTML = q.story;
+  $('advFb').classList.remove('show','ok','err');
+
+  const area = $('advArea'); area.innerHTML='';
+  const total = sum(q.counts);
+  const target = total / q.names.length; // 平均数（题库保证整除）
+
+  q.counts.forEach((c,i)=>{
+    const row = makeRow(q.names[i], `原来 ${c} 个`);
+    row.dataset.target = target;
+    const slots = row.querySelector('.rowSlots');
+    for(let k=0;k<c;k++) slots.appendChild(makeItem(q.item));
+    const ct = row.querySelector('.rowCount');
+    ct.classList.add('target');
+    area.appendChild(row);
+  });
+
+  area.querySelectorAll('.item').forEach(it=>{
+    enableDrag(it, ()=>area.querySelectorAll('.row'), ()=>{
+      area.querySelectorAll('.row').forEach(r=>{
+        recount(r.querySelector('.rowCount'), r.querySelector('.rowSlots'));
+      });
+      checkAdvWin();
+    });
+  });
+  area.querySelectorAll('.row').forEach(r=>{
+    recount(r.querySelector('.rowCount'), r.querySelector('.rowSlots'));
+  });
+
+  function checkAdvWin(){
+    const rows = area.querySelectorAll('.row');
+    const counts = [...rows].map(r=>+r.querySelector('.rowCount').textContent);
+    if(counts.every(c=>c===target)){
+      $('advFb').className='feedback ok show';
+      $('advFb').innerHTML = `🎉 全部相等！每个人都变成 <b>${target}</b> 个。<br>方法：总数 ${total} ÷ ${q.names.length} 人 = ${target}，把多出来的平均分给少的人。`;
+      state.adv.solved++;
+      setTimeout(()=> nextOrCelebrate('adv', renderAdvanced), 1300);
+    }
+  }
+}
+
+/* ====================================================================
+   关卡推进 / 全部通关庆祝
+==================================================================== */
+function nextOrCelebrate(diff, renderer){
+  const d = state[diff];
+  if(d.idx + 1 < d.queue.length){
+    d.idx++;
+    renderer();
+  } else {
+    showCelebrate(diff);
+  }
+}
+
+/* 庆祝：彩纸/烟花 Canvas 动画 */
+function showCelebrate(diff){
+  state.paused = true;
+  const labels = {beg:'初级',int:'中级',adv:'高级'}[diff];
+  $('celTitle').textContent = `${labels} 全部通关！`;
+  $('celSub').textContent = '你真是巧移小能手！';
+  $('celSummary').innerHTML = `用时 <b>${$('timer').textContent}</b> · 共 <b>${state.steps}</b> 步操作`;
+  $('medal').textContent = {beg:'🌱',int:'🔍',adv:'🏆'}[diff];
+  $('celebrate').classList.add('show');
+  startConfetti();
+}
+let confettiRAF=null;
+function startConfetti(){
+  const cv = $('fx'); const ctx = cv.getContext('2d');
+  function resize(){ cv.width = cv.clientWidth; cv.height = cv.clientHeight; }
+  resize();
+  const colors = ['#e25555','#f5a623','#3a7bd5','#2e9e4a','#9b59b6','#16a085','#d4356f'];
+  const pieces = [];
+  for(let i=0;i<160;i++){
+    pieces.push({
+      x: Math.random()*cv.width,
+      y: -20 - Math.random()*cv.height,
+      r: 4 + Math.random()*7,
+      c: colors[Math.floor(Math.random()*colors.length)],
+      vy: 1.5 + Math.random()*3,
+      vx: -1.5 + Math.random()*3,
+      rot: Math.random()*Math.PI,
+      vrot: -0.2 + Math.random()*0.4,
+      shape: Math.random()<.5?'rect':'circle',
+    });
+  }
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    pieces.forEach(p=>{
+      p.x += p.vx; p.y += p.vy; p.rot += p.vrot;
+      if(p.y > cv.height+20){ p.y = -20; p.x = Math.random()*cv.width; }
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      if(p.shape==='rect') ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);
+      else { ctx.beginPath(); ctx.arc(0,0,p.r/2,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    });
+    confettiRAF = requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', resize, {once:true});
+  draw();
+}
+function stopConfetti(){ if(confettiRAF){ cancelAnimationFrame(confettiRAF); confettiRAF=null; } }
+
+/* ====================================================================
+   揭示答案
+==================================================================== */
+$('begReveal').onclick = ()=>{
+  const q = state.beg.queue[state.beg.idx];
+  const [a,b] = q; const avg=(a+b)/2;
+  $('begFb').className='feedback err show';
+  $('begFb').innerHTML = `💡 答案：把多的一行移 <b>${Math.abs(a-avg)}</b> 个到少的一行，两行都变成 <b>${avg}</b> 个。（总数 ${a+b} ÷ 2 = ${avg}）`;
+  addStep(1);
+};
+$('intReveal').onclick = ()=>{
+  const p = state.int.queue[state.int.idx];
+  $('intFb').className='feedback err show';
+  $('intFb').innerHTML = `💡 答案：未知行原来是 <b>${p._answer}</b> 个。<br>推导：移动 ${p.moveN} 个后两行一样多，说明原来相差 ${p.moveN*2}；移动后平均数是 ${p._avg}。`;
+  addStep(1);
+};
+$('advReveal').onclick = ()=>{
+  const q = state.adv.queue[state.adv.idx];
+  const total = sum(q.counts); const target = total/q.names.length;
+  $('advFb').className='feedback err show';
+  $('advFb').innerHTML = `💡 答案：每人都变成 <b>${target}</b> 个。总数 ${total} ÷ ${q.names.length} = ${target}，把多出来的移给少的人即可。`;
+  addStep(1);
+};
+
+/* ====================================================================
+   按钮事件：重新开始本关 / 返回难度选择
+==================================================================== */
+function bindRestart(id, renderer){
+  $(id).onclick = ()=>{ renderer(); resetStep(); state.paused=false; };
+}
+bindRestart('begRestart', renderBeginner);
+bindRestart('intRestart', renderIntermediate);
+bindRestart('advRestart', renderAdvanced);
+
+$('begBack').onclick = $('intBack').onclick = $('advBack').onclick = goHome;
+function goHome(){
+  ['beginnerPage','intermediatePage','advancedPage'].forEach(id=>$(id).classList.remove('active'));
+  $('difficultyPage').classList.add('active');
+  clearInterval(state.timerInt); $('timer').textContent='00:00'; resetStep();
+  applyPalette(); // 回主菜单换色
+}
+
+/* ====================================================================
+   难度卡片点击 → 进入对应游戏
+==================================================================== */
+document.querySelectorAll('.diff-card').forEach(card=>{
+  card.addEventListener('click', ()=>{
+    applyPalette(); // 每局开始随机主色
+    const diff = card.dataset.diff;
+    state.difficulty = diff;
+    state.paused = false;
+    $('difficultyPage').classList.remove('active');
+    if(diff==='beginner'){
+      state.beg = { queue: buildQueue('beginner'), idx:0, solved:0 };
+      $('beginnerPage').classList.add('active');
+      renderBeginner();
+    } else if(diff==='intermediate'){
+      state.int = { queue: buildQueue('intermediate'), idx:0, solved:0 };
+      $('intermediatePage').classList.add('active');
+      renderIntermediate();
+    } else {
+      state.adv = { queue: buildQueue('advanced'), idx:0, solved:0 };
+      $('advancedPage').classList.add('active');
+      renderAdvanced();
+    }
+    startTimer();
+    showRules(diff); // 进入时弹出规则说明
+  });
+});
+
+/* ====================================================================
+   规则说明面板
+==================================================================== */
+const RULES = {
+  beginner:{
+    title:'🌱 初级规则 · 凑同样多',
+    body:`<p><b>玩法：</b>屏幕两行物品数量不同。</p>
+      <ul>
+        <li>用手指/鼠标把<b>物品从一个行拖到另一行</b>。</li>
+        <li>目标是让两行数量<b>一样多</b>。</li>
+        <li>两行一样多即过关，自动进入下一关。</li>
+      </ul>
+      <div class="example">数学小窍门：把两行的总数加起来除以 2，就是每行该有的数量；再把多出来的平均分给少的那一行。</div>
+      <p>右上角显示<b>用时</b>和<b>操作步数</b>，尽量用最少的步数完成！</p>`
+  },
+  intermediate:{
+    title:'🔍 中级规则 · 原来有几个',
+    body:`<p><b>玩法：</b>一行数量已知，另一行被"？"遮住。</p>
+      <ul>
+        <li>题目给出线索：<b>"从某一行移 N 个到另一行后，两行就一样多"</b>。</li>
+        <li>从下方<b>供应盘</b>把物品<b>拖到"？"行</b>，摆出你猜的"原来数量"。</li>
+        <li>点 <b>"检验：模拟移动"</b>，游戏会替你模拟移动 N 个，看两行是否一样多。</li>
+        <li>一样多就过关！</li>
+      </ul>
+      <div class="example">数学小窍门：移 N 个后一样多，说明原来两行相差 2×N。先算移动后的平均数，再倒推原来的数量。</div>`
+  },
+  advanced:{
+    title:'🏆 高级规则 · 三人平衡',
+    body:`<p><b>玩法：</b>三个人（或多人）物品数量不同。</p>
+      <ul>
+        <li>总数<b>不变</b>，通过<b>拖动</b>把物品在三人之间转移。</li>
+        <li>目标是让每个人数量都<b>相等</b>。</li>
+        <li>看右上角的"目标"数字提示——所有人都要等于这个数。</li>
+      </ul>
+      <div class="example">数学小窍门：把所有人的物品加起来除以人数，就是每人应有的数量；把多出来的移给少的人。</div>`
+  }
+};
+function showRules(diff){
+  const r = RULES[diff];
+  $('rulesTitle').textContent = r.title;
+  $('rulesBody').innerHTML = r.body;
+  $('rulesModal').classList.add('show');
+}
+$('btnHelp').onclick = ()=>{
+  const diff = state.difficulty || 'beginner';
+  showRules(diff);
+};
+$('rulesClose').onclick = $('rulesOk').onclick = ()=>$('rulesModal').classList.remove('show');
+
+/* ====================================================================
+   通关庆祝按钮
+==================================================================== */
+$('celAgain').onclick = ()=>{
+  stopConfetti();
+  $('celebrate').classList.remove('show');
+  // 重新抽题、换色
+  const diff = state.difficulty;
+  applyPalette();
+  state.paused = false;
+  if(diff==='beginner'){ state.beg = { queue: buildQueue('beginner'), idx:0, solved:0 }; renderBeginner(); }
+  if(diff==='intermediate'){ state.int = { queue: buildQueue('intermediate'), idx:0, solved:0 }; renderIntermediate(); }
+  if(diff==='advanced'){ state.adv = { queue: buildQueue('advanced'), idx:0, solved:0 }; renderAdvanced(); }
+  startTimer();
+};
+$('celHome').onclick = ()=>{
+  stopConfetti();
+  $('celebrate').classList.remove('show');
+  goHome();
+};
+
+/* ====================================================================
+   初始化
+==================================================================== */
+applyPalette(); // 首屏随机配色
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1b/g010", "name": "\u5de7\u79fb\u5c0f\u80fd\u624b \u00b7 \u7b2c5\u8bb2 \u5de7\u79fb\u7269\u4f53\uff08\u4e0b\uff09", "file": "g010.html", "jiaocan": "\u301010\u3011\u7b2c5\u8bb2 \u5de7\u79fb\u7269\u4f53\uff08\u4e0b\uff09", "unit": "\u7b2c5\u8bb2", "grade": "1\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

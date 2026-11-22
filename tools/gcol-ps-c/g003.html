@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>奇偶魔法岛 · 数的奇偶性大冒险</title>
+<style>
+/* ============ 全局变量（色板会由 JS 随机替换） ============ */
+:root{
+  --p-primary:#ff9800;   /* 主色 */
+  --p-dark:#5d4037;      /* 深色文字/边框 */
+  --p-bg:#fff8ee;        /* 页面底色 */
+  --p-panel:#ffffff;     /* 面板底色 */
+  --p-soft:#ffe7c4;      /* 主色浅底 */
+  --p-accent:#4caf50;    /* 点缀色 */
+  --odd:#ef6c00;         /* “奇数”专用橙 */
+  --even:#2e7d32;        /* “偶数”专用绿 */
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--p-bg);
+  background-image:radial-gradient(circle at 12% 8%, rgba(255,255,255,.9), transparent 40%),
+                   radial-gradient(circle at 88% 92%, rgba(255,255,255,.7), transparent 45%);
+  font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;
+  color:var(--p-dark);
+  font-size:18px;
+  min-height:100vh;
+}
+.app{max-width:980px;margin:0 auto;padding:14px 14px 40px;}
+.screen{display:none;}
+.screen.active{display:block;}
+
+/* ============ 通用按钮 ============ */
+.btn{
+  display:inline-block;border:3px solid var(--p-dark);border-radius:16px;
+  background:#fff;color:var(--p-dark);font-size:19px;font-weight:700;
+  padding:10px 20px;margin:4px;cursor:pointer;user-select:none;
+  box-shadow:0 4px 0 var(--p-dark);transition:transform .08s, box-shadow .08s;
+  font-family:inherit; touch-action:manipulation;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--p-dark);}
+.btn.primary{background:var(--p-primary);color:#fff;}
+.btn.small{font-size:17px;padding:8px 14px;border-radius:13px;}
+.btn[disabled]{opacity:.4;cursor:not-allowed;box-shadow:0 4px 0 var(--p-dark);}
+
+/* ============ 开始界面 ============ */
+.big-title{font-size:42px;font-weight:900;text-align:center;margin:18px 0 4px;color:var(--p-dark);letter-spacing:2px;}
+.subtitle{font-size:21px;text-align:center;margin:0 0 16px;color:var(--p-primary);font-weight:700;}
+.story-card{
+  background:var(--p-panel);border:4px solid var(--p-primary);border-radius:22px;
+  padding:16px 20px;margin:0 auto 20px;max-width:760px;font-size:18px;line-height:1.7;
+  box-shadow:0 6px 0 rgba(0,0,0,.08);
+}
+.story-card b{color:var(--odd);}
+.diff-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin:8px 0 18px;}
+.diff-card{
+  flex:1 1 240px;max-width:280px;background:var(--p-panel);border:4px solid var(--p-dark);
+  border-radius:22px;padding:18px 14px;text-align:center;cursor:pointer;
+  box-shadow:0 6px 0 var(--p-dark);transition:transform .12s;
+}
+.diff-card:hover{transform:translateY(-6px);}
+.diff-card .lv{display:inline-block;background:var(--p-primary);color:#fff;border-radius:999px;padding:4px 16px;font-weight:800;font-size:18px;margin-bottom:8px;}
+.diff-name{font-size:24px;font-weight:900;margin:6px 0;}
+.diff-desc{font-size:17px;line-height:1.6;min-height:78px;}
+.diff-stars{font-size:22px;letter-spacing:4px;margin-top:6px;}
+.start-tip{text-align:center;font-size:17px;}
+
+/* ============ 游戏界面顶部 ============ */
+.game-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;}
+.hdr-title{font-size:24px;font-weight:900;}
+.dots{display:flex;gap:8px;margin-top:6px;}
+.dot{width:16px;height:16px;border-radius:50%;border:3px solid var(--p-dark);background:#fff;}
+.dot.done{background:var(--p-accent);}
+.dot.cur{background:var(--p-primary);animation:pulse 1.2s infinite;}
+.hdr-right{display:flex;gap:10px;flex-wrap:wrap;}
+.stat-chip{background:var(--p-panel);border:3px solid var(--p-dark);border-radius:999px;padding:6px 16px;font-size:19px;font-weight:800;}
+.hdr-btns{text-align:center;margin:2px 0 12px;}
+.stage-area{min-height:380px;}
+
+/* ============ 关卡面板 ============ */
+.stage-panel{background:var(--p-panel);border:4px solid var(--p-dark);border-radius:24px;padding:20px 18px 26px;box-shadow:0 6px 0 rgba(0,0,0,.1);}
+.stage-title{font-size:27px;font-weight:900;margin:0 0 10px;text-align:center;}
+.goal-banner{
+  background:var(--p-soft);border-left:10px solid var(--p-primary);border-radius:12px;
+  padding:12px 16px;font-size:20px;font-weight:800;margin:0 0 16px;line-height:1.6;
+}
+.plain-text{font-size:18px;line-height:1.8;}
+.hint-line{font-size:18px;color:#7a5c00;margin-top:12px;line-height:1.7;}
+.sub-note{font-size:16px;color:#666;margin-top:10px;}
+
+/* ============ 奇偶徽章 ============ */
+.parity-chip{display:inline-block;border-radius:999px;padding:6px 18px;font-size:21px;font-weight:900;color:#fff;border:3px solid var(--p-dark);vertical-align:middle;}
+.pc-odd{background:var(--odd);}
+.pc-even{background:var(--even);}
+.rc-chip{display:inline-flex;align-items:center;justify-content:center;min-width:58px;border-radius:10px;padding:3px 10px;font-size:17px;font-weight:800;color:#fff;border:2px solid rgba(0,0,0,.25);}
+.rc-even{background:var(--even);}
+.rc-odd{background:var(--odd);}
+
+/* ============ 数字阵（拖数字进算式） ============ */
+.expr-row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px;margin:18px 0 8px;}
+.num-chunk{display:flex;gap:8px;}
+.num-box{
+  width:54px;height:70px;border-radius:12px;background:var(--p-soft);border:3px solid var(--p-dark);
+  display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;
+}
+.slot-box{
+  width:54px;height:70px;border-radius:12px;border:4px dashed var(--p-primary);background:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:var(--odd);
+  cursor:pointer;transition:background .15s;
+}
+.slot-box.filled{border-style:solid;border-color:var(--p-dark);background:#fffbe6;}
+.slot-box.ok{border-color:var(--even);background:#e8f5e9;animation:pop .5s;}
+.slot-box.shake{animation:shake .4s;}
+.op-sign{font-size:38px;font-weight:900;margin:0 4px;}
+.result-line{text-align:center;font-size:24px;font-weight:800;margin:14px 0 4px;min-height:44px;}
+.tray-label{text-align:center;font-size:17px;color:#555;margin-top:14px;}
+.digit-tray{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:12px;padding:14px;border:3px dashed rgba(0,0,0,.18);border-radius:18px;background:rgba(255,255,255,.5);}
+.digit-tile{
+  width:56px;height:56px;border-radius:50%;background:#fff;border:4px solid var(--p-primary);
+  display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;
+  cursor:grab;user-select:none;touch-action:none;box-shadow:0 3px 0 rgba(0,0,0,.18);
+}
+.digit-tile.used{opacity:.22;pointer-events:none;}
+.drag-ghost{position:fixed;z-index:400;pointer-events:none;opacity:.92;display:flex;align-items:center;justify-content:center;transform:scale(1.08);filter:drop-shadow(0 6px 8px rgba(0,0,0,.3));}
+
+/* ============ 硬币方阵 ============ */
+.coin-count{font-size:20px;font-weight:800;text-align:center;margin:4px 0 12px;}
+.coin-flex{display:flex;justify-content:center;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+.coin-grid-wrap{display:inline-block;}
+.coin-grid{display:grid;gap:12px;}
+.coin-cell{
+  width:clamp(46px, 11vw, 62px);height:clamp(46px, 11vw, 62px);border-radius:12px;
+  border:3px solid var(--p-dark);background:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .12s;touch-action:manipulation;
+}
+.coin-cell:hover{background:var(--p-soft);}
+.coin-disc{
+  width:78%;height:78%;border-radius:50%;border:3px solid #9a6b00;
+  background:radial-gradient(circle at 34% 28%, #fff3c4, #f6b930 55%, #cf8f00);
+  box-shadow:inset 0 -4px 6px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.3);
+}
+.coin-side{display:flex;flex-direction:column;gap:12px;justify-content:center;}
+.coin-badges-col{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px;}
+.coin-note{max-width:230px;font-size:17px;line-height:1.7;background:var(--p-soft);border-radius:14px;padding:12px 14px;border:3px solid var(--p-primary);}
+
+/* ============ 乘法连闪机 ============ */
+.orb-machine{
+  border:4px solid var(--p-dark);border-radius:22px;background:linear-gradient(180deg,#fffdf5,#fff3d6);
+  padding:18px 16px;margin:10px auto 16px;max-width:640px;
+}
+.machine-name{font-size:19px;font-weight:900;text-align:center;margin-bottom:12px;}
+.orb-slots{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;}
+.orb-slot{
+  width:66px;height:66px;border-radius:50%;border:4px dashed var(--p-primary);background:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:27px;font-weight:900;color:var(--odd);cursor:pointer;
+}
+.orb-slot.filled{border-style:solid;border-color:var(--p-dark);background:#fffbe6;}
+.orb-x{font-size:30px;font-weight:900;}
+.bulb-line{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap;}
+.bulb{width:34px;height:34px;border-radius:50%;border:3px solid var(--p-dark);background:#e0e0e0;transition:background .2s;}
+.bulb.on-odd{background:var(--odd);box-shadow:0 0 16px var(--odd);}
+.bulb.on-even{background:var(--even);box-shadow:0 0 16px var(--even);}
+.bulb-text{font-size:22px;font-weight:900;}
+.orb-tray{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:12px;padding:14px;border:3px dashed rgba(0,0,0,.18);border-radius:18px;background:rgba(255,255,255,.5);}
+.orb{
+  width:64px;height:64px;border-radius:50%;color:#fff;font-size:26px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;cursor:grab;user-select:none;touch-action:none;
+  background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%), var(--p-primary);
+  border:4px solid var(--p-dark);box-shadow:0 3px 0 rgba(0,0,0,.25);
+}
+.orb.used{opacity:.22;pointer-events:none;}
+
+/* ============ 卡片屋 ============ */
+.card-stats{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:6px 0 16px;}
+.mini-chip{background:#fff;border:3px solid var(--p-dark);border-radius:999px;padding:6px 16px;font-size:19px;font-weight:800;}
+.card-field{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;padding:8px 0;}
+.num-card{
+  width:88px;height:116px;border-radius:16px;background:#fff;border:4px solid var(--p-dark);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  cursor:pointer;user-select:none;transition:transform .12s, box-shadow .12s;touch-action:manipulation;
+  box-shadow:0 4px 0 rgba(0,0,0,.15);
+}
+.num-card .big{font-size:36px;font-weight:900;line-height:1;}
+.num-card .tag{font-size:17px;font-weight:800;border-radius:8px;padding:1px 10px;color:#fff;}
+.num-card.cd-odd .tag{background:var(--odd);}
+.num-card.cd-even .tag{background:var(--even);}
+.num-card.selected{transform:translateY(-12px);border-color:var(--p-primary);box-shadow:0 10px 14px rgba(0,0,0,.22);}
+.num-card.shake{animation:shake .4s;}
+
+/* ============ 换座位 ============ */
+.seat-zone{position:relative;display:flex;gap:18px;justify-content:center;margin:56px 0 10px;flex-wrap:wrap;}
+.seat{
+  width:140px;padding:12px 8px 16px;border-radius:18px;border:4px solid var(--p-dark);background:#fff;
+  text-align:center;cursor:pointer;user-select:none;touch-action:manipulation;transition:border-color .15s, background .15s;
+}
+.seat .seat-num{font-size:30px;font-weight:900;margin-top:42px;}
+.seat .seat-tag{font-size:16px;color:#777;}
+.seat.movable{border-color:var(--p-accent);background:#f0fff0;animation:pulse 1.4s infinite;cursor:pointer;}
+.seat.cur-seat{border-color:var(--p-primary);background:var(--p-soft);}
+.seat.shake{animation:shake .4s;}
+.fox{position:absolute;top:-52px;font-size:48px;transition:left .38s cubic-bezier(.34,1.56,.64,1);text-align:center;width:60px;}
+.move-counter{font-size:21px;font-weight:800;text-align:center;margin-top:14px;}
+
+/* ============ 马拉松 ============ */
+.podium{display:flex;justify-content:center;align-items:flex-end;gap:16px;margin:16px 0 8px;flex-wrap:wrap;}
+.lane{width:158px;text-align:center;}
+.animal{font-size:46px;line-height:1.2;}
+.animal .who{display:block;font-size:18px;font-weight:800;}
+.rank-box{border-radius:12px 12px 0 0;border:4px solid var(--p-dark);border-bottom:none;color:#fff;font-size:22px;font-weight:900;padding:8px 4px;display:flex;align-items:flex-end;justify-content:center;}
+.rank-box.r1{height:96px;background:var(--p-primary);}
+.rank-box.r2{height:74px;background:#8d6e63;}
+.rank-box.r3{height:56px;background:#78909c;}
+.lane.bing{outline:4px dashed var(--p-accent);outline-offset:4px;border-radius:14px;}
+.lane.flash{animation:pop .45s;}
+.swap-btns{display:flex;justify-content:center;gap:14px;margin-top:12px;flex-wrap:wrap;}
+.mara-counter{font-size:21px;font-weight:800;text-align:center;margin-top:10px;}
+
+/* ============ 滑轨 ============ */
+.slider-wrap{max-width:660px;margin:0 auto;text-align:center;}
+input.range{width:min(520px, 92%);height:14px;-webkit-appearance:none;appearance:none;border-radius:999px;background:linear-gradient(90deg,var(--p-soft),var(--p-primary));outline:none;border:3px solid var(--p-dark);margin:22px 0 6px;}
+input.range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:38px;height:38px;border-radius:50%;background:#fff;border:5px solid var(--p-primary);cursor:grab;box-shadow:0 3px 6px rgba(0,0,0,.3);}
+input.range::-moz-range-thumb{width:34px;height:34px;border-radius:50%;background:#fff;border:5px solid var(--p-primary);cursor:grab;}
+.slider-val{font-size:26px;font-weight:900;margin:2px 0 12px;}
+.val-boxes{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:10px 0;}
+.val-box{min-width:118px;border:4px solid var(--p-dark);border-radius:16px;background:#fff;padding:10px 12px;}
+.val-box .vb-name{font-size:16px;color:#666;}
+.val-box .vb-num{font-size:30px;font-weight:900;line-height:1.15;}
+.expr-show{font-size:22px;font-weight:800;background:var(--p-soft);border-radius:14px;border:3px solid var(--p-primary);padding:12px 14px;margin-top:14px;line-height:1.9;}
+
+/* ============ 弹窗 ============ */
+.modal-mask{position:fixed;inset:0;background:rgba(40,25,10,.5);display:none;align-items:center;justify-content:center;z-index:100;padding:16px;}
+.modal-mask.show{display:flex;}
+.modal{background:var(--p-panel);border:4px solid var(--p-dark);border-radius:22px;max-width:680px;width:94%;max-height:84vh;overflow:auto;padding:22px 20px;position:relative;box-shadow:0 10px 30px rgba(0,0,0,.35);}
+.modal h3{margin:2px 0 12px;font-size:25px;}
+.modal .close-x{position:absolute;top:10px;right:12px;border:3px solid var(--p-dark);background:#fff;border-radius:12px;width:40px;height:40px;font-size:20px;font-weight:900;cursor:pointer;}
+.modal.center{text-align:center;}
+.reveal-box{background:var(--p-soft);border-radius:14px;border:3px solid var(--p-primary);padding:12px 14px;font-size:18px;line-height:1.9;margin:10px 0;}
+.rule-item{margin:10px 0;line-height:1.9;}
+.clear-star{font-size:74px;animation:pop .6s;}
+.final-emoji{font-size:60px;animation:pop .6s;}
+.mini-grid{display:grid;gap:6px;margin:12px auto;width:max-content;}
+.mini-cell{width:38px;height:38px;border:2px solid var(--p-dark);border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;}
+.mini-cell.has{background:radial-gradient(circle at 34% 28%, #fff3c4, #f6b930 55%, #cf8f00);border-color:#9a6b00;}
+
+/* ============ 提示条 / 动画 ============ */
+#toast{
+  position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(24px);
+  background:var(--p-dark);color:#fff;padding:12px 24px;border-radius:999px;font-size:19px;font-weight:700;
+  opacity:0;transition:opacity .25s, transform .25s;z-index:300;pointer-events:none;max-width:88%;text-align:center;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#fx-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:250;}
+@keyframes pop{0%{transform:scale(.2);}70%{transform:scale(1.25);}100%{transform:scale(1);}}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-8px);}75%{transform:translateX(8px);}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,0,0,.0);}50%{box-shadow:0 0 0 6px rgba(76,175,80,.35);}}
+
+/* ============ 移动端适配 ============ */
+@media (max-width:640px){
+  .big-title{font-size:32px;}
+  .hdr-title{font-size:20px;}
+  .num-box,.slot-box{width:46px;height:62px;font-size:27px;}
+  .digit-tile{width:50px;height:50px;font-size:24px;}
+  .seat{width:104px;}
+  .seat .seat-num{font-size:25px;margin-top:36px;}
+  .lane{width:122px;}
+  .rank-box{font-size:18px;}
+  .num-card{width:74px;height:102px;}
+  .num-card .big{font-size:29px;}
+  .btn{font-size:17px;padding:8px 14px;}
+  .orb,.orb-slot{width:56px;height:56px;font-size:23px;}
+}
+</style>
+</head>
+<body>
+<canvas id="fx-canvas"></canvas>
+<div id="toast"></div>
+
+<div class="app">
+
+  <!-- ============ 开始界面 ============ -->
+  <section id="screen-start" class="screen active">
+    <h1 class="big-title">🎡 奇偶魔法岛</h1>
+    <p class="subtitle">—— 数的奇偶性大冒险 ——</p>
+    <div class="story-card">
+      🎁 研学营里有一个神奇转盘：转 2 次，如果转到的两个数的<b>和是奇数</b>，就能领取礼物。<br>
+      奇奇转呀转：7+3=10，13+9=22……唉，怎么总是得不到奇数？<br>
+      原来，转盘上的数<b>全是奇数</b>：奇数＋奇数＝偶数，所以和永远是偶数，礼物根本领不到！<br>
+      想看穿这些小秘密吗？学会<b>奇偶魔法</b>，去岛上闯关收集星星吧！⭐
+    </div>
+    <div class="diff-grid">
+      <div class="diff-card" data-diff="easy">
+        <span class="lv">初级</span>
+        <div class="diff-name">🌈 彩虹桥</div>
+        <div class="diff-desc">魔法数字阵 · 硬币摆摆乐<br>乘法连闪机<br>（例题级热身）</div>
+        <div class="diff-stars">⭐⭐☆</div>
+      </div>
+      <div class="diff-card" data-diff="mid">
+        <span class="lv">中级</span>
+        <div class="diff-name">🏛️ 智慧之门</div>
+        <div class="diff-desc">奇偶卡片屋 · 换座位大挑战<br>连闪机·进阶<br>（练习级历练）</div>
+        <div class="diff-stars">⭐⭐⭐</div>
+      </div>
+      <div class="diff-card" data-diff="hard">
+        <span class="lv">高级</span>
+        <div class="diff-name">🌌 星空旅程</div>
+        <div class="diff-desc">硬币大本营 · 马拉松名次赛<br>连续数滑轨<br>（变式级冲顶）</div>
+        <div class="diff-stars">⭐⭐⭐⭐</div>
+      </div>
+    </div>
+    <p class="start-tip">
+      <button class="btn" id="btn-rules-start">📖 先看看规则说明</button>
+      每一局关卡、配色都会随机变化，玩多少次都不重样！
+    </p>
+  </section>
+
+  <!-- ============ 游戏界面 ============ -->
+  <section id="screen-game" class="screen">
+    <div class="game-top">
+      <div class="hdr-left">
+        <div class="hdr-title" id="hdr-title">彩虹桥 · 第1关</div>
+        <div class="dots" id="dots"></div>
+      </div>
+      <div class="hdr-right">
+        <span class="stat-chip">⏱ <b id="stat-time">00:00</b></span>
+        <span class="stat-chip">👣 <b id="stat-step">0</b> 步</span>
+      </div>
+    </div>
+    <div class="hdr-btns">
+      <button class="btn small" id="btn-rules">📖 规则说明</button>
+      <button class="btn small" id="btn-reveal">💡 揭示答案</button>
+      <button class="btn small" id="btn-restart">🔄 重新开始</button>
+      <button class="btn small" id="btn-home">🏠 返回难度选择</button>
+    </div>
+    <div id="stage-area" class="stage-area"></div>
+  </section>
+</div>
+
+<!-- ============ 规则弹窗 ============ -->
+<div class="modal-mask" id="modal-rules">
+  <div class="modal">
+    <button class="close-x" data-close="modal-rules">✕</button>
+    <h3>📖 奇偶魔法手册</h3>
+    <div class="reveal-box">
+      <div class="rule-item">1️⃣ 加减法看"配对"：<b>奇数±奇数＝偶数，偶数±偶数＝偶数，奇数±偶数＝奇数</b>。</div>
+      <div class="rule-item">2️⃣ 连加看"奇数的个数"：<b>奇数个奇数相加，和是奇数；偶数个奇数相加，和是偶数</b>。（例：1+2+3+4+5 里奇数有 1、3、5 共 3 个，和 21 是奇数。）</div>
+      <div class="rule-item">3️⃣ 乘法看"有没有偶数"：<b>只要有一个因数是偶数，积就是偶数；全是奇数，积才是奇数</b>。（例：1×2×5×7 里出现了 2，积 70 是偶数。）</div>
+    </div>
+    <p class="plain-text">🎮 <b>玩法</b>：选一个难度进入岛屿，每个难度有 3 小关。按照关卡目标动手操作——拖一拖数字、摆一摆硬币、点一点座位、滑一滑滑轨，达成目标就过关收星星！</p>
+    <p class="plain-text">💡 右上角有<b>计时器</b>和<b>步数</b>；卡住了随时点「揭示答案」看思路；「重新开始」会重开本难度并换一批新关卡数据。</p>
+    <div style="text-align:center;margin-top:14px;"><button class="btn primary" data-close="modal-rules">出发喽！</button></div>
+  </div>
+</div>
+
+<!-- ============ 揭示答案弹窗 ============ -->
+<div class="modal-mask" id="modal-reveal">
+  <div class="modal">
+    <button class="close-x" data-close="modal-reveal">✕</button>
+    <h3>💡 悄悄告诉你 · 本关思路</h3>
+    <div id="reveal-body"></div>
+    <div style="text-align:center;"><button class="btn primary" data-close="modal-reveal">我知道啦，再试试！</button></div>
+  </div>
+</div>
+
+<!-- ============ 过关弹窗 ============ -->
+<div class="modal-mask" id="modal-clear">
+  <div class="modal center">
+    <div class="clear-star">⭐</div>
+    <h3 id="clear-title">第 1 关完成！</h3>
+    <p class="plain-text" id="clear-stats"></p>
+    <button class="btn primary" id="btn-next">进入下一关 ➜</button>
+  </div>
+</div>
+
+<!-- ============ 通关弹窗 ============ -->
+<div class="modal-mask" id="modal-final">
+  <div class="modal center">
+    <div class="final-emoji">🎉🌈🎉</div>
+    <h3>全部通关，太厉害啦！</h3>
+    <p class="plain-text" id="final-stats"></p>
+    <p class="plain-text">你已经掌握了奇偶魔法的三大口诀：加减看配对、连加看奇数个数、乘法看有没有偶数！</p>
+    <button class="btn primary" id="btn-again">🔄 再玩一次（换新关卡）</button>
+    <button class="btn" id="btn-home2">🏠 返回难度选择</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================
+   奇偶魔法岛 · 数的奇偶性大冒险
+   核心玩法：拖数字 / 摆硬币 / 选卡片 / 换座位 / 交换名次 / 滑轨
+   全部关卡数据每局随机抽取，配色每局随机更换
+   ===================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function parityCn(n){ return (n % 2 === 0) ? '偶' : '奇'; }
+function $(s){ return document.querySelector(s); }
+function fmtTime(sec){
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' + s : '' + s);
+}
+
+/* ---------------- 随机色板（G8） ---------------- */
+var PALETTES = [
+  { name:'阳光橙', primary:'#ff9800', dark:'#5d4037', bg:'#fff8ee', soft:'#ffe7c4', accent:'#4caf50' },
+  { name:'海洋蓝', primary:'#29b6f6', dark:'#0d47a1', bg:'#eef8ff', soft:'#d3edfd', accent:'#ff7043' },
+  { name:'草地绿', primary:'#43a047', dark:'#1b5e20', bg:'#f1faf1', soft:'#d7efd8', accent:'#8e24aa' },
+  { name:'葡萄紫', primary:'#ab47bc', dark:'#4a148c', bg:'#f9f0fc', soft:'#eed7f5', accent:'#f9a825' },
+  { name:'樱花粉', primary:'#ec5f8f', dark:'#880e4f', bg:'#fff0f5', soft:'#ffd9e6', accent:'#00838f' },
+  { name:'星空靛', primary:'#5c6bc0', dark:'#1a237e', bg:'#eef0ff', soft:'#dde0fb', accent:'#ef6c00' }
+];
+function applyPalette(){
+  var p = pick(PALETTES);
+  var r = document.documentElement.style;
+  r.setProperty('--p-primary', p.primary);
+  r.setProperty('--p-dark', p.dark);
+  r.setProperty('--p-bg', p.bg);
+  r.setProperty('--p-soft', p.soft);
+  r.setProperty('--p-accent', p.accent);
+}
+
+/* ---------------- 全局状态（G7 计时/步数） ---------------- */
+var G = { diff:null, stageIdx:0, steps:0, sec:0, timer:null, done:false };
+var currentStage = null;   /* 当前关卡对象 {title, mount, reveal} */
+var rulesShown = false;    /* 本局是否已自动弹出规则 */
+
+function startTimer(){
+  stopTimer();
+  G.sec = 0;
+  G.timer = setInterval(function(){
+    G.sec++; renderStats();
+  }, 1000);
+  renderStats();
+}
+function stopTimer(){ if(G.timer){ clearInterval(G.timer); G.timer = null; } }
+function addStep(){ G.steps++; renderStats(); }
+function renderStats(){
+  $('#stat-time').textContent = fmtTime(G.sec);
+  $('#stat-step').textContent = G.steps;
+}
+
+/* ---------------- 提示条 ---------------- */
+var toastTimer = null;
+function toast(msg){
+  var t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2000);
+}
+
+/* ---------------- 撒彩纸庆祝（G5，Canvas 实现） ---------------- */
+var fx = { cv:null, ctx:null, parts:[], raf:null };
+function fxInit(){
+  fx.cv = $('#fx-canvas');
+  fx.ctx = fx.cv.getContext('2d');
+  var fit = function(){
+    fx.cv.width = window.innerWidth;
+    fx.cv.height = window.innerHeight;
+  };
+  fit();
+  window.addEventListener('resize', fit);
+}
+function celebrate(big){
+  var colors = ['#f44336','#ff9800','#ffeb3b','#4caf50','#29b6f6','#ab47bc','#ffffff'];
+  var n = big ? 240 : 130;
+  for(var i = 0; i < n; i++){
+    fx.parts.push({
+      x: Math.random() * fx.cv.width,
+      y: -30 - Math.random() * fx.cv.height * 0.5,
+      w: 8 + Math.random() * 8,
+      h: 12 + Math.random() * 10,
+      vx: (Math.random() - 0.5) * 3.2,
+      vy: 2.4 + Math.random() * 3.4,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.25,
+      color: pick(colors),
+      life: big ? 260 : 170
+    });
+  }
+  if(!fx.raf) fxLoop();
+}
+function fxLoop(){
+  var c = fx.ctx;
+  c.clearRect(0, 0, fx.cv.width, fx.cv.height);
+  for(var i = fx.parts.length - 1; i >= 0; i--){
+    var p = fx.parts[i];
+    p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vy += 0.03; p.life--;
+    if(p.y > fx.cv.height + 30 || p.life <= 0){ fx.parts.splice(i, 1); continue; }
+    c.save();
+    c.translate(p.x, p.y);
+    c.rotate(p.rot);
+    c.fillStyle = p.color;
+    c.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    c.restore();
+  }
+  if(fx.parts.length > 0){
+    fx.raf = requestAnimationFrame(fxLoop);
+  } else {
+    c.clearRect(0, 0, fx.cv.width, fx.cv.height);
+    fx.raf = null;
+  }
+}
+
+/* ---------------- 通用指针拖拽（支持鼠标与触摸） ---------------- */
+/* 小移动（<8px）视为"点一下"，大移动进入拖拽模式，松手时投放到 .dropzone */
+function enableDrag(handleEl, opts){
+  handleEl.addEventListener('pointerdown', function(e){
+    if(opts.canDrag && !opts.canDrag()) return;
+    e.preventDefault();
+    var startX = e.clientX, startY = e.clientY, dragging = false, ghost = null;
+    function moveGhost(g, ev){
+      g.style.left = (ev.clientX - g.offsetWidth / 2) + 'px';
+      g.style.top = (ev.clientY - g.offsetHeight / 2) + 'px';
+    }
+    function onMove(ev){
+      if(!dragging && Math.sqrt(Math.pow(ev.clientX - startX, 2) + Math.pow(ev.clientY - startY, 2)) > 8){
+        dragging = true;
+        ghost = document.createElement('div');
+        ghost.className = 'drag-ghost';
+        ghost.innerHTML = handleEl.innerHTML;
+        ghost.style.width = handleEl.offsetWidth + 'px';
+        ghost.style.height = handleEl.offsetHeight + 'px';
+        /* 逐项复制样式，保证幽灵外形与原元素一致 */
+        var cs = getComputedStyle(handleEl);
+        ghost.style.borderRadius = cs.borderRadius;
+        ghost.style.backgroundColor = cs.backgroundColor;
+        ghost.style.backgroundImage = cs.backgroundImage;
+        ghost.style.border = cs.border;
+        ghost.style.color = cs.color;
+        ghost.style.fontSize = cs.fontSize;
+        ghost.style.fontWeight = '900';
+        ghost.style.display = 'flex';
+        ghost.style.alignItems = 'center';
+        ghost.style.justifyContent = 'center';
+        document.body.appendChild(ghost);
+        moveGhost(ghost, ev);
+      } else if(dragging && ghost){
+        moveGhost(ghost, ev);
+      }
+    }
+    function onUp(ev){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      if(dragging && ghost){
+        ghost.remove(); ghost = null;
+        var el = document.elementFromPoint(ev.clientX, ev.clientY);
+        var zone = el && el.closest ? el.closest('.dropzone') : null;
+        if(zone){ opts.onDropZone(zone, ev); }
+        else { toast('要放到虚线框里哦～再拖一次试试'); }
+      } else {
+        if(opts.onTap) opts.onTap();
+      }
+      dragging = false;
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  });
+}
+
+/* ---------------- 屏幕与弹窗切换 ---------------- */
+function show(id){
+  var list = document.querySelectorAll('.screen');
+  for(var i = 0; i < list.length; i++) list[i].classList.remove('active');
+  $('#' + id).classList.add('active');
+}
+function openModal(id){ $('#' + id).classList.add('show'); }
+function closeModal(id){ $('#' + id).classList.remove('show'); }
+
+/* =====================================================
+   关卡一：魔法数字阵（拖数字进算式的空框）
+   来源：教参练习1"按要求填空"及其变式
+   ===================================================== */
+function stageDigit(){
+  /* 每个任务随机抽取；kind 为算式结果的类型，goal 为目标奇偶 */
+  var tasks = [
+    { a:265, op:'+', b:47,  box:'right', kind:'和', goal:'奇',
+      tip:'265 是奇数，47□ 是奇是偶由个位 □ 决定。奇数＋偶数＝奇数，想让和是奇数，47□ 必须是偶数。' },
+    { a:26,  op:'−', b:451, box:'left',  kind:'差', goal:'偶',
+      tip:'451 是奇数。奇数－奇数＝偶数，想让差是偶数，26□ 也必须是奇数。' },
+    { a:455, op:'×', b:47,  box:'right', kind:'积', goal:'奇',
+      tip:'乘法里只要有一个因数是偶数，积就是偶数。455 已是奇数，想让积还是奇数，47□ 也必须是奇数。' },
+    { a:318, op:'+', b:52,  box:'right', kind:'和', goal:'偶',
+      tip:'318 是偶数，偶数＋偶数＝偶数，所以 52□ 要是偶数。' },
+    { a:63,  op:'+', b:124, box:'left',  kind:'和', goal:'奇',
+      tip:'124 是偶数。奇数＋偶数＝奇数，所以 63□ 要是奇数。' }
+  ];
+  var t = pick(tasks);
+  var digits = shuffle([0,1,2,3,4,5,6,7,8,9]);
+  var placed = null;      /* 当前空框里的数字 */
+  var finished = false;
+
+  function nums(d){
+    var A = (t.box === 'left') ? t.a * 10 + d : t.a;
+    var B = (t.box === 'right') ? t.b * 10 + d : t.b;
+    return [A, B];
+  }
+  function calc(A, B){
+    if(t.op === '+') return A + B;
+    if(t.op === '−') return A - B;
+    return A * B;
+  }
+  function validDigits(){
+    var out = [];
+    for(var d = 0; d <= 9; d++){
+      var n = nums(d);
+      if(parityCn(calc(n[0], n[1])) === t.goal) out.push(d);
+    }
+    return out;
+  }
+
+  return {
+    title:'魔法数字阵',
+    mount:function(area){
+      var self = this;
+      area.innerHTML =
+        '<div class="stage-panel">' +
+          '<h2 class="stage-title">🔮 魔法数字阵</h2>' +
+          '<div class="goal-banner">目标：让「' + t.kind + '」是<span class="parity-chip ' + (t.goal === '奇' ? 'pc-odd' : 'pc-even') + '">' + t.goal + '数</span>——把一个数字拖进虚线框里！</div>' +
+          '<div class="expr-row" id="d-expr"></div>' +
+          '<div class="result-line" id="d-result">把数字放进去，看看结果是奇还是偶～</div>' +
+          '<div class="tray-label">数字卡：拖到虚线框，或者点一下直接放入（点框里的数字可以取回）</div>' +
+          '<div class="digit-tray" id="d-tray"></div>' +
+        '</div>';
+      /* 拼出算式：数字方块 + 空框 */
+      var expr = $('#d-expr');
+      var htmlStr = '';
+      function chunkStr(prefix){
+        var s = '';
+        var p = '' + prefix;
+        for(var i = 0; i < p.length; i++) s += '<div class="num-box">' + p.charAt(i) + '</div>';
+        return s;
+      }
+      if(t.box === 'left'){
+        htmlStr += '<div class="num-chunk">' + chunkStr(t.a) + '</div>' +
+                   '<div class="slot-box dropzone" id="d-slot" title="点一下取回数字">?</div>' +
+                   '<div class="op-sign">' + t.op + '</div>' +
+                   '<div class="num-chunk">' + chunkStr(t.b) + '</div>';
+      } else {
+        htmlStr += '<div class="num-chunk">' + chunkStr(t.a) + '</div>' +
+                   '<div class="op-sign">' + t.op + '</div>' +
+                   '<div class="num-chunk">' + chunkStr(t.b) + '</div>' +
+                   '<div class="slot-box dropzone" id="d-slot" title="点一下取回数字">?</div>';
+      }
+      expr.innerHTML = htmlStr;
+
+      var tray = $('#d-tray');
+      var tileEls = {};
+      digits.forEach(function(d){
+        var el = document.createElement('div');
+        el.className = 'digit-tile';
+        el.textContent = d;
+        tray.appendChild(el);
+        tileEls[d] = el;
+        enableDrag(el, {
+          canDrag:function(){ return !finished && placed !== d; },
+          onTap:function(){ place(d); },
+          onDropZone:function(zone){ if(zone.id === 'd-slot') place(d); }
+        });
+      });
+
+      var slot = $('#d-slot');
+      slot.addEventListener('click', function(){
+        if(finished || placed === null) return;
+        takeBack();
+      });
+
+      function refreshTiles(){
+        digits.forEach(function(d){
+          tileEls[d].classList.toggle('used', placed === d);
+        });
+      }
+      function takeBack(){
+        var back = placed;
+        placed = null;
+        slot.textContent = '?';
+        slot.classList.remove('filled');
+        refreshTiles();
+        $('#d-result').innerHTML = '把数字放进去，看看结果是奇还是偶～';
+        if(back !== null) addStep();
+      }
+      function place(d){
+        if(finished) return;
+        placed = d;
+        slot.textContent = d;
+        slot.classList.add('filled');
+        refreshTiles();
+        addStep();
+        var n = nums(d);
+        var val = calc(n[0], n[1]);
+        var pc = parityCn(val);
+        $('#d-result').innerHTML = t.kind + ' ＝ ' + val + '，是 <span class="parity-chip ' + (pc === '奇' ? 'pc-odd' : 'pc-even') + '">' + pc + '数</span>';
+        if(pc === t.goal){
+          finished = true;
+          slot.classList.add('ok');
+          celebrate(false);
+          setTimeout(stageWin, 950);
+        } else {
+          slot.classList.add('shake');
+          setTimeout(function(){ slot.classList.remove('shake'); }, 420);
+          toast('现在是' + pc + '数，目标是' + t.goal + '数哦，换个数字试试！');
+        }
+      }
+    },
+    reveal:function(){
+      var vd = validDigits();
+      var boxNum = (t.box === 'left') ? ('' + t.a + '□') : ('' + t.b + '□');
+      var html =
+        '<div class="reveal-box">' + t.tip + '</div>' +
+        '<div class="reveal-box">所以 □ 里可以填：<b style="font-size:24px;color:var(--odd)">' + vd.join('、') + '</b>' +
+        ' （共 ' + vd.length + ' 种填法，放任意一个都能过关）</div>' +
+        '<div class="reveal-box">口诀复习：奇±奇＝偶，偶±偶＝偶，奇±偶＝奇。</div>';
+      return html;
+    }
+  };
+}
+
+/* =====================================================
+   关卡二：硬币摆摆乐（点格子放硬币，让每行每列都是偶数）
+   来源：教参挑战题2"把硬币放到方格中，使每行每列硬币总数都是偶数"
+   ===================================================== */
+var COIN_SOLUTIONS = {
+  '3x3': [[0,0],[0,1],[1,0],[1,1]],
+  '5x5': [[0,0],[0,1],[1,0],[1,1],[2,3],[2,4],[3,3],[3,4]]
+};
+function stageCoin(rows, cols, target){
+  var key = rows + 'x' + cols;
+  var finished = false;
+  return {
+    title:'硬币摆摆乐',
+    mount:function(area){
+      area.innerHTML =
+        '<div class="stage-panel">' +
+          '<h2 class="stage-title">🪙 硬币' + (rows > 3 ? '大本营' : '摆摆乐') + '</h2>' +
+          '<div class="goal-banner">放入<b>恰好 ' + target + ' 枚</b>硬币，让<b>每一行、每一列</b>的硬币数都是<span class="parity-chip pc-even">偶数</span>（点格子放硬币，再点一下拿走）</div>' +
+          '<div class="coin-count" id="c-count">已放 0 / ' + target + ' 枚</div>' +
+          '<div class="coin-flex">' +
+            '<div class="coin-grid-wrap">' +
+              '<div class="coin-grid" id="c-grid"></div>' +
+              '<div class="coin-badges-col" id="c-colbadges"></div>' +
+            '</div>' +
+            '<div class="coin-side" id="c-rowbadges"></div>' +
+            '<div class="coin-note">👀 小观察：行标签变绿表示这一行是偶数；全部变绿且总数刚好 ' + target + ' 枚就过关！</div>' +
+          '</div>' +
+        '</div>';
+      var grid = [];
+      var gridEl = $('#c-grid');
+      gridEl.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+      var cellEls = [];
+      for(var r = 0; r < rows; r++){
+        grid.push([]);
+        cellEls.push([]);
+        for(var c = 0; c < cols; c++){
+          grid[r].push(false);
+          var cell = document.createElement('div');
+          cell.className = 'coin-cell';
+          cell.innerHTML = '<div class="coin-disc" style="display:none"></div>';
+          (function(rr, cc, cellEl){
+            cellEl.addEventListener('click', function(){
+              if(finished) return;
+              grid[rr][cc] = !grid[rr][cc];
+              cellEl.firstChild.style.display = grid[rr][cc] ? 'flex' : 'none';
+              addStep();
+              update();
+            });
+          })(r, c, cell);
+          gridEl.appendChild(cell);
+          cellEls[r].push(cell);
+        }
+      }
+      function chipHtml(n){
+        var p = parityCn(n);
+        return '<span class="rc-chip ' + (p === '偶' ? 'rc-even' : 'rc-odd') + '">' + n + ' ' + p + '</span>';
+      }
+      function update(){
+        var total = 0;
+        var rowHtml = '';
+        for(var r = 0; r < rows; r++){
+          var cnt = 0;
+          for(var c = 0; c < cols; c++) if(grid[r][c]) cnt++;
+          total += cnt;
+          rowHtml += '<div>行' + (r + 1) + ' ' + chipHtml(cnt) + '</div>';
+        }
+        $('#c-rowbadges').innerHTML = rowHtml;
+        var colHtml = '';
+        for(var c = 0; c < cols; c++){
+          var cnt2 = 0;
+          for(var r2 = 0; r2 < rows; r2++) if(grid[r2][c]) cnt2++;
+          colHtml += '<div>列' + (c + 1) + ' ' + chipHtml(cnt2) + '</div>';
+        }
+        $('#c-colbadges').innerHTML = colHtml;
+        $('#c-count').innerHTML = '已放 <b>' + total + '</b> / ' + target + ' 枚';
+        /* 过关判定：行、列全偶数，且总数恰好等于目标 */
+        var allEven = true;
+        for(var r4 = 0; r4 < rows && allEven; r4++){
+          var rc = 0;
+          for(var c4 = 0; c4 < cols; c4++) if(grid[r4][c4]) rc++;
+          if(rc % 2 !== 0) allEven = false;
+        }
+        for(var c5 = 0; c5 < cols && allEven; c5++){
+          var cc2 = 0;
+          for(var r5 = 0; r5 < rows; r5++) if(grid[r5][c5]) cc2++;
+          if(cc2 % 2 !== 0) allEven = false;
+        }
+        if(allEven && total === target && !finished){
+          finished = true;
+          celebrate(false);
+          setTimeout(stageWin, 850);
+        }
+      }
+      update();
+    },
+    reveal:function(){
+      var sol = COIN_SOLUTIONS[key];
+      var g = '';
+      var set = {};
+      sol.forEach(function(p){ set[p[0] + '-' + p[1]] = true; });
+      for(var r = 0; r < rows; r++){
+        for(var c = 0; c < cols; c++){
+          g += '<div class="mini-cell' + (set[r + '-' + c] ? ' has' : '') + '"></div>';
+        }
+      }
+      var mh = '<div class="mini-grid" style="grid-template-columns:repeat(' + cols + ',38px)">' + g + '</div>';
+      return '<div class="reveal-box">💡 小妙招：硬币总数＝每行硬币数相加。每行都是偶数时，' +
+        '总数一定是<b>偶数</b>（偶数个偶数相加还是偶数）。所以 <b>' + (target + 1) + ' 枚（奇数枚）永远摆不出来</b>，' +
+        '而 ' + target + ' 枚（偶数枚）就可以。这也是原题"7 枚不行、6 枚行"的秘密！</div>' +
+        '<div class="reveal-box">一种摆法（摆成 2×2 的小方块最方便' + (rows > 3 ? '，大棋盘就摆两个小方块' : '') + '）：</div>' + mh +
+        '<div class="reveal-box">行数：2、2' + (rows > 3 ? '、2、2、0' : '、0') + '；列数同理——全是偶数，正好 ' + target + ' 枚。✔</div>';
+    }
+  };
+}
+
+/* =====================================================
+   关卡三：乘法连闪机（拖数字球进机器，让积是指定奇偶）
+   来源：教参"多个自然数相乘，只要有偶数积就是偶数"（练习3、练习7）
+   ===================================================== */
+function stageOrb(slotCount){
+  var pool = (slotCount === 2)
+    ? shuffle([1,3,5,7,9,2,4,6])
+    : shuffle([1,3,5,7,9,11,2,4,6,8]);
+  var goal = pick(['奇','偶']);
+  var placedArr = [];   /* 槽内数字 */
+  var finished = false;
+  return {
+    title:'乘法连闪机',
+    mount:function(area){
+      area.innerHTML =
+        '<div class="stage-panel">' +
+          '<h2 class="stage-title">⚡ 乘法连闪机</h2>' +
+          '<div class="goal-banner">把数字球拖进机器的 ' + slotCount + ' 个圆槽，让「积」是<span class="parity-chip ' + (goal === '奇' ? 'pc-odd' : 'pc-even') + '">' + goal + '数</span></div>' +
+          '<div class="orb-machine">' +
+            '<div class="machine-name">—— 积的奇偶探测机 ——</div>' +
+            '<div class="orb-slots" id="o-slots"></div>' +
+            '<div class="bulb-line"><div class="bulb" id="o-bulb"></div><span class="bulb-text" id="o-bulbtext">把数字球都放进来，灯就亮啦</span></div>' +
+          '</div>' +
+          '<div class="tray-label">数字球：拖到圆槽，或点一下依次放入（点槽里的球可以取回）</div>' +
+          '<div class="orb-tray" id="o-tray"></div>' +
+        '</div>';
+      var slotsEl = $('#o-slots');
+      for(var i = 0; i < slotCount; i++){
+        placedArr.push(null);
+        if(i > 0){
+          var x = document.createElement('div');
+          x.className = 'orb-x';
+          x.textContent = '×';
+          slotsEl.appendChild(x);
+        }
+        var s = document.createElement('div');
+        s.className = 'orb-slot dropzone';
+        s.textContent = '?';
+        (function(idx, slotEl){
+          slotEl.addEventListener('click', function(){
+            if(finished || placedArr[idx] === null) return;
+            takeBack(idx);
+          });
+        })(i, s);
+        slotsEl.appendChild(s);
+      }
+      var slotEls = document.querySelectorAll('#o-slots .orb-slot');
+      var orbEls = {};
+      var tray = $('#o-tray');
+      pool.forEach(function(num){
+        var el = document.createElement('div');
+        el.className = 'orb';
+        el.textContent = num;
+        tray.appendChild(el);
+        orbEls[num] = el;
+        enableDrag(el, {
+          canDrag:function(){ return !finished && placedArr.indexOf(num) < 0; },
+          onTap:function(){
+            var emptyIdx = placedArr.indexOf(null);
+            if(emptyIdx < 0){ toast('圆槽都满啦，先点一个球取回来'); return; }
+            placeAt(emptyIdx, num);
+          },
+          onDropZone:function(zone){
+            var all = document.querySelectorAll('#o-slots .orb-slot');
+            for(var k = 0; k < all.length; k++){
+              if(all[k] === zone){
+                var idx = k;
+                if(placedArr[idx] !== null) takeBack(idx);
+                placeAt(idx, num);
+                return;
+              }
+            }
+            toast('要放进机器的圆槽里哦');
+          }
+        });
+      });
+      function takeBack(idx){
+        var back = placedArr[idx];
+        placedArr[idx] = null;
+        slotEls[idx].textContent = '?';
+        slotEls[idx].classList.remove('filled');
+        if(back !== null && orbEls[back]) orbEls[back].classList.remove('used');
+        update();
+        addStep();
+      }
+      function placeAt(idx, num){
+        if(finished) return;
+        placedArr[idx] = num;
+        slotEls[idx].textContent = num;
+        slotEls[idx].classList.add('filled');
+        orbEls[num].classList.add('used');
+        addStep();
+        update();
+      }
+      function update(){
+        var bulb = $('#o-bulb');
+        var txt = $('#o-bulbtext');
+        var full = placedArr.indexOf(null) < 0;
+        if(!full){
+          bulb.className = 'bulb';
+          txt.innerHTML = '已放入 ' + placedArr.filter(function(v){ return v !== null; }).length + ' / ' + slotCount + ' 个球……';
+          return;
+        }
+        var prod = 1;
+        placedArr.forEach(function(v){ prod *= v; });
+        var pc = parityCn(prod);
+        bulb.className = 'bulb ' + (pc === '奇' ? 'on-odd' : 'on-even');
+        txt.innerHTML = '积 ＝ ' + prod + '，是 <span class="parity-chip ' + (pc === '奇' ? 'pc-odd' : 'pc-even') + '">' + pc + '数</span>';
+        if(pc === goal && !finished){
+          finished = true;
+          celebrate(false);
+          setTimeout(stageWin, 950);
+        }
+      }
+    },
+    reveal:function(){
+      var oddsInPool = pool.filter(function(v){ return v % 2 === 1; }).slice(0, 3);
+      var evenInPool = pool.filter(function(v){ return v % 2 === 0; })[0];
+      var example = goal === '奇'
+        ? oddsInPool.join(' × ') + '（全是奇数）'
+        : oddsInPool.slice(0, slotCount - 1).join(' × ') + ' × ' + evenInPool + '（有一个偶数就够了）';
+      return '<div class="reveal-box">乘法口诀：<b>只要有一个因数是偶数，积一定是偶数</b>（偶数×任何整数都是偶数）；' +
+        '要积是奇数，必须<b>每个因数都是奇数</b>。</div>' +
+        '<div class="reveal-box">本关目标是积为<b>' + goal + '数</b>，例如：' + example + '。</div>' +
+        '<div class="reveal-box">教参原题回味：2×4×8×10×12 里全是偶数，积一定是偶数；1×2×3×…×1000 里出现了 2，积也是偶数。</div>';
+    }
+  };
+}
+
+/* =====================================================
+   关卡四：奇偶卡片屋（选卡片凑指定奇偶的和）
+   来源：教参练习2（12 张卡片选 5 张）的变式玩法
+   ===================================================== */
+function stageCard(){
+  var oddsPool = shuffle([3,3,5,5,7,7,9,11]).slice(0,5);
+  var evensPool = shuffle([2,4,6,8,10,12]).slice(0,5);
+  var cards = shuffle(oddsPool.concat(evensPool));
+  var goal = pick(['奇','偶']);
+  var selected = {};   /* 卡片下标 -> true */
+  var finished = false;
+  return {
+    title:'奇偶卡片屋',
+    mount:function(area){
+      area.innerHTML =
+        '<div class="stage-panel">' +
+          '<h2 class="stage-title">🃏 奇偶卡片屋</h2>' +
+          '<div class="goal-banner">选出<b>恰好 5 张</b>卡片，让「总和」是<span class="parity-chip ' + (goal === '奇' ? 'pc-odd' : 'pc-even') + '">' + goal + '数</span>（点卡片选中 / 再点取消）</div>' +
+          '<div class="card-stats">' +
+            '<span class="mini-chip">已选 <b id="k-n">0</b> / 5 张</span>' +
+            '<span class="mini-chip">奇数卡 <b id="k-odd">0</b> 张</span>' +
+            '<span class="mini-chip">当前总和 <b id="k-sum">0</b> <span id="k-parity"></span></span>' +
+          '</div>' +
+          '<div class="card-field" id="k-field"></div>' +
+          '<div class="hint-line" id="k-hint">小提示：卡片右下角标着它是奇数还是偶数哦。</div>' +
+        '</div>';
+      var field = $('#k-field');
+      cards.forEach(function(num, idx){
+        var el = document.createElement('div');
+        el.className = 'num-card ' + (num % 2 === 0 ? 'cd-even' : 'cd-odd');
+        el.innerHTML = '<div class="big">' + num + '</div><div class="tag">' + parityCn(num) + '数</div>';
+        el.addEventListener('click', function(){
+          if(finished) return;
+          if(selected[idx]){
+            delete selected[idx];
+            el.classList.remove('selected');
+          } else {
+            var n = Object.keys(selected).length;
+            if(n >= 5){
+              el.classList.add('shake');
+              setTimeout(function(){ el.classList.remove('shake'); }, 420);
+              toast('已经选了 5 张啦，先取消一张再选');
+              return;
+            }
+            selected[idx] = true;
+            el.classList.add('selected');
+          }
+          addStep();
+          update();
+        });
+        field.appendChild(el);
+      });
+      function update(){
+        var n = 0, sum = 0, oddCnt = 0;
+        cards.forEach(function(num, idx){
+          if(selected[idx]){
+            n++; sum += num;
+            if(num % 2 !== 0) oddCnt++;
+          }
+        });
+        $('#k-n').textContent = n;
+        $('#k-odd').textContent = oddCnt;
+        $('#k-sum').textContent = sum;
+        var pc = parityCn(sum);
+        $('#k-parity').innerHTML = n > 0 ? '<span class="rc-chip ' + (pc === '偶' ? 'rc-even' : 'rc-odd') + '">' + pc + '</span>' : '';
+        var hint = $('#k-hint');
+        if(n === 5){
+          if(pc === goal){
+            if(!finished){
+              finished = true;
+              hint.textContent = '太棒了！5 张卡里奇数卡有 ' + oddCnt + ' 张（' + parityCn(oddCnt) + '数张），和正好是' + pc + '数！';
+              celebrate(false);
+              setTimeout(stageWin, 950);
+            }
+          } else {
+            hint.textContent = '现在选了 ' + oddCnt + ' 张奇数卡，和是' + pc + '数；目标是' + goal + '数——换一换卡片想想为什么！';
+          }
+        } else {
+          hint.textContent = '小提示：和的奇偶只跟"选了几张奇数卡"有关哦。';
+        }
+      }
+    },
+    reveal:function(){
+      /* 从当前卡池里现场构造一个可行解 */
+      var ex, exOdd;
+      if(goal === '奇'){
+        ex = [oddsPool[0]].concat(evensPool.slice(0,4));
+        exOdd = 1;
+      } else {
+        ex = oddsPool.slice(0,2).concat(evensPool.slice(0,3));
+        exOdd = 2;
+      }
+      return '<div class="reveal-box">连加口诀：<b>和的奇偶只由奇数卡的张数决定</b>——选了<b>奇数张</b>奇数卡，和就是奇数；' +
+        '选了<b>偶数张</b>奇数卡（0、2、4 张），和就是偶数。偶数卡随便加多少张都不影响！</div>' +
+        '<div class="reveal-box">本关目标和是<b>' + goal + '数</b>，例如选：' + ex.join('、') + '（奇数卡 ' + exOdd + ' 张，' + parityCn(exOdd) + '数张 → 和是' + parityCn(ex.reduce(function(a,b){return a+b;},0)) + '数）。</div>' +
+        '<div class="reveal-box">教参原题回味：12 张卡片 3、3、3、5、5、5、7、7、7、9、9、9 <b>全是奇数</b>，从中选 5 张——奇数张奇数卡相加，和一定是奇数，' +
+        '而 20 是偶数，所以<b>不可能</b>选出和为 20 的 5 张卡！</div>';
+    }
+  };
+}
+
+/* =====================================================
+   关卡五：换座位大挑战（点相邻座位移动，奇偶规律决定终点）
+   来源：教参挑战题3（童太奇换13次座位）、挑战题4（传气球12次）
+   ===================================================== */
+function stageSeat(){
+  var tasks = [
+    { n:13, start:1, target:2,
+      story:'童太奇要从 1 号座位出发，每次换到相邻座位，一共换 13 次——让狐狸最后停在 2 号座位！',
+      isForced:true },
+    { n:12, start:1, target:3,
+      story:'传气球也是同样的道理：从 1 号位置出发，每次移到相邻位置，一共移动 12 次——让狐狸最后停在 3 号座位！',
+      isForced:false }
+  ];
+  var t = pick(tasks);
+  var pos, moves, finished = false;
+  return {
+    title:'换座位大挑战',
+    mount:function(area){
+      area.innerHTML =
+        '<div class="stage-panel">' +
+          '<h2 class="stage-title">🦊 换座位大挑战</h2>' +
+          '<div class="goal-banner">' + t.story + '</div>' +
+          '<div class="seat-zone" id="s-zone"></div>' +
+          '<div class="move-counter" id="s-counter"></div>' +
+          '<div class="hint-line" style="text-align:center">只能点与狐狸<b>相邻</b>的座位（发亮的椅子）哦！</div>' +
+        '</div>';
+      var zone = $('#s-zone');
+      var seatEls = [];
+      for(var i = 1; i <= 3; i++){
+        var s = document.createElement('div');
+        s.className = 'seat';
+        s.innerHTML = '<div class="seat-num">' + i + ' 号</div><div class="seat-tag">' + (i === 2 ? '中间' : (i === 1 ? '左边' : '右边')) + '</div>';
+        (function(num, el){
+          el.addEventListener('click', function(){
+            if(finished) return;
+            if(Math.abs(num - pos) !== 1){
+              el.classList.add('shake');
+              setTimeout(function(){ el.classList.remove('shake'); }, 420);
+              toast('每次只能换到相邻的座位哦');
+              return;
+            }
+            pos = num; moves++;
+            addStep();
+            render();
+            if(moves >= t.n){
+              if(pos === t.target){
+                finished = true;
+                celebrate(false);
+                setTimeout(stageWin, 950);
+              } else {
+                toast('步数用完了，狐狸停在了 ' + pos + ' 号……回到起点再试一次吧！');
+                setTimeout(function(){
+                  pos = t.start; moves = 0; render();
+                }, 900);
+              }
+            }
+          });
+        })(i, s);
+        zone.appendChild(s);
+        seatEls.push(s);
+      }
+      var fox = document.createElement('div');
+      fox.className = 'fox';
+      fox.textContent = '🦊';
+      zone.appendChild(fox);
+      function render(){
+        seatEls.forEach(function(el, idx){
+          var num = idx + 1;
+          el.classList.toggle('cur-seat', num === pos);
+          el.classList.toggle('movable', !finished && Math.abs(num - pos) === 1);
+        });
+        /* 让狐狸滑到当前座位上方 */
+        var cur = seatEls[pos - 1];
+        fox.style.left = (cur.offsetLeft + cur.offsetWidth / 2 - 30) + 'px';
+        $('#s-counter').innerHTML = '已换 <b>' + moves + '</b> / ' + t.n + ' 次 · 剩余 <b>' + (t.n - moves) + '</b> 次 · 目标：' + t.target + ' 号座位';
+      }
+      pos = t.start; moves = 0;
+      setTimeout(render, 60);   /* 等布局稳定后再定位狐狸 */
+    },
+    reveal:function(){
+      if(t.isForced){
+        return '<div class="reveal-box">座位号 1、2、3：狐狸每换一次座位，座位号的<b>奇偶就变一次</b>。' +
+          '从 1 号（奇）出发：换 1 次到偶数号（只能是 2 号），换 2 次又回到奇数号（1 号或 3 号）……' +
+          '换<b>奇数次</b>一定停在 2 号，换<b>偶数次</b>停在 1 号或 3 号。</div>' +
+          '<div class="reveal-box">' + t.n + ' 是奇数，所以<b>不管怎么换，最后一定停在 2 号</b>！这就是"怎么换都一样"的奇偶魔力。' +
+          '（教参原题：童太奇换了 13 次座位，最后就在 2 号座位。）</div>';
+      }
+      return '<div class="reveal-box">' + t.n + ' 是<b>偶数</b>，所以最后一定停在 1 号或 3 号（奇数号）。' +
+        '想到 3 号：先 1→2→3（2 次），再在 2、3 号之间来回（每来回 2 次），凑满 12 次正好停在 3 号。</div>' +
+        '<div class="reveal-box">教参原题（传气球）：壮壮、小艾、小雅排一排，小艾在中间，气球从小雅出发传 12 次——' +
+        '偶数次后气球只可能在<b>两端</b>（壮壮或小雅）手里，<b>不可能在中间的小艾</b>手里，道理完全一样！</div>';
+    }
+  };
+}
+
+/* =====================================================
+   关卡六：马拉松名次赛（丙与相邻名次交换，奇偶定名次）
+   来源：教参挑战题5（交换7次，丙是第几名）
+   ===================================================== */
+function stageMarathon(){
+  var TARGET_SWAPS = 7;
+  var animals = { jia:'🐼 甲', yi:'🐰 乙', bing:'🐢 丙' };
+  var order = ['jia','yi','bing'];   /* order[0]=第1名 */
+  var swaps = 0;
+  var finished = false;
+  var hintGiven = false;
+  return {
+    title:'马拉松名次赛',
+    mount:function(area){
+      area.innerHTML =
+        '<div class="stage-panel">' +
+          '<h2 class="stage-title">🏃 马拉松名次赛</h2>' +
+          '<div class="goal-banner">丙最后一个出发（第 3 名）。让丙与<b>相邻名次</b>的伙伴交换位置，恰好交换 <b>' + TARGET_SWAPS + ' 次</b>，最终站上<b>第 2 名</b>领奖台！</div>' +
+          '<div class="podium" id="m-podium"></div>' +
+          '<div class="swap-btns">' +
+            '<button class="btn" id="m-up">⬆️ 丙 与前一名交换</button>' +
+            '<button class="btn" id="m-down">⬇️ 丙 与后一名交换</button>' +
+          '</div>' +
+          '<div class="mara-counter" id="m-counter"></div>' +
+          '<div class="hint-line" style="text-align:center">两位伙伴之间也可以互相换着玩，但只有和丙交换才计入次数哦（本次玩法只开放与丙交换）。</div>' +
+        '</div>';
+      var podium = $('#m-podium');
+      function render(){
+        var html = '';
+        for(var i = 0; i < 3; i++){
+          var key = order[i];
+          var rank = i + 1;
+          html += '<div class="lane' + (key === 'bing' ? ' bing' : '') + '" id="lane-' + key + '">' +
+            '<div class="animal">' + animals[key].split(' ')[0] + '<span class="who">' + animals[key].split(' ')[1] + '</span></div>' +
+            '<div class="rank-box r' + rank + '">第' + rank + '名</div></div>';
+        }
+        podium.innerHTML = html;
+        var bingRank = order.indexOf('bing') + 1;
+        $('#m-up').disabled = finished || bingRank <= 1;
+        $('#m-down').disabled = finished || bingRank >= 3;
+        $('#m-counter').innerHTML = '已交换 <b>' + swaps + '</b> / ' + TARGET_SWAPS + ' 次 · 丙当前：<b>第 ' + bingRank + ' 名</b>';
+      }
+      function doSwap(dir){
+        if(finished) return;
+        var i = order.indexOf('bing');
+        var j = i + dir;
+        if(j < 0 || j > 2) return;
+        var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+        swaps++;
+        addStep();
+        render();
+        var laneB = $('#lane-bing');
+        if(laneB){ laneB.classList.add('flash'); setTimeout(function(){ laneB.classList.remove('flash'); }, 460); }
+        if(swaps >= TARGET_SWAPS){
+          var bingRank = order.indexOf('bing') + 1;
+          if(bingRank === 2){
+            finished = true;
+            celebrate(false);
+            setTimeout(stageWin, 950);
+          } else {
+            toast('交换满 ' + TARGET_SWAPS + ' 次时丙在第 ' + bingRank + ' 名……重置到起点再试！');
+            setTimeout(function(){ order = ['jia','yi','bing']; swaps = 0; render(); }, 900);
+          }
+        } else if(swaps >= 3 && !hintGiven){
+          hintGiven = true;
+          toast('发现了吗？每交换一次，丙就在奇数名和偶数名之间跳一下……');
+        }
+      }
+      $('#m-up').addEventListener('click', function(){ doSwap(-1); });
+      $('#m-down').addEventListener('click', function(){ doSwap(1); });
+      render();
+    },
+    reveal:function(){
+      return '<div class="reveal-box">丙从<b>第 3 名（奇数名）</b>出发，每交换一次，名次就 ±1，奇偶跟着变一次。</div>' +
+        '<div class="reveal-box">交换 ' + TARGET_SWAPS + ' 次（<b>奇数次</b>）后，名次一定是<b>偶数名</b>——三人比赛里偶数名次只有第 2 名！' +
+        '所以<b>无论怎么交换，丙一定是第 2 名</b>，随便换都能过关，这正是原题的答案。</div>';
+    }
+  };
+}
+
+/* =====================================================
+   关卡七：连续数滑轨（滑动选 a，观察连续自然数的奇偶变化）
+   来源：教参练习12（a、b、c 连续自然数，a 是偶数，判断积的奇偶）
+   ===================================================== */
+function stageSlider(){
+  var goals = [
+    { text:'让 (a+1)×(b+2)×(c+3) 的积是奇数', kind:'prod', want:'奇',
+      tip:'a、b、c 是连续自然数：b＝a+1，c＝a+2，于是 a+1、b+2、c+3 就是 a+1、a+3、a+5——三个数奇偶相同，都由 a 决定。想让积是奇数，三个都得是奇数，所以 a 要选<b>偶数</b>。' },
+    { text:'让 (a+1)×(b+2)×(c+3) 的积是偶数', kind:'prod', want:'偶',
+      tip:'想让积是偶数，只要有一个因数是偶数就行。选 a 为<b>奇数</b>时，a+1 是偶数，积一定是偶数。（a 为偶数时三个因数全是奇数，积反而是奇数。）' },
+    { text:'让 a+b+c 的和是奇数', kind:'sum', want:'奇',
+      tip:'三个连续自然数的和 a+b+c＝3×(a+1)，它的奇偶与 a+1 相同：a 是<b>偶数</b>时 a+1 是奇数，和就是奇数。' },
+    { text:'让 a+b+c 的和是偶数', kind:'sum', want:'偶',
+      tip:'a+b+c＝3×(a+1)：a 是<b>奇数</b>时 a+1 是偶数，和就是偶数。' }
+  ];
+  var g = pick(goals);
+  var a = 1 + Math.floor(Math.random() * 12);
+  var finished = false;
+  return {
+    title:'连续数滑轨',
+    mount:function(area){
+      area.innerHTML =
+        '<div class="stage-panel">' +
+          '<h2 class="stage-title">🎚️ 连续数滑轨</h2>' +
+          '<div class="goal-banner">a、b、c 是三个连续的自然数（b＝a+1，c＝a+2）。拖动滑轨选一个 a：<b>' + g.text + '</b></div>' +
+          '<div class="slider-wrap">' +
+            '<input type="range" class="range" id="sl" min="1" max="12" step="1" value="' + a + '">' +
+            '<div class="slider-val">a ＝ <span id="sl-a">' + a + '</span></div>' +
+            '<div class="val-boxes" id="sl-abc"></div>' +
+            '<div class="expr-show" id="sl-expr"></div>' +
+          '</div>' +
+          '<div class="hint-line" style="text-align:center">滑到想要的数后<b>松手</b>，就算作出选择啦。</div>' +
+        '</div>';
+      var sl = $('#sl');
+      function upd(){
+        var va = parseInt(sl.value, 10);
+        $('#sl-a').textContent = va;
+        var b = va + 1, c = va + 2;
+        function boxHtml(name, v){
+          var p = parityCn(v);
+          return '<div class="val-box"><div class="vb-name">' + name + '</div><div class="vb-num">' + v +
+            ' <span class="rc-chip ' + (p === '偶' ? 'rc-even' : 'rc-odd') + '">' + p + '</span></div></div>';
+        }
+        $('#sl-abc').innerHTML = boxHtml('a', va) + boxHtml('b＝a+1', b) + boxHtml('c＝a+2', c);
+        var s1 = va + 1, s2 = b + 2, s3 = c + 3;
+        var prod = s1 * s2 * s3;
+        var sum = va + b + c;
+        $('#sl-expr').innerHTML =
+          'a+1＝' + s1 + '（' + parityCn(s1) + '） · b+2＝' + s2 + '（' + parityCn(s2) + '） · c+3＝' + s3 + '（' + parityCn(s3) + '）<br>' +
+          '积 (a+1)×(b+2)×(c+3)＝' + prod + ' → <span class="parity-chip ' + (parityCn(prod) === '奇' ? 'pc-odd' : 'pc-even') + '">' + parityCn(prod) + '数</span><br>' +
+          '和 a+b+c＝' + sum + ' → <span class="parity-chip ' + (parityCn(sum) === '奇' ? 'pc-odd' : 'pc-even') + '">' + parityCn(sum) + '数</span>';
+      }
+      sl.addEventListener('input', function(){ if(!finished) upd(); });
+      sl.addEventListener('change', function(){
+        if(finished) return;
+        addStep();
+        var va = parseInt(sl.value, 10);
+        var b = va + 1, c = va + 2;
+        var val = (g.kind === 'prod') ? (va + 1) * (b + 2) * (c + 3) : (va + b + c);
+        if(parityCn(val) === g.want){
+          finished = true;
+          celebrate(false);
+          setTimeout(stageWin, 900);
+        } else {
+          toast('现在是' + parityCn(val) + '数，目标是' + g.want + '数——再滑一滑试试！');
+        }
+      });
+      upd();
+    },
+    reveal:function(){
+      return '<div class="reveal-box">' + g.tip + '</div>' +
+        '<div class="reveal-box">教参原题回味：a 是偶数时，a+1、b+2、c+3（即 a+1、a+3、a+5）三个都是奇数，积一定是奇数——' +
+        '所以小浩说"积一定是奇数"是<b>对的</b>，小艾说错了。</div>';
+    }
+  };
+}
+
+/* =====================================================
+   难度配置（G3：三档难度，各 3 小关）
+   ===================================================== */
+var DIFFS = {
+  easy: {
+    name:'🌈 彩虹桥（初级）',
+    stages:[
+      function(){ return stageDigit(); },
+      function(){ return stageCoin(3, 3, 4); },
+      function(){ return stageOrb(2); }
+    ]
+  },
+  mid: {
+    name:'🏛️ 智慧之门（中级）',
+    stages:[
+      function(){ return stageCard(); },
+      function(){ return stageSeat(); },
+      function(){ return stageOrb(3); }
+    ]
+  },
+  hard: {
+    name:'🌌 星空旅程（高级）',
+    stages:[
+      function(){ return stageCoin(5, 5, 8); },
+      function(){ return stageMarathon(); },
+      function(){ return stageSlider(); }
+    ]
+  }
+};
+
+/* ---------------- 关卡流程控制 ---------------- */
+function startLevel(key){
+  G.diff = key;
+  G.stageIdx = 0;
+  G.steps = 0;
+  applyPalette();        /* 每局随机换配色（G8） */
+  startTimer();
+  show('screen-game');
+  updateHeader();
+  if(!rulesShown){
+    rulesShown = true;
+    openModal('modal-rules');   /* 首次进入弹出规则（G6） */
+  }
+  mountStage();
+  window.scrollTo(0, 0);
+}
+function updateHeader(){
+  var d = DIFFS[G.diff];
+  var stTitle = currentStage ? currentStage.title : '';
+  $('#hdr-title').textContent = d.name.replace(/（.+）/, '') + ' · 第' + (G.stageIdx + 1) + '关 ' + stTitle;
+  var dots = '';
+  for(var i = 0; i < 3; i++){
+    dots += '<div class="dot' + (i < G.stageIdx ? ' done' : (i === G.stageIdx ? ' cur' : '')) + '"></div>';
+  }
+  $('#dots').innerHTML = dots;
+}
+function mountStage(){
+  G.done = false;
+  currentStage = DIFFS[G.diff].stages[G.stageIdx]();
+  updateHeader();
+  var area = $('#stage-area');
+  area.innerHTML = '';
+  currentStage.mount(area);
+}
+function stageWin(){
+  if(G.done) return;
+  G.done = true;
+  var isLast = (G.stageIdx === 2);
+  if(isLast){
+    stopTimer();
+    celebrate(true);
+    $('#final-stats').innerHTML = '难度：<b>' + DIFFS[G.diff].name + '</b><br>用时 <b>' + fmtTime(G.sec) + '</b> · 共 <b>' + G.steps + '</b> 步 · 收集 3 颗星 ⭐⭐⭐';
+    openModal('modal-final');
+  } else {
+    $('#clear-title').textContent = '第' + (G.stageIdx + 1) + '关完成！收下这颗星 ⭐';
+    $('#clear-stats').innerHTML = '用时 ' + fmtTime(G.sec) + ' · 累计步数 ' + G.steps;
+    openModal('modal-clear');
+  }
+}
+
+/* ---------------- 事件绑定 ---------------- */
+function bind(){
+  document.querySelectorAll('.diff-card').forEach(function(card){
+    card.addEventListener('click', function(){ startLevel(card.getAttribute('data-diff')); });
+  });
+  $('#btn-rules-start').addEventListener('click', function(){ openModal('modal-rules'); });
+  $('#btn-rules').addEventListener('click', function(){ openModal('modal-rules'); });
+  $('#btn-reveal').addEventListener('click', function(){
+    if(!currentStage) return;
+    $('#reveal-body').innerHTML = currentStage.reveal();
+    openModal('modal-reveal');
+  });
+  $('#btn-restart').addEventListener('click', function(){
+    if(!G.diff) return;
+    startLevel(G.diff);
+    toast('已重新开始本难度，关卡数据全新随机！');
+  });
+  $('#btn-home').addEventListener('click', function(){ stopTimer(); show('screen-start'); });
+  $('#btn-home2').addEventListener('click', function(){ closeModal('modal-final'); stopTimer(); show('screen-start'); });
+  $('#btn-next').addEventListener('click', function(){
+    closeModal('modal-clear');
+    G.stageIdx++;
+    mountStage();
+    window.scrollTo(0, 0);
+  });
+  $('#btn-again').addEventListener('click', function(){
+    closeModal('modal-final');
+    startLevel(G.diff);
+  });
+  /* 所有弹窗的关闭按钮与遮罩点击 */
+  document.querySelectorAll('[data-close]').forEach(function(btn){
+    btn.addEventListener('click', function(){ closeModal(btn.getAttribute('data-close')); });
+  });
+  document.querySelectorAll('.modal-mask').forEach(function(mask){
+    if(mask.id === 'modal-clear' || mask.id === 'modal-final') return;  /* 结算弹窗必须点按钮继续 */
+    mask.addEventListener('click', function(e){
+      if(e.target === mask) closeModal(mask.id);
+    });
+  });
+}
+
+/* ---------------- 启动 ---------------- */
+fxInit();
+applyPalette();
+bind();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-c/g003", "name": "\u5947\u5076\u9b54\u6cd5\u5c9b \u00b7 \u6570\u7684\u5947\u5076\u6027\u5927\u5192\u9669", "file": "g003.html", "jiaocan": "\u301012\u3011\u5c0f\u5b66\u5965\u6570A\uff08\u4e09\u5e74\u7ea7\uff09(\u9879\u76ee5 \u795e\u5947\u7684\u5947\u5076\u6027\uff1a\u6d3b\u52a8 \u6570\u7684\u5947\u5076\u6027)", "unit": "", "grade": "\u4e09\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "C\uff1a\u5c0f\u5b66\u5965\u6570A", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u5b66\u5965\u6570A\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-c"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

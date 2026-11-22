@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>数字果园 · 倒推法大闯关（第4讲 数的组成——倒推法）</title>
+<style>
+/* ========== 基础与配色变量（每局从预设色板随机选择） ========== */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { width: 100%; height: 100%; overflow-x: hidden; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", "SimHei", sans-serif;
+  background: linear-gradient(160deg, var(--bg1), var(--bg2));
+  color: var(--ink);
+  user-select: none; -webkit-user-select: none;
+  transition: background 0.6s;
+}
+:root {
+  --bg1: #e8f4ff; --bg2: #cfe8ff; --panel: rgba(255,255,255,0.92);
+  --ink: #21424f; --primary: #2f7fd6; --accent: #ffb64d; --line: #9cc6ef;
+  --knownFill: #ffffff; --emptyFill: #fffdf0; --emptyBorder: #e8a13c;
+  --good: #2fa87a; --star: #ffb703;
+}
+#app { max-width: 1080px; margin: 0 auto; padding: 10px 12px 30px; position: relative; }
+
+/* ========== 顶部标题与信息栏 ========== */
+.topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.gameTitle { font-size: 26px; font-weight: 900; color: var(--primary); letter-spacing: 1px; }
+.gameTitle small { font-size: 15px; color: var(--ink); opacity: .75; font-weight: 700; margin-left: 8px; }
+.hud { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hudChip {
+  background: var(--panel); border: 3px solid var(--primary); border-radius: 14px;
+  padding: 5px 12px; font-size: 19px; font-weight: 800; color: var(--ink);
+  box-shadow: 0 3px 0 rgba(0,0,0,.08); white-space: nowrap;
+}
+.hudChip b { color: var(--primary); font-size: 21px; }
+.paletteName { font-size: 15px; font-weight: 700; color: var(--ink); opacity: .8; }
+
+/* ========== 面板通用 ========== */
+.panel {
+  background: var(--panel); border: 4px solid var(--primary); border-radius: 20px;
+  box-shadow: 0 8px 22px rgba(40, 70, 100, .16); padding: 14px; position: relative;
+}
+.hidden { display: none !important; }
+
+/* ========== 难度选择屏 ========== */
+#screenSelect { text-align: center; padding: 26px 16px 34px; }
+#screenSelect h1 { font-size: 40px; font-weight: 900; color: var(--primary); margin-bottom: 6px; }
+#screenSelect .sub { font-size: 19px; font-weight: 700; margin-bottom: 20px; color: var(--ink); }
+.diffRow { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
+.diffCard {
+  width: 250px; border-radius: 20px; border: 4px solid var(--line);
+  background: #fff; padding: 20px 16px; cursor: pointer;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  box-shadow: 0 6px 0 rgba(0,0,0,.08);
+}
+.diffCard:hover { transform: translateY(-6px) scale(1.02); border-color: var(--primary); box-shadow: 0 12px 22px rgba(40,70,100,.2); }
+.diffCard .icon { width: 84px; height: 84px; margin: 0 auto 8px; }
+.diffCard h2 { font-size: 27px; font-weight: 900; margin-bottom: 4px; }
+.diffCard .lv { font-size: 16px; font-weight: 800; color: #fff; display: inline-block; padding: 3px 14px; border-radius: 999px; margin-bottom: 8px; }
+.diffCard p { font-size: 15.5px; line-height: 1.55; color: #4a5b66; font-weight: 600; }
+.lv1 { background: #2fa87a; } .lv2 { background: #e8862f; } .lv3 { background: #d6455f; }
+
+/* ========== 游戏区 ========== */
+#screenGame .questBar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 10px;
+}
+.levelBadge { font-size: 20px; font-weight: 900; color: #fff; background: var(--primary); padding: 6px 16px; border-radius: 12px; }
+.srcBadge { font-size: 14.5px; font-weight: 800; color: var(--ink); background: var(--bg2); border: 2px solid var(--line); padding: 4px 12px; border-radius: 999px; }
+#questText { font-size: 21px; font-weight: 900; color: var(--ink); }
+
+#boardWrap { margin: 0 auto; }
+#board {
+  position: relative; width: 100%; border-radius: 18px; overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255,255,255,.7) 0 26px, transparent 27px),
+    radial-gradient(circle at 80% 78%, rgba(255,255,255,.55) 0 34px, transparent 35px),
+    repeating-linear-gradient(0deg, rgba(70,120,160,.05) 0 2px, transparent 2px 46px),
+    repeating-linear-gradient(90deg, rgba(70,120,160,.05) 0 2px, transparent 2px 46px),
+    #fdfefe;
+  border: 3px solid var(--line);
+  touch-action: none;
+}
+#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#lines { position: absolute; left: 0; top: 0; }
+
+/* ---------- 节点 ---------- */
+.node { position: absolute; width: 96px; margin-left: -48px; text-align: center; cursor: grab; touch-action: none; }
+.node.locked { cursor: default; }
+.node .box {
+  width: 72px; height: 72px; margin: 0 auto; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; font-weight: 900;
+}
+.node.num.known .box { background: var(--knownFill); border: 4px solid var(--primary); color: var(--ink); box-shadow: 0 4px 0 rgba(0,0,0,.1); }
+.node.num.unknown .box { background: var(--emptyFill); border: 4px dashed var(--emptyBorder); color: #d9b23c; }
+.node.num.unknown .box span { font-size: 30px; opacity: .8; }
+.node.num.given .box { background: #fff; border: 4px solid #7a8b96; color: var(--ink); }
+.node.fruit .fruitwrap { width: 86px; height: 86px; margin: 0 auto; position: relative; filter: drop-shadow(0 3px 2px rgba(0,0,0,.14)); }
+.node.fruit .fruitwrap svg { width: 100%; height: 100%; }
+.node.fruit .vbadge {
+  position: absolute; right: -6px; bottom: -4px; min-width: 36px; height: 36px;
+  border-radius: 50%; background: #fff; border: 3px solid var(--primary);
+  font-size: 20px; font-weight: 900; color: var(--primary);
+  display: flex; align-items: center; justify-content: center; padding: 0 4px;
+}
+.node.fruit.unknown .vbadge { border-color: #c9b458; color: #c9b458; background: #fffdf0; }
+.node.fruit.lit .vbadge { border-color: var(--good); color: var(--good); }
+.node .nameTag { font-size: 16px; font-weight: 800; margin-top: 3px; color: var(--ink); background: rgba(255,255,255,.85); border-radius: 8px; display: inline-block; padding: 0 8px; }
+.node .targetTag {
+  position: absolute; top: -30px; left: 50%; transform: translateX(-50%);
+  background: var(--accent); color: #5c3a00; font-size: 15px; font-weight: 900;
+  padding: 2px 10px; border-radius: 999px; white-space: nowrap; border: 2px solid #fff;
+  animation: bounceTag 1.1s infinite ease-in-out;
+}
+@keyframes bounceTag { 0%,100% { transform: translateX(-50%) translateY(0);} 50% { transform: translateX(-50%) translateY(-5px);} }
+.node.target { z-index: 5; }
+.node.target .box, .node.target .fruitwrap { outline: 4px solid var(--accent); outline-offset: 3px; border-radius: 18px; }
+.node.dropHint .box { box-shadow: 0 0 0 8px rgba(255, 183, 3, .5); }
+.node.fruit.dropHint .fruitwrap { filter: drop-shadow(0 0 10px rgba(255,183,3,.95)); }
+.node.shake { animation: shakeX .4s; }
+@keyframes shakeX { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 50%{transform:translateX(7px)} 75%{transform:translateX(-5px)} }
+.node.pop { animation: popIn .5s cubic-bezier(.2,1.6,.4,1); }
+@keyframes popIn { 0%{transform:scale(.3)} 60%{transform:scale(1.18)} 100%{transform:scale(1)} }
+.node.litup .box, .node.litup .vbadge { animation: glowIn .7s; }
+@keyframes glowIn { 0%{ box-shadow: 0 0 0 0 rgba(47,168,122,.9);} 100%{ box-shadow: 0 0 0 18px rgba(47,168,122,0);} }
+
+/* ---------- 线索卡 ---------- */
+#clueBar { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+.clue {
+  width: 128px; background: #fff; border: 4px solid var(--accent); border-radius: 16px;
+  padding: 8px 6px; text-align: center; cursor: grab; touch-action: none;
+  box-shadow: 0 5px 0 rgba(0,0,0,.1); transition: transform .12s;
+}
+.clue:hover { transform: translateY(-4px); }
+.clue.used { opacity: .6; filter: grayscale(.6); cursor: default; }
+.clue .cicon { width: 60px; height: 60px; margin: 0 auto; }
+.clue .cicon svg { width: 100%; height: 100%; }
+.clue .ctext { font-size: 20px; font-weight: 900; color: var(--ink); }
+.clue .ctip { font-size: 13px; font-weight: 700; color: #8a6a1f; }
+
+/* ---------- 拖拽幽灵 ---------- */
+#ghost {
+  position: fixed; z-index: 99; pointer-events: none; display: none;
+  width: 66px; height: 66px; border-radius: 50%;
+  background: var(--primary); color: #fff; border: 4px solid #fff;
+  font-size: 28px; font-weight: 900;
+  align-items: center; justify-content: center;
+  box-shadow: 0 8px 18px rgba(0,0,0,.28); transform: translate(-50%, -60%);
+}
+#ghost.carry { width: 86px; height: 86px; background: transparent; border: none; box-shadow: none; }
+#ghost.carry svg { width: 100%; height: 100%; }
+
+/* ---------- 消息气泡 ---------- */
+#msgBubble {
+  min-height: 46px; margin-top: 10px; text-align: center;
+  font-size: 20px; font-weight: 800; color: var(--ink);
+  background: var(--bg2); border: 3px dashed var(--line); border-radius: 14px;
+  padding: 8px 14px; transition: all .25s;
+}
+#msgBubble.good { color: #1c7a54; border-color: var(--good); background: #e6f9f0; border-style: solid; }
+#msgBubble.warn { color: #a35a00; border-color: var(--accent); background: #fff6e2; border-style: solid; }
+
+/* ---------- 公式气泡 ---------- */
+.formulaPop {
+  position: absolute; z-index: 20; background: #fff; border: 3px solid var(--good);
+  color: #1c7a54; font-size: 19px; font-weight: 900; padding: 4px 12px; border-radius: 12px;
+  pointer-events: none; animation: floatUp 1.6s forwards; white-space: nowrap;
+}
+@keyframes floatUp { 0%{opacity:0; transform:translateY(8px);} 15%{opacity:1;} 80%{opacity:1;} 100%{opacity:0; transform:translateY(-42px);} }
+
+/* ---------- 按钮组 ---------- */
+.btnRow { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.btn {
+  font-size: 19px; font-weight: 900; padding: 10px 22px; border-radius: 14px;
+  border: none; cursor: pointer; color: #fff; background: var(--primary);
+  box-shadow: 0 5px 0 rgba(0,0,0,.18); transition: transform .1s, filter .15s;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
+.btn.orange { background: #e8862f; } .btn.green { background: #2fa87a; }
+.btn.gray { background: #7a8b96; } .btn.red { background: #d6455f; }
+.btn.small { font-size: 15px; padding: 6px 14px; }
+
+/* ---------- 弹窗 ---------- */
+.overlay {
+  position: fixed; inset: 0; background: rgba(25, 45, 60, .55);
+  display: flex; align-items: center; justify-content: center; z-index: 200; padding: 16px;
+}
+.modal {
+  background: #fff; border-radius: 22px; border: 5px solid var(--primary);
+  max-width: 640px; width: 100%; max-height: 88vh; overflow-y: auto;
+  padding: 26px 26px 22px; text-align: center;
+  animation: popIn .4s cubic-bezier(.2,1.6,.4,1);
+}
+.modal h2 { font-size: 30px; color: var(--primary); font-weight: 900; margin-bottom: 14px; }
+.modal .ruleItem {
+  text-align: left; font-size: 17.5px; font-weight: 700; line-height: 1.6;
+  background: var(--bg2); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px;
+}
+.modal .ruleItem b { color: var(--primary); }
+.bigResult { font-size: 40px; font-weight: 900; color: var(--good); margin: 10px 0; }
+.starRow { display: flex; justify-content: center; gap: 8px; margin: 8px 0 12px; }
+.starRow svg { width: 54px; height: 54px; }
+.explainBox {
+  text-align: left; background: #f4faf7; border: 3px solid #bfe6d4; border-radius: 14px;
+  padding: 12px 16px; margin: 8px 0 14px; font-size: 17px; font-weight: 700; line-height: 1.75;
+}
+.explainBox .chk { color: #1c7a54; font-weight: 900; }
+
+/* ---------- 彩纸画布 ---------- */
+#fx { position: fixed; inset: 0; pointer-events: none; z-index: 300; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 720px) {
+  .gameTitle { font-size: 21px; }
+  .hudChip { font-size: 16px; padding: 4px 9px; }
+  #questText { font-size: 18px; }
+  .btn { font-size: 17px; padding: 9px 16px; }
+  .diffCard { width: 84%; }
+  .node .nameTag { font-size: 14px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶部信息栏：标题 + 计时器 + 步数 -->
+  <div class="topbar">
+    <div class="gameTitle">数字果园 · 倒推法大闯关<small>第4讲 数的组成——倒推法</small></div>
+    <div class="hud">
+      <span class="paletteName" id="paletteName"></span>
+      <span class="hudChip">时间 <b id="hudTime">00:00</b></span>
+      <span class="hudChip">步数 <b id="hudSteps">0</b></span>
+      <button class="btn gray small" id="btnSound">声音：开</button>
+    </div>
+  </div>
+
+  <!-- 难度选择屏 -->
+  <div class="panel" id="screenSelect">
+    <h1>数字果园 · 倒推寻宝</h1>
+    <div class="sub">知道结果，倒着往回推，空框里藏的数就能找到！选一个难度开始吧～</div>
+    <div class="diffRow">
+      <div class="diffCard" data-diff="1">
+        <div class="icon" id="iconSeed"></div>
+        <h2>小树苗关</h2>
+        <span class="lv lv1">初级</span>
+        <p>例题级：两层"数的组成"大树。<br>把下面的数<b>拖进上面的空框</b>，合起来往上推！</p>
+      </div>
+      <div class="diffCard" data-diff="2">
+        <div class="icon" id="iconFruit"></div>
+        <h2>果实林关</h2>
+        <span class="lv lv2">中级</span>
+        <p>练习级：既要"合"，也要"拆"！<br>把<b>总数拖到已知部分上</b>，拆出空框的数；还有图形线索哦。</p>
+      </div>
+      <div class="diffCard" data-diff="3">
+        <div class="icon" id="iconTree"></div>
+        <h2>智慧果园关</h2>
+        <span class="lv lv3">高级</span>
+        <p>综合级：三层大树、三叉分支、水果连环阵。<br>相同的水果代表相同的数，一步步倒推到底！</p>
+      </div>
+    </div>
+    <div class="btnRow" style="margin-top:22px">
+      <button class="btn orange" id="btnRules0">游戏规则</button>
+    </div>
+  </div>
+
+  <!-- 游戏屏 -->
+  <div class="panel hidden" id="screenGame">
+    <div class="questBar">
+      <span class="levelBadge" id="levelBadge">第1关 / 共3关</span>
+      <span class="srcBadge" id="srcBadge"></span>
+      <span id="questText"></span>
+    </div>
+    <div id="boardWrap">
+      <div id="board">
+        <div id="world">
+          <svg id="lines" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+    </div>
+    <div id="clueBar" class="hidden"></div>
+    <div id="msgBubble">把亮着的数拖起来，开始倒推吧！</div>
+    <div class="btnRow">
+      <button class="btn gray" id="btnRules">游戏规则</button>
+      <button class="btn orange" id="btnReveal">揭示答案</button>
+      <button class="btn green" id="btnRestart">重新开始</button>
+      <button class="btn red" id="btnBack">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- 拖拽幽灵（跟手指走的小球） -->
+<div id="ghost"></div>
+
+<!-- 规则弹窗 -->
+<div class="overlay hidden" id="rulesOverlay">
+  <div class="modal">
+    <h2>游戏规则</h2>
+    <div class="ruleItem">1. 果园里的"数的组成"大树，有些框是空的。我们的任务是<b>用倒推法</b>（从结果出发，一步一步倒着推算）把空框全部填满！</div>
+    <div class="ruleItem">2. <b>向上合（加法）</b>：当一个空框<b>下面的数都亮出来</b>时，把其中任何一个数<b>拖到上面的空框</b>里，空框就会自动合出结果！</div>
+    <div class="ruleItem">3. <b>向下拆（减法）</b>：当上面的总数已经知道、下面只空了一个框时，把<b>总数拖到旁边已知的数上</b>，就能拆出空框里的数！</div>
+    <div class="ruleItem">4. <b>水果关</b>：先把下方的<b>线索卡</b>拖到对应的水果上（例如 草莓=2）。记住：<b>相同的图形代表相同的数</b>，点亮一个，相同的水果会一起亮！</div>
+    <div class="ruleItem">5. 步数用得越少，星星越多！填完所有空框（或算出目标水果）就通关。别忘了像巧算秘诀说的：<b>倒着推算，正向检查</b>！</div>
+    <div class="btnRow"><button class="btn green" id="btnRulesOk">知道啦，出发！</button></div>
+  </div>
+</div>
+
+<!-- 关卡结算弹窗 -->
+<div class="overlay hidden" id="levelOverlay">
+  <div class="modal">
+    <h2 id="loTitle">太棒了！</h2>
+    <div class="bigResult" id="loResult"></div>
+    <div class="starRow" id="loStars"></div>
+    <div class="explainBox" id="loExplain"></div>
+    <div class="btnRow">
+      <button class="btn green" id="btnNext">下一关</button>
+      <button class="btn gray" id="btnReplay">再玩本关</button>
+    </div>
+  </div>
+</div>
+
+<!-- 整局结算弹窗 -->
+<div class="overlay hidden" id="roundOverlay">
+  <div class="modal">
+    <h2>果园大丰收！</h2>
+    <div class="bigResult" id="roStars"></div>
+    <div class="explainBox" id="roInfo"></div>
+    <div class="btnRow">
+      <button class="btn green" id="btnAgain">再玩一次</button>
+      <button class="btn red" id="btnBack2">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- 彩纸庆祝画布 -->
+<canvas id="fx"></canvas>
+
+<script>
+"use strict";
+/* =====================================================================
+   数字果园 · 倒推法大闯关
+   核心玩法：把"倒推法"变成手上操作——
+     1) 向上合：把已知子节点拖进父空框（加法合成）
+     2) 向下拆：把已知总数拖到已知孩子上（减法拆分）
+     3) 线索贴纸：把"水果=数"线索卡拖到对应水果上（相同图形同数值）
+   题目来源：教材第4讲《数的组成——倒推法》例1、例2、
+     即学即练、进阶练习原题 + 同型变式（数值随机）。
+   ===================================================================== */
+
+/* ---------------- 1. 预设色板（每局随机选一个） ---------------- */
+var PALETTES = [
+  { name: "蜜桃粉", bg1: "#ffe9f0", bg2: "#ffd6e3", ink: "#5f2740", primary: "#e8638f", accent: "#f4a300", line: "#f2a3c0" },
+  { name: "薄荷绿", bg1: "#e6fff4", bg2: "#c9f7e3", ink: "#1d4d3a", primary: "#1fa87a", accent: "#f4a300", line: "#8fdcb9" },
+  { name: "天空蓝", bg1: "#e8f4ff", bg2: "#cfe8ff", ink: "#21424f", primary: "#2f7fd6", accent: "#ff9d2f", line: "#9cc6ef" },
+  { name: "柠檬黄", bg1: "#fff9dd", bg2: "#ffefb3", ink: "#5c4a10", primary: "#d69a00", accent: "#57b8e0", line: "#e8cf7a" },
+  { name: "葡萄紫", bg1: "#f3eaff", bg2: "#e2d1ff", ink: "#3f2a5e", primary: "#8a5cd6", accent: "#ff9e5e", line: "#c3a8ee" },
+  { name: "珊瑚橙", bg1: "#fff0e6", bg2: "#ffd9c2", ink: "#5f3013", primary: "#e8703a", accent: "#57b8e0", line: "#f0b48c" }
+];
+
+/* ---------------- 2. 水果 / 图形 SVG 绘制 ---------------- */
+/* 每种图形返回一段内联 SVG（粗线条、高对比，适合课堂投影） */
+var FRUITS = {
+  strawberry: { name: "草莓", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M50 18 C30 18 18 32 18 50 C18 74 36 90 50 90 C64 90 82 74 82 50 C82 32 70 18 50 18 Z" fill="' + fill + '" stroke="#333" stroke-width="4"/>' +
+      '<path d="M32 14 L40 24 L50 12 L60 24 L68 14 L64 26 L36 26 Z" fill="#57b85c" stroke="#333" stroke-width="3"/>' +
+      '<circle cx="38" cy="48" r="3.4" fill="#fff" stroke="#333" stroke-width="1.5"/><circle cx="62" cy="48" r="3.4" fill="#fff" stroke="#333" stroke-width="1.5"/>' +
+      '<circle cx="50" cy="64" r="3.4" fill="#fff" stroke="#333" stroke-width="1.5"/><circle cx="40" cy="72" r="3" fill="#fff" stroke="#333" stroke-width="1.5"/><circle cx="60" cy="72" r="3" fill="#fff" stroke="#333" stroke-width="1.5"/></svg>'; } },
+  apple: { name: "苹果", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><circle cx="50" cy="58" r="34" fill="' + fill + '" stroke="#333" stroke-width="4"/>' +
+      '<path d="M50 26 C50 16 56 10 64 8" fill="none" stroke="#6b4a2b" stroke-width="5" stroke-linecap="round"/>' +
+      '<path d="M52 22 C62 10 78 14 80 22 C70 30 56 30 52 22 Z" fill="#57b85c" stroke="#333" stroke-width="3"/></svg>'; } },
+  peach: { name: "桃子", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M50 24 C68 24 84 40 84 58 C84 76 68 90 50 90 C32 90 16 76 16 58 C16 40 32 24 50 24 Z" fill="' + fill + '" stroke="#333" stroke-width="4"/>' +
+      '<path d="M50 24 C47 18 49 12 54 8" fill="none" stroke="#6b4a2b" stroke-width="5" stroke-linecap="round"/>' +
+      '<path d="M52 20 C60 8 76 12 78 20 C68 28 56 28 52 20 Z" fill="#57b85c" stroke="#333" stroke-width="3"/>' +
+      '<path d="M50 26 L50 88" stroke="#333" stroke-width="2" opacity=".35"/></svg>'; } },
+  circle: { name: "圆", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="' + fill + '" stroke="#333" stroke-width="4"/>' +
+      '<circle cx="50" cy="50" r="12" fill="#fff" stroke="#333" stroke-width="3"/></svg>'; } },
+  star: { name: "五角星", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M50 8 L61 38 L93 38 L67 57 L77 89 L50 70 L23 89 L33 57 L7 38 L39 38 Z" fill="' + fill + '" stroke="#333" stroke-width="4" stroke-linejoin="round"/></svg>'; } },
+  tri: { name: "三角", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M50 10 L92 88 L8 88 Z" fill="' + fill + '" stroke="#333" stroke-width="4" stroke-linejoin="round"/></svg>'; } },
+  mush: { name: "蘑菇", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M10 52 C10 28 30 12 50 12 C70 12 90 28 90 52 Z" fill="' + fill + '" stroke="#333" stroke-width="4"/>' +
+      '<circle cx="34" cy="36" r="6" fill="#fff" stroke="#333" stroke-width="2.5"/><circle cx="64" cy="30" r="5" fill="#fff" stroke="#333" stroke-width="2.5"/>' +
+      '<path d="M34 52 L34 88 C34 92 66 92 66 88 L66 52 Z" fill="#f5f0e6" stroke="#333" stroke-width="4"/></svg>'; } },
+  pebble: { name: "鹅卵石", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><ellipse cx="50" cy="52" rx="40" ry="32" fill="' + fill + '" stroke="#333" stroke-width="4"/>' +
+      '<ellipse cx="38" cy="42" rx="10" ry="6" fill="#fff" opacity=".8"/></svg>'; } },
+  chili: { name: "辣椒", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M30 22 C50 18 76 30 80 56 C83 78 66 92 48 88 C60 82 68 70 64 56 C60 42 46 34 30 34 Z" fill="' + fill + '" stroke="#333" stroke-width="4" stroke-linejoin="round"/>' +
+      '<path d="M28 28 C24 20 28 12 36 10" fill="none" stroke="#57b85c" stroke-width="6" stroke-linecap="round"/></svg>'; } },
+  pear: { name: "梨", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M50 14 C58 14 62 20 62 28 C62 36 70 44 74 58 C79 76 66 90 50 90 C34 90 21 76 26 58 C30 44 38 36 38 28 C38 20 42 14 50 14 Z" fill="' + fill + '" stroke="#333" stroke-width="4"/>' +
+      '<path d="M50 14 C50 8 54 4 60 3" fill="none" stroke="#6b4a2b" stroke-width="5" stroke-linecap="round"/></svg>'; } },
+  cherry: { name: "樱桃", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M36 50 C40 30 56 16 74 12" fill="none" stroke="#57b85c" stroke-width="5" stroke-linecap="round"/>' +
+      '<path d="M60 54 C64 36 74 22 84 16" fill="none" stroke="#57b85c" stroke-width="5" stroke-linecap="round"/>' +
+      '<circle cx="32" cy="66" r="19" fill="' + fill + '" stroke="#333" stroke-width="4"/><circle cx="64" cy="72" r="19" fill="' + fill + '" stroke="#333" stroke-width="4"/></svg>'; } },
+  watermelon: { name: "西瓜", svg: function (fill) {
+    return '<svg viewBox="0 0 100 100"><path d="M8 56 A44 44 0 0 0 92 56 Z" fill="' + fill + '" stroke="#333" stroke-width="4" stroke-linejoin="round"/>' +
+      '<path d="M22 56 A28 28 0 0 0 78 56 Z" fill="#ff8f9e" stroke="#333" stroke-width="3"/>' +
+      '<circle cx="38" cy="48" r="3" fill="#333"/><circle cx="54" cy="42" r="3" fill="#333"/><circle cx="66" cy="50" r="3" fill="#333"/></svg>'; } }
+};
+
+/* ---------------- 3. 题目池构建 ---------------- */
+/* 通用：生成一个"数字树"关卡对象
+   spec: {rootGiven, rootVal, l1: [...], ...} —— 这里直接手工定义每道题，
+   保证与教材原题一致；变式题用随机参数生成。 */
+
+/* 数字树节点定义辅助：nodes 数组，parent 字段在 build 时推导 */
+function buildTree(nodes, goalText, source) {
+  /* nodes: [{id, kind:'num', value, given, children:[...]}] */
+  return { kind: "tree", nodes: nodes, goalText: goalText, source: source, clues: [] };
+}
+function buildFruit(nodes, targetId, clues, question, source) {
+  return { kind: "fruit", nodes: nodes, target: targetId, clues: clues, question: question, source: source };
+}
+var rnd = function (a, b) { return a + Math.floor(Math.random() * (b - a + 1)); };
+
+/* ---- 初级池（例题级：两层组成树，纯加法倒推） ---- */
+function poolEasy() {
+  var list = [];
+  /* 原题：例1 —— 顶框 → 1 + 空框；空框 → 2 + 2（答案：空框4，顶框5） */
+  list.push(buildTree(
+    [{ id: 0, kind: "num", value: 5, given: false, children: [1, 2] },
+     { id: 1, kind: "num", value: 1, given: true, children: [] },
+     { id: 2, kind: "num", value: 4, given: false, children: [3, 4] },
+     { id: 3, kind: "num", value: 2, given: true, children: [] },
+     { id: 4, kind: "num", value: 2, given: true, children: [] }],
+    "把所有空□填满！从下往上倒着推～", "教材例1"));
+  /* 原题：即学即练 1(1) —— 顶框 → 5 + 空框；空框 → 1 + 2（答案：3、8） */
+  list.push(buildTree(
+    [{ id: 0, kind: "num", value: 8, given: false, children: [1, 2] },
+     { id: 1, kind: "num", value: 5, given: true, children: [] },
+     { id: 2, kind: "num", value: 3, given: false, children: [3, 4] },
+     { id: 3, kind: "num", value: 1, given: true, children: [] },
+     { id: 4, kind: "num", value: 2, given: true, children: [] }],
+    "把所有空□填满！从下往上倒着推～", "即学即练 1(1)"));
+  /* 原题：即学即练 1(2) —— 顶框 → 空框 + 4；空框 → 1 + 5（答案：6、10） */
+  list.push(buildTree(
+    [{ id: 0, kind: "num", value: 10, given: false, children: [1, 2] },
+     { id: 1, kind: "num", value: 6, given: false, children: [3, 4] },
+     { id: 2, kind: "num", value: 4, given: true, children: [] },
+     { id: 3, kind: "num", value: 1, given: true, children: [] },
+     { id: 4, kind: "num", value: 5, given: true, children: [] }],
+    "把所有空□填满！从下往上倒着推～", "即学即练 1(2)"));
+  /* 变式A：随机数值（空框在右侧分支） */
+  (function () {
+    var a = rnd(2, 5), b = rnd(1, 4), c = rnd(1, 4);
+    while (a + b + c > 10) { a = rnd(2, 5); b = rnd(1, 4); c = rnd(1, 4); }
+    list.push(buildTree(
+      [{ id: 0, kind: "num", value: a + b + c, given: false, children: [1, 2] },
+       { id: 1, kind: "num", value: a, given: true, children: [] },
+       { id: 2, kind: "num", value: b + c, given: false, children: [3, 4] },
+       { id: 3, kind: "num", value: b, given: true, children: [] },
+       { id: 4, kind: "num", value: c, given: true, children: [] }],
+      "把所有空□填满！从下往上倒着推～", "同型变式"));
+  })();
+  /* 变式B：随机数值（空框在左侧分支） */
+  (function () {
+    var d = rnd(2, 5), b = rnd(1, 4), c = rnd(1, 4);
+    while (d + b + c > 10) { d = rnd(2, 5); b = rnd(1, 4); c = rnd(1, 4); }
+    list.push(buildTree(
+      [{ id: 0, kind: "num", value: d + b + c, given: false, children: [1, 2] },
+       { id: 1, kind: "num", value: b + c, given: false, children: [3, 4] },
+       { id: 2, kind: "num", value: d, given: true, children: [] },
+       { id: 3, kind: "num", value: b, given: true, children: [] },
+       { id: 4, kind: "num", value: c, given: true, children: [] }],
+      "把所有空□填满！从下往上倒着推～", "同型变式"));
+  })();
+  return list;
+}
+
+/* ---- 中级池（练习级：加减混合 / 图形线索） ---- */
+function poolMid() {
+  var list = [];
+  /* 原题：即学即练 2(1) —— 顶框 → 空框A + 6；A → 1+2；6 → 2 + 空框B（A=3，B=4，顶=9） */
+  list.push(buildTree(
+    [{ id: 0, kind: "num", value: 9, given: false, children: [1, 2] },
+     { id: 1, kind: "num", value: 3, given: false, children: [3, 4] },
+     { id: 2, kind: "num", value: 6, given: true, children: [5, 6] },
+     { id: 3, kind: "num", value: 1, given: true, children: [] },
+     { id: 4, kind: "num", value: 2, given: true, children: [] },
+     { id: 5, kind: "num", value: 2, given: true, children: [] },
+     { id: 6, kind: "num", value: 4, given: false, children: [] }],
+    "既要往上合，也要往下拆！把空□全部填满～", "即学即练 2(1)"));
+  /* 原题：例2 —— 当三角=1时，圆等于多少？（星=三角+三角=2，圆=星+星=4） */
+  list.push(buildFruit(
+    [{ id: 0, kind: "fruit", fruit: "circle", value: 4, children: [1, 2] },
+     { id: 1, kind: "fruit", fruit: "star", value: 2, children: [] },
+     { id: 2, kind: "fruit", fruit: "star", value: 2, children: [3, 4] },
+     { id: 3, kind: "fruit", fruit: "tri", value: 1, children: [] },
+     { id: 4, kind: "fruit", fruit: "tri", value: 1, children: [] }],
+    0, [{ fruit: "tri", value: 1 }],
+    "当三角 = 1 时，圆等于多少？", "教材例2"));
+  /* 变式：加减混合（参数随机，含一次"向下拆"） */
+  (function () {
+    var a = rnd(1, 3), b = rnd(1, 3), d = rnd(1, 3), c = rnd(4, 7);
+    while (a + b + c > 10 || c - d < 1) { a = rnd(1, 3); b = rnd(1, 3); d = rnd(1, 3); c = rnd(4, 7); }
+    list.push(buildTree(
+      [{ id: 0, kind: "num", value: a + b + c, given: false, children: [1, 2] },
+       { id: 1, kind: "num", value: a + b, given: false, children: [3, 4] },
+       { id: 2, kind: "num", value: c, given: true, children: [5, 6] },
+       { id: 3, kind: "num", value: a, given: true, children: [] },
+       { id: 4, kind: "num", value: b, given: true, children: [] },
+       { id: 5, kind: "num", value: d, given: true, children: [] },
+       { id: 6, kind: "num", value: c - d, given: false, children: [] }],
+      "既要往上合，也要往下拆！把空□全部填满～", "同型变式"));
+  })();
+  /* 变式：水果单层代换（相同图形代表相同的数） */
+  (function () {
+    var v = rnd(2, 5);
+    list.push(buildFruit(
+      [{ id: 0, kind: "fruit", fruit: "pear", value: v * 2, children: [1, 2] },
+       { id: 1, kind: "fruit", fruit: "apple", value: v, children: [] },
+       { id: 2, kind: "fruit", fruit: "apple", value: v, children: [] }],
+      0, [{ fruit: "apple", value: v }],
+      "当苹果 = " + v + " 时，梨等于多少？", "同型变式"));
+  })();
+  /* 变式：加减混合（空框位置换边） */
+  (function () {
+    var a = rnd(1, 2), b = rnd(1, 3), d = rnd(1, 2), c = rnd(4, 6);
+    while (a + b + c > 10 || c - d < 1) { a = rnd(1, 2); b = rnd(1, 3); d = rnd(1, 2); c = rnd(4, 6); }
+    list.push(buildTree(
+      [{ id: 0, kind: "num", value: a + b + c, given: false, children: [1, 2] },
+       { id: 1, kind: "num", value: c, given: true, children: [3, 4] },
+       { id: 2, kind: "num", value: a + b, given: false, children: [5, 6] },
+       { id: 3, kind: "num", value: d, given: true, children: [] },
+       { id: 4, kind: "num", value: c - d, given: false, children: [] },
+       { id: 5, kind: "num", value: a, given: true, children: [] },
+       { id: 6, kind: "num", value: b, given: true, children: [] }],
+      "既要往上合，也要往下拆！把空□全部填满～", "同型变式"));
+  })();
+  return list;
+}
+
+/* ---- 高级池（综合级：三层 / 三叉 / 水果连环） ---- */
+function poolHard() {
+  var list = [];
+  /* 原题：进阶练习(1) —— 桃子=苹果+苹果；苹果=草莓+草莓；草莓=2（苹果4，桃子8） */
+  list.push(buildFruit(
+    [{ id: 0, kind: "fruit", fruit: "peach", value: 8, children: [1, 2] },
+     { id: 1, kind: "fruit", fruit: "apple", value: 4, children: [] },
+     { id: 2, kind: "fruit", fruit: "apple", value: 4, children: [3, 4] },
+     { id: 3, kind: "fruit", fruit: "strawberry", value: 2, children: [] },
+     { id: 4, kind: "fruit", fruit: "strawberry", value: 2, children: [] }],
+    0, [{ fruit: "strawberry", value: 2 }],
+    "当草莓 = 2 时，桃子等于多少？", "进阶练习(1)"));
+  /* 原题：进阶练习(3) —— 辣椒=鹅卵石+鹅卵石+鹅卵石；鹅卵石=蘑菇+蘑菇；蘑菇=1（鹅卵石2，辣椒6） */
+  list.push(buildFruit(
+    [{ id: 0, kind: "fruit", fruit: "chili", value: 6, children: [1, 2, 3] },
+     { id: 1, kind: "fruit", fruit: "pebble", value: 2, children: [] },
+     { id: 2, kind: "fruit", fruit: "pebble", value: 2, children: [] },
+     { id: 3, kind: "fruit", fruit: "pebble", value: 2, children: [4, 5] },
+     { id: 4, kind: "fruit", fruit: "mush", value: 1, children: [] },
+     { id: 5, kind: "fruit", fruit: "mush", value: 1, children: [] }],
+    0, [{ fruit: "mush", value: 1 }],
+    "当蘑菇 = 1 时，辣椒等于多少？（辣椒分成了三份哦）", "进阶练习(3)"));
+  /* 原题同型变式：进阶练习(2) —— 圆=星+星；星=三角+三角；三角=2 */
+  list.push(buildFruit(
+    [{ id: 0, kind: "fruit", fruit: "circle", value: 8, children: [1, 2] },
+     { id: 1, kind: "fruit", fruit: "star", value: 4, children: [] },
+     { id: 2, kind: "fruit", fruit: "star", value: 4, children: [3, 4] },
+     { id: 3, kind: "fruit", fruit: "tri", value: 2, children: [] },
+     { id: 4, kind: "fruit", fruit: "tri", value: 2, children: [] }],
+    0, [{ fruit: "tri", value: 2 }],
+    "当三角 = 2 时，圆等于多少？", "进阶练习(2)同型"));
+  /* 变式：三层数字大树（1+3 → B=4；B+2 → A=6；A+4 → 顶=10） */
+  list.push(buildTree(
+    [{ id: 0, kind: "num", value: 10, given: false, children: [1, 2] },
+     { id: 1, kind: "num", value: 6, given: false, children: [3, 4] },
+     { id: 2, kind: "num", value: 4, given: true, children: [] },
+     { id: 3, kind: "num", value: 4, given: false, children: [5, 6] },
+     { id: 4, kind: "num", value: 2, given: true, children: [] },
+     { id: 5, kind: "num", value: 1, given: true, children: [] },
+     { id: 6, kind: "num", value: 3, given: true, children: [] }],
+    "三层大树！一层一层从最下面往上倒推～", "同型变式"));
+  /* 变式：三叉水果连环（西瓜=苹果+苹果+苹果；苹果=樱桃+樱桃） */
+  (function () {
+    var v = rnd(1, 2);
+    list.push(buildFruit(
+      [{ id: 0, kind: "fruit", fruit: "watermelon", value: v * 6, children: [1, 2, 3] },
+       { id: 1, kind: "fruit", fruit: "apple", value: v * 2, children: [] },
+       { id: 2, kind: "fruit", fruit: "apple", value: v * 2, children: [] },
+       { id: 3, kind: "fruit", fruit: "apple", value: v * 2, children: [4, 5] },
+       { id: 4, kind: "fruit", fruit: "cherry", value: v, children: [] },
+       { id: 5, kind: "fruit", fruit: "cherry", value: v, children: [] }],
+      0, [{ fruit: "cherry", value: v }],
+      "当樱桃 = " + v + " 时，西瓜等于多少？（西瓜分成了三份哦）", "同型变式"));
+  })();
+  /* 变式：连拆两次（呼应基础练习里的 10）—— 10 → 空框A + 3；A → 4 + 空框B（A=7，B=3） */
+  list.push(buildTree(
+    [{ id: 0, kind: "num", value: 10, given: true, children: [1, 2] },
+     { id: 1, kind: "num", value: 7, given: false, children: [3, 4] },
+     { id: 2, kind: "num", value: 3, given: true, children: [] },
+     { id: 3, kind: "num", value: 4, given: true, children: [] },
+     { id: 4, kind: "num", value: 3, given: false, children: [] }],
+    "顶上的 10 已经知道啦！倒着往下拆出两个空框～", "同型变式"));
+  return list;
+}
+
+/* ---------------- 4. 求解器：自动算出倒推步骤（揭示答案 / 讲解用） ---------------- */
+function solveProblem(prob) {
+  /* 返回步骤数组：[{type:'stamp'|'merge'|'split', nodeId, formula, text}] */
+  var nodes = {};
+  prob.nodes.forEach(function (n) { nodes[n.id] = { kind: n.kind, fruit: n.fruit || "", value: n.value, known: !!n.given, children: n.children.slice(), parent: -1 }; });
+  prob.nodes.forEach(function (n) { n.children.forEach(function (c) { nodes[c].parent = n.id; }); });
+  var rootId = 0;
+  var steps = [];
+  var fruitKnown = {}; /* 已点亮的水果类型 */
+  function knownCount(arr) { return arr.filter(function (c) { return nodes[c].known; }).length; }
+  function targetDone() {
+    if (prob.kind === "fruit") { return nodes[prob.target].known; }
+    return prob.nodes.every(function (n) { return nodes[n.id].known; });
+  }
+  /* 步骤1：贴线索（水果关） */
+  if (prob.kind === "fruit") {
+    prob.clues.forEach(function (cl) {
+      var any = prob.nodes.find(function (n) { return n.fruit === cl.fruit && !nodes[n.id].known; });
+      if (any) {
+        prob.nodes.forEach(function (n) { if (n.fruit === cl.fruit) { nodes[n.id].known = true; nodes[n.id].value = cl.value; } });
+        fruitKnown[cl.fruit] = cl.value;
+        steps.push({ type: "stamp", fruit: cl.fruit, text: "贴上线索：" + FRUITS[cl.fruit].name + " = " + cl.value + "，所有" + FRUITS[cl.fruit].name + "都代表 " + cl.value });
+      }
+    });
+  }
+  /* 步骤2：反复找"可合"或"可拆"的空位，直到全部点亮 */
+  var guard = 0;
+  while (!targetDone() && guard < 50) {
+    guard++;
+    var moved = false;
+    /* 优先：向上合 —— 找最深的一个"子全亮"的未知节点 */
+    var mergeId = -1, mergeDepth = -1;
+    prob.nodes.forEach(function (n) {
+      var nd = nodes[n.id];
+      if (!nd.known && n.children.length > 0 && knownCount(n.children) === n.children.length) {
+        var d = depthOf(prob, n.id);
+        if (d > mergeDepth) { mergeDepth = d; mergeId = n.id; }
+      }
+    });
+    if (mergeId >= 0) {
+      var nd = nodes[mergeId];
+      var vals = nd.children.map(function (c) { return nodes[c].value; });
+      var sum = vals.reduce(function (x, y) { return x + y; }, 0);
+      nd.value = sum; nd.known = true;
+      var nm = (nd.kind === "fruit" ? FRUITS[nd.fruit].name : "空框");
+      steps.push({ type: "merge", nodeId: mergeId, formula: vals.join(" + ") + " = " + sum,
+        text: "倒着推：" + vals.join(" + ") + " = " + sum + "，" + nm + "就是 " + sum + (nd.kind === "fruit" ? "（相同的图形一起点亮）" : "") });
+      if (nd.kind === "fruit") {
+        prob.nodes.forEach(function (m) { if (m.fruit === nd.fruit && m.id !== mergeId) { nodes[m.id].known = true; nodes[m.id].value = sum; } });
+      }
+      moved = true;
+    }
+    if (!moved) {
+      /* 其次：向下拆 —— 父已知、恰有一个孩子未知 */
+      var splitId = -1;
+      prob.nodes.forEach(function (n) {
+        var nd = nodes[n.id];
+        if (!nd.known && nd.parent >= 0) {
+          var p = nodes[nd.parent];
+          var sibs = p.children.filter(function (c) { return c !== n.id; });
+          if (p.known && knownCount(sibs) === sibs.length) {
+            var s = sibs.reduce(function (x, y) { return x + nodes[y].value; }, 0);
+            if (p.value - s > 0) { splitId = n.id; }
+          }
+        }
+      });
+      if (splitId >= 0) {
+        var sd = nodes[splitId], pd = nodes[sd.parent];
+        var sibIds = pd.children.filter(function (c) { return c !== splitId; });
+        var s2 = sibIds.reduce(function (x, y) { return x + nodes[y].value; }, 0);
+        var miss = pd.value - s2;
+        sd.value = miss; sd.known = true;
+        steps.push({ type: "split", nodeId: splitId, formula: pd.value + " - " + s2 + " = " + miss,
+          text: "倒着拆：" + pd.value + " - " + s2 + " = " + miss + "，空框填 " + miss });
+        moved = true;
+      }
+    }
+    if (!moved) { break; }
+  }
+  return steps;
+}
+/* 求节点深度（root=0） */
+function depthOf(prob, id) {
+  var parentMap = {};
+  prob.nodes.forEach(function (n) { n.children.forEach(function (c) { parentMap[c] = n.id; }); });
+  var d = 0, cur = id;
+  while (parentMap.hasOwnProperty(String(cur))) { cur = parentMap[cur]; d++; if (d > 20) break; }
+  return d;
+}
+
+/* ---------------- 5. 全局状态 ---------------- */
+var G = {
+  palette: null,        /* 本局配色 */
+  diff: 1,              /* 当前难度 1/2/3 */
+  roundProblems: [],    /* 本局 3 道题 */
+  levelIndex: 0,        /* 当前第几关 */
+  prob: null,           /* 当前题目（含运行时状态） */
+  steps: 0,             /* 本关成功步数 */
+  totalSteps: 0,        /* 整局步数 */
+  totalStars: 0,        /* 整局星星 */
+  revealed: false,      /* 本关是否看过答案 */
+  timerStart: 0,        /* 计时起点 */
+  timerId: null,
+  locked: false,        /* 完成后锁定输入 */
+  soundOn: true,
+  drag: null,           /* 当前拖拽 {type:'node'|'clue', id, ok} */
+  solverSteps: [],      /* 当前题的最优解步骤（讲解/评星用） */
+  optimal: 0,
+  firstPropagate: true, /* 本关是否已演示过"相同图形一起亮" */
+  revealing: false,     /* 是否正在播放揭示动画 */
+  revealTimer: null,    /* 揭示动画定时器 */
+  lastLevelStars: 0     /* 本关已计入的星星（重玩时先扣回） */
+};
+
+/* ---------------- 6. 音效（WebAudio 轻合成，无外部文件） ---------------- */
+var audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
+  }
+  if (audioCtx && audioCtx.state === "suspended") { try { audioCtx.resume(); } catch (e) { /* 忽略 */ } }
+}
+function snd(kind) {
+  if (!G.soundOn || !audioCtx) return;
+  try {
+    var t = audioCtx.currentTime;
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    if (kind === "pop") { o.type = "sine"; o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(940, t + 0.09); g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16); o.start(t); o.stop(t + 0.18); }
+    else if (kind === "good") { o.type = "triangle"; o.frequency.setValueAtTime(660, t); o.frequency.setValueAtTime(880, t + 0.11); g.gain.setValueAtTime(0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.start(t); o.stop(t + 0.32); }
+    else if (kind === "no") { o.type = "sine"; o.frequency.setValueAtTime(300, t); o.frequency.linearRampToValueAtTime(220, t + 0.18); g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.start(t); o.stop(t + 0.22); }
+    else if (kind === "win") { o.type = "triangle"; [523, 659, 784, 1046].forEach(function (f, i) { o.frequency.setValueAtTime(f, t + i * 0.12); }); g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.62); o.start(t); o.stop(t + 0.65); }
+  } catch (e) { /* 声音失败不影响游戏 */ }
+}
+
+/* ---------------- 7. 工具函数 ---------------- */
+function $(id) { return document.getElementById(id); }
+function shuffle(arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+function applyPalette(p) {
+  var r = document.documentElement.style;
+  r.setProperty("--bg1", p.bg1); r.setProperty("--bg2", p.bg2); r.setProperty("--ink", p.ink);
+  r.setProperty("--primary", p.primary); r.setProperty("--accent", p.accent); r.setProperty("--line", p.line);
+}
+
+/* ---------------- 8. 关卡装载与渲染 ---------------- */
+function loadProblem(prob) {
+  G.prob = prob;
+  G.steps = 0; G.revealed = false; G.revealing = false; G.locked = false; G.firstPropagate = true;
+  /* 若上一关的揭示动画还在播放，先停下 */
+  if (G.revealTimer) { clearInterval(G.revealTimer); G.revealTimer = null; }
+  /* 运行时状态：shown 表示数值是否已亮出 */
+  var byId = {};
+  prob.nodes.forEach(function (n) {
+    byId[n.id] = n;
+    n.parent = -1;
+    n.shown = (n.kind === "num") ? !!n.given : false;
+  });
+  prob.nodes.forEach(function (n) { n.children.forEach(function (c) { byId[c].parent = n.id; }); });
+  /* 线索状态 */
+  prob.clues.forEach(function (cl, i) { cl.idx = i; cl.used = false; });
+  G.solverSteps = solveProblem(prob);
+  G.optimal = G.solverSteps.length;
+  /* 界面文本 */
+  $("levelBadge").textContent = "第" + (G.levelIndex + 1) + "关 / 共" + G.roundProblems.length + "关";
+  $("srcBadge").textContent = "题目来源：" + prob.source;
+  $("questText").textContent = (prob.kind === "fruit") ? prob.question : prob.goalText;
+  setMsg("把亮着的数或水果拖起来，开始倒推吧！", "");
+  renderProblem();
+}
+
+/* 计算布局：返回 {pos: {id:{x,y}}, W, H} */
+function layoutProblem(prob) {
+  var byId = {};
+  prob.nodes.forEach(function (n) { byId[n.id] = n; });
+  var leaves = []; /* 按从左到右的叶子顺序 */
+  function walkLeaf(n) {
+    if (n.children.length === 0) { leaves.push(n.id); return; }
+    n.children.forEach(function (c) { walkLeaf(byId[c]); });
+  }
+  var root = prob.nodes.find(function (n) { return n.parent === -1; }) || prob.nodes[0];
+  walkLeaf(root);
+  var pos = {};
+  var SLOT = 150, TOP = 96, ROW = 172, NODE_H = 104;
+  leaves.forEach(function (id, i) { pos[id] = { x: 110 + i * SLOT, y: TOP + depthOf(prob, id) * ROW }; });
+  function placeUp(id) {
+    if (pos[id]) return pos[id].x;
+    var n = byId[id];
+    var xs = n.children.map(function (c) { return placeUp(c); });
+    pos[id] = { x: (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, y: TOP + depthOf(prob, id) * ROW };
+    return pos[id].x;
+  }
+  placeUp(root.id);
+  var maxX = 0, maxD = 0;
+  prob.nodes.forEach(function (n) {
+    maxX = Math.max(maxX, pos[n.id].x);
+    maxD = Math.max(maxD, depthOf(prob, n.id));
+  });
+  var W = maxX + 130, H = TOP + maxD * ROW + 140;
+  return { pos: pos, W: W, H: H, rootId: root.id, NODE_H: NODE_H };
+}
+
+function renderProblem() {
+  var prob = G.prob;
+  var lay = layoutProblem(prob);
+  var world = $("world");
+  world.innerHTML = '<svg id="lines" xmlns="http://www.w3.org/2000/svg"></svg>';
+  world.style.width = lay.W + "px"; world.style.height = lay.H + "px";
+  var svg = $("lines");
+  svg.setAttribute("width", lay.W); svg.setAttribute("height", lay.H);
+  /* 连线：父图标正下方 → 子图标正上方（平滑曲线，端点在图形外，保证连线完整可见） */
+  prob.nodes.forEach(function (n) {
+    n.children.forEach(function (c) {
+      var p1 = lay.pos[n.id], p2 = lay.pos[c];
+      var x1 = p1.x, y1 = p1.y + lay.NODE_H, x2 = p2.x, y2 = p2.y - 4;
+      var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", "M " + x1 + " " + y1 + " C " + x1 + " " + (y1 + 26) + ", " + x2 + " " + (y2 - 26) + ", " + x2 + " " + y2);
+      path.setAttribute("stroke", getComputedStyle(document.documentElement).getPropertyValue("--line"));
+      path.setAttribute("stroke-width", "5");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("opacity", "0.9");
+      svg.appendChild(path);
+    });
+  });
+  /* 节点 */
+  prob.nodes.forEach(function (n) {
+    var el = document.createElement("div");
+    el.className = "node";
+    el.dataset.id = n.id;
+    var p = lay.pos[n.id];
+    el.style.left = p.x + "px"; el.style.top = p.y + "px";
+    if (n.kind === "num") {
+      el.classList.add("num");
+      if (n.shown) { el.classList.add("known"); if (n.given) el.classList.add("given"); }
+      else { el.classList.add("unknown"); }
+      var inner = '<div class="box">' + (n.shown ? n.value : '<span>?</span>') + '</div>';
+      if (!n.given && n.shown) { inner = '<div class="box">' + n.value + '</div>'; el.classList.add("known"); }
+      el.innerHTML = inner;
+      if (n.children.length === 0) {
+        var tag = document.createElement("div"); tag.className = "nameTag"; tag.textContent = "已知"; el.appendChild(tag);
+      }
+    } else {
+      el.classList.add("fruit");
+      var f = FRUITS[n.fruit];
+      var fill = fruitFill(n.fruit);
+      var badgeVal = n.shown ? n.value : "?";
+      el.innerHTML = '<div class="fruitwrap">' + f.svg(fill) + '<div class="vbadge">' + badgeVal + '</div></div><div class="nameTag">' + f.name + '</div>';
+      if (n.shown) el.classList.add("lit");
+    }
+    if (prob.kind === "fruit" && n.id === prob.target) {
+      el.classList.add("target");
+      var tt = document.createElement("div"); tt.className = "targetTag"; tt.textContent = "求出它！"; el.appendChild(tt);
+    }
+    if (!n.shown) el.classList.add("locked");
+    world.appendChild(el);
+  });
+  /* 线索卡 */
+  renderClues();
+  fitBoard(lay);
+}
+
+/* 水果配色（固定柔和的自然色，保证与页面色板都有足够对比） */
+function fruitFill(kind) {
+  var m = { strawberry: "#ff8fa3", apple: "#8fd481", peach: "#ffc2d1", circle: "#9cc6ef", star: "#ffd166", tri: "#f2a3c0", mush: "#f2b8c6", pebble: "#c9d8e4", chili: "#ff9d6f", pear: "#d4e881", cherry: "#ff7a70", watermelon: "#8fd481" };
+  return m[kind] || "#c9d8e4";
+}
+
+function renderClues() {
+  var bar = $("clueBar");
+  var prob = G.prob;
+  if (prob.kind !== "fruit" || prob.clues.length === 0) { bar.classList.add("hidden"); bar.innerHTML = ""; return; }
+  bar.classList.remove("hidden");
+  bar.innerHTML = "";
+  prob.clues.forEach(function (cl) {
+    var d = document.createElement("div");
+    d.className = "clue" + (cl.used ? " used" : "");
+    d.dataset.clue = cl.idx;
+    d.innerHTML = '<div class="cicon">' + FRUITS[cl.fruit].svg(fruitFill(cl.fruit)) + '</div>' +
+      '<div class="ctext">' + FRUITS[cl.fruit].name + ' = ' + cl.value + '</div>' +
+      '<div class="ctip">拖到对应的图形上</div>';
+    bar.appendChild(d);
+  });
+}
+
+/* 缩放棋盘适配屏幕 */
+function fitBoard(lay) {
+  var board = $("board");
+  var w = board.clientWidth || 900;
+  var scale = Math.min(w / lay.W, 1.15);
+  $("world").style.transform = "scale(" + scale + ")";
+  board.style.height = (lay.H * scale) + "px";
+}
+window.addEventListener("resize", function () {
+  if (G.prob) { var lay = layoutProblem(G.prob); fitBoard(lay); }
+});
+
+/* ---------------- 9. 拖拽系统（鼠标 + 触摸统一 Pointer 事件） ---------------- */
+var ghost = null;
+function onNodeDown(e) {
+  if (G.locked) return;
+  initAudio();
+  var el = e.target.closest(".node");
+  if (!el) return;
+  var id = parseInt(el.dataset.id, 10);
+  var n = G.prob.nodes[id];
+  if (!n.shown) {
+    /* 空框被点：给一句鼓励提示 */
+    el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
+    setMsg(n.kind === "fruit" ? ("这个" + FRUITS[n.fruit].name + "还不知道是多少，先把线索贴上或从下面合上来！") : "这个空框还没亮！先把下面的数合上来，或把上面的数拆下来～", "warn");
+    snd("no");
+    return;
+  }
+  startDrag(e, "node", id);
+  e.preventDefault();
+}
+function onClueDown(e) {
+  if (G.locked) return;
+  initAudio();
+  var el = e.target.closest(".clue");
+  if (!el) return;
+  var cl = G.prob.clues[parseInt(el.dataset.clue, 10)];
+  if (cl.used) { setMsg("这张线索已经贴过啦！", "warn"); return; }
+  startDrag(e, "clue", cl.idx);
+  e.preventDefault();
+}
+function startDrag(e, type, id) {
+  var ghostEl = $("ghost");
+  if (type === "node") {
+    var n = G.prob.nodes[id];
+    ghostEl.className = "";
+    if (n.kind === "fruit") {
+      ghostEl.className = "carry";
+      ghostEl.innerHTML = FRUITS[n.fruit].svg(fruitFill(n.fruit));
+    } else {
+      ghostEl.textContent = n.value;
+    }
+  } else {
+    var cl = G.prob.clues[id];
+    ghostEl.className = "carry";
+    ghostEl.innerHTML = FRUITS[cl.fruit].svg(fruitFill(cl.fruit));
+  }
+  ghostEl.style.display = "flex";
+  moveGhost(e.clientX, e.clientY);
+  G.drag = { type: type, id: id };
+}
+function moveGhost(x, y) {
+  var g = $("ghost");
+  g.style.left = x + "px"; g.style.top = y + "px";
+}
+function onPointerMove(e) {
+  if (!G.drag) return;
+  moveGhost(e.clientX, e.clientY);
+  /* 悬停高亮潜在目标 */
+  clearDropHints();
+  var t = hitNode(e.clientX, e.clientY);
+  if (t) t.classList.add("dropHint");
+  e.preventDefault();
+}
+function hitNode(x, y) {
+  var g = $("ghost"); g.style.display = "none";
+  var el = document.elementFromPoint(x, y);
+  g.style.display = "flex";
+  if (!el) return null;
+  var node = el.closest ? el.closest(".node") : null;
+  return node;
+}
+function clearDropHints() {
+  document.querySelectorAll(".node.dropHint").forEach(function (n) { n.classList.remove("dropHint"); });
+}
+function onPointerUp(e) {
+  if (!G.drag) return;
+  var drag = G.drag;
+  G.drag = null;
+  var g = $("ghost");
+  g.style.display = "none"; g.innerHTML = "";
+  clearDropHints();
+  var targetEl = hitNode(e.clientX, e.clientY);
+  if (!targetEl) { setMsg("拖到目标框上再松手哦～", ""); return; }
+  var targetId = parseInt(targetEl.dataset.id, 10);
+  if (drag.type === "clue") { doStamp(drag.id, targetId); }
+  else { doNodeAction(drag.id, targetId); }
+}
+
+/* ---- 动作1：贴线索 ---- */
+function doStamp(clueIdx, targetId) {
+  var prob = G.prob;
+  var cl = prob.clues[clueIdx];
+  var tn = prob.nodes[targetId];
+  if (cl.used) return;
+  if (tn.kind !== "fruit" || tn.fruit !== cl.fruit) {
+    shakeNode(targetId);
+    setMsg("这张线索是给「" + FRUITS[cl.fruit].name + "」的，要拖到" + FRUITS[cl.fruit].name + "上哦！", "warn");
+    snd("no");
+    return;
+  }
+  cl.used = true;
+  var litIds = [];
+  prob.nodes.forEach(function (n) {
+    if (n.kind === "fruit" && n.fruit === cl.fruit && !n.shown) {
+      n.shown = true; n.value = cl.value; litIds.push(n.id);
+    }
+  });
+  litIds.forEach(function (id) { refreshNode(id, true); });
+  G.steps++; G.totalSteps++;
+  updateHud();
+  formulaAt(targetId, FRUITS[cl.fruit].name + " = " + cl.value);
+  setMsg("线索贴好啦！所有" + FRUITS[cl.fruit].name + "一起亮 —— 相同的图形代表相同的数！", "good");
+  snd("good");
+  renderClues();
+  checkComplete();
+}
+
+/* ---- 动作2：节点操作（上合 / 下拆） ---- */
+function doNodeAction(fromId, targetId) {
+  var prob = G.prob;
+  var a = prob.nodes[fromId], b = prob.nodes[targetId];
+  if (fromId === targetId) return;
+  /* 情况一：把已知孩子 a 拖到它的父节点 b —— 尝试"向上合" */
+  if (a.parent === targetId) {
+    var parent = b;
+    var unknown = parent.children.filter(function (c) { return !prob.nodes[c].shown; });
+    if (parent.shown) {
+      setMsg(parent.kind === "fruit" ? (FRUITS[parent.fruit].name + "已经知道是 " + parent.value + " 啦，试试去合别的水果吧！") : "这个框已经有数啦！去帮帮还没亮的框吧～", "warn");
+      snd("no"); shakeNode(targetId);
+      return;
+    }
+    if (unknown.length > 0) {
+      shakeNode(targetId);
+      setMsg("旁边还有空着的" + (parent.kind === "fruit" ? FRUITS[parent.fruit].name : "框") + "没算出来，先从最下面把它倒推出来！", "warn");
+      snd("no");
+      return;
+    }
+    /* 合成！ */
+    var vals = parent.children.map(function (c) { return prob.nodes[c].value; });
+    var sum = vals.reduce(function (x, y) { return x + y; }, 0);
+    parent.shown = true; parent.value = sum;
+    G.steps++; G.totalSteps++;
+    refreshNode(targetId, true);
+    formulaAt(targetId, vals.join("+") + "=" + sum);
+    /* 水果传播：相同图形一起亮 */
+    if (parent.kind === "fruit") {
+      var spread = [];
+      prob.nodes.forEach(function (m) {
+        if (m.kind === "fruit" && m.fruit === parent.fruit && !m.shown && m.id !== targetId) { m.shown = true; m.value = sum; spread.push(m.id); }
+      });
+      spread.forEach(function (id) { refreshNode(id, true); });
+      if (spread.length > 0 && G.firstPropagate) {
+        G.firstPropagate = false;
+        setMsg("合出 " + FRUITS[parent.fruit].name + " = " + sum + "！相同的图形代表相同的数，其它" + FRUITS[parent.fruit].name + "也一起亮啦！", "good");
+      } else {
+        setMsg("倒着推：" + vals.join(" + ") + " = " + sum + "，" + FRUITS[parent.fruit].name + "就是 " + sum + "！", "good");
+      }
+    } else {
+      setMsg("倒着推：" + vals.join(" + ") + " = " + sum + "，空框填 " + sum + "！", "good");
+    }
+    snd("good");
+    updateHud();
+    checkComplete();
+    return;
+  }
+  /* 情况二：把已知父节点 a 拖到它的孩子 b —— 尝试"向下拆" */
+  if (b.parent === fromId) {
+    var par = a, child = b;
+    if (!child.shown) {
+      setMsg("先把下面已知的数拖到这个空框上试试，或者反过来把 " + par.value + " 拖到另一个已知的孩子上～", "warn");
+      snd("no"); shakeNode(targetId);
+      return;
+    }
+    var unknowns = par.children.filter(function (c) { return !prob.nodes[c].shown; });
+    if (unknowns.length === 0) {
+      setMsg("下面全都亮啦，不需要再拆了！", "warn"); snd("no");
+      return;
+    }
+    if (unknowns.length > 1) {
+      setMsg("空得太多了拆不开，先把能合的合起来！", "warn"); snd("no"); shakeNode(targetId);
+      return;
+    }
+    var knownSum = par.children.filter(function (c) { return prob.nodes[c].shown; })
+      .reduce(function (x, y) { return x + prob.nodes[y].value; }, 0);
+    var miss = par.value - knownSum;
+    if (miss <= 0) {
+      setMsg("这样拆不出正数哦，换个方向想想～", "warn"); snd("no"); shakeNode(targetId);
+      return;
+    }
+    var missId = unknowns[0];
+    var missNode = prob.nodes[missId];
+    missNode.shown = true; missNode.value = miss;
+    G.steps++; G.totalSteps++;
+    refreshNode(missId, true);
+    formulaAt(missId, par.value + "-" + knownSum + "=" + miss);
+    /* 水果传播 */
+    if (missNode.kind === "fruit") {
+      prob.nodes.forEach(function (m) {
+        if (m.kind === "fruit" && m.fruit === missNode.fruit && !m.shown) { m.shown = true; m.value = miss; refreshNode(m.id, true); }
+      });
+    }
+    setMsg("倒着拆：" + par.value + " - " + knownSum + " = " + miss + "，空框填 " + miss + "！", "good");
+    snd("good");
+    updateHud();
+    checkComplete();
+    return;
+  }
+  /* 情况三：同一图形互拖 */
+  if (a.kind === "fruit" && b.kind === "fruit" && a.fruit === b.fruit) {
+    setMsg("它们是同一种图形，代表的数一样，不用拖啦～去合上面的吧！", "warn"); snd("no");
+    return;
+  }
+  /* 其它：无效目标 */
+  setMsg("拖错方向啦！记住：往上合（孩子拖到父框）、往下拆（总数拖到已知的孩子上）。", "warn");
+  snd("no"); shakeNode(targetId);
+}
+
+/* 刷新单个节点外观 */
+function refreshNode(id, anim) {
+  var prob = G.prob;
+  var n = prob.nodes[id];
+  var el = document.querySelector('.node[data-id="' + id + '"]');
+  if (!el) return;
+  el.classList.remove("locked");
+  if (n.kind === "num") {
+    el.className = "node num known" + (n.given ? " given" : "");
+    el.innerHTML = '<div class="box">' + n.value + '</div>' + (n.children.length === 0 ? '<div class="nameTag">已知</div>' : "");
+  } else {
+    el.className = "node fruit lit";
+    el.innerHTML = '<div class="fruitwrap">' + FRUITS[n.fruit].svg(fruitFill(n.fruit)) + '<div class="vbadge">' + n.value + '</div></div><div class="nameTag">' + FRUITS[n.fruit].name + '</div>';
+  }
+  if (prob.kind === "fruit" && n.id === prob.target) {
+    el.classList.add("target");
+    var tt = document.createElement("div"); tt.className = "targetTag"; tt.textContent = "求出它！"; el.appendChild(tt);
+  }
+  if (anim) {
+    el.classList.add("pop", "litup");
+    (function (node) { setTimeout(function () { node.classList.remove("pop", "litup"); }, 900); })(el);
+  }
+}
+function shakeNode(id) {
+  var el = document.querySelector('.node[data-id="' + id + '"]');
+  if (el) { el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+}
+/* 在节点旁弹出公式气泡 */
+function formulaAt(id, text) {
+  var el = document.querySelector('.node[data-id="' + id + '"]');
+  if (!el) return;
+  var pop = document.createElement("div");
+  pop.className = "formulaPop";
+  pop.textContent = text;
+  pop.style.left = (parseInt(el.style.left, 10) + 30) + "px";
+  pop.style.top = (parseInt(el.style.top, 10) - 18) + "px";
+  $("world").appendChild(pop);
+  setTimeout(function () { if (pop.parentNode) pop.parentNode.removeChild(pop); }, 1700);
+}
+function setMsg(text, tone) {
+  var b = $("msgBubble");
+  b.textContent = text;
+  b.className = tone || "";
+}
+function updateHud() {
+  $("hudSteps").textContent = String(G.totalSteps);
+}
+
+/* ---------------- 10. 完成判定 / 讲解 / 星级 ---------------- */
+function isComplete() {
+  var prob = G.prob;
+  if (prob.kind === "fruit") return prob.nodes[prob.target].shown;
+  return prob.nodes.every(function (n) { return n.shown; });
+}
+function checkComplete() {
+  if (!isComplete() || G.locked) return;
+  G.locked = true;
+  finishLevel(false);
+}
+/* 生成正向检查文本 */
+function checkLines(prob) {
+  var lines = [];
+  if (prob.kind === "fruit") {
+    prob.clues.forEach(function (cl) {
+      lines.push("线索：" + FRUITS[cl.fruit].name + " = " + cl.value + "（相同图形同数值）");
+    });
+    walkLines(prob, prob.target, lines);
+  } else {
+    var rootId = 0;
+    prob.nodes.forEach(function (n) { if (n.parent === -1) rootId = n.id; });
+    walkLines(prob, rootId, lines);
+  }
+  return lines;
+}
+function walkLines(prob, id, lines) {
+  var n = prob.nodes[id];
+  if (n.children.length === 0) return;
+  var vals = n.children.map(function (c) { return prob.nodes[c].value; });
+  var nm = (n.kind === "fruit" ? FRUITS[n.fruit].name : (n.parent === -1 ? "顶框" : "方框"));
+  var sum = vals.reduce(function (x, y) { return x + y; }, 0);
+  var okTxt = (sum === n.value) ? "对啦" : "再想想";
+  lines.push("正向检查：" + nm + " " + n.value + " = " + vals.join(" + ") + "，" + okTxt + "！");
+  n.children.forEach(function (c) { walkLines(prob, c, lines); });
+}
+function starSvg(fillOn) {
+  return '<svg viewBox="0 0 100 100"><path d="M50 8 L61 38 L93 38 L67 57 L77 89 L50 70 L23 89 L33 57 L7 38 L39 38 Z" fill="' + (fillOn ? "#ffb703" : "#e3e7ea") + '" stroke="#b98700" stroke-width="4" stroke-linejoin="round"/></svg>';
+}
+function finishLevel(byReveal) {
+  var prob = G.prob;
+  /* 星级：未看答案时按步数评定 */
+  var stars = 0;
+  if (!byReveal && !G.revealed) {
+    if (G.steps <= G.optimal) stars = 3;
+    else if (G.steps <= G.optimal + 2) stars = 2;
+    else stars = 1;
+  }
+  G.totalStars += stars;
+  G.lastLevelStars = stars;
+  var resultText = "";
+  if (prob.kind === "fruit") {
+    var tn = prob.nodes[prob.target];
+    resultText = FRUITS[tn.fruit].name + " = " + tn.value;
+  } else {
+    resultText = "全部空框点亮！";
+  }
+  $("loTitle").textContent = byReveal ? "已经看明白啦！" : (stars === 3 ? "完美倒推！太棒了！" : "本关完成！");
+  $("loResult").textContent = resultText + (byReveal ? "（本关不评星，试试自己再来一遍！）" : "");
+  var sHtml = "";
+  for (var i = 0; i < 3; i++) sHtml += starSvg(i < stars);
+  if (byReveal) sHtml = '<div style="font-size:18px;font-weight:800;color:#8a6a1f">已用「揭示答案」，本关不评星</div>';
+  $("loStars").innerHTML = sHtml;
+  /* 讲解：倒推步骤 + 正向检查 */
+  var html = "<b>倒推过程：</b><br>";
+  G.solverSteps.forEach(function (s, i) { html += "第" + (i + 1) + "步 · " + s.text + "<br>"; });
+  html += "<br><b>正向检查：</b><br>";
+  checkLines(prob).forEach(function (l) { html += '<span class="chk">' + l + '</span><br>'; });
+  $("loExplain").innerHTML = html;
+  $("levelOverlay").classList.remove("hidden");
+  snd("win");
+  confetti(stars >= 3 || byReveal ? 130 : 80);
+  $("btnNext").textContent = (G.levelIndex + 1 >= G.roundProblems.length) ? "查看成绩" : "下一关";
+}
+
+/* ---------------- 11. 揭示答案（自动演示倒推动画） ---------------- */
+function revealAnswer() {
+  if (G.locked) { setMsg("本关已经结束啦，点「下一关」继续吧！", ""); return; }
+  if (G.revealing) { setMsg("正在演示中，请看屏幕～", ""); return; }
+  G.revealing = true;
+  G.revealed = true;
+  setMsg("看仔细啦！倒推法是这样一步一步推的～", "");
+  var prob = G.prob;
+  var i = 0;
+  G.revealTimer = setInterval(function () {
+    if (i >= G.solverSteps.length) {
+      clearInterval(G.revealTimer);
+      G.revealTimer = null;
+      G.revealing = false;
+      G.locked = true;
+      finishLevel(true);
+      return;
+    }
+    var s = G.solverSteps[i];
+    if (s.type === "stamp") {
+      var cl = prob.clues.find(function (c) { return c.fruit === s.fruit; });
+      if (cl) cl.used = true;
+      prob.nodes.forEach(function (n) {
+        if (n.kind === "fruit" && n.fruit === s.fruit && !n.shown) { n.shown = true; n.value = cl ? cl.value : n.value; refreshNode(n.id, true); }
+      });
+      renderClues();
+    } else {
+      var n = prob.nodes[s.nodeId];
+      var m = /^(.+) = (\d+)$/.exec(s.formula);
+      n.shown = true;
+      if (m) n.value = parseInt(m[2], 10);
+      refreshNode(s.nodeId, true);
+      if (n.kind === "fruit") {
+        prob.nodes.forEach(function (q) {
+          if (q.kind === "fruit" && q.fruit === n.fruit && !q.shown) { q.shown = true; q.value = n.value; refreshNode(q.id, true); }
+        });
+      }
+    }
+    setMsg("第" + (i + 1) + "步 · " + s.text, "good");
+    formulaAt(s.type === "stamp" ? prob.target : s.nodeId, s.formula ? s.formula : "");
+    snd("pop");
+    i++;
+  }, 1100);
+}
+
+/* ---------------- 12. 彩纸庆祝（Canvas） ---------------- */
+var fxCanvas = $("fx"), fxCtx = fxCanvas.getContext("2d");
+var fxParts = [], fxAnimId = null;
+function fitFx() { fxCanvas.width = window.innerWidth; fxCanvas.height = window.innerHeight; }
+fitFx();
+window.addEventListener("resize", fitFx);
+function confetti(count) {
+  var colors = [G.palette.primary, G.palette.accent, G.palette.line, "#ff8fa3", "#8fd481", "#ffd166"];
+  for (var i = 0; i < count; i++) {
+    fxParts.push({
+      x: Math.random() * fxCanvas.width,
+      y: -20 - Math.random() * fxCanvas.height * 0.3,
+      w: 8 + Math.random() * 8, h: 8 + Math.random() * 10,
+      vx: -1.6 + Math.random() * 3.2,
+      vy: 2.2 + Math.random() * 3.4,
+      rot: Math.random() * Math.PI, vr: -0.14 + Math.random() * 0.28,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    });
+  }
+  if (!fxAnimId) fxLoop();
+}
+function fxLoop() {
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  fxParts = fxParts.filter(function (p) { return p.y < fxCanvas.height + 30; });
+  fxParts.forEach(function (p) {
+    p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vy += 0.02;
+    fxCtx.save();
+    fxCtx.translate(p.x, p.y); fxCtx.rotate(p.rot);
+    fxCtx.fillStyle = p.color;
+    fxCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    fxCtx.restore();
+  });
+  if (fxParts.length > 0) { fxAnimId = requestAnimationFrame(fxLoop); }
+  else { fxAnimId = null; fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); }
+}
+
+/* ---------------- 13. 计时器 ---------------- */
+function startTimer() {
+  G.timerStart = Date.now();
+  if (G.timerId) clearInterval(G.timerId);
+  G.timerId = setInterval(function () {
+    var s = Math.floor((Date.now() - G.timerStart) / 1000);
+    var mm = String(Math.floor(s / 60)), ss = String(s % 60);
+    if (mm.length < 2) mm = "0" + mm;
+    if (ss.length < 2) ss = "0" + ss;
+    $("hudTime").textContent = mm + ":" + ss;
+  }, 500);
+}
+
+/* ---------------- 14. 流程控制 ---------------- */
+function startRound(diff) {
+  G.diff = diff;
+  G.palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  applyPalette(G.palette);
+  $("paletteName").textContent = "本局配色：" + G.palette.name;
+  var pool = (diff === 1 ? poolEasy() : diff === 2 ? poolMid() : poolHard());
+  G.roundProblems = shuffle(pool).slice(0, 3);
+  G.levelIndex = 0; G.totalSteps = 0; G.totalStars = 0;
+  updateHud();
+  $("screenSelect").classList.add("hidden");
+  $("screenGame").classList.remove("hidden");
+  $("roundOverlay").classList.add("hidden");
+  startTimer();
+  loadProblem(G.roundProblems[0]);
+}
+function nextLevel() {
+  $("levelOverlay").classList.add("hidden");
+  G.levelIndex++;
+  if (G.levelIndex >= G.roundProblems.length) {
+    /* 整局结算 */
+    clearInterval(G.timerId);
+    var s = Math.floor((Date.now() - G.timerStart) / 1000);
+    var mm = String(Math.floor(s / 60)), ss = String(s % 60);
+    var maxStars = G.roundProblems.length * 3;
+    $("roStars").textContent = "共获得 " + G.totalStars + " / " + maxStars + " 颗星星";
+    $("roInfo").innerHTML = "用时 <b>" + mm + " 分 " + ss + " 秒</b>，总步数 <b>" + G.totalSteps + "</b> 步。<br>" +
+      (G.totalStars >= maxStars - 1 ? "倒推大师就是你！果园大丰收！" : "倒推越来越熟练啦，再挑战一次拿满星星吧！");
+    $("roundOverlay").classList.remove("hidden");
+    confetti(220);
+    snd("win");
+    return;
+  }
+  loadProblem(G.roundProblems[G.levelIndex]);
+}
+function backToSelect() {
+  clearInterval(G.timerId);
+  if (G.revealTimer) { clearInterval(G.revealTimer); G.revealTimer = null; G.revealing = false; }
+  $("levelOverlay").classList.add("hidden");
+  $("roundOverlay").classList.add("hidden");
+  $("screenGame").classList.add("hidden");
+  $("screenSelect").classList.remove("hidden");
+}
+
+/* ---------------- 15. 事件绑定 ---------------- */
+document.querySelectorAll(".diffCard").forEach(function (c) {
+  c.addEventListener("click", function () { initAudio(); startRound(parseInt(c.dataset.diff, 10)); });
+});
+$("btnRules").addEventListener("click", function () { $("rulesOverlay").classList.remove("hidden"); });
+$("btnRules0").addEventListener("click", function () { $("rulesOverlay").classList.remove("hidden"); });
+$("btnRulesOk").addEventListener("click", function () { $("rulesOverlay").classList.add("hidden"); });
+$("btnReveal").addEventListener("click", revealAnswer);
+$("btnRestart").addEventListener("click", function () {
+  if (!G.prob) return;
+  G.totalSteps -= G.steps; /* 本关步数清零（不影响其它关） */
+  loadProblem(G.prob);
+});
+$("btnBack").addEventListener("click", backToSelect);
+$("btnBack2").addEventListener("click", backToSelect);
+$("btnNext").addEventListener("click", nextLevel);
+$("btnReplay").addEventListener("click", function () {
+  $("levelOverlay").classList.add("hidden");
+  G.totalStars -= G.lastLevelStars; /* 先扣回本关星星，重玩重新评星 */
+  G.lastLevelStars = 0;
+  G.levelIndex--; nextLevel();
+});
+$("btnAgain").addEventListener("click", function () { startRound(G.diff); });
+$("btnSound").addEventListener("click", function () {
+  G.soundOn = !G.soundOn;
+  $("btnSound").textContent = G.soundOn ? "声音：开" : "声音：关";
+});
+
+/* 拖拽事件：全局监听移动与抬起；按下绑定在棋盘和线索区（事件委托） */
+$("world").addEventListener("pointerdown", onNodeDown);
+$("clueBar").addEventListener("pointerdown", onClueDown);
+document.addEventListener("pointermove", onPointerMove, { passive: false });
+document.addEventListener("pointerup", onPointerUp);
+document.addEventListener("pointercancel", onPointerUp);
+
+/* ---------------- 16. 难度卡片图标（复用水果 SVG） ---------------- */
+$("iconSeed").innerHTML = FRUITS.apple.svg("#8fd481");
+$("iconFruit").innerHTML = FRUITS.strawberry.svg("#ff8fa3");
+$("iconTree").innerHTML = FRUITS.peach.svg("#ffc2d1");
+
+/* ---------------- 17. 启动：进入即弹出规则说明 ---------------- */
+(function boot() {
+  G.palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  applyPalette(G.palette);
+  $("paletteName").textContent = "本局配色：" + G.palette.name;
+  $("rulesOverlay").classList.remove("hidden");
+})();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-f/g002", "name": "\u6570\u5b57\u679c\u56ed \u00b7 \u5012\u63a8\u6cd5\u5927\u95ef\u5173\uff08\u7b2c4\u8bb2 \u6570\u7684\u7ec4\u6210\u2014\u2014\u5012\u63a8\u6cd5\uff09", "file": "g002.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u6570\u7684\u7ec4\u6210\u2014\u2014\u5012\u63a8\u6cd5\uff08\u4e13\u9898\u4e00 10\u4ee5\u5185\u6570\u7684\u52a0\u51cf\u6cd5\uff09", "unit": "\u7b2c4\u8bb2", "grade": "\u4e00\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

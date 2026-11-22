@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>展开工坊 · 空间图形的表面积</title>
+<style>
+/* ============ 全局样式（配色由 JS 从色板随机注入 CSS 变量） ============ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;
+  background:var(--c-bg);color:var(--c-ink);font-size:17px;line-height:1.6;
+}
+#app{max-width:1120px;margin:0 auto;padding:10px 14px 40px}
+/* 顶部横条：标题 + 用时/步数/规则 */
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  padding:10px 6px;border-bottom:3px solid var(--c-accent);margin-bottom:14px}
+.brand{font-size:24px;font-weight:800;color:var(--c-accent)}
+.hud{display:flex;align-items:center;gap:14px;font-size:18px;font-weight:600}
+.hud b{color:var(--c-accent);font-size:20px}
+/* 按钮通用 */
+.btn{border:2px solid var(--c-accent);background:#fff;color:var(--c-accent);
+  border-radius:12px;padding:8px 18px;font-size:17px;font-weight:700;cursor:pointer;min-height:44px}
+.btn:hover{background:var(--c-accent-soft)}
+.btn.primary{background:var(--c-accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.big{font-size:20px;padding:12px 30px}
+.btn.small{font-size:15px;padding:4px 12px;min-height:34px}
+.btn:disabled{opacity:.45;cursor:default}
+/* ============ 难度选择页 ============ */
+.story{background:var(--c-panel);border:3px solid var(--c-line);border-radius:18px;padding:18px 20px;margin-bottom:16px}
+.story h2{color:var(--c-accent);font-size:22px;margin-bottom:8px}
+.story p{margin-bottom:6px}
+.diff-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:18px 0}
+.diff-card{border:3px solid var(--c-accent);border-radius:18px;background:var(--c-panel);
+  padding:20px 16px;text-align:center;cursor:pointer;transition:transform .15s}
+.diff-card:hover{transform:translateY(-4px)}
+.diff-card h3{font-size:24px;color:var(--c-accent);margin-bottom:8px}
+.diff-card p{font-size:16px;color:var(--c-ink)}
+.diff-card .lv{display:inline-block;background:var(--c-accent);color:#fff;border-radius:10px;
+  padding:2px 14px;font-size:17px;margin-bottom:10px}
+.menu-foot{text-align:center;color:var(--c-ink);font-size:16px;margin-top:6px}
+/* ============ 游戏页 ============ */
+.order-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.badge{background:var(--c-accent2);color:#3a2a10;border-radius:10px;padding:3px 14px;font-weight:800;font-size:17px}
+#orderTitle{font-size:21px;font-weight:800;color:var(--c-accent)}
+#orderText{background:var(--c-panel);border:3px solid var(--c-line);border-radius:14px;
+  padding:12px 16px;margin-bottom:14px;font-size:18px}
+.workshop{display:grid;grid-template-columns:1fr 1.35fr;gap:18px;align-items:start}
+.pane{background:var(--c-panel);border:3px solid var(--c-line);border-radius:16px;padding:12px}
+.pane h3{font-size:18px;color:var(--c-accent);margin-bottom:6px;text-align:center}
+.fig-wrap{position:relative}
+.fig-wrap svg{width:100%;height:auto;display:block}
+#figLabels{margin-top:6px;text-align:center;font-size:16px;font-weight:600}
+#figLabels span{display:inline-block;margin:2px 8px}
+/* 检视台点亮动画 */
+.glowy{animation:glowPulse 1s ease 2}
+@keyframes glowPulse{0%,100%{filter:none}50%{filter:drop-shadow(0 0 16px var(--c-ok)) drop-shadow(0 0 26px var(--c-ok))}}
+/* 裁纸台 */
+#paperSvg{touch-action:none}
+#paperSvg.fly{transition:transform .8s ease-in,opacity .8s;transform:translate(18%,4%) scale(.1);opacity:.12}
+#paperSvg.shake{animation:shk .45s ease}
+@keyframes shk{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(5px)}}
+#paperReadout{min-height:52px;text-align:center;font-size:17px;font-weight:700;color:var(--c-accent);margin-top:4px}
+#paperReadout .hint{display:block;font-size:16px;color:var(--c-ink);font-weight:600}
+/* SVG 图形通用类 */
+.face-side{fill:var(--c-accent-soft);stroke:var(--c-accent);stroke-width:2.6;stroke-linejoin:round}
+.face-base{fill:var(--c-accent-soft2);stroke:var(--c-accent);stroke-width:2.6;stroke-linejoin:round;opacity:.95}
+.face-top{fill:#ffffff;stroke:var(--c-accent);stroke-width:3;stroke-linejoin:round}
+.edge-front{stroke:var(--c-accent);stroke-width:3;stroke-linecap:round}
+.edge-back{stroke:var(--c-accent);stroke-width:1.5;opacity:.4;stroke-dasharray:6 6}
+.edge-dash{stroke:var(--c-ink);stroke-width:1.8;stroke-dasharray:7 6;fill:none}
+.paper-shape{fill:var(--c-accent-soft);stroke:var(--c-accent);stroke-width:3;stroke-linejoin:round}
+.paper-line{stroke:var(--c-accent);stroke-width:2.4;fill:none}
+.dim{stroke:var(--c-ink);stroke-width:1.5;fill:none}
+.mark{font-size:17px;fill:var(--c-ink);font-weight:700}
+.mark-accent{font-size:18px;fill:var(--c-accent);font-weight:800}
+.handle{fill:var(--c-accent2);stroke:#fff;stroke-width:3;cursor:grab;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.handle:active{cursor:grabbing}
+/* 底面补丁台 */
+#patchArea{margin-top:16px}
+#patchArea h3{text-align:center;color:var(--c-accent);margin-bottom:8px}
+#patchShelf{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.patch-card{width:150px;background:#fff;border:3px solid var(--c-accent);border-radius:14px;
+  padding:6px 8px;text-align:center;cursor:grab;user-select:none;touch-action:none}
+.patch-card:active{cursor:grabbing}
+.patch-card svg{width:100%;height:74px;display:block}
+.patch-card span{display:block;font-size:16px;font-weight:700}
+.patch-ghost{position:fixed;z-index:99;pointer-events:none;opacity:.9;transform:translate(-50%,-60%);width:130px}
+.zone{position:absolute;width:96px;height:54px;border:3px dashed var(--c-accent);border-radius:50%;
+  transform:translate(-50%,-50%);background:rgba(255,255,255,.55);display:flex;align-items:center;
+  justify-content:center;font-size:16px;font-weight:700;color:var(--c-accent);text-align:center}
+.zone.done{border-style:solid;border-color:var(--c-ok);color:var(--c-ok);background:rgba(255,255,255,.9)}
+.zone.shake{animation:shk .45s ease}
+/* 反馈条 */
+.feedback{margin-top:14px;background:var(--c-panel);border:3px solid var(--c-line);border-radius:14px;
+  padding:12px 16px;font-size:18px;font-weight:700;min-height:54px}
+.feedback.good{border-color:var(--c-ok);color:var(--c-ok)}
+.feedback.bad{border-color:#d9536f;color:#d9536f}
+.game-btns{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;justify-content:center}
+.progress{margin-top:14px;text-align:center;font-size:17px;font-weight:700}
+.progress .dot{display:inline-block;min-width:76px;margin:0 6px;padding:4px 10px;border-radius:10px;
+  background:var(--c-accent-soft);border:2px solid var(--c-line)}
+.progress .dot.cur{border-color:var(--c-accent);background:var(--c-accent2)}
+.progress .dot.done{border-color:var(--c-ok);color:var(--c-ok)}
+/* ============ 结算页 ============ */
+#screen-end{text-align:center}
+#screen-end h2{font-size:30px;color:var(--c-accent);margin:12px 0}
+#endStars{font-size:40px;color:#f2b705;letter-spacing:6px}
+.end-stats{display:flex;justify-content:center;gap:30px;font-size:20px;font-weight:700;margin:12px 0}
+#endDetail{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0;font-size:17px}
+#endDetail span{border:2px solid var(--c-line);border-radius:10px;padding:4px 12px;background:var(--c-panel)}
+#endWord{font-size:22px;font-weight:800;color:var(--c-ok);margin:10px 0 18px}
+/* ============ 弹窗 ============ */
+.modal-back{position:fixed;inset:0;background:rgba(20,30,45,.55);display:flex;align-items:center;
+  justify-content:center;z-index:50;padding:16px}
+.modal{background:#fff;border-radius:18px;max-width:680px;width:100%;max-height:86vh;overflow:auto;
+  padding:22px 24px;border-top:10px solid var(--c-accent)}
+.modal h2{color:var(--c-accent);font-size:24px;margin-bottom:10px}
+.modal p{margin-bottom:8px}
+.modal .formula{background:var(--c-accent-soft);border-radius:10px;padding:10px 14px;margin:8px 0;font-size:17px}
+.modal .ans-line{background:#e9f9f0;border-radius:10px;padding:10px 14px;margin:8px 0;font-weight:800;color:var(--c-ok)}
+.modal-btns{display:flex;gap:12px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+[hidden]{display:none !important}
+/* 彩带画布 */
+#fx{position:fixed;inset:0;pointer-events:none;z-index:80}
+/* ============ 响应式 ============ */
+@media (max-width:920px){
+  .workshop{grid-template-columns:1fr}
+  .diff-cards{grid-template-columns:1fr}
+  .brand{font-size:20px}
+  #orderText{font-size:17px}
+}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div id="app">
+  <header>
+    <div class="brand">展开工坊 · 空间图形的表面积</div>
+    <div class="hud">
+      <span>用时 <b id="hudTime">00:00</b></span>
+      <span>步数 <b id="hudSteps">0</b></span>
+      <button class="btn small" id="btnRules">规则</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ 难度选择页 ============ -->
+    <section id="screen-menu">
+      <div class="story">
+        <h2>欢迎来到「展开工坊」！</h2>
+        <p>你是工坊新来的包装巧匠。客人们送来了各种几何体礼盒：棱柱、棱锥、棱台、圆柱、圆锥、圆台……</p>
+        <p>你的任务：在<b>裁纸台</b>上拖动手柄，把包装纸的尺寸调得<b>刚刚好</b>——长要等于底面周长、母线要等于斜高、弧长要贴合底面圆……按「卷纸试穿」，纸与几何体<b>完美贴合</b>就算过关！</p>
+        <p>调纸的过程就是在用表面积公式思考：先在草稿上算出该调到多少，再来拖手柄，又快又准才能拿满星星！</p>
+      </div>
+      <div class="diff-cards">
+        <button class="diff-card" data-diff="1">
+          <h3>包装学徒</h3><span class="lv">初级</span>
+          <p>棱柱与圆柱、圆锥入门订单<br>矩形纸 · 扇形纸 · 三角形纸带</p>
+        </button>
+        <button class="diff-card" data-diff="2">
+          <h3>巧手工匠</h3><span class="lv">中级</span>
+          <p>棱锥、棱台、圆台进阶订单<br>斜高 · 梯形纸带 · 扇环纸</p>
+        </button>
+        <button class="diff-card" data-diff="3">
+          <h3>大师挑战</h3><span class="lv">高级</span>
+          <p>综合与逆向推理订单<br>先推关系再裁纸 · 双检核尺</p>
+        </button>
+      </div>
+      <div style="text-align:center;margin-top:8px">
+        <button class="btn" id="btnRulesMenu">玩法说明</button>
+      </div>
+      <p class="menu-foot" id="menuPalette">每局面料色随机换新，常玩常新</p>
+    </section>
+
+    <!-- ============ 游戏页 ============ -->
+    <section id="screen-game" hidden>
+      <div class="order-head">
+        <span class="badge" id="orderBadge">初级 · 订单 1/3</span>
+        <span id="orderTitle">六棱柱礼盒</span>
+      </div>
+      <p id="orderText">订单内容</p>
+      <div class="workshop">
+        <div class="pane">
+          <h3>几何体 · 检视台</h3>
+          <div class="fig-wrap" id="figWrap">
+            <svg id="solidSvg" viewBox="0 0 320 320" aria-label="几何体示意图"></svg>
+            <div id="zones"></div>
+          </div>
+          <div id="figLabels"></div>
+        </div>
+        <div class="pane">
+          <h3 id="paperTitle">裁纸台</h3>
+          <div class="fig-wrap">
+            <svg id="paperSvg" viewBox="0 0 480 360" aria-label="裁纸台"></svg>
+          </div>
+          <div id="paperReadout"></div>
+          <div style="text-align:center;margin-top:6px">
+            <button class="btn primary big" id="btnTry">卷纸试穿</button>
+          </div>
+        </div>
+      </div>
+      <div id="patchArea" hidden>
+        <h3>底面补丁台 · 把尺寸合适的补丁拖到几何体的底面虚线圈里</h3>
+        <div id="patchShelf"></div>
+      </div>
+      <div class="feedback" id="feedback">拖动手柄调好纸的尺寸，然后按【卷纸试穿】。</div>
+      <div class="game-btns">
+        <button class="btn" id="btnReveal">揭示答案</button>
+        <button class="btn" id="btnRestart">重新开始</button>
+        <button class="btn" id="btnBack">返回难度选择</button>
+        <button class="btn primary" id="btnNext" hidden>下一张订单</button>
+      </div>
+      <div class="progress" id="progress"></div>
+    </section>
+
+    <!-- ============ 结算页 ============ -->
+    <section id="screen-end" hidden>
+      <h2>本轮订单全部完成！</h2>
+      <div id="endStars">★★★</div>
+      <div class="end-stats">
+        <span>用时 <b id="endTime">00:00</b></span>
+        <span>步数 <b id="endSteps">0</b></span>
+        <span>星星 <b id="endTotal">0/9</b></span>
+      </div>
+      <div id="endDetail"></div>
+      <div id="endWord">金牌包装大师！</div>
+      <div class="game-btns">
+        <button class="btn primary big" id="btnAgain">再玩一次（重新抽样换色）</button>
+        <button class="btn big" id="btnMenu2">返回难度选择</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 规则弹窗 -->
+<div class="modal-back" id="modalRules" hidden>
+  <div class="modal">
+    <h2>工坊规则说明</h2>
+    <p><b>你的工作</b>：每张订单给出一个几何体（全部尺寸都在订单和图里）。你要在右侧裁纸台拖动<b>圆点手柄</b>，把包装纸调到与几何体侧面<b>严丝合缝</b>：</p>
+    <p>· 矩形纸：<b>长 = 底面周长 c</b>，<b>宽 = 高（或侧棱）</b>；<br>
+       · 三角形纸带：<b>斜高 h′</b> 要调准（有的订单底边 a 也要自己定）；<br>
+       · 梯形纸带：<b>斜高 h′ = </b>用侧棱与两底边差的直角三角形算；<br>
+       · 扇形纸：<b>母线 l</b>（用勾股定理 l²=r²+h² 求），<b>圆心角 θ</b> 使弧长 = 底面周长；<br>
+       · 扇环纸：<b>母线 l</b> 与 <b>θ</b>（外弧=下底周长，内弧=上底周长）。</p>
+    <p>调好后按「卷纸试穿」：全部尺寸在误差范围内就<b>完美贴合</b>；不贴合会提示哪个方向偏了（但不会告诉你答案数字）。</p>
+    <p>有底面补丁的订单：侧面贴合后，把<b>尺寸合适</b>的补丁从补丁台<b>拖到</b>几何体的底面虚线圈里，配齐即完成。</p>
+    <p><b>评分</b>：试穿次数越少、补丁零失误，星星越多；看过「揭示答案」再完成的订单最多得 1 颗星。</p>
+    <div class="formula">随身公式卡：S直棱柱侧=ch ｜ S正棱锥侧=½ch′ ｜ S正棱台侧=½(c+c′)h′<br>
+    S圆柱侧=2πrl ｜ S圆锥侧=πrl ｜ S圆台侧=π(r+r′)l ｜ l²=r²+h² ｜ 扇形弧长=(θ/360)·2πl</div>
+    <div class="modal-btns"><button class="btn primary" id="btnRulesGo">开始挑战（计时开始）</button></div>
+  </div>
+</div>
+
+<!-- 揭示答案弹窗 -->
+<div class="modal-back" id="modalReveal" hidden>
+  <div class="modal">
+    <h2 id="rvTitle">揭示答案</h2>
+    <div class="ans-line" id="rvAns">答案</div>
+    <p id="rvSteps">解析</p>
+    <p style="color:#777;font-size:16px" id="rvSrc"></p>
+    <div class="modal-btns">
+      <button class="btn" id="btnRvClose">关闭，我自己再试试</button>
+      <button class="btn primary" id="btnAutoFit">看懂了，替我贴好（本单最多1星）</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================================================================
+   展开工坊 · 空间图形的表面积（高中立体几何 13.3.1）
+   核心玩法：拖动手柄把"包装纸"（侧面展开图）的尺寸调成与几何体
+   侧面完全吻合——操作本身就是运用侧面积公式的思考过程。
+   ================================================================ */
+
+/* ---------- 小工具 ---------- */
+const $ = id => document.getElementById(id);
+const fmt = v => String(Number(Number(v).toFixed(2)));          // 数值显示
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+function shuffle(arr){ const a = arr.slice(); for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const sampleN = (arr, n) => shuffle(arr).slice(0, n);           // 随机抽样（反重复机制）
+const RG = (t, lo, hi) => [t * lo, t * hi];                     // 由目标值生成参数范围
+
+/* ---------- 随机色板（G8：每局随机主色） ---------- */
+const PALETTES = [
+  {name:'晴空蓝', bg:'#eef4fb', panel:'#ffffff', ink:'#1c2b3a', accent:'#1d6fd1', accent2:'#ffd166', line:'#c6d6e8', ok:'#178a54', soft:'#bcd9f7', soft2:'#9cc4ec'},
+  {name:'薄荷绿', bg:'#edf9f2', panel:'#ffffff', ink:'#173429', accent:'#0f9d6b', accent2:'#ff8f5e', line:'#c2e6d4', ok:'#178a54', soft:'#bde8d5', soft2:'#98d8ba'},
+  {name:'蜜桃粉', bg:'#fdf0f0', panel:'#ffffff', ink:'#3a1e24', accent:'#d9536f', accent2:'#59b8a5', line:'#f0cfd2', ok:'#178a54', soft:'#f7cdd4', soft2:'#efb3bd'},
+  {name:'活力橙', bg:'#fdf4e7', panel:'#ffffff', ink:'#3a2a12', accent:'#e07b1a', accent2:'#3f8fd1', line:'#f0dcbf', ok:'#178a54', soft:'#f8dcb4', soft2:'#f0c88e'},
+  {name:'葡萄紫', bg:'#f3effb', panel:'#ffffff', ink:'#2b1f3f', accent:'#6a4fc4', accent2:'#ffc857', line:'#d9cdf2', ok:'#178a54', soft:'#d8cdf4', soft2:'#c2b1ec'},
+  {name:'青柠黄', bg:'#fbfaea', panel:'#ffffff', ink:'#3a3512', accent:'#8d8a1c', accent2:'#e07b5a', line:'#e5e2b6', ok:'#178a54', soft:'#efecbc', soft2:'#e3df9a'}
+];
+function applyPalette(){
+  const p = pick(PALETTES);
+  const r = document.documentElement.style;
+  r.setProperty('--c-bg', p.bg); r.setProperty('--c-panel', p.panel);
+  r.setProperty('--c-ink', p.ink); r.setProperty('--c-accent', p.accent);
+  r.setProperty('--c-accent2', p.accent2); r.setProperty('--c-line', p.line);
+  r.setProperty('--c-ok', p.ok); r.setProperty('--c-accent-soft', p.soft);
+  r.setProperty('--c-accent-soft2', p.soft2);
+  $('menuPalette').textContent = '本局面料色：' + p.name + '（每局随机换新，常玩常新）';
+  FX.colors = [p.accent, p.accent2, p.ok, '#ff5d8f', '#f2b705'];
+}
+
+/* ---------- 题库（源自教参 docx，每局随机抽 3 张/难度） ---------- */
+const SQ3 = Math.sqrt(3), SQ2 = Math.SQRT2, PI = Math.PI;
+const ORDERS = [
+/* ================= 初级 ================= */
+{ id:'A1', diff:1, title:'六棱柱礼盒',
+  text:'【订单】一个正六棱柱的侧面都是正方形，底面边长为 2（侧棱长也是 2）。请为它裁一张侧面包装纸：矩形纸的【长】=底面周长、【宽】=侧棱；贴合后再为上、下底面配上正六边形补丁。',
+  fig:{type:'prism', n:6, m1:'底面边长 2', m2:'侧棱 2', m3:'侧面为正方形',
+       labels:['底面为正六边形，边长 a=2','侧棱（高）= 2，六个侧面都是正方形']},
+  stages:[{paper:'rect', desc:'裁纸台 · 矩形纸（长=底面周长，宽=侧棱）', tryLabel:'卷纸试穿',
+           targets:{W:12, Ht:2}, ranges:{W:RG(12,0.35,1.8), Ht:RG(2,0.4,2.2)}}],
+  patches:{zones:[{key:'hex2', label:'上底', pos:[50,33]}, {key:'hex2', label:'下底', pos:[50,68]}],
+           shelf:[{key:'hex2', shape:'hex', v:2, label:'正六边形 边长2'},
+                  {key:'hex4', shape:'hex', v:4, label:'正六边形 边长4'},
+                  {key:'sq2', shape:'square', v:2, label:'正方形 边长2'},
+                  {key:'cir2', shape:'circle', v:2, label:'圆 半径2'}]},
+  success:'贴合啦！纸的面积就是侧面积：S侧 = 底面周长×高 = 12×2 = 24。',
+  reveal:{ans:'S侧 = 24；S表 = 24 + 12√3 ≈ 44.78',
+    steps:'底面周长 c = 6×2 = 12，侧棱（高）h = 2，所以 S侧 = ch = 24。两个正六边形底面共 2×(6×√3/4×2²) = 12√3 ≈ 20.78，S表 = S侧 + S底 = 24 + 12√3 ≈ 44.78。',
+    src:'源自教参例1-1（原题底面边长为 a，表面积 = 6a² + 3√3a²）'}},
+
+{ id:'A2', diff:1, title:'正方体谜盒',
+  text:'【订单】一个正方体的表面积是 72。请先算出棱长 a，再为它的侧面裁一张矩形纸（长=底面周长=4a，宽=棱长=a），贴合后为上、下底面配上正方形补丁。',
+  fig:{type:'prism', n:4, m1:'棱长 a = ?', m2:'棱长 a = ?', m3:'表面积 72',
+       labels:['正方体表面积 = 6a² = 72','侧面展开矩形：长 = 4a，宽 = a']},
+  stages:[{paper:'rect', desc:'裁纸台 · 矩形纸（长=底面周长 4a，宽=棱长 a）', tryLabel:'卷纸试穿',
+           targets:{W:8*SQ3, Ht:2*SQ3}, ranges:{W:RG(8*SQ3,0.35,1.8), Ht:RG(2*SQ3,0.4,2.2)}}],
+  patches:{zones:[{key:'sq346', label:'上底', pos:[50,33]}, {key:'sq346', label:'下底', pos:[50,68]}],
+           shelf:[{key:'sq346', shape:'square', v:3.46, label:'正方形 边长2√3'},
+                  {key:'sq3', shape:'square', v:3, label:'正方形 边长3'},
+                  {key:'sq4', shape:'square', v:4, label:'正方形 边长4'},
+                  {key:'hex346', shape:'hex', v:3.46, label:'正六边形 边长2√3'}]},
+  success:'贴合啦！棱长 a = 2√3，S侧 = 4a² = 48，S表 = 72。',
+  reveal:{ans:'a = 2√3；S侧 = 48；S表 = 72',
+    steps:'设棱长 a，则 6a² = 72，得 a² = 12，a = 2√3 ≈ 3.46。侧面展开矩形：长 = 4a = 8√3 ≈ 13.86，宽 = a = 2√3 ≈ 3.46。S侧 = 4a×a = 48，加上两个底面 2a² = 24，S表 = 72。（顺带一提：它的体对角线 = √3·a = 6。）',
+    src:'源自教参例1-2（表面积 72 求对角线长为 6）'}},
+
+{ id:'A3', diff:1, title:'圆柱糖罐',
+  text:'【订单】一个圆柱的高为 4，底面积为 9π。请为它的侧面裁一张矩形纸：长=底面周长，宽=高。（先由底面积求出半径 r 哦）',
+  fig:{type:'cylinder', m1:'r = ?', m2:'高 4', m3:'底面积 9π',
+       labels:['底面积 = πr² = 9π','高 h = 4，侧面展开是矩形']},
+  stages:[{paper:'rect', desc:'裁纸台 · 矩形纸（长=底面周长 2πr，宽=高）', tryLabel:'卷纸试穿',
+           targets:{W:6*PI, Ht:4}, ranges:{W:RG(6*PI,0.35,1.8), Ht:RG(4,0.4,2.2)}}],
+  patches:null,
+  success:'贴合啦！r = 3，S侧 = 2πrh = 6π×4 = 24π ≈ 75.40。',
+  reveal:{ans:'S侧 = 24π ≈ 75.40',
+    steps:'由底面积 πr² = 9π 得 r = 3，底面周长 c = 2πr = 6π ≈ 18.85。S侧 = ch = 6π×4 = 24π ≈ 75.40。',
+    src:'源自教参例2-8（2022·上海：圆柱高4、底面积9π，侧面积24π）'}},
+
+{ id:'A4', diff:1, title:'圆锥冰淇淋',
+  text:'【订单】一个圆锥的底面半径为 2 cm，高为 1 cm。请为它的侧面裁一张扇形纸：母线 l 用勾股定理求（l² = r² + h²），圆心角 θ 使弧长恰好等于底面周长。两个手柄都要调准！',
+  fig:{type:'cone', m1:'r = 2', m2:'高 1', m3:'求母线 l',
+       labels:['底面半径 r = 2 cm，高 h = 1 cm','母线 l = √(r²+h²)，弧长 = 2πr']},
+  stages:[{paper:'sector', desc:'裁纸台 · 扇形纸（母线 l、圆心角 θ）', tryLabel:'卷纸试穿',
+           targets:{l:Math.sqrt(5), th:360*2/Math.sqrt(5)}, ranges:{l:RG(Math.sqrt(5),0.45,1.9), th:[25,352]}}],
+  patches:null,
+  success:'贴合啦！l = √5 ≈ 2.24，S侧 = πrl = 2√5π ≈ 14.05（cm²）。',
+  reveal:{ans:'l = √5；θ ≈ 321.99°；S侧 = 2√5π ≈ 14.05 cm²',
+    steps:'母线 l = √(r²+h²) = √(2²+1²) = √5 ≈ 2.24。弧长 = 底面周长 = 2πr = 4π，圆心角 θ = 360°×r/l = 360×2/√5 ≈ 321.99°。S侧 = πrl = π×2×√5 = 2√5π ≈ 14.05 cm²。',
+    src:'源自教参例2-6（2024·上海交大附中开学考：r=2、h=1，侧面积2√5π）'}},
+
+{ id:'A5', diff:1, title:'金字塔帐篷',
+  text:'【订单】一个正四棱锥的底面正方形的边长为 4 cm，高与斜高的夹角为 30°。请为它的侧面裁出四个全等等腰三角形拼成的纸带：拖动顶点手柄，把斜高 h′ 调准（先在 Rt△POE 里算：OE = 边心距 = 2，∠OPE = 30°）。',
+  fig:{type:'pyramid', n:4, m1:'边长 4', m2:'高与斜高', m3:'夹角30°',
+       labels:['底面正方形边长 4 cm','边心距 OE = 2，高 PO 与斜高 PE 夹角 30°']},
+  stages:[{paper:'tri', desc:'裁纸台 · 四个全等三角形纸带（调斜高 h′）', tryLabel:'卷纸试穿',
+           aux:{n:4, a:4}, targets:{Hh:4}, ranges:{Hh:RG(4,0.3,2)}}],
+  patches:null,
+  success:'贴合啦！斜高 h′ = 2÷sin30° = 4，S侧 = ½ch′ = ½×16×4 = 32（cm²）。',
+  reveal:{ans:'h′ = 4；S侧 = 32 cm²',
+    steps:'底面边心距 OE = 4÷2 = 2 cm。在 Rt△POE 中，∠OPE = 30°，斜高 PE = OE÷sin30° = 2÷½ = 4 cm。底面周长 c = 16，S侧 = ½ch′ = ½×16×4 = 32 cm²。',
+    src:'源自教参变式演练1（2024·福建三明期末）'}},
+
+{ id:'A6', diff:1, title:'三棱柱笔筒',
+  text:'【订单】一个直三棱柱的底面是边长为 4 的等边三角形，侧棱长为 5，侧面都是矩形。请为它的侧面裁一张矩形纸（长=底面周长，宽=侧棱），贴合后为上、下底面配上等边三角形补丁。',
+  fig:{type:'prism', n:3, m1:'边长 4', m2:'侧棱 5', m3:'侧面为矩形',
+       labels:['底面等边三角形边长 4','侧棱 = 5，三个侧面都是矩形']},
+  stages:[{paper:'rect', desc:'裁纸台 · 矩形纸（长=底面周长，宽=侧棱）', tryLabel:'卷纸试穿',
+           targets:{W:12, Ht:5}, ranges:{W:RG(12,0.35,1.8), Ht:RG(5,0.4,2)}}],
+  patches:{zones:[{key:'tri4', label:'上底', pos:[50,33]}, {key:'tri4', label:'下底', pos:[50,68]}],
+           shelf:[{key:'tri4', shape:'tri', v:4, label:'等边三角形 边长4'},
+                  {key:'tri5', shape:'tri', v:5, label:'等边三角形 边长5'},
+                  {key:'sq4', shape:'square', v:4, label:'正方形 边长4'},
+                  {key:'cir2', shape:'circle', v:2, label:'圆 半径2'}]},
+  success:'贴合啦！S侧 = ch = 12×5 = 60。',
+  reveal:{ans:'S侧 = 60；S表 = 60 + 8√3 ≈ 73.86',
+    steps:'底面周长 c = 3×4 = 12，S侧 = ch = 12×5 = 60。每个底面等边三角形面积 = √3/4×4² = 4√3，两个共 8√3 ≈ 13.86，S表 = 60 + 8√3 ≈ 73.86。',
+    src:'直棱柱侧面积同题型自创变式（对应"直棱柱侧面积"知识点）'}},
+
+/* ================= 中级 ================= */
+{ id:'B1', diff:2, title:'四棱台灯罩',
+  text:'【订单】一个正四棱台的两个底面的边长分别为 5 和 17，侧棱长为 10。请为它的侧面裁出四个全等等腰梯形拼成的纸带：在侧面梯形里用勾股定理算出斜高 h′（底边差的一半 = (17−5)/2 = 6），再拖手柄调准。',
+  fig:{type:'trapPrism', n:4, m1:'下底 17', m2:'上底 5', m3:'侧棱 10',
+       labels:['上底边长 5，下底边长 17','侧棱长 10，侧面是全等等腰梯形']},
+  stages:[{paper:'trap', desc:'裁纸台 · 四个全等梯形纸带（调斜高 h′）', tryLabel:'卷纸试穿',
+           aux:{n:4, a1:5, a2:17}, targets:{Hh:8}, ranges:{Hh:RG(8,0.25,2.1)}}],
+  patches:null,
+  success:'贴合啦！斜高 h′ = √(10²−6²) = 8，S侧 = ½(c+c′)h′ = ½×88×8 = 352。',
+  reveal:{ans:'h′ = 8；S侧 = 352',
+    steps:'侧面等腰梯形中，底边差的一半 = (17−5)/2 = 6，斜高 h′ = √(10²−6²) = √64 = 8。上底周长 c′ = 20，下底周长 c = 68，S侧 = ½(c+c′)h′ = ½×88×8 = 352。',
+    src:'源自教参例1-5（2024·山东青岛期末：答案 352）'}},
+
+{ id:'B2', diff:2, title:'三棱锥香薰',
+  text:'【订单】正三棱锥 S-ABC 的侧面积是底面积的 2 倍，正三棱锥的高 SO = 3。这张纸带要自己定两个尺寸：底边 a 和斜高 h′ 都要调准！（提示：由面积关系得 h′ 与 a 的比例，再结合 Rt△SOE：h′² = SO² + (a√3/6)²）',
+  fig:{type:'pyramid', n:3, m1:'底边 a = ?', m2:'高 3', m3:'S侧=2×S底',
+       labels:['高 SO = 3','侧面积 = 2 × 底面积（底边 a、斜高 h′ 都待定）']},
+  stages:[{paper:'tri', desc:'裁纸台 · 三个全等三角形纸带（底边 a、斜高 h′ 都要调）', tryLabel:'卷纸试穿',
+           aux:{n:3, adjustA:true},
+           targets:{a:6, Hh:2*SQ3}, ranges:{a:RG(6,0.35,1.9), Hh:RG(2*SQ3,0.3,2)}}],
+  patches:null,
+  success:'贴合啦！a = 6，h′ = 2√3 ≈ 3.46，S表 = 27√3 ≈ 46.77。',
+  reveal:{ans:'a = 6，h′ = 2√3；S表 = 27√3 ≈ 46.77',
+    steps:'由 S侧 = 2S底：½×3a×h′ = 2×(√3/4)a²，整理得 h′ = a/√3。又在 Rt△SOE 中 h′² = SO² + (边心距)² = 9 + a²/12。联立解得 a = 6，h′ = 2√3。S底 = 9√3，S侧 = 18√3，S表 = 27√3 ≈ 46.77。',
+    src:'源自教参例10（正三棱锥高3、S侧=2S底，表面积27√3）'}},
+
+{ id:'B3', diff:2, title:'圆台花盆',
+  text:'【订单】圆台 OO′ 的母线长为 6，两底面半径分别为 2 和 7（上底 2、下底 7）。请为它的侧面裁一张扇环纸：母线 l = 6，圆心角 θ 使外弧 = 下底周长、内弧 = 上底周长。',
+  fig:{type:'coneFru', r1:2, r2:7, m1:'下底半径 7', m2:'上底半径 2', m3:'母线 6',
+       labels:['上底半径 r′ = 2，下底半径 r = 7','母线长 l = 6']},
+  stages:[{paper:'fanring', desc:'裁纸台 · 扇环纸（母线 l、圆心角 θ）', tryLabel:'卷纸试穿',
+           aux:{r1:2, r2:7}, targets:{l:6, th:300}, ranges:{l:RG(6,0.45,1.9), th:[25,352]}}],
+  patches:null,
+  success:'贴合啦！θ = (r−r′)/l×360° = 300°，S侧 = π(r+r′)l = π×9×6 = 54π ≈ 169.65。',
+  reveal:{ans:'S侧 = 54π ≈ 169.65',
+    steps:'S侧 = π(r+r′)l = π×(7+2)×6 = 54π。扇环圆心角 θ = (r−r′)/l×360° = (7−2)/6×360° = 300°。',
+    src:'源自教参例2-7（2024·陕西西安期末：r′=2、r=7、母线6，侧面积54π）'}},
+
+{ id:'B4', diff:2, title:'方糖圆罐',
+  text:'【订单】圆柱的上、下底面的中心分别为 O₁、O₂，过直线 O₁O₂ 的平面截该圆柱所得的截面是面积为 8 的正方形。请为它的侧面裁矩形纸（截面边长就是底面直径和高），贴合后配上两个圆形底面补丁。',
+  fig:{type:'cylinder', m1:'r = ?', m2:'h = ?', m3:'轴截面正方形面积8',
+       labels:['过 O₁O₂ 的截面是面积为 8 的正方形','截面边长 = 底面直径 = 高']},
+  stages:[{paper:'rect', desc:'裁纸台 · 矩形纸（长=底面周长，宽=高）', tryLabel:'卷纸试穿',
+           targets:{W:2*SQ2*PI, Ht:2*SQ2}, ranges:{W:RG(2*SQ2*PI,0.35,1.8), Ht:RG(2*SQ2,0.4,2.2)}}],
+  patches:{zones:[{key:'cir141', label:'上底', pos:[50,33]}, {key:'cir141', label:'下底', pos:[50,68]}],
+           shelf:[{key:'cir141', shape:'circle', v:1.41, label:'圆 半径√2≈1.41'},
+                  {key:'cir1', shape:'circle', v:1, label:'圆 半径1'},
+                  {key:'cir2', shape:'circle', v:2, label:'圆 半径2'},
+                  {key:'sq283', shape:'square', v:2.83, label:'正方形 边长2√2'}]},
+  success:'贴合啦！截面边长 √8 = 2√2：r = √2，h = 2√2，S表 = 12π ≈ 37.70。',
+  reveal:{ans:'S表 = 12π ≈ 37.70',
+    steps:'轴截面是面积为 8 的正方形 → 边长 = √8 = 2√2，即高 h = 2√2，且底面直径 = 2√2 → r = √2。底面周长 c = 2πr = 2√2π ≈ 8.89。S表 = 2πr(r+h) = 2π×√2×(√2+2√2) = 2π×√2×3√2 = 12π ≈ 37.70。',
+    src:'源自教参例16（全国I卷：截面为面积8的正方形，表面积12π）'}},
+
+{ id:'B5', diff:2, title:'菱形棱柱柜',
+  text:'【订单】底面是菱形的直棱柱，它的侧棱长是 5，两条体对角线的长分别是 15 和 9。请为它的侧面裁一张矩形纸：长 = 底面菱形的周长（先用两次勾股定理：底面对角线 = √(体对角线²−侧棱²)，再由菱形对角线垂直平分求边长），宽 = 侧棱。',
+  fig:{type:'rhombus', m1:'侧棱 5', m2:'体对角线15与9', m3:'底面是菱形',
+       labels:['直棱柱侧棱长 5，两条体对角线 15 和 9','底面是菱形（对角线互相垂直平分）']},
+  stages:[{paper:'rect', desc:'裁纸台 · 矩形纸（长=菱形周长，宽=侧棱）', tryLabel:'卷纸试穿',
+           targets:{W:32, Ht:5}, ranges:{W:RG(32,0.3,1.75), Ht:RG(5,0.4,2)}}],
+  patches:null,
+  success:'贴合啦！底面边长 = 8，S侧 = 4×8×5 = 160。',
+  reveal:{ans:'S侧 = 160',
+    steps:'底面两条对角线分别为 √(15²−5²) = √200 = 10√2 和 √(9²−5²) = √56 = 2√14。菱形对角线互相垂直平分，故边长 = √((5√2)²+(√14)²) = √(50+14) = 8。底面周长 = 32，S侧 = 32×5 = 160。',
+    src:'源自教参例9（底面菱形的直棱柱，侧面积160）'}},
+
+{ id:'B6', diff:2, title:'半圆斗笠',
+  text:'【订单】一个圆锥的底面半径为 √2，它的侧面展开图恰好是一个半圆。请为它裁这张扇形纸：由"底面周长 = 半圆弧长"求母线 l（2πr = πl），圆心角 θ 自然就定了。两个手柄都要调准！',
+  fig:{type:'cone', m1:'r = √2', m2:'展开图', m3:'是半圆',
+       labels:['底面半径 r = √2','侧面展开图是一个半圆（θ = 180°）']},
+  stages:[{paper:'sector', desc:'裁纸台 · 扇形纸（母线 l、圆心角 θ）', tryLabel:'卷纸试穿',
+           targets:{l:2*SQ2, th:180}, ranges:{l:RG(2*SQ2,0.45,1.9), th:[25,352]}}],
+  patches:null,
+  success:'贴合啦！l = 2r = 2√2 ≈ 2.83，θ = 180°，S侧 = πrl = 4π ≈ 12.57。',
+  reveal:{ans:'l = 2√2；θ = 180°；S侧 = 4π ≈ 12.57',
+    steps:'展开图是半圆 → 底面周长 = 半圆弧长：2π×√2 = πl，解得 l = 2√2 ≈ 2.83，θ = 180°。S侧 = πrl = π×√2×2√2 = 4π ≈ 12.57。',
+    src:'源自教参例15（新高考全国I卷：r=√2、展开图为半圆，母线2√2）'}},
+
+/* ================= 高级 ================= */
+{ id:'C1', diff:3, title:'双检核台',
+  text:'【订单】正四棱台的上、下两底面边长分别是 3 和 6，其侧面积等于两底面积之和。第一步：算出斜高 h′ 并裁出侧面纸带（S侧 = ½(c+c′)h′，两底面积和 = 9 + 36 = 45）；第二步：在直角检核尺上拖动顶点量出棱台的高 h（水平边 = (6−3)/2 = 1.5，斜边 = 你裁出的斜高）。',
+  fig:{type:'trapPrism', n:4, m1:'下底 6', m2:'上底 3', m3:'S侧=两底和',
+       labels:['上底边长 3，下底边长 6','侧面积 = 两底面积之和 = 9 + 36 = 45']},
+  stages:[
+    {paper:'trap', desc:'第一步 · 裁出侧面纸带（调斜高 h′）', tryLabel:'卷纸试穿',
+     aux:{n:4, a1:3, a2:6}, targets:{Hh:2.5}, ranges:{Hh:RG(2.5,0.3,2.1)}},
+    {paper:'rttri', desc:'第二步 · 直角检核尺（拖顶点量出高 h）', tryLabel:'量一量 · 检核',
+     aux:{base:1.5, hypNote:'斜边应等于斜高 2.5（已锁定）'}, targets:{h:2}, ranges:{h:[0.4,5.5]}}],
+  patches:null,
+  success:'两步全对！斜高 h′ = 2.5，高 h = 2，S侧 = 45。',
+  reveal:{ans:'h′ = 2.5；h = 2；S侧 = 45',
+    steps:'两底面积之和 = 9 + 36 = 45 = S侧。由 S侧 = ½(c+c′)h′ = ½×36×h′ = 45，得 h′ = 2.5。在直角梯形（检核尺）中，水平边 = (6−3)/2 = 1.5，斜边 = h′ = 2.5，所以高 h = √(h′²−1.5²) = √(6.25−2.25) = 2。',
+    src:'源自教参例11（正四棱台底边3、6，侧面积=两底和，高为2）'}},
+
+{ id:'C2', diff:3, title:'等边轴截面',
+  text:'【订单】一个圆锥的轴截面是等边三角形，其面积为 √3。请为它的侧面裁扇形纸：先由 (√3/4)a² = √3 求轴截面边长 a（a = 底面直径 = 母线），再调准母线 l 与圆心角 θ，最后配上一个圆形底面补丁。',
+  fig:{type:'cone', m1:'r = ?', m2:'轴截面等边', m3:'面积√3',
+       labels:['轴截面是等边三角形，面积 = √3','等边三角形边长 = 底面直径 = 母线 l']},
+  stages:[{paper:'sector', desc:'裁纸台 · 扇形纸（母线 l、圆心角 θ）', tryLabel:'卷纸试穿',
+           targets:{l:2, th:180}, ranges:{l:RG(2,0.45,1.9), th:[25,352]}}],
+  patches:{zones:[{key:'cir1', label:'底面', pos:[50,70]}],
+           shelf:[{key:'cir1', shape:'circle', v:1, label:'圆 半径1'},
+                  {key:'cir2', shape:'circle', v:2, label:'圆 半径2'},
+                  {key:'cir173', shape:'circle', v:1.73, label:'圆 半径√3≈1.73'},
+                  {key:'sq1', shape:'square', v:1, label:'正方形 边长1'}]},
+  success:'贴合啦！a = 2：r = 1，l = 2，θ = 180°，S表 = πr(r+l) = 3π ≈ 9.42。',
+  reveal:{ans:'S表 = 3π ≈ 9.42',
+    steps:'设等边三角形边长 a，(√3/4)a² = √3 → a² = 4 → a = 2。轴截面等边三角形 → 底面直径 = 母线 → r = 1，l = 2，θ = 360×r/l = 180°。S侧 = πrl = 2π，S底 = π，S表 = πr(r+l) = 3π ≈ 9.42。',
+    src:'源自教参例13（圆锥轴截面等边三角形面积√3，表面积3π）'}},
+
+{ id:'C3', diff:3, title:'正方形展开',
+  text:'【订单】一个圆柱的底面半径为 1，它的侧面展开图是一个正方形。请裁出这张正方形纸：长 = 宽 = 底面周长（纸是正方形时高才等于周长）。',
+  fig:{type:'cylinder', m1:'r = 1', m2:'展开图', m3:'是正方形',
+       labels:['底面半径 r = 1','侧面展开图是正方形（高 = 底面周长）']},
+  stages:[{paper:'rect', desc:'裁纸台 · 正方形纸（长 = 宽 = 底面周长）', tryLabel:'卷纸试穿',
+           targets:{W:2*PI, Ht:2*PI}, ranges:{W:RG(2*PI,0.35,1.9), Ht:RG(2*PI,0.35,1.9)}}],
+  patches:null,
+  success:'贴合啦！c = 2π ≈ 6.28，高 = 2π，S侧 = (2π)² = 4π² ≈ 39.48。',
+  reveal:{ans:'S表/S侧 = (2π+1)/(2π) ≈ 1.16',
+    steps:'底面周长 c = 2πr = 2π ≈ 6.28。展开图是正方形 → 高 = 2π。S侧 = c·h = 4π²。S表 = 4π² + 2π×1²，故 S表/S侧 = 1 + 1/(2π) = (2π+1)/(2π) ≈ 1.16。',
+    src:'源自教参例12（2024·天津五中月考：展开图为正方形的圆柱，求表面积与侧面积之比）'}},
+
+{ id:'C4', diff:3, title:'万节铁管',
+  text:'【订单】一个圆台形的铁管接头，它的母线长是 35 cm，两底面直径分别是 50 cm 和 20 cm（上底半径 10、下底半径 25）。请为它的侧面裁一张扇环纸：母线 l = 35，圆心角 θ = (r−r′)/l×360°。（π 取 3.1 只用于最后估算用料）',
+  fig:{type:'coneFru', r1:10, r2:25, m1:'下底半径25', m2:'上底半径10', m3:'母线35',
+       labels:['母线长 35 cm','两底面直径 50 cm 和 20 cm']},
+  stages:[{paper:'fanring', desc:'裁纸台 · 扇环纸（母线 l、圆心角 θ）', tryLabel:'卷纸试穿',
+           aux:{r1:10, r2:25}, targets:{l:35, th:360*15/35}, ranges:{l:RG(35,0.45,1.9), th:[25,352]}}],
+  patches:null,
+  success:'贴合啦！θ = 15/35×360° ≈ 154.29°，1 个接头用铁皮 1225π ≈ 3797.5 cm²（π取3.1），1 万个约 3798 m²。',
+  reveal:{ans:'1万个约需 3798 m² 铁皮',
+    steps:'r = 25，r′ = 10。S侧 = π(r+r′)l = π×(25+10)×35 = 1225π ≈ 1225×3.1 = 3797.5 cm²。1 万个接头：3797.5×10000 = 37975000 cm² = 3797.5 m² ≈ 3798 m²。扇环圆心角 θ = (r−r′)/l×360° = (25−10)/35×360° ≈ 154.29°。',
+    src:'源自教参例14（教材改编P200例1：圆台形铁管接头）'}},
+
+{ id:'C5', diff:3, title:'六棱台宝塔',
+  text:'【订单】正六棱台的上、下底面边长分别是 2 和 6，侧棱长是 5。请为它的侧面裁出六个全等梯形拼成的纸带：斜高 h′ = √(侧棱² − 底边差一半²)；贴合后为上、下底面配上边长不同的正六边形补丁。',
+  fig:{type:'trapPrism', n:6, m1:'下底 6', m2:'上底 2', m3:'侧棱 5',
+       labels:['上底边长 2，下底边长 6','侧棱长 5，侧面是全等等腰梯形']},
+  stages:[{paper:'trap', desc:'裁纸台 · 六个全等梯形纸带（调斜高 h′）', tryLabel:'卷纸试穿',
+           aux:{n:6, a1:2, a2:6}, targets:{Hh:Math.sqrt(21)}, ranges:{Hh:RG(Math.sqrt(21),0.25,2.1)}}],
+  patches:{zones:[{key:'hex2', label:'上底(边长2)', pos:[50,34]}, {key:'hex6', label:'下底(边长6)', pos:[50,68]}],
+           shelf:[{key:'hex2', shape:'hex', v:2, label:'正六边形 边长2'},
+                  {key:'hex6', shape:'hex', v:6, label:'正六边形 边长6'},
+                  {key:'hex4', shape:'hex', v:4, label:'正六边形 边长4'},
+                  {key:'hex3', shape:'hex', v:3, label:'正六边形 边长3'}]},
+  success:'贴合啦！斜高 = √21 ≈ 4.58，S侧 = 24√21 ≈ 109.98，S表 = 60√3+24√21 ≈ 213.90，高 = 3。',
+  reveal:{ans:'S侧 = 24√21；S表 = 60√3+24√21；高 = 3',
+    steps:'侧面梯形中底边差一半 = (6−2)/2 = 2，斜高 = √(5²−2²) = √21 ≈ 4.58。一个梯形面积 = ½(2+6)×√21 = 4√21，S侧 = 6×4√21 = 24√21 ≈ 109.98。上底 = 6个边长2的等边三角形 = 6√3，下底 = 54√3，S表 = 60√3+24√21 ≈ 213.90。高 = √(侧棱² − (R−R′)²) = √(5²−(6−2)²) = 3。',
+    src:'源自教参高考新题型专练2（正六棱台，正确说法 ACD）'}},
+
+{ id:'C6', diff:3, title:'三倍底面',
+  text:'【订单】一个圆锥的表面积是底面积的 3 倍，底面半径为 1.5。请为它的侧面裁扇形纸：由 πr(r+l) = 3πr² 先推出母线 l 与 r 的关系，再调准母线与圆心角 θ。两个手柄都要调准！',
+  fig:{type:'cone', m1:'r = 1.5', m2:'S表=3×S底', m3:'求母线l',
+       labels:['底面半径 r = 1.5','表面积 = 3 × 底面积']},
+  stages:[{paper:'sector', desc:'裁纸台 · 扇形纸（母线 l、圆心角 θ）', tryLabel:'卷纸试穿',
+           targets:{l:3, th:180}, ranges:{l:RG(3,0.45,1.9), th:[25,352]}}],
+  patches:null,
+  success:'贴合啦！l = 2r = 3，θ = 180°，S侧 = πrl = 4.5π，侧面展开图扇形圆心角为 180°。',
+  reveal:{ans:'l = 2r = 3；圆心角 = 180°',
+    steps:'S表 = 3S底 → πr(r+l) = 3πr² → r+l = 3r → l = 2r = 3。θ = 360°×r/l = 360×1.5/3 = 180°，即侧面展开图扇形的圆心角为 180°。S侧 = πrl = 4.5π，S底 = 2.25π，S表 = 6.75π = 3×2.25π。',
+    src:'源自教参变式演练2（圆锥表面积是底面积3倍，展开图圆心角180°）'}}
+];
+
+/* ---------- 全局状态 ---------- */
+const G = {
+  diff:1, orders:[], idx:0, stage:0, phase:'menu',       // phase: menu/play/patch/done/end
+  params:{}, attempts:0, patchFails:0, revealed:false,
+  steps:0, results:[], order:null,
+  timerId:null, startTs:0, timerOn:false
+};
+
+/* ---------- 计时器与步数（G7） ---------- */
+function startTimer(){
+  if(G.timerOn) return;
+  G.timerOn = true; G.startTs = Date.now();
+  G.timerId = setInterval(() => {
+    const s = Math.floor((Date.now() - G.startTs) / 1000);
+    $('hudTime').textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }, 500);
+}
+function stopTimer(){ G.timerOn = false; if(G.timerId){ clearInterval(G.timerId); G.timerId = null; } }
+function addStep(){ G.steps++; $('hudSteps').textContent = String(G.steps); }
+
+/* ---------- 页面切换 ---------- */
+function showScreen(name){
+  $('screen-menu').hidden = name !== 'menu';
+  $('screen-game').hidden = name !== 'game';
+  $('screen-end').hidden = name !== 'end';
+}
+
+/* ================================================================
+   几何体示意图（检视台）——按订单 fig 配置绘制带标注的示意图形
+   ================================================================ */
+function polyPts(cx, cy, R, n, sq){
+  const p = [];
+  for(let k = 0; k < n; k++){
+    const a = -Math.PI/2 + k*2*Math.PI/n;
+    p.push([cx + R*Math.cos(a), cy + R*Math.sin(a)*sq]);
+  }
+  return p;
+}
+const pts = arr => arr.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ');
+function marksSvg(m){                                            // 图内文字标注（≥16px）
+  let s = '';
+  if(m.m1) s += `<text class="mark" x="160" y="309" text-anchor="middle">${m.m1}</text>`;
+  if(m.m2) s += `<text class="mark" x="316" y="160" text-anchor="end">${m.m2}</text>`;
+  if(m.m3) s += `<text class="mark" x="160" y="22" text-anchor="middle">${m.m3}</text>`;
+  return s;
+}
+function prismFig(f){                                            // 棱柱（含正方体/三/六棱柱）
+  const n = f.n, sq = 0.42, cyB = 212, hp = 104;
+  const B = polyPts(160, cyB, 88, n, sq), T = polyPts(160, cyB-hp, 88, n, sq);
+  let s = '';
+  for(let k = 0; k < n; k++){                                    // 前侧面填充
+    const k2 = (k+1) % n;
+    if((B[k][1] + B[k2][1]) / 2 > cyB + 2)
+      s += `<polygon points="${pts([B[k],B[k2],T[k2],T[k]])}" class="face-side"/>`;
+  }
+  for(let k = 0; k < n; k++)                                     // 后侧棱（虚线）
+    if(B[k][1] <= cyB + 2)
+      s += `<line class="edge-back" x1="${B[k][0]}" y1="${B[k][1]}" x2="${T[k][0]}" y2="${T[k][1]}"/>`;
+  s += `<polygon points="${pts(B)}" class="face-base"/>`;
+  s += `<polygon points="${pts(T)}" class="face-top"/>`;
+  for(let k = 0; k < n; k++)                                     // 前侧棱加粗
+    if(B[k][1] > cyB + 2)
+      s += `<line class="edge-front" x1="${B[k][0]}" y1="${B[k][1]}" x2="${T[k][0]}" y2="${T[k][1]}"/>`;
+  return s + marksSvg(f);
+}
+function pyramidFig(f){                                          // 正棱锥
+  const n = f.n, sq = 0.42, cy = 228, A = [160, 66];
+  const B = polyPts(160, cy, 86, n, sq);
+  let s = '';
+  for(let k = 0; k < n; k++){                                    // 前侧面
+    const k2 = (k+1) % n;
+    if((B[k][1] + B[k2][1]) / 2 > cy + 2)
+      s += `<polygon points="${pts([A,B[k],B[k2]])}" class="face-side"/>`;
+  }
+  s += `<polygon points="${pts(B)}" class="face-base"/>`;
+  for(let k = 0; k < n; k++)
+    s += `<line class="${B[k][1] <= cy+2 ? 'edge-back' : 'edge-front'}" x1="160" y1="66" x2="${B[k][0]}" y2="${B[k][1]}"/>`;
+  s += `<line class="edge-dash" x1="160" y1="66" x2="160" y2="${cy}"/>`;   // 高（虚线）
+  return s + marksSvg(f);
+}
+function trapPrismFig(f){                                        // 正棱台
+  const n = f.n, sq = 0.42, cyB = 218, cyT = 112, r1 = 88*(f.a1/f.a2 || 0.45);
+  const B = polyPts(160, cyB, 88, n, sq), T = polyPts(160, cyT, r1, n, sq);
+  let s = '';
+  for(let k = 0; k < n; k++){
+    const k2 = (k+1) % n;
+    if((B[k][1] + B[k2][1]) / 2 > cyB + 2)
+      s += `<polygon points="${pts([B[k],B[k2],T[k2],T[k]])}" class="face-side"/>`;
+  }
+  for(let k = 0; k < n; k++)
+    if(B[k][1] <= cyB + 2)
+      s += `<line class="edge-back" x1="${B[k][0]}" y1="${B[k][1]}" x2="${T[k][0]}" y2="${T[k][1]}"/>`;
+  s += `<polygon points="${pts(B)}" class="face-base"/>`;
+  s += `<polygon points="${pts(T)}" class="face-top"/>`;
+  for(let k = 0; k < n; k++)
+    if(B[k][1] > cyB + 2)
+      s += `<line class="edge-front" x1="${B[k][0]}" y1="${B[k][1]}" x2="${T[k][0]}" y2="${T[k][1]}"/>`;
+  return s + marksSvg(f);
+}
+function cylinderFig(f){                                         // 圆柱
+  const cyB = 215, cyT = cyB - 105, rx = 92, ry = 34;
+  let s = `<path class="face-side" d="M68 ${cyT} L68 ${cyB} A92 34 0 0 0 252 ${cyB} L252 ${cyT} A92 34 0 0 1 68 ${cyT} Z"/>`;
+  s += `<ellipse class="face-base" cx="160" cy="${cyB}" rx="92" ry="34"/>`;
+  s += `<ellipse class="face-top" cx="160" cy="${cyT}" rx="92" ry="34"/>`;
+  s += `<line class="edge-dash" x1="160" y1="${cyB}" x2="252" y2="${cyB}"/>`;   // 半径示意线
+  return s + marksSvg(f);
+}
+function coneFig(f){                                             // 圆锥
+  const cy = 224, rx = 92, ry = 34;
+  let s = `<path class="face-side" d="M160 70 L68 ${cy} A92 34 0 0 0 252 ${cy} Z"/>`;
+  s += `<ellipse class="face-base" cx="160" cy="${cy}" rx="92" ry="34"/>`;
+  s += `<line class="edge-front" x1="160" y1="70" x2="68" y2="${cy}"/>`;
+  s += `<line class="edge-front" x1="160" y1="70" x2="252" y2="${cy}"/>`;
+  s += `<line class="edge-dash" x1="160" y1="70" x2="160" y2="${cy}"/>`;       // 高
+  s += `<line class="edge-dash" x1="160" y1="${cy}" x2="252" y2="${cy}"/>`;    // 半径
+  return s + marksSvg(f);
+}
+function coneFruFig(f){                                          // 圆台
+  const rx2 = clamp(40 + f.r2*2.2, 60, 98), rx1 = rx2*f.r1/f.r2, ry2 = rx2*0.36, ry1 = rx1*0.36;
+  const cyB = 228, cyT = cyB - 98, L = 160 - rx2, Rt = 160 + rx2, Lt1 = 160 - rx1, Rt1 = 160 + rx1;
+  let s = `<path class="face-side" d="M${Lt1} ${cyT} L${L} ${cyB} A${rx2} ${ry2} 0 0 0 ${Rt} ${cyB} L${Rt1} ${cyT} A${rx1} ${ry1} 0 0 1 ${Lt1} ${cyT} Z"/>`;
+  s += `<ellipse class="face-base" cx="160" cy="${cyB}" rx="${rx2}" ry="${ry2}"/>`;
+  s += `<ellipse class="face-top" cx="160" cy="${cyT}" rx="${rx1}" ry="${ry1}"/>`;
+  return s + marksSvg(f);
+}
+function rhombusFig(f){                                          // 菱形底直棱柱（带体对角线）
+  const up = 96, L = [70,210], T = [152,164], R = [248,210], Bm = [158,256];
+  const Tp = [T[0], T[1]-up], Lp = [L[0], L[1]-up], Rp = [R[0], R[1]-up], Bp = [Bm[0], Bm[1]-up];
+  let s = `<polygon class="face-side" points="${pts([L,Bm,Bp,Lp])}"/>`;
+  s += `<polygon class="face-side" points="${pts([Bm,R,Rp,Bp])}"/>`;
+  s += `<polygon class="face-base" points="${pts([L,T,R,Bm])}"/>`;
+  s += `<polygon class="face-top" points="${pts([Lp,Tp,Rp,Bp])}"/>`;
+  s += `<line class="edge-back" x1="${L[0]}" y1="${L[1]}" x2="${Lp[0]}" y2="${Lp[1]}"/>`;
+  s += `<line class="edge-back" x1="${T[0]}" y1="${T[1]}" x2="${Tp[0]}" y2="${Tp[1]}"/>`;
+  s += `<line class="edge-front" x1="${R[0]}" y1="${R[1]}" x2="${Rp[0]}" y2="${Rp[1]}"/>`;
+  s += `<line class="edge-front" x1="${Bm[0]}" y1="${Bm[1]}" x2="${Bp[0]}" y2="${Bp[1]}"/>`;
+  s += `<line class="edge-dash" x1="${L[0]}" y1="${L[1]}" x2="${R[0]}" y2="${R[1]}"/>`;     // 底面对角线
+  s += `<line class="edge-dash" x1="${T[0]}" y1="${T[1]}" x2="${Bm[0]}" y2="${Bm[1]}"/>`;
+  s += `<line class="edge-dash" x1="${L[0]}" y1="${L[1]}" x2="${Rp[0]}" y2="${Rp[1]}" stroke="#d9536f"/>`;   // 体对角线
+  s += `<line class="edge-dash" x1="${T[0]}" y1="${T[1]}" x2="${Bp[0]}" y2="${Bp[1]}" stroke="#d9536f"/>`;
+  return s + marksSvg(f);
+}
+function renderSolid(){
+  const f = G.order.fig;
+  const map = {prism:prismFig, pyramid:pyramidFig, trapPrism:trapPrismFig,
+               cylinder:cylinderFig, cone:coneFig, coneFru:coneFruFig, rhombus:rhombusFig};
+  $('solidSvg').innerHTML = (map[f.type] || prismFig)(f);
+  $('figLabels').innerHTML = f.labels.map(t => `<span>${t}</span>`).join('');
+}
+
+/* ================================================================
+   裁纸台：按纸型绘制展开图 + 拖动手柄（核心操作交互）
+   ================================================================ */
+const paperSvg = $('paperSvg');
+function computeGeo(st){                                         // 每个阶段的固定几何参数（比例尺、原点）
+  const g = {};
+  if(st.paper === 'rect'){
+    g.k = Math.min(330/st.ranges.W[1], 195/st.ranges.Ht[1]);
+    g.x0 = (480 - st.ranges.W[1]*g.k) / 2; g.y0 = 52;
+  } else if(st.paper === 'tri'){
+    const aMax = st.aux.adjustA ? st.ranges.a[1] : st.aux.a;
+    g.k = Math.min(400/(st.aux.n*aMax), 185/st.ranges.Hh[1]);
+    g.x0 = (480 - st.aux.n*aMax*g.k) / 2; g.yB = 292;
+  } else if(st.paper === 'trap'){
+    g.k = Math.min(400/(st.aux.n*st.aux.a2), 185/st.ranges.Hh[1]);
+    g.x0 = (480 - st.aux.n*st.aux.a2*g.k) / 2; g.yB = 292;
+  } else if(st.paper === 'sector'){
+    g.k = 165 / st.ranges.l[1]; g.cx = 240; g.cy = 190;
+  } else if(st.paper === 'fanring'){
+    g.k = 165 / (st.ranges.l[1] * st.aux.r2 / (st.aux.r2 - st.aux.r1));
+    g.cx = 240; g.cy = 190;
+  } else if(st.paper === 'rttri'){
+    g.k = 185 / st.ranges.h[1]; g.ox = 130; g.oy = 292;
+  }
+  return g;
+}
+const pol = (cx, cy, aDeg, r) => [cx + r*Math.cos(aDeg*Math.PI/180), cy + r*Math.sin(aDeg*Math.PI/180)];
+function renderPaper(){
+  const st = G.order.stages[G.stage], g = st.geo, p = G.params;
+  let s = '';
+  if(st.paper === 'rect'){
+    const w = p.W*g.k, h = p.Ht*g.k;
+    s += `<rect class="paper-shape" x="${g.x0}" y="${g.y0}" width="${w}" height="${h}"/>`;
+    s += `<line class="dim" x1="${g.x0}" y1="${g.y0+h+14}" x2="${g.x0+w}" y2="${g.y0+h+14}"/>`;
+    s += `<text class="mark-accent" x="${g.x0+w/2}" y="${g.y0+h+38}" text-anchor="middle">长 = ${fmt(p.W)}（应为底面周长）</text>`;
+    s += `<text class="mark-accent" x="${g.x0+w+12}" y="${g.y0+h/2+6}">宽 ${fmt(p.Ht)}</text>`;
+    s += `<circle class="handle" cx="${g.x0+w}" cy="${g.y0+h/2}" r="12" data-p="W"/>`;
+    s += `<circle class="handle" cx="${g.x0+w/2}" cy="${g.y0}" r="12" data-p="Ht"/>`;
+  } else if(st.paper === 'tri' || st.paper === 'trap'){
+    const isTrap = st.paper === 'trap';
+    const n = st.aux.n, a = isTrap ? st.aux.a2 : (('a' in st.aux && !st.aux.adjustA) ? st.aux.a : p.a);
+    const w1 = (isTrap ? st.aux.a1 : a) * g.k, w2 = a * g.k, hpx = p.Hh * g.k;
+    const total = n * w2, xs = (480 - total) / 2;
+    for(let i = 0; i < n; i++){
+      const xl = xs + i*w2;
+      if(isTrap){
+        s += `<path class="paper-shape" d="M${xl+(w2-w1)/2} ${g.yB-hpx} L${xl+(w2+w1)/2} ${g.yB-hpx} L${xl+w2} ${g.yB} L${xl} ${g.yB} Z"/>`;
+      } else {
+        s += `<path class="paper-shape" d="M${xl} ${g.yB} L${xl+w2/2} ${g.yB-hpx} L${xl+w2} ${g.yB} Z"/>`;
+      }
+    }
+    s += `<text class="mark-accent" x="${xs+total/2}" y="${g.yB-hpx-14}" text-anchor="middle">斜高 h′ = ${fmt(p.Hh)}</text>`;
+    s += `<text class="mark" x="${xs+total/2}" y="${g.yB+30}" text-anchor="middle">${isTrap ? '每个下底 ' + st.aux.a2 + ' · 上底 ' + st.aux.a1 : '每条底边 a = ' + fmt(a)}（纸带共 ${n} 片）</text>`;
+    s += `<circle class="handle" cx="${xs+total/2}" cy="${g.yB-hpx}" r="12" data-p="Hh"/>`;
+    if(st.aux.adjustA) s += `<circle class="handle" cx="${xs+total}" cy="${g.yB}" r="12" data-p="a"/>`;
+  } else if(st.paper === 'sector' || st.paper === 'fanring'){
+    const isFan = st.paper === 'fanring';
+    let Rin = 0, Rout = p.l * g.k;
+    if(isFan){
+      Rin = p.l * g.k * st.aux.r1 / (st.aux.r2 - st.aux.r1);
+      Rout = Rin + p.l * g.k;
+    }
+    const a0 = -90, a1 = a0 + p.th, large = p.th > 180 ? 1 : 0;
+    const pA0o = pol(g.cx, g.cy, a0, Rout), pA1o = pol(g.cx, g.cy, a1, Rout);
+    if(isFan){
+      const pA0i = pol(g.cx, g.cy, a0, Rin), pA1i = pol(g.cx, g.cy, a1, Rin);
+      s += `<path class="paper-shape" d="M${pA0o[0]} ${pA0o[1]} A${Rout} ${Rout} 0 ${large} 1 ${pA1o[0]} ${pA1o[1]} L${pA1i[0]} ${pA1i[1]} A${Rin} ${Rin} 0 ${large} 0 ${pA0i[0]} ${pA0i[1]} Z"/>`;
+      s += `<circle cx="${g.cx}" cy="${g.cy}" r="3" fill="var(--c-ink)"/>`;
+    } else {
+      s += `<path class="paper-shape" d="M${g.cx} ${g.cy} L${pA0o[0]} ${pA0o[1]} A${Rout} ${Rout} 0 ${large} 1 ${pA1o[0]} ${pA1o[1]} Z"/>`;
+    }
+    const mid = a0 + p.th/2, rm = isFan ? (Rin + Rout)/2 : Rout*0.55;
+    const pm = pol(g.cx, g.cy, mid, rm);
+    s += `<text class="mark-accent" x="${pm[0]}" y="${pm[1]}" text-anchor="middle">母线 l = ${fmt(p.l)}</text>`;
+    const pTh = pol(g.cx, g.cy, mid, isFan ? Rin*0.62 : Rout*0.3);
+    s += `<text class="mark" x="${pTh[0]}" y="${pTh[1]}" text-anchor="middle">θ = ${fmt(p.th)}°</text>`;
+    let arcLine;
+    if(isFan){
+      const outU = p.l*st.aux.r2/(st.aux.r2-st.aux.r1), inU = p.l*st.aux.r1/(st.aux.r2-st.aux.r1);
+      arcLine = `外弧（=下底周长）= ${fmt(p.th/360*2*PI*outU)} · 内弧（=上底周长）= ${fmt(p.th/360*2*PI*inU)}`;
+    } else {
+      arcLine = `弧长 = θ/360 × 2πl = ${fmt(p.th/360*2*PI*p.l)}（应 = 底面周长）`;
+    }
+    s += `<text class="mark" x="240" y="345" text-anchor="middle">${arcLine}</text>`;
+    const hOut = pol(g.cx, g.cy, mid, Rout);                       // 径向手柄（调母线）放在外弧中点
+    s += `<circle class="handle" cx="${hOut[0]}" cy="${hOut[1]}" r="12" data-p="l"/>`;
+    s += `<circle class="handle" cx="${pA1o[0]}" cy="${pA1o[1]}" r="12" data-p="th"/>`;
+  } else if(st.paper === 'rttri'){
+    const bx = st.aux.base * g.k;
+    const Ax = g.ox + bx, Ay = g.oy, Bx = Ax, By = g.oy - p.h * g.k;
+    s += `<line class="paper-line" x1="${g.ox}" y1="${g.oy}" x2="${Ax}" y2="${Ay}" stroke-width="4"/>`;
+    s += `<line class="paper-line" x1="${Ax}" y1="${Ay}" x2="${Bx}" y2="${By}" stroke-width="4"/>`;
+    s += `<line class="edge-dash" x1="${g.ox}" y1="${g.oy}" x2="${Bx}" y2="${By}" stroke-width="2.6"/>`;
+    s += `<rect x="${Ax-12}" y="${Ay-12}" width="12" height="12" fill="none" stroke="var(--c-ink)" stroke-width="1.6"/>`;
+    s += `<text class="mark" x="${g.ox+bx/2}" y="${g.oy+28}" text-anchor="middle">水平边 ${st.aux.base}（锁定）</text>`;
+    s += `<text class="mark-accent" x="${Bx+14}" y="${By}">h = ${fmt(p.h)}</text>`;
+    s += `<text class="mark" x="${g.ox+20}" y="46">斜边 = √(${st.aux.base}²+h²) = ${fmt(Math.hypot(st.aux.base, p.h))}</text>`;
+    s += `<text class="mark" x="${g.ox+20}" y="74">${st.aux.hypNote}</text>`;
+    s += `<circle class="handle" cx="${Bx}" cy="${By}" r="12" data-p="h"/>`;
+  }
+  paperSvg.innerHTML = s;
+  $('paperReadout').innerHTML = `<span class="hint">拖动亮色圆点手柄调纸 · 手柄旁边就是实时读数</span>`;
+  $('btnTry').textContent = st.tryLabel;
+}
+
+/* ---------- 手柄拖动（真交互核心） ---------- */
+let dragInfo = null;
+function svgXY(evt){
+  const pt = paperSvg.createSVGPoint();
+  pt.x = evt.clientX; pt.y = evt.clientY;
+  return pt.matrixTransform(paperSvg.getScreenCTM().inverse());
+}
+paperSvg.addEventListener('pointerdown', evt => {
+  const h = evt.target.closest('.handle');
+  if(!h || G.phase !== 'play') return;
+  dragInfo = {p: h.dataset.p};
+  paperSvg.setPointerCapture(evt.pointerId);
+  evt.preventDefault();
+});
+paperSvg.addEventListener('pointermove', evt => {
+  if(!dragInfo) return;
+  const st = G.order.stages[G.stage], g = st.geo, q = svgXY(evt);
+  const rg = st.ranges[dragInfo.p];
+  let v;
+  if(st.paper === 'rect'){
+    v = dragInfo.p === 'W' ? (q.x - g.x0)/g.k : (q.y - g.y0)/g.k;
+  } else if(st.paper === 'tri' || st.paper === 'trap'){
+    if(dragInfo.p === 'Hh') v = (g.yB - q.y)/g.k;
+    else { const total = G.params.a * st.aux.n * g.k; v = (q.x - (480-total)/2)/(st.aux.n*g.k); }
+  } else if(st.paper === 'sector'){
+    if(dragInfo.p === 'l') v = Math.hypot(q.x-g.cx, q.y-g.cy)/g.k;
+    else v = (Math.atan2(q.y-g.cy, q.x-g.cx)*180/Math.PI + 90 + 360) % 360;
+  } else if(st.paper === 'fanring'){
+    if(dragInfo.p === 'l') v = Math.hypot(q.x-g.cx, q.y-g.cy)/g.k * (st.aux.r2-st.aux.r1)/st.aux.r2;
+    else v = (Math.atan2(q.y-g.cy, q.x-g.cx)*180/Math.PI + 90 + 360) % 360;
+  } else {
+    v = (g.oy - q.y)/g.k;
+  }
+  v = clamp(v, rg[0], rg[1]);
+  G.params[dragInfo.p] = dragInfo.p === 'th' ? Math.round(v) : Math.round(v*10)/10;
+  renderPaper();
+});
+function endDrag(){ dragInfo = null; }
+paperSvg.addEventListener('pointerup', endDrag);
+paperSvg.addEventListener('pointercancel', endDrag);
+
+/* ---------- 参数初始化（随机起点，远离目标，保证每局新鲜） ---------- */
+function initParams(st){
+  const p = {};
+  for(const key of Object.keys(st.targets)){
+    const t = st.targets[key], rg = st.ranges[key], span = rg[1] - rg[0];
+    let v = t + (Math.random() < 0.5 ? -1 : 1) * span * rand(0.18, 0.42);
+    if(Math.abs(v - t) < span * 0.12) v = t + (v <= t ? -1 : 1) * span * 0.22;
+    v = clamp(v, rg[0], rg[1]);
+    p[key] = key === 'th' ? Math.round(v) : Math.round(v*10)/10;
+  }
+  return p;
+}
+
+/* ---------- 试穿判定 ---------- */
+const PNAME = {W:'长（周长方向）', Ht:'宽（高/母线方向）', Hh:'斜高 h′', a:'底边 a', l:'母线 l', th:'圆心角 θ', h:'高 h'};
+function checkFit(st){
+  const tol = {W:0.15, Ht:0.15, Hh:0.15, a:0.15, l:0.15, h:0.15, th:3};
+  return Object.keys(st.targets).every(k => Math.abs(G.params[k] - st.targets[k]) <= tol[k]);
+}
+function setFeedback(html, cls){
+  const fb = $('feedback');
+  fb.className = 'feedback' + (cls ? ' ' + cls : '');
+  fb.innerHTML = html;
+}
+$('btnTry').addEventListener('click', () => {
+  if(G.phase !== 'play') return;
+  const st = G.order.stages[G.stage];
+  addStep(); G.attempts++;
+  if(checkFit(st)){
+    $('btnTry').disabled = true;
+    paperSvg.classList.add('fly');
+    $('figWrap').classList.add('glowy');
+    setFeedback('完美贴合！纸与侧面严丝合缝，太厉害了！', 'good');
+    setTimeout(() => {
+      paperSvg.classList.remove('fly');
+      $('figWrap').classList.remove('glowy');
+      $('btnTry').disabled = false;
+      if(G.stage < G.order.stages.length - 1){
+        G.stage++;
+        loadStage();
+        setFeedback('第一步完成！继续第二步：' + G.order.stages[G.stage].desc.replace(/^.*· /, ''), 'good');
+      } else if(G.order.patches){
+        enterPatchPhase();
+      } else {
+        completeOrder();
+      }
+    }, 850);
+  } else {
+    paperSvg.classList.add('shake');
+    setTimeout(() => paperSvg.classList.remove('shake'), 500);
+    const hints = Object.keys(st.targets).map(k => {
+      const d = G.params[k] - st.targets[k];
+      const tol = k === 'th' ? 3 : 0.15;
+      return Math.abs(d) <= tol ? `【${PNAME[k]}】刚刚好` : `【${PNAME[k]}】${d > 0 ? '偏大了，往小调' : '偏小了，往大调'}`;
+    });
+    setFeedback('还不能贴合：' + hints.join('；') + '。先在草稿上算一算再调！', 'bad');
+  }
+});
+
+/* ================================================================
+   底面补丁台：拖动尺寸合适的补丁到几何体底面（第二类操作交互）
+   ================================================================ */
+function patchIconSvg(cfg){                                      // 补丁小图标
+  const c = 60, mid = 40;
+  if(cfg.shape === 'circle'){
+    const r = clamp(cfg.v*7, 8, 24);
+    return `<circle cx="${c}" cy="${mid}" r="${r}" class="paper-shape"/><line class="edge-dash" x1="${c}" y1="${mid}" x2="${c+r}" y2="${mid}"/>`;
+  }
+  if(cfg.shape === 'square'){
+    const a = clamp(cfg.v*6, 10, 44);
+    return `<rect class="paper-shape" x="${c-a/2}" y="${mid-a/2}" width="${a}" height="${a}"/>`;
+  }
+  if(cfg.shape === 'hex'){
+    const R = clamp(cfg.v*3.6, 8, 24);
+    return `<polygon class="paper-shape" points="${pts(polyPts(c, mid, R, 6, 1))}"/>`;
+  }
+  const a = clamp(cfg.v*6, 12, 46), hgt = a*0.82;
+  return `<polygon class="paper-shape" points="${c-a/2},${mid+hgt/2} ${c},${mid-hgt/2} ${c+a/2},${mid+hgt/2}"/>`;
+}
+function enterPatchPhase(){
+  G.phase = 'patch';
+  $('btnTry').hidden = true;
+  $('patchArea').hidden = false;
+  const pz = G.order.patches;
+  $('zones').innerHTML = pz.zones.map((z, i) =>
+    `<div class="zone" data-key="${z.key}" data-i="${i}" style="left:${z.pos[0]}%;top:${z.pos[1]}%">${z.label}<br>拖入补丁</div>`).join('');
+  $('patchShelf').innerHTML = pz.shelf.map(cfg =>
+    `<div class="patch-card" data-key="${cfg.key}"><svg viewBox="0 0 120 80">${patchIconSvg(cfg)}</svg><span>${cfg.label}</span></div>`).join('');
+  setFeedback('侧面贴合！现在把<b>尺寸合适</b>的底面补丁，拖到几何体底面的虚线圈里（想一想：底面是什么形状、多大？）', 'good');
+}
+let ghost = null;
+$('patchShelf').addEventListener('pointerdown', evt => {
+  const card = evt.target.closest('.patch-card');
+  if(!card || G.phase !== 'patch') return;
+  ghost = card.cloneNode(true);
+  ghost.classList.add('patch-ghost');
+  document.body.appendChild(ghost);
+  moveGhost(evt.clientX, evt.clientY);
+  card.setPointerCapture(evt.pointerId);
+  evt.preventDefault();
+});
+function moveGhost(x, y){ if(ghost){ ghost.style.left = x + 'px'; ghost.style.top = y + 'px'; } }
+$('patchShelf').addEventListener('pointermove', evt => { if(ghost) moveGhost(evt.clientX, evt.clientY); });
+$('patchShelf').addEventListener('pointerup', evt => {
+  if(!ghost) return;
+  const key = ghost.dataset.key;
+  ghost.hidden = true;                                          // 让开命中测试
+  const el = document.elementFromPoint(evt.clientX, evt.clientY);
+  const zone = el ? el.closest('.zone') : null;
+  ghost.hidden = false; ghost.remove(); ghost = null;
+  addStep();
+  if(zone && !zone.classList.contains('done')){
+    if(zone.dataset.key === key){
+      zone.classList.add('done');
+      zone.innerHTML = zone.innerHTML.split('<br>')[0] + '<br>已配好';
+      FX.burst(26);
+      if(document.querySelectorAll('.zone.done').length === G.order.patches.zones.length) completeOrder();
+    } else {
+      G.patchFails++;
+      zone.classList.add('shake');
+      setTimeout(() => zone.classList.remove('shake'), 500);
+      setFeedback('这枚补丁和这个底面不匹配（形状或尺寸不对），再想想底面的形状与大小～', 'bad');
+    }
+  }
+});
+
+/* ================================================================
+   订单流程控制
+   ================================================================ */
+function curStage(){ return G.order.stages[G.stage]; }
+function loadStage(){
+  const st = curStage();
+  st.geo = computeGeo(st);
+  G.params = initParams(st);
+  $('paperTitle').textContent = st.desc;
+  renderPaper();
+}
+function loadOrder(){
+  G.order = G.orders[G.idx];
+  G.stage = 0; G.attempts = 0; G.patchFails = 0; G.revealed = false;
+  G.phase = 'play';
+  const diffName = ['初级', '中级', '高级'][G.diff - 1];
+  $('orderBadge').textContent = `${diffName} · 订单 ${G.idx+1}/${G.orders.length}`;
+  $('orderTitle').textContent = G.order.title;
+  $('orderText').textContent = G.order.text;
+  $('patchArea').hidden = true;
+  $('zones').innerHTML = '';
+  $('btnTry').hidden = false; $('btnTry').disabled = false;
+  $('btnNext').hidden = true;
+  renderSolid();
+  loadStage();
+  renderProgress();
+  setFeedback('拖动手柄调好纸的尺寸，然后按【' + curStage().tryLabel + '】。');
+}
+function starText(n){ return '★★★'.slice(0, n) + '☆☆☆'.slice(0, 3 - n); }
+function completeOrder(){
+  G.phase = 'done';
+  let stars;
+  if(G.revealed) stars = 1;
+  else if(G.attempts <= 2 && G.patchFails === 0) stars = 3;
+  else if(G.attempts <= 4) stars = 2;
+  else stars = 1;
+  G.results.push({id: G.order.id, stars});
+  setFeedback(`${starText(stars)} 订单完成！${G.order.success}`, 'good');
+  $('btnTry').hidden = true;
+  $('btnNext').hidden = false;
+  $('btnNext').textContent = G.idx >= G.orders.length - 1 ? '查看成果' : '下一张订单';
+  FX.burst(70);
+  renderProgress();
+}
+function renderProgress(){
+  $('progress').innerHTML = '订单进度：' + G.orders.map((o, i) => {
+    if(i < G.idx) return `<span class="dot done">${o.id} ${starText(G.results[i].stars)}</span>`;
+    if(i === G.idx) return `<span class="dot cur">${o.id} 进行中</span>`;
+    return `<span class="dot">${o.id} 待接</span>`;
+  }).join(' ');
+}
+$('btnNext').addEventListener('click', () => {
+  G.idx++;
+  if(G.idx >= G.orders.length) showEnd();
+  else loadOrder();
+});
+function showEnd(){
+  G.phase = 'end';
+  stopTimer();
+  const total = G.results.reduce((s, r) => s + r.stars, 0);
+  $('endStars').textContent = starText(Math.round(total / G.results.length));
+  $('endTotal').textContent = total + '/' + G.results.length * 3;
+  $('endTime').textContent = $('hudTime').textContent;
+  $('endSteps').textContent = String(G.steps);
+  $('endDetail').innerHTML = G.orders.map((o, i) => `<span>${o.id} ${o.title}：${starText(G.results[i].stars)}</span>`).join('');
+  $('endWord').textContent = total === G.results.length*3 ? '满分！你是当之无愧的包装大师！'
+    : total >= G.results.length*2 ? '非常出色！离满分只差一点点！'
+    : total >= G.results.length ? '不错的成绩，再练一轮冲满星！' : '公式还在生疏，先看看规则里的公式卡再来一轮！';
+  showScreen('end');
+  FX.burst(240);
+}
+
+/* ---------- 揭示答案 / 规则 / 菜单 ---------- */
+$('btnReveal').addEventListener('click', () => {
+  const rv = G.order.reveal;
+  $('rvTitle').textContent = '揭示答案 · ' + G.order.title;
+  $('rvAns').textContent = '答案：' + rv.ans;
+  $('rvSteps').textContent = '解析：' + rv.steps;
+  $('rvSrc').textContent = rv.src;
+  $('modalReveal').hidden = false;
+});
+$('btnRvClose').addEventListener('click', () => { $('modalReveal').hidden = true; });
+$('btnAutoFit').addEventListener('click', () => {                    // 看懂了替我贴好
+  $('modalReveal').hidden = true;
+  G.revealed = true;
+  const st = curStage();
+  Object.assign(G.params, st.targets);                               // 直接展示正确纸型
+  renderPaper();
+  if(G.order.patches){
+    $('patchArea').hidden = false;
+    $('btnTry').hidden = true;
+    document.querySelectorAll('.zone').forEach(z => { z.classList.add('done'); z.innerHTML = z.innerHTML.split('<br>')[0] + '<br>已配好'; });
+  }
+  setTimeout(completeOrder, 450);
+});
+$('btnRules').addEventListener('click', () => { $('modalRules').hidden = false; });
+$('btnRulesMenu').addEventListener('click', () => { $('modalRules').hidden = false; });
+$('btnRulesGo').addEventListener('click', () => {
+  $('modalRules').hidden = true;
+  startTimer();                                                      // 关闭规则后计时
+});
+function startGame(diff){
+  G.diff = diff;
+  G.orders = sampleN(ORDERS.filter(o => o.diff === diff), 3);        // 随机抽 3 张订单（反重复）
+  G.idx = 0; G.results = []; G.steps = 0; G.phase = 'play';
+  $('hudSteps').textContent = '0';
+  $('hudTime').textContent = '00:00';
+  stopTimer();
+  applyPalette();
+  showScreen('game');
+  loadOrder();
+  $('modalRules').hidden = false;                                    // 进局先看规则（G6）
+}
+document.querySelectorAll('.diff-card').forEach(b =>
+  b.addEventListener('click', () => startGame(Number(b.dataset.diff))));
+$('btnRestart').addEventListener('click', () => startGame(G.diff));
+$('btnBack').addEventListener('click', () => { stopTimer(); G.phase = 'menu'; showScreen('menu'); });
+$('btnAgain').addEventListener('click', () => startGame(G.diff));
+$('btnMenu2').addEventListener('click', () => { G.phase = 'menu'; showScreen('menu'); });
+
+/* ================================================================
+   彩带庆祝（Canvas 粒子，通关/贴对补丁时触发）
+   ================================================================ */
+const FX = {parts: [], running: false, colors: ['#1d6fd1', '#ffd166', '#178a54'],
+  cv: $('fx'), ctx: $('fx').getContext('2d'),
+  fit(){ this.cv.width = innerWidth; this.cv.height = innerHeight; },
+  burst(n){
+    this.fit();
+    for(let i = 0; i < n; i++){
+      this.parts.push({x: rand(0, this.cv.width), y: rand(-this.cv.height*0.25, 0),
+        vx: rand(-1.6, 1.6), vy: rand(2, 4.6), s: rand(5, 11), r: rand(0, 6.28),
+        vr: rand(-0.22, 0.22), c: pick(this.colors), life: rand(80, 150)});
+    }
+    if(!this.running){ this.running = true; requestAnimationFrame(() => this.tick()); }
+  },
+  tick(){
+    const c = this.ctx;
+    c.clearRect(0, 0, this.cv.width, this.cv.height);
+    this.parts = this.parts.filter(p => p.life > 0 && p.y < this.cv.height + 20);
+    for(const p of this.parts){
+      p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life--;
+      c.save(); c.translate(p.x, p.y); c.rotate(p.r);
+      c.fillStyle = p.c; c.fillRect(-p.s/2, -p.s/2, p.s, p.s*0.62);
+      c.restore();
+    }
+    if(this.parts.length){ requestAnimationFrame(() => this.tick()); }
+    else { this.running = false; c.clearRect(0, 0, this.cv.width, this.cv.height); }
+  }
+};
+addEventListener('resize', () => { if(FX.running) FX.fit(); });
+
+/* ---------- 启动 ---------- */
+applyPalette();
+showScreen('menu');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-g/g012", "name": "\u5c55\u5f00\u5de5\u574a \u00b7 \u7a7a\u95f4\u56fe\u5f62\u7684\u8868\u9762\u79ef", "file": "g012.html", "jiaocan": "\u301055\u3011\u7b2c13\u7ae0 \u7acb\u4f53\u51e0\u4f55\u521d\u6b65\uff1a13.3 \u7a7a\u95f4\u56fe\u5f62\u7684\u8868\u9762\u79ef\u548c\u4f53\u79ef\uff1a13.3.1 \u7a7a\u95f4\u56fe\u5f62\u7684\u8868\u9762\u79ef\uff1a\u5fc5\u5907\u77e5\u8bc6\u89e3\u8bfb+\u5173\u952e\u80fd\u529b\u6784\u5efa+\u6838\u5fc3\u7d20\u517b\u805a\u7126", "unit": "", "grade": "", "stage": "\u9ad8\u4e2d", "series": "G\uff1a\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-g"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

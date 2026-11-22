@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>乘法凑整工坊｜乘法交换律·结合律闯关</title>
+<style>
+/* ============================================================
+   乘法凑整工坊 —— 互动 HTML 游戏（单文件自包含，零外部依赖）
+   玩法核心：把"乘法交换律 / 结合律 / 拆数凑整"变成手上操作
+     · 拖动数卡放到远处的卡上 = 交换位置（乘法交换律）
+     · 拖动数卡放到相邻的卡上 = 金环配对结合（乘法结合律）
+     · 带「拆」标记的数卡拖到拆分台 = 拆成两个乘数再凑整
+   ============================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --p:#2563eb;        /* 主色（每局从色板随机） */
+  --bg:#eaf2ff;       /* 背景色 */
+  --acc:#f59e0b;      /* 点缀色（金环） */
+  --ink:#1f2937;      /* 正文墨色 */
+}
+html,body{height:100%}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Segoe UI",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:18px;line-height:1.5;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+}
+#wrap{max-width:1080px;margin:0 auto;padding:10px 14px 40px}
+
+/* ---------- 顶部栏 ---------- */
+#topbar{
+  position:sticky;top:0;z-index:50;background:#fff;border-bottom:5px solid var(--p);
+  border-radius:0 0 18px 18px;padding:10px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  box-shadow:0 4px 14px rgba(31,41,55,.12);
+}
+#topbar .brand{font-size:24px;font-weight:900;color:var(--p);letter-spacing:1px}
+#topbar .brand small{display:block;font-size:14px;color:var(--ink);font-weight:700;letter-spacing:0}
+#hud{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
+.hchip{background:#fff;border:3px solid var(--p);color:var(--p);border-radius:14px;padding:4px 14px;font-weight:900;font-size:18px}
+#topbtns{display:flex;gap:8px;flex-wrap:wrap;width:100%}
+.btn{
+  border:3px solid var(--p);background:#fff;color:var(--p);font-size:18px;font-weight:900;
+  padding:8px 16px;border-radius:14px;cursor:pointer;transition:transform .08s;
+}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:translateY(1px)}
+.btn.main{background:var(--p);color:#fff}
+
+/* ---------- 屏幕切换 ---------- */
+.screen{display:none;margin-top:16px}
+.screen.on{display:block}
+
+/* ---------- 首页（难度选择） ---------- */
+#home-title{text-align:center;font-size:40px;font-weight:900;color:var(--p);margin:18px 0 6px}
+#home-sub{text-align:center;font-size:20px;font-weight:700;color:var(--ink);margin-bottom:18px}
+#lawbox{
+  display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:22px;
+}
+.lawcard{
+  background:#fff;border:4px solid var(--acc);border-radius:18px;padding:12px 20px;
+  font-size:20px;font-weight:900;text-align:center;min-width:230px;
+}
+.lawcard span{display:block;font-size:17px;color:#92400e;font-weight:700}
+.diff-grid{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.diff-card{
+  flex:1 1 260px;max-width:320px;background:#fff;border:5px solid var(--p);border-radius:22px;
+  padding:20px 18px;cursor:pointer;text-align:center;transition:transform .1s;box-shadow:0 6px 0 rgba(31,41,55,.15);
+}
+.diff-card:hover{transform:translateY(-4px)}
+.diff-card h2{font-size:30px;color:var(--p);margin-bottom:8px}
+.diff-card p{font-size:17px;font-weight:700;color:var(--ink)}
+.diff-card .tag{display:inline-block;margin-top:12px;background:var(--acc);color:#fff;border-radius:12px;padding:4px 14px;font-weight:900;font-size:17px}
+#home-foot{text-align:center;margin-top:22px;font-size:16px;font-weight:700;color:#64748b}
+
+/* ---------- 游戏屏 ---------- */
+#ctxbar{background:#fff;border-left:10px solid var(--acc);border-radius:14px;padding:12px 16px;font-size:19px;font-weight:700;margin-bottom:12px}
+#levelbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}
+#levelbar .lp{font-size:21px;font-weight:900;color:var(--p)}
+#levelbar .ls{font-size:21px;font-weight:900;color:var(--acc)}
+#goalbar{background:#fff;border-radius:14px;padding:8px 16px;font-size:17px;font-weight:700;color:#475569;margin-bottom:12px}
+#expr-area{
+  display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px;
+  min-height:170px;background:#fff;border:4px dashed var(--p);border-radius:22px;padding:24px 16px;
+}
+.card{
+  position:relative;min-width:96px;min-height:100px;padding:10px 16px;background:#fff;
+  border:4px solid var(--ink);border-radius:18px;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;cursor:grab;touch-action:none;
+  box-shadow:0 5px 0 rgba(31,41,55,.14);gap:2px;
+}
+.card .val{font-size:38px;font-weight:900;line-height:1.1;white-space:nowrap}
+.card .expr{font-size:16px;font-weight:800;color:#92400e;max-width:250px;text-align:center;word-break:break-all;line-height:1.3}
+.card .badge{
+  position:absolute;top:6px;right:6px;background:var(--p);color:#fff;font-size:16px;font-weight:900;
+  padding:1px 8px;border-radius:10px;
+}
+.card.pair{border-color:#d97706;background:#fffbeb}
+.card.pair.gold{border-color:var(--acc);box-shadow:0 0 0 4px rgba(245,158,11,.35),0 5px 0 rgba(31,41,55,.14)}
+.card.pair.gold .expr{color:#b45309}
+.card.dragging{opacity:.35}
+.card.target{box-shadow:0 0 0 5px rgba(37,99,235,.5),0 5px 0 rgba(31,41,55,.14)}
+.card.ghost{position:fixed;z-index:900;pointer-events:none;opacity:.94;transform:scale(1.07) rotate(2deg);box-shadow:0 14px 28px rgba(31,41,55,.3);margin:0}
+.card.newpop{animation:pop .45s ease}
+@keyframes pop{0%{transform:scale(.55)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
+.op{font-size:36px;font-weight:900;color:var(--ink)}
+#drag-label{
+  position:fixed;z-index:950;pointer-events:none;display:none;background:var(--p);color:#fff;
+  padding:6px 14px;border-radius:12px;font-size:19px;font-weight:900;white-space:nowrap;box-shadow:0 6px 14px rgba(31,41,55,.25);
+}
+#hintbar{margin-top:14px;background:#fff;border-radius:14px;padding:10px 16px;font-size:17px;font-weight:700;color:#475569;text-align:center}
+
+/* ---------- 拆分台 ---------- */
+#split-station{
+  margin-top:16px;background:#fff;border:4px dashed var(--acc);border-radius:20px;
+  padding:16px;text-align:center;font-size:19px;font-weight:900;color:#92400e;
+}
+#split-station.hot{background:#fef3c7;box-shadow:0 0 0 5px rgba(245,158,11,.4)}
+#split-station .st-big{font-size:22px}
+#split-station .st-tip{font-size:16px;font-weight:700;color:#b45309;margin-top:4px}
+
+/* ---------- 弹窗 ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,.58);display:none;align-items:center;justify-content:center;
+  z-index:600;padding:16px;
+}
+.overlay.show{display:flex}
+.panel{
+  background:#fff;border-radius:24px;border-top:12px solid var(--p);max-width:660px;width:100%;
+  max-height:88vh;overflow:auto;padding:24px 26px;box-shadow:0 20px 50px rgba(15,23,42,.35);
+}
+.panel h3{font-size:28px;color:var(--p);margin-bottom:14px;text-align:center}
+.panel .pbtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px}
+.sol{font-size:20px;font-weight:800;line-height:1.9;font-family:"Consolas","Microsoft YaHei",monospace}
+.sol .note{color:#b45309;font-size:17px}
+.recap{background:#f8fafc;border:3px solid #e2e8f0;border-radius:14px;padding:14px 18px;margin:10px 0}
+.recap .rline{font-size:19px;font-weight:800;line-height:1.9}
+.recap .gold{color:#b45309}
+.recap .dim{color:#94a3b8}
+.bigans{font-size:40px;font-weight:900;color:var(--p);text-align:center;margin:12px 0}
+.stars{font-size:46px;font-weight:900;color:var(--acc);text-align:center;letter-spacing:8px;margin:8px 0}
+.lawtags{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.lawtags span{background:#ecfdf5;border:3px solid #10b981;color:#065f46;border-radius:12px;padding:4px 12px;font-weight:900;font-size:16px}
+.rules-list{font-size:18px;font-weight:700;line-height:2.0}
+.rules-list b{color:var(--p)}
+#friends{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:12px 0}
+#friends span{background:#fffbeb;border:3px solid var(--acc);color:#92400e;border-radius:12px;padding:4px 12px;font-weight:900;font-size:18px}
+
+/* ---------- 拆分弹窗内部 ---------- */
+#split-eq{font-size:34px;font-weight:900;text-align:center;margin:10px 0 18px;color:var(--ink)}
+#split-slots{display:flex;gap:16px;justify-content:center;align-items:center;margin-bottom:18px}
+.slot{
+  width:96px;height:96px;border:4px dashed #94a3b8;border-radius:18px;background:#f8fafc;
+  display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900;color:var(--p);cursor:pointer;
+}
+.slot.filled{border-style:solid;border-color:var(--p);background:#fff}
+#split-slots .op{font-size:38px}
+#split-slots.shake{animation:shake .5s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+#split-chips{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.chip{
+  min-width:78px;padding:10px 14px;background:#fff;border:4px solid var(--p);border-radius:16px;
+  font-size:30px;font-weight:900;color:var(--p);cursor:pointer;touch-action:manipulation;transition:transform .08s;
+}
+.chip:hover{transform:translateY(-3px)}
+.chip.used{opacity:.25;pointer-events:none}
+#split-msg{text-align:center;font-size:18px;font-weight:800;color:#b45309;min-height:28px;margin-top:14px}
+
+/* ---------- 提示条与彩纸 ---------- */
+#toast{
+  position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:1200;display:none;
+  background:#1f2937;color:#fff;font-size:19px;font-weight:800;padding:12px 22px;border-radius:16px;
+  box-shadow:0 10px 24px rgba(15,23,42,.35);max-width:88vw;text-align:center;
+}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:2000}
+
+/* ---------- 移动端适配 ---------- */
+@media (max-width:640px){
+  #topbar .brand{font-size:19px}
+  #home-title{font-size:30px}
+  .card{min-width:78px;min-height:86px;padding:8px 12px}
+  .card .val{font-size:30px}
+  .op{font-size:28px}
+  .slot{width:80px;height:80px;font-size:32px}
+  .chip{min-width:64px;font-size:26px}
+  #ctxbar{font-size:17px}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+
+  <!-- ================= 顶部栏 ================= -->
+  <header id="topbar">
+    <div class="brand">乘法凑整工坊<small>乘法交换律 · 乘法结合律 · 简便计算</small></div>
+    <div id="hud">
+      <div class="hchip">时间 <span id="hud-time">00:00</span></div>
+      <div class="hchip">步数 <span id="hud-steps">0</span></div>
+    </div>
+    <div id="topbtns">
+      <button class="btn" id="btn-rules">规则</button>
+      <button class="btn" id="btn-reveal">揭示答案</button>
+      <button class="btn" id="btn-restart">重新开始</button>
+      <button class="btn" id="btn-back">返回难度选择</button>
+    </div>
+  </header>
+
+  <!-- ================= 首页：难度选择 ================= -->
+  <section class="screen on" id="screen-home">
+    <h1 id="home-title">乘法凑整工坊</h1>
+    <p id="home-sub">拖一拖、配一配，让乘法算式变简单——你能成为凑整小达人吗？</p>
+    <div id="lawbox">
+      <div class="lawcard">乘法交换律<span>a×b ＝ b×a</span></div>
+      <div class="lawcard">乘法结合律<span>(a×b)×c ＝ a×(b×c)</span></div>
+      <div class="lawcard">凑整好伙伴<span>25×4＝100　125×8＝1000</span></div>
+    </div>
+    <div class="diff-grid">
+      <div class="diff-card" data-diff="初级">
+        <h2>初级 · 星光小路</h2>
+        <p>三个数连乘，找出那对"好朋友"，用金环把它们配对凑整！</p>
+        <span class="tag">例题级 · 热身闯关</span>
+      </div>
+      <div class="diff-card" data-diff="中级">
+        <h2>中级 · 彩虹桥</h2>
+        <p>四个数连乘，两对好朋友同时手拉手，一起凑出整百整千！</p>
+        <span class="tag">练习级 · 进阶闯关</span>
+      </div>
+      <div class="diff-card" data-diff="高级">
+        <h2>高级 · 智慧之巅</h2>
+        <p>大数挡路？把它拖到拆分台拆开，再凑整！还有七卡大闯关！</p>
+        <span class="tag">变式综合 · 巅峰闯关</span>
+      </div>
+    </div>
+    <p id="home-foot">适合课堂投影 · 支持鼠标与触屏操作 · 每局配色随机，题目随机</p>
+  </section>
+
+  <!-- ================= 游戏屏 ================= -->
+  <section class="screen" id="screen-game">
+    <div id="ctxbar"><span id="ctx-text"></span></div>
+    <div id="levelbar">
+      <span class="lp" id="lv-progress">第 1 关 / 共 3 关</span>
+      <span class="ls" id="lv-stars">已得 ★ 0</span>
+      <span class="lp" id="lv-diff"></span>
+    </div>
+    <div id="goalbar">目标：把整条算式折叠成一个数！每次配对都尽量凑出整十、整百、整千数。</div>
+    <div id="expr-area"></div>
+    <div id="hintbar">拖动数卡：放到<b>相邻</b>卡片上＝金环配对（结合律）；放到<b>远处</b>卡片上＝交换位置（交换律）；放到卡片之间的<b>空隙</b>＝移动到那里。</div>
+    <div id="split-station">
+      <div class="st-big">拆 分 台</div>
+      <div class="st-tip">把带「拆」标记的数卡拖到这里，就能拆成两个乘数再凑整（点已配对的卡可拆开金环）</div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= 规则弹窗 ================= -->
+<div class="overlay" id="ov-rules">
+  <div class="panel">
+    <h3>玩法规则</h3>
+    <div class="rules-list">
+      <b>目标：</b>把整条连乘算式一步步"折叠"，最后只剩一个数，就是答案！<br>
+      <b>配一对（结合律）：</b>把数卡拖到<b>相邻</b>的卡片上，金环会把它们结合成一张新卡，显示乘积。乘积是整十、整百、整千数时金环点亮！<br>
+      <b>换位置（交换律）：</b>把数卡拖到<b>不相邻</b>的卡片上，两张卡交换位置；也可以拖到卡片之间的空隙移动。<br>
+      <b>拆一拆（拆数凑整）：</b>带「拆」标记的卡片，拖到下方拆分台，用数片拼出它的两个乘数。<br>
+      <b>反悔了？</b>点一下已配对的卡，金环就拆开重来（会多记一步哦）。<br>
+      <b>星级：</b>每关最多 3 颗星——配对全部凑成整十整百整千、不反悔、不看答案，就能拿满！
+    </div>
+    <div id="friends">
+      <span>5×2＝10</span><span>25×4＝100</span><span>125×8＝1000</span><span>50×2＝100</span><span>5×20＝100</span><span>25×8＝200</span>
+    </div>
+    <div class="pbtns"><button class="btn main" id="btn-rules-ok">开始挑战</button></div>
+  </div>
+</div>
+
+<!-- ================= 拆分弹窗 ================= -->
+<div class="overlay" id="ov-split">
+  <div class="panel">
+    <h3>拆分台：把大数拆成两个乘数</h3>
+    <div id="split-eq"></div>
+    <div id="split-slots">
+      <div class="slot" data-slot="0"></div>
+      <div class="op">×</div>
+      <div class="slot" data-slot="1"></div>
+    </div>
+    <div id="split-chips"></div>
+    <div id="split-msg">点数片放进空位，点空位里的数可以放回去</div>
+    <div class="pbtns"><button class="btn" id="btn-split-cancel">先不拆了</button></div>
+  </div>
+</div>
+
+<!-- ================= 揭示答案弹窗 ================= -->
+<div class="overlay" id="ov-reveal">
+  <div class="panel">
+    <h3>揭示答案 · 简便计算过程</h3>
+    <div id="reveal-ctx" style="font-size:18px;font-weight:700;margin-bottom:10px"></div>
+    <div class="recap"><div class="sol" id="reveal-sol"></div></div>
+    <p style="text-align:center;font-size:17px;font-weight:800;color:#b45309">看过答案后，本关最多得 1 颗星哦。也可以先自己试试！</p>
+    <div class="pbtns"><button class="btn main" id="btn-reveal-ok">继续挑战</button></div>
+  </div>
+</div>
+
+<!-- ================= 单关完成弹窗 ================= -->
+<div class="overlay" id="ov-level">
+  <div class="panel">
+    <h3 id="lv-title">闯关成功！</h3>
+    <div class="stars" id="lv-stars-box"></div>
+    <div class="bigans" id="lv-answer"></div>
+    <div class="recap" id="lv-recap"></div>
+    <div class="lawtags" id="lv-laws"></div>
+    <div class="pbtns">
+      <button class="btn" id="btn-lv-replay">再玩本关</button>
+      <button class="btn main" id="btn-lv-next">下一关</button>
+      <button class="btn" id="btn-lv-back">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 全部完成弹窗 ================= -->
+<div class="overlay" id="ov-round">
+  <div class="panel">
+    <h3>全部闯关完成！</h3>
+    <div class="stars" id="rd-stars"></div>
+    <p style="text-align:center;font-size:20px;font-weight:900" id="rd-text"></p>
+    <div class="pbtns">
+      <button class="btn main" id="btn-rd-again">再玩一次</button>
+      <button class="btn" id="btn-rd-back">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<div id="drag-label"></div>
+<div id="toast"></div>
+<canvas id="fx"></canvas>
+
+<script>
+'use strict';
+/* ============================================================
+   工具函数
+============================================================ */
+var $ = function(sel, root){ return (root || document).querySelector(sel); };
+var $$ = function(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function fmt(n){ return n.toLocaleString('en-US'); }
+function fmtTime(sec){
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' + s : '' + s);
+}
+/* 整十/整百/整千/整万 名称（用于金环反馈） */
+function roundName(p){
+  if(p % 10000 === 0) return '整万数';
+  if(p % 1000 === 0) return '整千数';
+  if(p % 100 === 0) return '整百数';
+  return '整十数';
+}
+
+/* ============================================================
+   随机色板（每局随机一个主色，G8）
+============================================================ */
+var PALETTES = [
+  { p:'#2563eb', bg:'#eaf2ff' },
+  { p:'#db2777', bg:'#fdf2f8' },
+  { p:'#16a34a', bg:'#f0fdf4' },
+  { p:'#ea580c', bg:'#fff7ed' },
+  { p:'#7c3aed', bg:'#f5f3ff' },
+  { p:'#0891b2', bg:'#ecfeff' }
+];
+var confettiColors = ['#2563eb','#db2777','#16a34a','#ea580c','#7c3aed','#0891b2','#f59e0b'];
+function applyPalette(){
+  var pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  document.body.style.setProperty('--p', pal.p);
+  document.body.style.setProperty('--bg', pal.bg);
+}
+
+/* ============================================================
+   题库（全部取自教参 docx，含少量同题型变式；反重复：每局随机抽3题）
+   f: 连乘的乘数  ans: 答案  ctx: 题干  sol: 揭示答案的分步过程
+   split: 需要拆分的乘数（高级）  chips: 拆分台数片（含干扰片，均有唯一解路径）
+============================================================ */
+var POOLS = {
+  '初级': [
+    { f:[16,15,2], ans:480,
+      ctx:'教材第53页"试一试"：用简便方法计算 16×15×2。',
+      sol:['16×15×2','= 16×(15×2)　<span class="note">（乘法结合律：先算 15×2=30）</span>','= 16×30','= 480'] },
+    { f:[25,37,4], ans:3700,
+      ctx:'教材第53页"试一试"：用简便方法计算 25×(37×4)。',
+      sol:['25×37×4','= 25×4×37　<span class="note">（乘法交换律：让 25 和 4 变成邻居）</span>','= (25×4)×37　<span class="note">（乘法结合律：先算 25×4=100）</span>','= 100×37','= 3700'] },
+    { f:[8,79,5], ans:3160,
+      ctx:'巩固练习：用简便方法计算 8×79×5。',
+      sol:['8×79×5','= (8×5)×79　<span class="note">（乘法交换律＋结合律：先算 8×5=40）</span>','= 40×79','= 3160'] },
+    { f:[4,47,25], ans:4700,
+      ctx:'巩固练习：用简便方法计算 4×(47×25)。',
+      sol:['4×(47×25)','= (4×25)×47　<span class="note">（乘法交换律＋结合律：先算 4×25=100）</span>','= 100×47','= 4700'] },
+    { f:[23,5,6], ans:690,
+      ctx:'华丰小学举行跳绳比赛，每个班选派23人参加，每个年级有5个班，6个年级一共要选派多少人参加比赛？',
+      sol:['23×5×6','= 23×(5×6)　<span class="note">（乘法结合律：先算 5×6=30）</span>','= 23×30','= 690（人）'] },
+    { f:[5,13,40], ans:2600,
+      ctx:'水果店运来一批橘子：每千克5元，每箱13千克，一共运来40箱。这些橘子一共多少元？',
+      sol:['5×13×40','= (5×40)×13　<span class="note">（乘法交换律＋结合律：先算 5×40=200）</span>','= 200×13','= 2600（元）'] },
+    { f:[8,17,25], ans:3400,
+      ctx:'水果店运来一批香蕉：每千克8元，每箱17千克，一共运来25箱。这些香蕉一共多少元？',
+      sol:['8×17×25','= (8×25)×17　<span class="note">（乘法交换律＋结合律：先算 8×25=200）</span>','= 200×17','= 3400（元）'] },
+    { f:[25,23,4], ans:2300,
+      ctx:'巩固练习：在□里填数——25×23×4＝23×(□×□)。先动手配对，再算出得数！',
+      sol:['25×23×4','= 23×(25×4)　<span class="note">（乘法交换律＋结合律）</span>','= 23×100','= 2300'] }
+  ],
+  '中级': [
+    { f:[45,125,2,8], ans:90000,
+      ctx:'巩固练习：用简便方法计算 (45×125)×(2×8)。',
+      sol:['(45×125)×(2×8)','= (45×2)×(125×8)　<span class="note">（交换律＋结合律：好朋友手拉手）</span>','= 90×1000','= 90000'] },
+    { f:[25,125,4,8], ans:100000,
+      ctx:'变式挑战：用简便方法计算 25×125×4×8。',
+      sol:['25×125×4×8','= (25×4)×(125×8)　<span class="note">（交换律＋结合律）</span>','= 100×1000','= 100000'] },
+    { f:[4,50,25,2], ans:10000,
+      ctx:'变式挑战：用简便方法计算 4×50×25×2。',
+      sol:['4×50×25×2','= (4×25)×(50×2)　<span class="note">（交换律＋结合律）</span>','= 100×100','= 10000'] },
+    { f:[5,8,25,4], ans:4000,
+      ctx:'变式挑战：用简便方法计算 5×8×25×4。',
+      sol:['5×8×25×4','= (5×8)×(25×4)　<span class="note">（交换律＋结合律）</span>','= 40×100','= 4000'] },
+    { f:[20,5,30,6], ans:18000,
+      ctx:'变式挑战：用简便方法计算 20×5×30×6。',
+      sol:['20×5×30×6','= (20×5)×(30×6)　<span class="note">（交换律＋结合律）</span>','= 100×180','= 18000'] },
+    { f:[125,2,8,50], ans:100000,
+      ctx:'变式挑战：用简便方法计算 125×2×8×50。',
+      sol:['125×2×8×50','= (125×8)×(2×50)　<span class="note">（交换律＋结合律）</span>','= 1000×100','= 100000'] }
+  ],
+  '高级': [
+    { f:[25,32,125], ans:100000, split:32, chips:[2,4,8,16,3,5],
+      ctx:'学会解题：用简便方法计算 25×32×125。（悄悄告诉你：结果的末尾有4个0哦）',
+      sol:['25×32×125','= 25×(4×8)×125　<span class="note">（拆数：把 32 拆成 4×8）</span>','= (25×4)×(8×125)　<span class="note">（交换律＋结合律）</span>','= 100×1000','= 100000'] },
+    { f:[25,48], ans:1200, split:48, chips:[4,6,8,12,3,5],
+      ctx:'巩固练习：用简便方法计算 25×48。',
+      sol:['25×48','= 25×(4×12)　<span class="note">（拆数：把 48 拆成 4×12）</span>','= (25×4)×12　<span class="note">（乘法结合律）</span>','= 100×12','= 1200'] },
+    { f:[125,56], ans:7000, split:56, chips:[7,8,4,14,5,6],
+      ctx:'变式挑战：用简便方法计算 125×56。',
+      sol:['125×56','= 125×(8×7)　<span class="note">（拆数：把 56 拆成 8×7）</span>','= (125×8)×7　<span class="note">（乘法结合律）</span>','= 1000×7','= 7000'] },
+    { f:[25,24], ans:600, split:24, chips:[4,6,3,8,2,12],
+      ctx:'课堂小挑战：算一算 25×24，怎样算最简便？',
+      sol:['25×24','= 25×(4×6)　<span class="note">（拆数：把 24 拆成 4×6）</span>','= (25×4)×6　<span class="note">（乘法结合律）</span>','= 100×6','= 600'] },
+    { f:[25,64,125], ans:200000, split:64, chips:[2,4,16,32,8,6],
+      ctx:'变式挑战：用简便方法计算 25×64×125。',
+      sol:['25×64×125','= 25×(4×16)×125　<span class="note">（拆数：把 64 拆成 4×16）</span>','= (25×4)×(16×125)　<span class="note">（交换律＋结合律）</span>','= 100×2000','= 200000'] },
+    { f:[125,23,4,8,25,5,20], ans:230000000,
+      ctx:'能力提升：用简便方法计算 125×23×4×8×25×5×20。（七张卡片大闯关！）',
+      sol:['125×23×4×8×25×5×20','= (125×8)×(25×4)×(5×20)×23　<span class="note">（交换律＋结合律：三对好朋友）</span>','= 1000×100×100×23','= 230000000'] }
+  ]
+};
+/* 每档难度固定 3 关 */
+var LEVELS_PER_ROUND = 3;
+
+/* ============================================================
+   全局状态
+============================================================ */
+var S = {
+  screen:'home',       // home / game
+  diff:'初级',
+  items:[], li:0,      // 本局抽到的题目与当前关下标
+  chain:[],            // 当前的数卡链（核心数据）
+  uidSeq:1,
+  steps:0, timeSec:0, timerIv:null,
+  results:[],          // 每关星级
+  revealed:false,      // 本关是否看过答案
+  log:[],              // 本关操作算理记录（拆分/配对）
+  nonGold:0, unbinds:0, swapped:false, didSplit:false,
+  locked:true,         // 关卡是否锁定（弹窗/完成时禁止拖动）
+  splitCard:null,      // 正在拆分的卡
+  splitVals:[null,null],
+  rulesSeen:false
+};
+function newCard(v, splittable){
+  return { uid:S.uidSeq++, value:v, expr:String(v), isPair:false, gold:false, splittable:!!splittable, parts:null };
+}
+function curItem(){ return S.items[S.li]; }
+
+/* ============================================================
+   屏幕与弹窗
+============================================================ */
+function showScreen(name){
+  S.screen = name;
+  $('#screen-home').classList.toggle('on', name === 'home');
+  $('#screen-game').classList.toggle('on', name === 'game');
+}
+function openOv(id){ $('#' + id).classList.add('show'); }
+function closeOv(id){ $('#' + id).classList.remove('show'); }
+function anyOvOpen(){ return $$('.overlay.show').length > 0; }
+
+/* ============================================================
+   提示条
+============================================================ */
+var toastTimer = null;
+function toast(msg){
+  var t = $('#toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.style.display = 'none'; }, 2600);
+}
+
+/* ============================================================
+   计时器与 HUD
+============================================================ */
+function startTimer(){
+  stopTimer();
+  S.timerIv = setInterval(function(){
+    S.timeSec++;
+    $('#hud-time').textContent = fmtTime(S.timeSec);
+  }, 1000);
+}
+function stopTimer(){ if(S.timerIv){ clearInterval(S.timerIv); S.timerIv = null; } }
+function renderHUD(){
+  $('#hud-time').textContent = fmtTime(S.timeSec);
+  $('#hud-steps').textContent = S.steps;
+}
+
+/* ============================================================
+   开局 / 开关
+============================================================ */
+function startRound(diff){
+  S.diff = diff;
+  S.items = shuffle(POOLS[diff]).slice(0, LEVELS_PER_ROUND); // 反重复：随机抽题
+  S.li = 0; S.steps = 0; S.results = []; S.timeSec = 0;
+  applyPalette();                                          // 反重复：随机配色
+  showScreen('game');
+  startTimer();
+  startLevel();
+  if(!S.rulesSeen){ S.rulesSeen = true; openOv('ov-rules'); } // 首次进入自动弹规则
+}
+function startLevel(){
+  var item = curItem();
+  S.chain = item.f.map(function(v){
+    var c = newCard(v, item.split === v);
+    if(item.split === v) c.chipsPool = item.chips; /* 拆分台数片池挂到可拆卡上 */
+    return c;
+  });
+  S.log = []; S.nonGold = 0; S.unbinds = 0; S.swapped = false; S.didSplit = false;
+  S.revealed = false; S.splitCard = null; S.splitVals = [null, null];
+  S.locked = false;
+  renderLevel();
+  renderChain();
+  renderHUD();
+  toast('第 ' + (S.li + 1) + ' 关开始！先找一找哪两个数是"好朋友"。');
+}
+function renderLevel(){
+  var got = 0;
+  for(var i = 0; i < S.results.length && i < S.li; i++) got += S.results[i];
+  $('#lv-progress').textContent = '第 ' + (S.li + 1) + ' 关 / 共 ' + LEVELS_PER_ROUND + ' 关';
+  $('#lv-stars').textContent = '已得 ★ ' + got;
+  $('#lv-diff').textContent = '【' + S.diff + '】';
+  $('#ctx-text').textContent = '题干：' + curItem().ctx;
+}
+
+/* ============================================================
+   渲染数卡链
+============================================================ */
+function dispOf(card){ return card.isPair ? '(' + card.expr + ')' : card.expr; }
+function renderChain(){
+  var area = $('#expr-area');
+  area.innerHTML = '';
+  S.chain.forEach(function(card, idx){
+    if(idx > 0){
+      var op = document.createElement('div');
+      op.className = 'op';
+      op.textContent = '×';
+      area.appendChild(op);
+    }
+    var el = document.createElement('div');
+    el.className = 'card' + (card.isPair ? ' pair' : '') + (card.isPair && card.gold ? ' gold' : '');
+    el.dataset.uid = card.uid;
+    if(card.isPair){
+      var ex = document.createElement('div');
+      ex.className = 'expr';
+      ex.textContent = card.expr + ' =';
+      el.appendChild(ex);
+      var vv = document.createElement('div');
+      vv.className = 'val';
+      vv.textContent = fmt(card.value);
+      el.appendChild(vv);
+    }else{
+      var v2 = document.createElement('div');
+      v2.className = 'val';
+      v2.textContent = fmt(card.value);
+      el.appendChild(v2);
+      if(card.splittable){
+        var bd = document.createElement('span');
+        bd.className = 'badge';
+        bd.textContent = '拆';
+        el.appendChild(bd);
+      }
+    }
+    bindCardEvents(el, card);
+    area.appendChild(el);
+  });
+}
+function findIdx(card){
+  for(var i = 0; i < S.chain.length; i++){ if(S.chain[i].uid === card.uid) return i; }
+  return -1;
+}
+
+/* ============================================================
+   核心操作：配对（结合律）/ 交换（交换律）/ 移动 / 拆开 / 拆分
+============================================================ */
+function doBind(i, j){ // i、j 相邻（j=i+1）
+  var a = S.chain[i], b = S.chain[j];
+  var prod = a.value * b.value;
+  var isFinal = (S.chain.length === 2);
+  var gold = (prod % 10 === 0);
+  /* 新配对卡：表达式里给子配对加上括号，体现结合律的层层分组 */
+  var nc = {
+    uid:S.uidSeq++, value:prod,
+    expr: dispOf(a) + '×' + dispOf(b),
+    isPair:true, gold:gold, splittable:false, parts:[a, b]
+  };
+  S.chain.splice(i, 2, nc);
+  S.steps++;
+  S.log.push({ t:'bind', disp: dispOf(a) + '×' + dispOf(b), prod:prod, gold:gold, final:isFinal });
+  if(!gold && !isFinal) S.nonGold++;
+  renderChain();
+  renderHUD();
+  /* 新卡弹跳动画 */
+  var els = $$('#expr-area .card');
+  if(els[i]) els[i].classList.add('newpop');
+  if(gold){
+    toast('金环点亮！' + a.expr + '×' + b.expr + ' = ' + fmt(prod) + '，是' + roundName(prod) + '！');
+    burst(36);
+  }else if(!isFinal){
+    toast('乘积 ' + fmt(prod) + ' 不是整十整百数，这样配不够简便哦。点一下这张卡可以拆开重配。');
+  }
+  if(S.chain.length === 1) finishLevel();
+}
+function doSwap(i, j){
+  var t = S.chain[i]; S.chain[i] = S.chain[j]; S.chain[j] = t;
+  S.steps++; S.swapped = true;
+  renderChain(); renderHUD();
+}
+function doInsert(i, pos){
+  var c = S.chain.splice(i, 1)[0];
+  S.chain.splice(pos, 0, c);
+  S.steps++; S.swapped = true;
+  renderChain(); renderHUD();
+}
+function doUnbind(card){
+  var i = findIdx(card);
+  if(i < 0) return;
+  S.chain.splice.apply(S.chain, [i, 1].concat(card.parts));
+  S.steps++; S.unbinds++;
+  renderChain(); renderHUD();
+  toast('金环已拆开，重新想一想怎么配吧！');
+}
+
+/* ---------- 拆分台 ---------- */
+function openSplit(card){
+  S.splitCard = card;
+  S.splitVals = [null, null];
+  $('#split-eq').textContent = fmt(card.value) + ' = □ × □';
+  renderSlots();
+  /* 数片每次打乱顺序（反重复） */
+  var box = $('#split-chips');
+  box.innerHTML = '';
+  shuffle(card.chipsPool).forEach(function(v){
+    var c = document.createElement('div');
+    c.className = 'chip';
+    c.textContent = v;
+    c.addEventListener('click', function(){ placeChip(v, c); });
+    box.appendChild(c);
+  });
+  $('#split-msg').textContent = '点数片放进空位，点空位里的数可以放回去';
+  openOv('ov-split');
+}
+function renderSlots(){
+  $$('#split-slots .slot').forEach(function(sl, k){
+    var v = S.splitVals[k];
+    sl.textContent = v === null ? '' : v;
+    sl.classList.toggle('filled', v !== null);
+  });
+}
+function placeChip(v, chipEl){
+  var k = S.splitVals[0] === null ? 0 : (S.splitVals[1] === null ? 1 : -1);
+  if(k < 0){ toast('两个位置都满了，点位置里的数先放回去一个。'); return; }
+  S.splitVals[k] = v;
+  chipEl.classList.add('used');
+  renderSlots();
+  if(S.splitVals[0] !== null && S.splitVals[1] !== null) checkSplit();
+}
+function checkSplit(){
+  var a = S.splitVals[0], b = S.splitVals[1], target = S.splitCard.value;
+  if(a * b === target){
+    $('#split-msg').textContent = '太棒了！' + a + '×' + b + ' = ' + target + '，拆分成功！';
+    setTimeout(function(){
+      closeOv('ov-split');
+      var i = findIdx(S.splitCard);
+      if(i >= 0){
+        S.chain.splice(i, 1, newCard(a, false), newCard(b, false));
+        S.steps++; S.didSplit = true;
+        S.log.push({ t:'split', text:'把 ' + target + ' 拆成 ' + a + '×' + b });
+        renderChain(); renderHUD();
+        var els = $$('#expr-area .card');
+        if(els[i]) els[i].classList.add('newpop');
+        if(els[i + 1]) els[i + 1].classList.add('newpop');
+      }
+      toast('拆分成功！' + target + ' = ' + a + '×' + b + '，接着凑整吧！');
+      burst(30);
+    }, 700);
+  }else{
+    $('#split-msg').textContent = a + '×' + b + ' = ' + (a * b) + '，不等于 ' + target + '，换一换试试！';
+    $('#split-slots').classList.add('shake');
+    setTimeout(function(){
+      $('#split-slots').classList.remove('shake');
+      S.splitVals = [null, null];
+      $$('#split-chips .chip').forEach(function(c){ c.classList.remove('used'); });
+      renderSlots();
+    }, 750);
+  }
+}
+
+/* ============================================================
+   拖拽引擎（Pointer Events，鼠标 + 触屏通吃）
+   · 拖到相邻卡上 = 金环配对（结合律）
+   · 拖到不相邻卡上 = 交换位置（交换律）
+   · 拖到卡片空隙 = 移动位置
+   · 拖到拆分台 = 拆分（仅带「拆」标记的卡）
+   · 原地点击 = 配对卡拆开 / 提示
+============================================================ */
+var drag = null;
+function bindCardEvents(el, card){
+  el.addEventListener('pointerdown', function(ev){
+    if(S.locked || anyOvOpen()) return;
+    if(ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.preventDefault();
+    drag = { card:card, el:el, moved:false, sx:ev.clientX, sy:ev.clientY,
+             gx:0, gy:0, action:null, ghost:null };
+    try{ el.setPointerCapture(ev.pointerId); }catch(e){ /* 个别环境不支持，忽略 */ }
+  });
+  el.addEventListener('pointermove', function(ev){
+    if(!drag || drag.card !== card) return;
+    if(!drag.moved){
+      if(Math.abs(ev.clientX - drag.sx) + Math.abs(ev.clientY - drag.sy) < 10) return;
+      drag.moved = true;
+      makeGhost(ev);
+    }
+    moveGhost(ev);
+    updateAction(ev);
+  });
+  el.addEventListener('pointerup', function(ev){
+    if(!drag || drag.card !== card) return;
+    var d = drag; drag = null;
+    cleanupGhost();
+    if(d.moved){ performDrop(d); }
+    else{ handleTap(card); }
+  });
+  el.addEventListener('pointercancel', function(){
+    if(drag && drag.card === card){ drag = null; cleanupGhost(); }
+  });
+  el.addEventListener('contextmenu', function(ev){ ev.preventDefault(); });
+}
+function makeGhost(ev){
+  var r = drag.el.getBoundingClientRect();
+  drag.gx = drag.sx - r.left;
+  drag.gy = drag.sy - r.top;
+  var g = drag.el.cloneNode(true);
+  g.classList.add('ghost');
+  g.classList.remove('dragging');
+  g.style.width = r.width + 'px';
+  g.style.height = r.height + 'px';
+  document.body.appendChild(g);
+  drag.ghost = g;
+  drag.el.classList.add('dragging');
+}
+function moveGhost(ev){
+  if(!drag.ghost) return;
+  drag.ghost.style.left = (ev.clientX - drag.gx) + 'px';
+  drag.ghost.style.top = (ev.clientY - drag.gy) + 'px';
+}
+function cleanupGhost(){
+  clearHighlights();
+  /* 无条件清除所有幽灵卡与拖拽状态（防止任何路径下的残留） */
+  $$('.card.ghost').forEach(function(g){ if(g.parentNode) g.parentNode.removeChild(g); });
+  $$('#expr-area .card').forEach(function(c){ c.classList.remove('dragging'); });
+  var lab = $('#drag-label');
+  lab.style.display = 'none';
+}
+function clearHighlights(){
+  $$('#expr-area .card').forEach(function(c){ c.classList.remove('target'); });
+  $('#split-station').classList.remove('hot');
+}
+/* 判断指针处能执行什么操作 */
+function hitAction(x, y, card){
+  var el = document.elementFromPoint(x, y);
+  if(!el) return null;
+  if($('#split-station').contains(el) || el.id === 'split-station'){
+    return card.splittable ? { k:'split' } : { k:'no', msg:'这张卡没有「拆」标记，不用拆哦' };
+  }
+  var cel = null, p = el;
+  while(p && p !== document.body){
+    if(p.classList && p.classList.contains('card')){ cel = p; break; }
+    p = p.parentNode;
+  }
+  if(cel){
+    var uid = parseInt(cel.dataset.uid, 10);
+    if(uid === card.uid) return null;
+    var i = findIdx(card), j = findIdx({ uid:uid });
+    if(j === i + 1 || j === i - 1) return { k:'bind', i:Math.min(i, j), j:Math.max(i, j), tEl:cel };
+    return { k:'swap', i:i, j:j, tEl:cel };
+  }
+  var area = $('#expr-area');
+  if(area === el || area.contains(el)){
+    /* 找中心离指针最近的卡，决定插入位置 */
+    var best = null, bd = Infinity;
+    $$('#expr-area .card').forEach(function(e){
+      if(parseInt(e.dataset.uid, 10) === card.uid) return;
+      var r = e.getBoundingClientRect();
+      var d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+      if(d < bd){ bd = d; best = e; }
+    });
+    if(!best) return null;
+    var br = best.getBoundingClientRect();
+    var k = findIdx({ uid:parseInt(best.dataset.uid, 10) });
+    var pos = x < br.left + br.width / 2 ? k : k + 1;
+    var i2 = findIdx(card);
+    if(i2 < pos) pos--;
+    if(pos === i2) return null; /* 位置没变 */
+    return { k:'insert', i:i2, pos:pos };
+  }
+  return null;
+}
+function updateAction(ev){
+  var lab = $('#drag-label');
+  clearHighlights();
+  var act = hitAction(ev.clientX, ev.clientY, drag.card);
+  drag.action = act;
+  if(!act){ lab.style.display = 'none'; return; }
+  var txt = '';
+  if(act.k === 'bind'){ txt = '金环配对（结合律）'; if(act.tEl) act.tEl.classList.add('target'); }
+  else if(act.k === 'swap'){ txt = '交换位置（交换律）'; if(act.tEl) act.tEl.classList.add('target'); }
+  else if(act.k === 'insert'){ txt = '移动到这里'; }
+  else if(act.k === 'split'){ txt = '放到拆分台拆分'; $('#split-station').classList.add('hot'); }
+  else { txt = act.msg; }
+  lab.textContent = txt;
+  lab.style.display = 'block';
+  lab.style.left = Math.min(ev.clientX + 18, window.innerWidth - 180) + 'px';
+  lab.style.top = Math.max(ev.clientY - 54, 8) + 'px';
+}
+function performDrop(d){
+  var act = d.action;
+  if(!act) return;
+  if(act.k === 'bind') doBind(act.i, act.j);
+  else if(act.k === 'swap') doSwap(act.i, act.j);
+  else if(act.k === 'insert') doInsert(act.i, act.pos);
+  else if(act.k === 'split') openSplit(d.card);
+  else if(act.k === 'no') toast(act.msg);
+}
+function handleTap(card){
+  if(card.isPair){ doUnbind(card); return; }
+  if(card.splittable){ toast('把它拖到下方的拆分台，就能拆成两个乘数！'); return; }
+  toast('拖动这张卡：放到相邻卡上＝配对；放到远处卡上＝交换；放到空隙＝移动。');
+}
+
+/* ============================================================
+   单关结算
+============================================================ */
+function finishLevel(){
+  S.locked = true;
+  var item = curItem();
+  var slips = S.nonGold + S.unbinds;
+  var stars = S.revealed ? 1 : (slips === 0 ? 3 : (slips <= 2 ? 2 : 1));
+  S.results[S.li] = stars;
+  renderLevel();
+  /* 弹窗内容 */
+  $('#lv-title').textContent = stars === 3 ? '完美通关！' : '闯关成功！';
+  var sb = '';
+  for(var i = 0; i < 3; i++) sb += i < stars ? '★' : '☆';
+  $('#lv-stars-box').textContent = sb;
+  $('#lv-answer').textContent = item.sol[0].replace(/<[^>]+>/g, '') + ' = ' + fmt(item.ans);
+  /* 过程回放 */
+  var html = '';
+  var stepNo = 0;
+  S.log.forEach(function(g){
+    stepNo++;
+    if(g.t === 'split'){
+      html += '<div class="rline">第' + stepNo + '步 · ' + g.text + '</div>';
+    }else{
+      var label = g.final ? '最后算' : '先算';
+      var mark = g.gold ? '<span class="gold">（' + roundName(g.prod) + '，金环点亮！）</span>' : '<span class="dim">（不够简便）</span>';
+      html += '<div class="rline">第' + stepNo + '步 · ' + label + ' ' + g.disp + ' = ' + fmt(g.prod) + mark + '</div>';
+    }
+  });
+  html += '<div class="rline gold">答案：' + fmt(item.ans) + '</div>';
+  $('#lv-recap').innerHTML = html;
+  /* 用到的算理标签 */
+  var tags = [];
+  if(S.swapped) tags.push('乘法交换律');
+  if(S.log.some(function(g){ return g.t === 'bind'; })) tags.push('乘法结合律');
+  if(S.didSplit) tags.push('拆数凑整');
+  if(S.revealed) tags.push('看过答案');
+  $('#lv-laws').innerHTML = tags.map(function(t){ return '<span>' + t + '</span>'; }).join('');
+  $('#btn-lv-next').textContent = (S.li >= LEVELS_PER_ROUND - 1) ? '查看闯关成绩' : '下一关';
+  burst(140);
+  setTimeout(function(){ openOv('ov-level'); }, 450);
+}
+function nextLevel(){
+  closeOv('ov-level');
+  if(S.li >= LEVELS_PER_ROUND - 1){
+    /* 整轮完成 */
+    var total = 0;
+    S.results.forEach(function(s){ total += s; });
+    var full = LEVELS_PER_ROUND * 3;
+    var ss = '';
+    for(var i = 0; i < full; i++) ss += i < total ? '★' : '☆';
+    $('#rd-stars').textContent = ss;
+    $('#rd-text').textContent = '共获得 ' + total + ' / ' + full + ' 颗星！' +
+      (total >= full ? '你是凑整小达人！' : (total >= full - 3 ? '很棒，离满分只差一点点！' : '再试一次，争取更多星星！'));
+    stopTimer();
+    burst(320);
+    openOv('ov-round');
+  }else{
+    S.li++;
+    startLevel();
+  }
+}
+
+/* ============================================================
+   彩纸庆祝（Canvas，G5）
+============================================================ */
+var fxCanvas = $('#fx'), fxCtx = fxCanvas.getContext('2d');
+var particles = [], fxRunning = false;
+function resizeFx(){
+  fxCanvas.width = window.innerWidth;
+  fxCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeFx);
+resizeFx();
+function burst(n){
+  var pal = document.body.style.getPropertyValue('--p') || '#2563eb';
+  var cols = confettiColors.concat([pal.trim()]);
+  for(var i = 0; i < n; i++){
+    particles.push({
+      x:Math.random() * fxCanvas.width,
+      y:-20 - Math.random() * 120,
+      vx:(Math.random() - 0.5) * 3.4,
+      vy:2 + Math.random() * 3.2,
+      s:7 + Math.random() * 9,
+      r:Math.random() * Math.PI,
+      vr:(Math.random() - 0.5) * 0.28,
+      c:cols[Math.floor(Math.random() * cols.length)],
+      life:170 + Math.random() * 90
+    });
+  }
+  if(!fxRunning){ fxRunning = true; requestAnimationFrame(fxLoop); }
+}
+function fxLoop(){
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  particles = particles.filter(function(p){ return p.life > 0 && p.y < fxCanvas.height + 40; });
+  particles.forEach(function(p){
+    p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life--;
+    fxCtx.save();
+    fxCtx.translate(p.x, p.y);
+    fxCtx.rotate(p.r);
+    fxCtx.fillStyle = p.c;
+    fxCtx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.62);
+    fxCtx.restore();
+  });
+  if(particles.length){ requestAnimationFrame(fxLoop); }
+  else{ fxRunning = false; fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); }
+}
+
+/* ============================================================
+   按钮接线
+============================================================ */
+$$('.diff-card').forEach(function(d){
+  d.addEventListener('click', function(){ startRound(d.dataset.diff); });
+});
+$('#btn-rules').addEventListener('click', function(){
+  $('#btn-rules-ok').textContent = S.screen === 'game' ? '继续挑战' : '开始挑战';
+  openOv('ov-rules');
+});
+$('#btn-rules-ok').addEventListener('click', function(){ closeOv('ov-rules'); });
+$('#btn-reveal').addEventListener('click', function(){
+  if(S.screen !== 'game' || S.locked){ toast('请先选择难度开始闯关，或在闯关中查看。'); return; }
+  var item = curItem();
+  $('#reveal-ctx').textContent = '题干：' + item.ctx;
+  $('#reveal-sol').innerHTML = item.sol.map(function(l){ return '<div>' + l + '</div>'; }).join('');
+  S.revealed = true; /* 看过答案，本关星级上限 1 */
+  openOv('ov-reveal');
+});
+$('#btn-reveal-ok').addEventListener('click', function(){ closeOv('ov-reveal'); });
+$('#btn-restart').addEventListener('click', function(){
+  if(S.screen !== 'game'){ toast('请先选择一个难度开始闯关。'); return; }
+  closeOv('ov-level'); closeOv('ov-round');
+  startRound(S.diff);
+});
+$('#btn-back').addEventListener('click', function(){
+  $$('.overlay').forEach(function(o){ o.classList.remove('show'); });
+  stopTimer();
+  S.locked = true;
+  showScreen('home');
+});
+$('#btn-split-cancel').addEventListener('click', function(){
+  closeOv('ov-split');
+  toast('已收回卡片，继续想想怎么配对吧！');
+});
+$('#btn-lv-next').addEventListener('click', nextLevel);
+$('#btn-lv-replay').addEventListener('click', function(){
+  closeOv('ov-level');
+  S.results[S.li] = 0; /* 重玩本关，星级重新计算 */
+  startLevel();
+});
+$('#btn-lv-back').addEventListener('click', function(){
+  closeOv('ov-level');
+  stopTimer(); S.locked = true;
+  showScreen('home');
+});
+$('#btn-rd-again').addEventListener('click', function(){
+  closeOv('ov-round');
+  startRound(S.diff);
+});
+$('#btn-rd-back').addEventListener('click', function(){
+  closeOv('ov-round');
+  stopTimer(); S.locked = true;
+  showScreen('home');
+});
+/* 拆分槽：点已放的数放回数片托盘 */
+$$('#split-slots .slot').forEach(function(sl, k){
+  sl.addEventListener('click', function(){
+    if(S.splitVals[k] === null) return;
+    S.splitVals[k] = null;
+    renderSlots();
+    /* 只把仍被占用的数保持"已用"状态，其余数片恢复可点 */
+    $$('#split-chips .chip').forEach(function(c){
+      var v = c.textContent;
+      var used = (S.splitVals[0] !== null && String(S.splitVals[0]) === v) ||
+                 (S.splitVals[1] !== null && String(S.splitVals[1]) === v);
+      c.classList.toggle('used', used);
+    });
+    $('#split-msg').textContent = '点数片放进空位，点空位里的数可以放回去';
+  });
+});
+
+/* ============================================================
+   初始化：卡片需要预挂数片池（拆分台用）
+============================================================ */
+Object.keys(POOLS).forEach(function(k){
+  POOLS[k].forEach(function(item){
+    if(item.split){
+      /* 给带「拆」的卡片记录数片池（顺序会在打开时打乱） */
+      item.chipsPool = item.chips;
+    }
+  });
+});
+applyPalette();
+renderHUD();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-l/g013", "name": "\u4e58\u6cd5\u51d1\u6574\u5de5\u574a\uff5c\u4e58\u6cd5\u4ea4\u6362\u5f8b\u00b7\u7ed3\u5408\u5f8b\u95ef\u5173", "file": "g013.html", "jiaocan": "\u301023\u3011\u4e94\u3001\u8fd0\u7b97\u5f8b\uff1a3\u4e58\u6cd5\u4ea4\u6362\u5f8b\u3001\u7ed3\u5408\u5f8b\u548c\u7b80\u4fbf\u8ba1\u7b97", "unit": "", "grade": "4\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "L\uff1a\u6559\u6750\u89e3\u8bfb1", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb1\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-l"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

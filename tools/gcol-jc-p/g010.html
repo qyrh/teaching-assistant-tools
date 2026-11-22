@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>分式方程探险号 · 互动闯关游戏（10.5 分式方程）</title>
+<style>
+/* ============================================================
+   分式方程探险号 —— 单文件互动游戏
+   核心玩法与"解分式方程三步法"深度绑定：
+   去分母（拖最简公分母钥匙）→ 解整式方程（数轴拖放寻根）→ 检验（公分母检测仪验增根）
+   ============================================================ */
+
+/* ---------- 全局与色板变量（每局随机抽取，见 JS 中 PALETTES） ---------- */
+:root{
+  --c-primary:#ff7a45; --c-primary-dark:#d94f21; --c-accent:#ffb347;
+  --c-bg1:#fff7f0; --c-bg2:#ffe8d6; --c-ink:#4a2415; --c-ok:#2e9e5b; --c-bad:#d93636;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",system-ui,sans-serif;
+  color:var(--c-ink);
+  background:linear-gradient(160deg,var(--c-bg1),var(--c-bg2));
+  min-height:100vh; font-size:18px; line-height:1.55;
+}
+#app{ max-width:1020px; margin:0 auto; padding:14px 14px 40px; }
+button{
+  font-family:inherit; border:none; cursor:pointer; border-radius:12px;
+  font-size:18px; font-weight:700; padding:10px 18px; color:#fff;
+  background:var(--c-primary); box-shadow:0 3px 0 var(--c-primary-dark);
+  transition:transform .08s ease, filter .15s ease;
+  touch-action:manipulation;
+}
+button:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--c-primary-dark); }
+button.ghost{ background:#fff; color:var(--c-primary-dark); border:2px solid var(--c-primary); box-shadow:0 3px 0 rgba(0,0,0,.08); }
+button:disabled{ opacity:.45; cursor:not-allowed; }
+
+/* ---------- 屏幕切换 ---------- */
+.screen{ display:none; }
+.screen.active{ display:block; animation:fadeIn .35s ease; }
+@keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+
+/* ---------- 首页 ---------- */
+.home-title{
+  text-align:center; margin:26px 0 6px; font-size:clamp(30px,5vw,46px); font-weight:900;
+  color:var(--c-primary-dark); letter-spacing:2px; text-shadow:2px 3px 0 rgba(0,0,0,.06);
+}
+.home-sub{ text-align:center; margin:0 0 22px; font-size:17px; opacity:.85; }
+.tier-cards{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+.tier-card{
+  flex:1 1 260px; max-width:320px; border-radius:20px; padding:20px 18px 18px; text-align:left;
+  background:#fff; border:3px solid var(--c-primary); box-shadow:0 6px 0 var(--c-primary-dark);
+  cursor:pointer; transition:transform .12s ease;
+}
+.tier-card:hover{ transform:translateY(-4px); }
+.tier-card h3{ margin:0 0 6px; font-size:24px; color:var(--c-primary-dark); }
+.tier-card p{ margin:0; font-size:16px; opacity:.9; }
+.tier-card .tagline{ font-size:15px; color:#fff; background:var(--c-primary); display:inline-block; padding:2px 10px; border-radius:999px; margin-bottom:8px; }
+.home-foot{ text-align:center; margin-top:26px; font-size:15px; opacity:.8; }
+
+/* ---------- HUD（顶部信息条） ---------- */
+.hud{
+  display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
+  background:#fff; border-radius:16px; padding:10px 14px; margin-bottom:12px;
+  border:2px solid rgba(0,0,0,.08); box-shadow:0 3px 10px rgba(0,0,0,.06);
+}
+.hud-left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0; }
+.hud-title{ font-weight:900; font-size:21px; color:var(--c-primary-dark); }
+.hud-src{ font-size:14px; opacity:.75; }
+.hud-right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.hud-chip{
+  background:var(--c-bg2); border-radius:10px; padding:5px 12px; font-weight:700; font-size:17px;
+  border:2px solid rgba(0,0,0,.06); white-space:nowrap;
+}
+.dots{ display:flex; gap:6px; margin-left:4px; }
+.dot{ width:14px; height:14px; border-radius:50%; background:#e3ddd6; border:2px solid rgba(0,0,0,.12); }
+.dot.now{ background:var(--c-accent); border-color:var(--c-primary-dark); }
+.dot.done{ background:var(--c-ok); border-color:var(--c-ok); }
+
+/* ---------- 关卡步骤指示条 ---------- */
+.stagebar{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+.stage{
+  flex:1 1 150px; text-align:center; background:#fff; border-radius:12px; padding:7px 6px;
+  font-weight:700; font-size:16px; border:2px solid rgba(0,0,0,.1); opacity:.55;
+}
+.stage.on{ opacity:1; border-color:var(--c-primary); color:var(--c-primary-dark); background:#fff; box-shadow:0 0 0 3px rgba(255,255,255,.6), 0 3px 0 var(--c-accent); }
+.stage.did{ opacity:1; border-color:var(--c-ok); color:var(--c-ok); }
+
+/* ---------- 通用面板 ---------- */
+.panel{
+  background:#fff; border-radius:18px; padding:14px 16px; margin-bottom:12px;
+  border:2px solid rgba(0,0,0,.08); box-shadow:0 4px 12px rgba(0,0,0,.05);
+}
+.panel h4{ margin:0 0 8px; font-size:19px; color:var(--c-primary-dark); }
+.problem-text{ font-size:19px; margin:0 0 4px; }
+.qtable{ border-collapse:collapse; margin:10px auto 2px; font-size:17px; background:#fff; }
+.qtable th,.qtable td{ border:2px solid rgba(0,0,0,.15); padding:6px 14px; text-align:center; min-width:88px; }
+.qtable th{ background:var(--c-bg2); }
+.relation{
+  margin-top:8px; font-weight:700; color:var(--c-primary-dark);
+  background:var(--c-bg1); border:2px dashed var(--c-accent); border-radius:10px; padding:6px 12px; display:inline-block;
+}
+.hintline{
+  min-height:30px; margin-top:10px; padding:7px 12px; border-radius:10px; font-size:17px;
+  background:var(--c-bg1); border-left:6px solid var(--c-accent); transition:all .2s;
+}
+.hintline.good{ border-left-color:var(--c-ok); color:var(--c-ok); }
+.hintline.bad{ border-left-color:var(--c-bad); color:var(--c-bad); }
+
+/* ---------- 分式渲染 ---------- */
+.fx{ display:inline-flex; align-items:center; gap:5px; font-size:26px; font-weight:700; white-space:nowrap; vertical-align:middle; }
+.fx.small{ font-size:21px; }
+.fx .fr{ display:inline-flex; flex-direction:column; align-items:center; }
+.fx .fr .n{ padding:0 8px 1px; border-bottom:3px solid var(--c-ink); line-height:1.25; }
+.fx .fr .d{ padding:1px 8px 0; line-height:1.25; }
+.fx .tx{ padding:0 2px; }
+.fx .sg{ min-width:24px; text-align:center; }
+
+/* ---------- 天平（去分母舞台） ---------- */
+.scale-wrap{ text-align:center; padding:6px 0 2px; }
+.scale-beam{
+  height:16px; border-radius:999px; margin:0 6%; position:relative;
+  background:linear-gradient(90deg,var(--c-accent),var(--c-primary),var(--c-accent));
+  box-shadow:0 3px 6px rgba(0,0,0,.15);
+}
+.scale-cols{ display:flex; gap:14px; align-items:stretch; justify-content:center; margin-top:0; }
+.pan{
+  flex:1 1 0; min-width:150px; min-height:104px; background:#fffdf9; border:3px solid var(--c-primary);
+  border-radius:6px 6px 18px 18px; border-top:none; display:flex; align-items:center; justify-content:center;
+  gap:8px; padding:12px 10px 16px; box-shadow:inset 0 -8px 0 rgba(0,0,0,.04);
+}
+.scale-mid{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:0 4px; }
+.mult-slot{
+  width:150px; min-height:64px; border:3px dashed var(--c-primary); border-radius:14px; background:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; color:var(--c-primary-dark);
+  text-align:center; padding:4px 6px;
+}
+.mult-slot.hot{ background:var(--c-bg1); box-shadow:0 0 0 4px rgba(255,179,71,.4); }
+.scale-post{ width:14px; height:26px; background:var(--c-primary-dark); border-radius:4px; }
+.scale-base{ width:200px; height:12px; border-radius:999px; background:var(--c-primary-dark); margin:0 auto; }
+.eqmark{ font-size:34px; font-weight:900; align-self:center; color:var(--c-primary-dark); }
+.keyrow{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:14px; min-height:74px; }
+.keycard, .chip, .card, .tile, .orb{
+  background:#fff; border:3px solid var(--c-primary); border-radius:14px; padding:8px 16px;
+  font-weight:700; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none;
+  box-shadow:0 4px 0 rgba(0,0,0,.12); display:flex; align-items:center; justify-content:center; min-height:56px;
+}
+.keycard{ font-size:21px; color:var(--c-primary-dark); }
+.keycard:hover, .chip:hover, .tile:hover, .orb:hover{ filter:brightness(1.04); }
+.drag-src{ opacity:.35; }
+.drag-ghost{
+  position:fixed; z-index:999; pointer-events:none; transform:translate(-50%,-50%) rotate(3deg) scale(1.05);
+  box-shadow:0 12px 24px rgba(0,0,0,.25); cursor:grabbing;
+}
+.zap{ animation:zap .55s ease forwards; }
+@keyframes zap{ 40%{transform:scale(1.25); background:var(--c-accent);} 100%{transform:scale(0); opacity:0;} }
+.pop{ animation:pop .45s ease; }
+@keyframes pop{ from{ transform:scale(.3); opacity:0;} to{ transform:scale(1); opacity:1;} }
+.shake{ animation:shake .45s ease; }
+@keyframes shake{ 20%{transform:translateX(-7px);} 40%{transform:translateX(7px);} 60%{transform:translateX(-5px);} 80%{transform:translateX(5px);} }
+.tiltL{ animation:tiltL .5s ease; }
+@keyframes tiltL{ 30%{transform:rotate(-3deg);} 60%{transform:rotate(2deg);} }
+
+/* ---------- 数轴 ---------- */
+.nline-outer{ overflow-x:auto; padding:6px 2px 2px; }
+.nline{ position:relative; height:130px; min-width:620px; margin:4px auto 0; }
+.nline .axis{ position:absolute; left:0; right:0; top:56px; height:5px; background:var(--c-ink); border-radius:3px; }
+.mark{ position:absolute; top:38px; width:2px; height:38px; background:var(--c-ink); transform:translateX(-50%); }
+.mark .lbl{
+  position:absolute; top:42px; left:50%; transform:translateX(-50%);
+  font-size:19px; font-weight:700; white-space:nowrap; background:#fff; padding:1px 5px; border-radius:6px;
+}
+.crystal{
+  position:absolute; top:4px; width:46px; height:46px; border-radius:50%;
+  background:radial-gradient(circle at 34% 30%, #fff, var(--c-accent) 55%, var(--c-primary));
+  border:3px solid #fff; box-shadow:0 4px 10px rgba(0,0,0,.28), inset 0 -4px 8px rgba(0,0,0,.15);
+  cursor:grab; touch-action:none; display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:900; font-size:19px; text-shadow:0 1px 2px rgba(0,0,0,.4);
+  transform:translate(-50%,0);
+}
+.crystal.locked{ cursor:default; filter:drop-shadow(0 0 10px var(--c-ok)); }
+.crystal.win{ animation:winPulse .6s ease 3; }
+@keyframes winPulse{ 50%{ transform:translate(-50%,0) scale(1.3); box-shadow:0 0 22px var(--c-ok);} }
+
+/* ---------- 检验台 ---------- */
+.test-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:stretch; justify-content:center; margin-top:14px; }
+.machine{
+  flex:1 1 240px; max-width:330px; background:linear-gradient(180deg,#fff,var(--c-bg1));
+  border:3px solid var(--c-primary); border-radius:16px; padding:12px; text-align:center; min-height:120px;
+}
+.machine .m-title{ font-weight:900; font-size:19px; color:var(--c-primary-dark); margin-bottom:6px; }
+.machine .m-slot{
+  margin:6px auto; width:86%; min-height:56px; border:3px dashed var(--c-primary); border-radius:12px;
+  display:flex; align-items:center; justify-content:center; background:#fff; font-weight:700; font-size:20px;
+}
+.machine .m-out{ font-size:18px; margin-top:6px; min-height:26px; }
+.machine.alarm{ border-color:var(--c-bad); animation:alarmFlash .5s ease 3; }
+@keyframes alarmFlash{ 50%{ background:#ffe3e3; } }
+.machine.pass{ border-color:var(--c-ok); box-shadow:0 0 0 4px rgba(46,158,91,.25); }
+.target{
+  flex:0 1 200px; min-height:120px; border:3px solid var(--c-primary); border-radius:16px; background:#fff;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:10px; font-weight:700;
+}
+.target .t-ico{ font-size:38px; }
+.orb{ border-radius:999px; padding:8px 20px; background:linear-gradient(180deg,#fff,var(--c-bg1)); }
+.orb.confirmed{ border-color:var(--c-bad); color:var(--c-bad); }
+
+/* ---------- 装配台 ---------- */
+.chip-tray{
+  display:flex; flex-wrap:wrap; gap:14px; justify-content:center; padding:10px;
+  background:var(--c-bg1); border:2px dashed var(--c-primary); border-radius:16px; min-height:84px;
+}
+.chip{ font-size:20px; }
+.assemble{
+  display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
+  background:#fffdf8; border-radius:16px; padding:16px 10px; border:2px solid rgba(0,0,0,.08);
+}
+.assemble .op{ font-size:34px; font-weight:900; color:var(--c-primary-dark); padding:0 2px; }
+.assemble .slot{
+  min-width:118px; min-height:74px; border:3px dashed var(--c-primary); border-radius:12px;
+  display:flex; align-items:center; justify-content:center; padding:4px 8px; background:#fff;
+}
+.assemble .slot.filled{ border-style:solid; border-color:var(--c-ok); }
+.assemble .slot .chip{ box-shadow:none; padding:4px 10px; min-height:50px; }
+.btnrow{ display:flex; gap:12px; justify-content:center; margin-top:14px; flex-wrap:wrap; }
+
+/* ---------- 分拣关卡 ---------- */
+.cards-grid{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin-top:8px; }
+.card{ min-width:190px; min-height:88px; flex:1 1 180px; max-width:250px; flex-direction:column; gap:2px; background:linear-gradient(180deg,#fff,var(--c-bg1)); }
+.card .note{ font-size:14px; font-weight:400; opacity:.85; }
+.card.gone{ display:none; }
+.bins{ display:flex; gap:18px; justify-content:center; margin-top:18px; flex-wrap:wrap; }
+.bin{
+  flex:1 1 240px; max-width:340px; min-height:130px; border:3px solid var(--c-primary); border-radius:18px;
+  background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+}
+.bin .b-name{ font-size:22px; font-weight:900; color:var(--c-primary-dark); }
+.bin .b-cnt{ font-size:17px; opacity:.8; }
+.bin.hot{ background:var(--c-bg1); box-shadow:0 0 0 4px rgba(255,179,71,.35); }
+
+/* ---------- 增根探究站 ---------- */
+.kslots{ display:flex; gap:14px; align-items:center; justify-content:center; flex-wrap:wrap; margin-top:12px; font-size:26px; font-weight:700; }
+.kslots .slot{ min-width:96px; min-height:70px; }
+.tilerow{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:14px; }
+.tile{ min-width:64px; font-size:24px; }
+.kcrystal{
+  background:radial-gradient(circle at 34% 30%, #fff, var(--c-accent) 60%, var(--c-primary));
+  border-radius:999px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.35); min-width:110px;
+}
+
+/* ---------- 通关小结 / 弹窗 ---------- */
+.done-panel{ border:3px solid var(--c-ok); position:relative; }
+.done-panel h4{ color:var(--c-ok); }
+.stars{ font-size:34px; letter-spacing:6px; margin:2px 0 6px; }
+.final-line{ font-size:21px; font-weight:900; color:var(--c-ok); background:#f0fbf4; border-radius:10px; padding:8px 12px; margin:8px 0; }
+details.solved{ margin-top:8px; }
+details.solved summary{ cursor:pointer; font-weight:700; color:var(--c-primary-dark); font-size:17px; }
+details.solved ol{ margin:6px 0 2px; padding-left:24px; font-size:17px; }
+.modal-mask{
+  position:fixed; inset:0; background:rgba(30,15,5,.5); z-index:1000; display:none;
+  align-items:center; justify-content:center; padding:18px;
+}
+.modal-mask.show{ display:flex; }
+.modal{
+  background:#fff; border-radius:20px; max-width:680px; width:100%; max-height:84vh; overflow:auto;
+  padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.3); border-top:10px solid var(--c-primary);
+}
+.modal h3{ margin:0 0 10px; color:var(--c-primary-dark); font-size:24px; }
+.modal ol{ padding-left:24px; font-size:18px; }
+.modal ol li{ margin-bottom:8px; }
+
+/* ---------- 终章 ---------- */
+.final-wrap{ text-align:center; padding:30px 10px; }
+.final-wrap h2{ font-size:clamp(28px,5vw,42px); color:var(--c-primary-dark); margin:8px 0; }
+.bigstars{ font-size:56px; letter-spacing:10px; }
+.statgrid{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin:18px 0; }
+.stat{
+  background:#fff; border:2px solid var(--c-primary); border-radius:16px; padding:12px 22px; min-width:150px;
+}
+.stat .s-num{ font-size:32px; font-weight:900; color:var(--c-primary-dark); }
+.stat .s-lbl{ font-size:15px; opacity:.8; }
+
+/* ---------- 拖拽幽灵 & 触屏 ---------- */
+#confetti{ position:fixed; inset:0; pointer-events:none; z-index:2000; }
+@media (max-width:720px){
+  body{ font-size:17px; }
+  .fx{ font-size:22px; } .fx.small{ font-size:18px; }
+  .hud{ padding:8px 10px; }
+  .hud-chip{ font-size:15px; padding:4px 9px; }
+  button{ font-size:16px; padding:9px 13px; }
+  .pan{ min-width:110px; }
+  .mult-slot{ width:118px; font-size:17px; }
+  .nline{ min-width:560px; }
+  .assemble .slot{ min-width:92px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 首页：难度选择 ============ -->
+  <section class="screen active" id="screen-home">
+    <h1 class="home-title">分式方程探险号</h1>
+    <p class="home-sub">去分母 · 解整式方程 · 检验增根 —— 三步点亮彩虹桥！（题目选自教参《教材解读》10.5 分式方程）</p>
+    <div class="tier-cards">
+      <div class="tier-card" id="tier-easy" role="button" tabindex="0">
+        <span class="tagline">初级</span>
+        <h3>彩虹浅滩 · 4 关</h3>
+        <p>认识分式方程、学用"最简公分母钥匙"去分母、数轴寻根，还有古驿站送信小应用。</p>
+      </div>
+      <div class="tier-card" id="tier-mid" role="button" tabindex="0">
+        <span class="tagline">中级</span>
+        <h3>智慧海湾 · 4 关</h3>
+        <p>多分母方程去分母挑战，行程问题与销售进货问题的方程装配厂。</p>
+      </div>
+      <div class="tier-card" id="tier-hard" role="button" tabindex="0">
+        <span class="tagline">高级</span>
+        <h3>星辰远航 · 5 关</h3>
+        <p>增根陷阱（检验出无解）、高铁与工程问题，终章"增根探究站"求字母 k 的值。</p>
+      </div>
+    </div>
+    <div class="btnrow" style="margin-top:24px;">
+      <button id="btn-rules-home">玩法说明</button>
+    </div>
+    <p class="home-foot">全部用拖拽操作 · 支持触屏 · 每局配色与关卡顺序随机</p>
+  </section>
+
+  <!-- ============ 游戏屏 ============ -->
+  <section class="screen" id="screen-game">
+    <div class="hud">
+      <div class="hud-left">
+        <span class="hud-title" id="hud-level">第1关</span>
+        <span class="hud-src" id="hud-src"></span>
+        <span class="dots" id="hud-dots"></span>
+      </div>
+      <div class="hud-right">
+        <span class="hud-chip" id="hud-time">用时 00:00</span>
+        <span class="hud-chip" id="hud-steps">操作 0 步</span>
+        <button class="ghost" id="btn-rules">说明</button>
+        <button class="ghost" id="btn-reveal">揭示答案</button>
+        <button class="ghost" id="btn-restart">重新开始</button>
+        <button class="ghost" id="btn-back">返回难度</button>
+      </div>
+    </div>
+    <div class="stagebar" id="stagebar"></div>
+    <div id="stage"></div>
+  </section>
+
+  <!-- ============ 终章 ============ -->
+  <section class="screen" id="screen-final">
+    <div class="final-wrap">
+      <div class="bigstars" id="final-stars">⭐⭐⭐</div>
+      <h2>全部通关，彩虹桥点亮啦！</h2>
+      <div class="statgrid">
+        <div class="stat"><div class="s-num" id="stat-time">00:00</div><div class="s-lbl">总用时</div></div>
+        <div class="stat"><div class="s-num" id="stat-steps">0</div><div class="s-lbl">总操作步数</div></div>
+        <div class="stat"><div class="s-num" id="stat-levels">0</div><div class="s-lbl">完成关卡数</div></div>
+      </div>
+      <div class="btnrow">
+        <button id="btn-again">再玩一次（重新随机）</button>
+        <button class="ghost" id="btn-home2">返回难度选择</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- 规则弹窗 -->
+<div class="modal-mask" id="modal-rules">
+  <div class="modal">
+    <h3>玩法说明 · 分式方程探险号</h3>
+    <ol>
+      <li>目标：驾驶探险号闯关。每一关都是一个<b>分式方程</b>问题，你要亲手完成"去分母 → 解整式方程 → 检验"三步。</li>
+      <li>去分母：天平两端放着方程两边，把正确的<b>最简公分母钥匙</b>拖到中间的乘号槽，两边的分母就会被同时约掉，变成整式方程。</li>
+      <li>解整式方程：把发光的 x 水晶<b>拖到数轴上正确的位置</b>（就是整式方程的解）。</li>
+      <li>检验：把得到的根拖进<b>公分母检测仪</b>——分母不为 0，就把它收入宝箱；若分母为 0，说明它是<b>增根</b>，要送进回收站，此时<b>原方程无解</b>！</li>
+      <li>应用题关卡：先读题和表格，把写好的式子<b>拖进方程空位</b>装配出等量关系，再按"启动天平"检验装配是否正确。</li>
+      <li>右上角实时显示<b>用时</b>和<b>操作步数</b>；每关都可"揭示答案 / 重新开始 / 返回难度"。</li>
+      <li>每一局主色随机、关卡顺序打乱、干扰项随机，多玩几局也不重样。</li>
+      <li>口诀：解分式方程，一去（去分母）、二解（解整式方程）、三检验（代入最简公分母），增根必须舍去。</li>
+    </ol>
+    <div class="btnrow"><button id="btn-rules-ok">开始探险</button></div>
+  </div>
+</div>
+
+<!-- 揭示答案弹窗 -->
+<div class="modal-mask" id="modal-reveal">
+  <div class="modal">
+    <h3>本关完整解析（先自己试试会更棒哦）</h3>
+    <ol id="reveal-list"></ol>
+    <div class="btnrow"><button id="btn-reveal-ok">继续挑战</button></div>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+"use strict";
+/* ============================================================
+   工具函数
+   ============================================================ */
+var $ = function(sel){ return document.querySelector(sel); };
+function shuffle(arr){ // 返回打乱后的新数组
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){
+    var j = Math.floor(Math.random()*(i+1));
+    var t=a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+function pickSome(arr, n){ return shuffle(arr).slice(0, n); } // 随机抽样 n 个
+function pad2(n){ return (n<10?"0":"")+n; }
+
+/* ---------- 分式/式子的小型构造器（数据用） ---------- */
+function F(n,d,sign){ return {kind:"frac", n:n, d:d, sign:sign||""}; }   // 分式项
+function T(v,sign){ return {kind:"txt", v:v, sign:sign||""}; }           // 整式/文本项
+function fracHTML(n,d){ return '<span class="fr"><span class="n">'+n+'</span><span class="d">'+d+'</span></span>'; }
+function termsHTML(terms, small){ // 方程一边的若干项 → HTML
+  var out="";
+  for(var i=0;i<terms.length;i++){
+    var t=terms[i];
+    if(t.sign){ out += '<span class="sg">'+t.sign+'</span>'; }
+    out += (t.kind==="frac" ? fracHTML(t.n,t.d) : '<span class="tx">'+t.v+'</span>');
+  }
+  return '<span class="fx'+(small?" small":"")+'">'+out+'</span>';
+}
+function specHTML(spec, small){ // 单个式子（卡片/筹码用）
+  if(spec.kind==="frac"){ return '<span class="fx'+(small?" small":"")+'">'+fracHTML(spec.n,spec.d)+'</span>'; }
+  return '<span class="fx'+(small?" small":"")+'"><span class="tx">'+spec.v+'</span></span>';
+}
+
+/* ============================================================
+   色板（每局随机一版，满足"配色随机化"）
+   ============================================================ */
+var PALETTES = [
+  {p:"#ff7a45", pd:"#c2531f", ac:"#ffb347", b1:"#fff7f0", b2:"#ffe8d6", ink:"#4a2415"},
+  {p:"#0fb5a6", pd:"#0a7d72", ac:"#7fe0d4", b1:"#eefbfa", b2:"#d1f2ef", ink:"#0f3f3a"},
+  {p:"#f2b705", pd:"#b8860b", ac:"#ffd966", b1:"#fffbe8", b2:"#fff2c0", ink:"#4d3b00"},
+  {p:"#8e6fd8", pd:"#6448b0", ac:"#c3aef2", b1:"#f6f2ff", b2:"#e4daff", ink:"#33215c"},
+  {p:"#f26d9d", pd:"#c4447a", ac:"#ffa8c5", b1:"#fff0f6", b2:"#ffd9e7", ink:"#5a1f3a"},
+  {p:"#4caf50", pd:"#2e7d32", ac:"#a5d6a7", b1:"#f1faf1", b2:"#d7efd8", ink:"#1c3a1e"},
+  {p:"#3d9be9", pd:"#1f6fbb", ac:"#8ecbfb", b1:"#eef7ff", b2:"#d2e9fb", ink:"#14375c"},
+  {p:"#ef6a5a", pd:"#c04233", ac:"#ffb3a7", b1:"#fff3f0", b2:"#ffdfd9", ink:"#59241c"}
+];
+function applyRandomPalette(){
+  var c = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  var r = document.documentElement.style;
+  r.setProperty("--c-primary", c.p);
+  r.setProperty("--c-primary-dark", c.pd);
+  r.setProperty("--c-accent", c.ac);
+  r.setProperty("--c-bg1", c.b1);
+  r.setProperty("--c-bg2", c.b2);
+  r.setProperty("--c-ink", c.ink);
+}
+
+/* ============================================================
+   题库（全部取自教参 10.5 分式方程：典例1~6、9~11，下课练5、8、9）
+   每道题的去分母结果、根、增根均已与教参解析逐题核对。
+   ============================================================ */
+var LEVELS = {
+
+  /* ---------- 分拣关卡：识别分式方程（典例1 思路） ---------- */
+  sort:{
+    type:"sort", theme:"火眼认方程", src:"对应教参·典例1（识别分式方程）",
+    tip:"下面 6 张卡片，哪些是关于 x 的分式方程？拖进对应的收集篮。判断口诀：一要是方程，二要含有分母，三要分母中含有未知数，三者缺一不可。",
+    cards:[
+      { id:"c1", terms:[F("x","3"), T("= 5")], note:"", isFrac:false, why:"第1张 x/3 = 5：分母是 3，不含未知数，是整式方程。" },
+      { id:"c2", terms:[F("3","x"), T("= 1")], note:"", isFrac:true,  why:"第2张 3/x = 1：分母中含有未知数 x，是分式方程。" },
+      { id:"c3", terms:[F("2","x+1"), T("+ 3")], note:"（没有等号）", isFrac:false, why:"第3张 2/(x+1)+3：没有等号，根本不是方程。" },
+      { id:"c4", terms:[F("6","x"), T("− 2 = x")], note:"", isFrac:true,  why:"第4张 6/x − 2 = x：分母中含有未知数 x，是分式方程。" },
+      { id:"c5", terms:[F("x+a","a"), T("= 2")], note:"（a 是已知常数）", isFrac:false, why:"第5张 (x+a)/a = 2：分母中的 a 是已知字母，不是未知数，不算。" },
+      { id:"c6", terms:[F("2x","5"), T("− 1 ="), F("x","10")], note:"", isFrac:false, why:"第6张 2x/5 − 1 = x/10：分母 5、10 都不含未知数。" }
+    ],
+    final:"是分式方程的有 2 张（第2张、第4张）——口诀三者缺一不可。",
+    full:[
+      "判断口诀：是方程、含有分母、分母中含有未知数，三者缺一不可（教参 典例1 答案：2 个）。",
+      "第1张 x/3 = 5：分母是 3，不含未知数 → 不是分式方程。",
+      "第2张 3/x = 1：分母含 x → 是分式方程。",
+      "第3张 2/(x+1) + 3：没有等号，不是方程 → 不是分式方程。",
+      "第4张 6/x − 2 = x：分母含 x → 是分式方程。",
+      "第5张 (x+a)/a = 2（a 是已知常数）：分母中的 a 不是未知数 → 不是分式方程（教参易错警示：别把“已知字母”当成未知数）。",
+      "第6张 2x/5 − 1 = x/10：分母 5、10 不含未知数 → 不是分式方程。"
+    ]
+  },
+
+  /* ---------- 解方程关卡（三步流水线） ---------- */
+  ex4:{
+    type:"solve", theme:"钥匙开锁", src:"对应教参·典例4",
+    brief:"把正确的最简公分母钥匙拖到天平中央，给方程两边同时乘它，去掉分母！",
+    eq:{ L:[F("5","x+2")], R:[F("4","x")] },
+    lcd:"x(x+2)", distractors:["x+2","x","2(x+2)"],
+    intEq:{ L:[T("5x")], R:[T("4(x+2)")] },
+    intSteps:"去括号：5x = 4x + 8 → 移项合并：x = 8",
+    root:8, rootLabel:"8",
+    markPool:[{v:4,l:"4"},{v:6,l:"6"},{v:10,l:"10"},{v:16,l:"16"},{v:20,l:"20"}],
+    lcdCalc:"x(x+2) = 8 × (8+2) = 80",
+    zero:false,
+    hintA:"看看两个分母：x+2 和 x。钥匙必须把所有分母都约掉——各因式一个都不能少。",
+    hintB:"去分母后先去括号，再把含 x 的项移到一边合并同类项。",
+    final:"x = 8 是原分式方程的解",
+    full:[
+      "方程：5/(x+2) = 4/x（教参 典例4）。",
+      "第一步 去分母：最简公分母是 x(x+2)，两边同乘，得 5x = 4(x+2)。",
+      "第二步 解整式方程：5x = 4x + 8，解得 x = 8。",
+      "第三步 检验：当 x = 8 时，x(x+2) = 8×(8+2) = 80 ≠ 0。",
+      "结论：x = 8 是原分式方程的解。"
+    ]
+  },
+  ex5:{
+    type:"solve", theme:"数轴寻根", src:"对应教参·下课练5",
+    brief:"若分式 2/(x−1) 与 1/x 的值相等，x 是多少？先拖钥匙去分母！",
+    eq:{ L:[F("2","x−1")], R:[F("1","x")] },
+    lcd:"x(x−1)", distractors:["x−1","x","x(x+1)"],
+    intEq:{ L:[T("2x")], R:[T("x − 1")] },
+    intSteps:"移项：2x − x = −1 → x = −1",
+    root:-1, rootLabel:"−1",
+    markPool:[{v:-3,l:"−3"},{v:-2,l:"−2"},{v:0,l:"0"},{v:1,l:"1"},{v:2,l:"2"}],
+    lcdCalc:"x(x−1) = (−1)×(−1−1) = (−1)×(−2) = 2",
+    zero:false,
+    hintA:"两个分母 x−1 与 x 互不相同，公分母要把两个因式都包含进去。",
+    hintB:"2x = x − 1，把 x 的项移到左边，常数移到右边。",
+    final:"x = −1 是原分式方程的解",
+    full:[
+      "由分式相等可得方程：2/(x−1) = 1/x（教参 下课练5）。",
+      "第一步 去分母：最简公分母是 x(x−1)，两边同乘，得 2x = x − 1。",
+      "第二步 解整式方程：2x − x = −1，解得 x = −1。",
+      "第三步 检验：当 x = −1 时，x(x−1) = (−1)×(−2) = 2 ≠ 0。",
+      "结论：x = −1（此时两个分式的值都等于 −1）。"
+    ]
+  },
+  ex21:{
+    type:"solve", theme:"双钥大门", src:"对应教参·典例2(1)",
+    brief:"方程右边多了一个“整式 1”，去分母时别忘了给它也乘上公分母！",
+    eq:{ L:[F("x","x+2")], R:[F("2","x−1"), T("1","+")] },
+    lcd:"(x−1)(x+2)", distractors:["(x+1)(x−2)","x+2","x−1"],
+    intEq:{ L:[T("x(x−1)")], R:[T("2(x+2)"), T("(x−1)(x+2)","+")] },
+    intSteps:"右边 = 2x+4+x²+x−2 = x²+3x+2，左边 = x²−x → −4x = 2 → x = −1/2",
+    root:-0.5, rootLabel:"−1/2",
+    markPool:[{v:-2,l:"−2"},{v:-1,l:"−1"},{v:0.5,l:"1/2"},{v:1,l:"1"},{v:1.5,l:"3/2"}],
+    lcdCalc:"(x−1)(x+2) = (−1/2−1)×(−1/2+2) = (−3/2)×(3/2) = −9/4",
+    zero:false,
+    hintA:"分母是 x+2 和 x−1，最简公分母是它们的乘积，别把符号弄反。",
+    hintB:"两边都展开：x²−x = x²+3x+2，x² 消掉，解一次方程。",
+    final:"x = −1/2 是原分式方程的解",
+    full:[
+      "方程：x/(x+2) = 2/(x−1) + 1（教参 典例2(1)）。",
+      "第一步 去分母：最简公分母是 (x−1)(x+2)，两边同乘，得 x(x−1) = 2(x+2) + (x−1)(x+2)。",
+      "第二步 解整式方程：右边 = 2x+4+x²+x−2 = x²+3x+2，左边 = x²−x，所以 x²−x = x²+3x+2，化简 −4x = 2，解得 x = −1/2。",
+      "第三步 检验：当 x = −1/2 时，(x−1)(x+2) = (−3/2)×(3/2) = −9/4 ≠ 0。",
+      "结论：x = −1/2 是原分式方程的解。"
+    ]
+  },
+  ex92:{
+    type:"solve", theme:"系数迷阵", src:"对应教参·下课练9(2)",
+    brief:"分母里藏着系数 3，最简公分母也要把它带上！",
+    eq:{ L:[F("x","x+1")], R:[F("2x","3(x+1)"), T("1","+")] },
+    lcd:"3(x+1)", distractors:["x+1","(x+1)²","x(x+1)"],
+    intEq:{ L:[T("3x")], R:[T("2x"), T("3(x+1)","+")] },
+    intSteps:"3x = 2x+3x+3，即 −2x = 3 → x = −3/2",
+    root:-1.5, rootLabel:"−3/2",
+    markPool:[{v:-3,l:"−3"},{v:-2,l:"−2"},{v:-1,l:"−1"},{v:-0.5,l:"−1/2"},{v:1.5,l:"3/2"}],
+    lcdCalc:"3(x+1) = 3 × (−3/2 + 1) = 3 × (−1/2) = −3/2",
+    zero:false,
+    hintA:"分母 3(x+1) 中，系数 3 也是公分母的一部分。",
+    hintB:"合并右边的 x 项：3x = 5x + 3，再移项。",
+    final:"x = −3/2 是原分式方程的解",
+    full:[
+      "方程：x/(x+1) = 2x/[3(x+1)] + 1（教参 下课练9(2)）。",
+      "第一步 去分母：最简公分母是 3(x+1)，两边同乘，得 3x = 2x + 3(x+1)。",
+      "第二步 解整式方程：3x = 2x+3x+3 = 5x+3，即 −2x = 3，解得 x = −3/2。",
+      "第三步 检验：当 x = −3/2 时，3(x+1) = 3×(−1/2) = −3/2 ≠ 0。",
+      "结论：x = −3/2 是原分式方程的解。"
+    ]
+  },
+  ex22:{
+    type:"solve", theme:"增根陷阱·上", src:"对应教参·典例2(2)",
+    brief:"小心！这一关解出的根可能会让分母变成 0——检验台见分晓。",
+    eq:{ L:[F("x","x−1"), T("1","−")], R:[F("3","(x−1)(x+2)")] },
+    lcd:"(x−1)(x+2)", distractors:["(x+1)(x−2)","x−1","x+2"],
+    intEq:{ L:[T("x(x+2)"), T("(x−1)(x+2)","−")], R:[T("3")] },
+    intSteps:"左边 = x²+2x−(x²+x−2) = x+2 → x+2 = 3 → x = 1",
+    root:1, rootLabel:"1",
+    markPool:[{v:-2,l:"−2"},{v:-1,l:"−1"},{v:0,l:"0"},{v:2,l:"2"},{v:3,l:"3"}],
+    lcdCalc:"(x−1)(x+2) = (1−1)×(1+2) = 0 × 3 = 0",
+    zero:true,
+    hintA:"两个分母是 x−1 与 (x−1)(x+2)，取“每个因式都要有”的乘积，即 (x−1)(x+2)。",
+    hintB:"先算左边的差：x(x+2) − (x−1)(x+2)，平方项会消掉。",
+    final:"x = 1 是增根，舍去 → 原分式方程无解",
+    full:[
+      "方程：x/(x−1) − 1 = 3/[(x−1)(x+2)]（教参 典例2(2)）。",
+      "第一步 去分母：最简公分母是 (x−1)(x+2)，两边同乘，得 x(x+2) − (x−1)(x+2) = 3。",
+      "第二步 解整式方程：x²+2x−(x²+x−2) = 3，即 x + 2 = 3，解得 x = 1。",
+      "第三步 检验：当 x = 1 时，(x−1)(x+2) = 0×3 = 0，分母为 0！",
+      "结论：x = 1 是增根，必须舍去，原分式方程无解。"
+    ]
+  },
+  ex91:{
+    type:"solve", theme:"增根陷阱·下", src:"对应教参·下课练9(1)",
+    brief:"三个分母的方程！钥匙要覆盖所有因式，检验时睁大眼睛。",
+    eq:{ L:[F("4","(x−1)(x+1)"), T("1","+")], R:[F("x−1","x+1")] },
+    lcd:"(x−1)(x+1)", distractors:["(x+1)²","x+1","x−1"],
+    intEq:{ L:[T("4"), T("(x−1)(x+1)","+")], R:[T("(x−1)²")] },
+    intSteps:"4 + x²−1 = x²−2x+1 → 2x = −2 → x = −1",
+    root:-1, rootLabel:"−1",
+    markPool:[{v:-3,l:"−3"},{v:-2,l:"−2"},{v:0,l:"0"},{v:1,l:"1"},{v:2,l:"2"}],
+    lcdCalc:"(x−1)(x+1) = (−1−1)×(−1+1) = (−2)×0 = 0",
+    zero:true,
+    hintA:"x²−1 就是 (x−1)(x+1)，最简公分母保持乘积形式更好约分。",
+    hintB:"两边 x² 会同时消掉，剩下一次方程。",
+    final:"x = −1 是增根，舍去 → 原分式方程无解",
+    full:[
+      "方程：4/[(x−1)(x+1)] + 1 = (x−1)/(x+1)（教参 下课练9(1)）。",
+      "第一步 去分母：最简公分母是 (x−1)(x+1)，两边同乘，得 4 + (x−1)(x+1) = (x−1)²。",
+      "第二步 解整式方程：4 + x²−1 = x²−2x+1，化简 2x = −2，解得 x = −1。",
+      "第三步 检验：当 x = −1 时，(x−1)(x+1) = (−2)×0 = 0，分母为 0！",
+      "结论：x = −1 是增根，舍去，原分式方程无解。"
+    ]
+  },
+
+  /* ---------- 应用题关卡（方程装配厂） ---------- */
+  app3:{
+    type:"app", theme:"古驿站送信", src:"对应教参·典例3（《九章算术》）",
+    problem:[
+      "《九章算术》中有一道古代驿站送信题，白话译文：一份文件，若用慢马送到 900 里远的城市，所需时间比规定时间多 1 天；若改为快马派送，所需时间比规定时间少 3 天。已知快马的速度是慢马的 2 倍（1 里 = 0.5 千米）。",
+      "设规定时间为 x 天。请把表示“速度”的式子拖进空位，装配出正确的方程，再启动天平！"
+    ],
+    table:{ head:["","快马","慢马"], rows:[["路程/里","900","900"],["时间/天","x − 3","x + 1"],["速度/(里/天)","?","?"]] },
+    relation:"等量关系：快马的速度 = 2 × 慢马的速度",
+    tmpl:[{slot:"s0"},{op:"="},{slot:"s1"}],
+    chips:[
+      {id:"a", spec:{kind:"frac",n:"900",d:"x−3"}, ok:"s0"},
+      {id:"b", spec:{kind:"frac",n:"2×900",d:"x+1"}, ok:"s1"},
+      {id:"c", spec:{kind:"frac",n:"900",d:"x+1"}, ok:""},
+      {id:"d", spec:{kind:"frac",n:"2×900",d:"x−3"}, ok:""},
+      {id:"e", spec:{kind:"txt",v:"900(x−3)"}, ok:""},
+      {id:"f", spec:{kind:"frac",n:"x−3",d:"900"}, ok:""}
+    ],
+    solveSteps:["两边同乘 (x−3)(x+1)：900(x+1) = 2×900(x−3)","去括号：900x + 900 = 1800x − 5400","移项：900x = 6300"],
+    root:7, rootLabel:"7",
+    markPool:[{v:4,l:"4"},{v:6,l:"6"},{v:8,l:"8"},{v:10,l:"10"},{v:14,l:"14"}],
+    hint:"对照表格：快马时间 x−3 天、慢马时间 x+1 天，速度 = 路程 ÷ 时间；“快是慢的 2 倍”，2 要乘在慢马速度那一边。",
+    answer:"规定时间为 7 天。检验：(7−3)(7+1) = 32 ≠ 0；快马 225 里/天 = 2 × 慢马 112.5 里/天，符合实际。",
+    full:[
+      "题意：规定时间 x 天；快马用时 (x−3) 天、速度 900/(x−3) 里/天；慢马用时 (x+1) 天、速度 900/(x+1) 里/天（教参 典例3，正确选项 B）。",
+      "等量关系：快马速度 = 2×慢马速度，列方程 900/(x−3) = 2×900/(x+1)。",
+      "去分母：两边同乘 (x−3)(x+1)，得 900(x+1) = 1800(x−3)。",
+      "解整式方程：900x + 900 = 1800x − 5400，即 900x = 6300，解得 x = 7。",
+      "检验：(7−3)(7+1) = 32 ≠ 0，且 225 = 2×112.5，符合实际。",
+      "结论：规定时间为 7 天。"
+    ]
+  },
+  app8:{
+    type:"app", theme:"乘车观景", src:"对应教参·下课练8（南京期末）",
+    problem:[
+      "某班级学生周末乘汽车到游览区游览，游览区距学校 120 km。一部分学生乘慢车先出发，出发 15 分钟后，剩余学生乘快车前往，结果两车同时到达游览区。已知快车速度是慢车速度的 1.2 倍，慢车的速度是多少？",
+      "设慢车速度为 x km/h，则快车速度为 1.2x km/h。提示：慢车用时 − 快车用时 = 15 分钟 = 1/4 小时（注意单位统一！）。"
+    ],
+    table:null,
+    relation:"等量关系：慢车用时 − 快车用时 = 1/4 小时",
+    tmpl:[{slot:"s0"},{op:"−"},{slot:"s1"},{op:"="},{slot:"s2"}],
+    chips:[
+      {id:"a", spec:{kind:"frac",n:"120",d:"x"}, ok:"s0"},
+      {id:"b", spec:{kind:"frac",n:"120",d:"1.2x"}, ok:"s1"},
+      {id:"c", spec:{kind:"frac",n:"1",d:"4"}, ok:"s2"},
+      {id:"d", spec:{kind:"txt",v:"15"}, ok:""},
+      {id:"e", spec:{kind:"frac",n:"1.2×120",d:"x"}, ok:""},
+      {id:"f", spec:{kind:"txt",v:"120x"}, ok:""}
+    ],
+    solveSteps:["两边同乘 1.2x：144 − 120 = 0.3x","即 24 = 0.3x"],
+    root:80, rootLabel:"80",
+    markPool:[{v:60,l:"60"},{v:72,l:"72"},{v:90,l:"90"},{v:96,l:"96"},{v:120,l:"120"}],
+    hint:"谁先出发谁用时多：慢车用时 120/x 在前；差是 15 分钟，但要先化成 1/4 小时才能和“小时”相减。",
+    answer:"慢车速度为 80 km/h。检验：1.2x = 96 ≠ 0；慢车用时 1.5 h、快车 1.25 h，相差 15 分钟，符合实际。",
+    full:[
+      "题意：路程 120 km；慢车速度 x km/h、快车 1.2x km/h；慢车早 15 分钟出发且同时到达（教参 下课练8）。",
+      "等量关系：慢车用时 − 快车用时 = 15 分钟 = 1/4 小时，列方程 120/x − 120/(1.2x) = 1/4。",
+      "去分母：两边同乘 1.2x，得 144 − 120 = 0.3x。",
+      "解整式方程：24 = 0.3x，解得 x = 80。",
+      "检验：1.2x = 96 ≠ 0；120/80 = 1.5 h，120/96 = 1.25 h，1.5 − 1.25 = 0.25 h = 15 分钟，符合实际。",
+      "结论：慢车速度为 80 km/h。"
+    ]
+  },
+  app11:{
+    type:"app", theme:"干果进货", src:"对应教参·典例11(1)",
+    problem:[
+      "某超市用 3000 元购进某种干果销售，由于销售状况良好，超市又调拨 9000 元资金购进该种干果，但这次的进价比第一次的进价提高了 20%，购进干果的质量比第一次质量的 2 倍还多 300 千克。该种干果第一次的进价是每千克多少元？",
+      "设第一次进价为 x 元/千克，则第二次进价为 (1+20%)x 元/千克。装配等量关系：第二次质量 = 第一次质量 × 2 + 300。"
+    ],
+    table:{ head:["","第一次进货","第二次进货"], rows:[["进价/(元/千克)","x","(1+20%)x"],["货款/元","3000","9000"],["质量/千克","3000/x","?"]] },
+    relation:"等量关系：第二次质量 = 2 × 第一次质量 + 300",
+    tmpl:[{slot:"s0"},{op:"="},{slot:"s1"},{op:"+"},{slot:"s2"}],
+    chips:[
+      {id:"a", spec:{kind:"frac",n:"9000",d:"(1+20%)x"}, ok:"s0"},
+      {id:"b", spec:{kind:"frac",n:"2×3000",d:"x"}, ok:"s1"},
+      {id:"c", spec:{kind:"txt",v:"300"}, ok:"s2"},
+      {id:"d", spec:{kind:"frac",n:"3000",d:"x"}, ok:""},
+      {id:"e", spec:{kind:"frac",n:"2×9000",d:"x"}, ok:""},
+      {id:"f", spec:{kind:"frac",n:"9000",d:"x+300"}, ok:""}
+    ],
+    solveSteps:["两边同乘 (1+20%)x：9000 = 7200 + 360x","移项：1800 = 360x"],
+    root:5, rootLabel:"5",
+    markPool:[{v:4,l:"4"},{v:6,l:"6"},{v:10,l:"10"},{v:20,l:"20"},{v:25,l:"25"}],
+    hint:"质量 = 货款 ÷ 进价：第一次 3000/x，第二次 9000/[(1+20%)x]；“2 倍还多 300”对应 ×2 和 +300 两项。",
+    answer:"第一次进价为 5 元/千克。检验：(1+20%)×5 = 6 ≠ 0；第一次 600 千克、第二次 1500 千克 = 600×2+300，符合实际。",
+    full:[
+      "题意：第一次货款 3000 元、进价 x 元/千克；第二次货款 9000 元、进价 (1+20%)x；第二次质量 = 第一次质量×2 + 300（教参 典例11(1)）。",
+      "等量关系：9000/[(1+20%)x] = 2×3000/x + 300。",
+      "去分母：两边同乘 (1+20%)x，得 9000 = 7200 + 360x。",
+      "解整式方程：1800 = 360x，解得 x = 5。",
+      "检验：(1+20%)×5 = 6 ≠ 0；第一次 600 千克、第二次 1500 千克 = 600×2+300，符合实际。",
+      "结论：第一次进价为 5 元/千克。"
+    ]
+  },
+  app9:{
+    type:"app", theme:"高铁之旅", src:"对应教参·典例9（徐州中考）",
+    problem:[
+      "徐州至北京的高铁里程约为 700 km。甲、乙两人从徐州出发，分别乘坐“徐州号”高铁 A 与“复兴号”高铁 B 前往北京。已知 A 车的平均速度比 B 车的平均速度慢 80 km/h，A 车的行驶时间比 B 车的行驶时间多 40%。两车的行驶时间分别是多少？",
+      "设 A 车平均速度为 x km/h，则 B 车为 (x+80) km/h。装配等量关系：A 车时间 = (1+40%) × B 车时间。"
+    ],
+    table:null,
+    relation:"等量关系：A 车时间 = (1+40%) × B 车时间",
+    tmpl:[{slot:"s0"},{op:"="},{slot:"s1"}],
+    chips:[
+      {id:"a", spec:{kind:"frac",n:"700",d:"x"}, ok:"s0"},
+      {id:"b", spec:{kind:"frac",n:"(1+40%)×700",d:"x+80"}, ok:"s1"},
+      {id:"c", spec:{kind:"frac",n:"700",d:"x+80"}, ok:""},
+      {id:"d", spec:{kind:"frac",n:"(1+40%)×700",d:"x"}, ok:""},
+      {id:"e", spec:{kind:"txt",v:"700(x+80)"}, ok:""},
+      {id:"f", spec:{kind:"frac",n:"80",d:"x"}, ok:""}
+    ],
+    solveSteps:["两边同乘 x(x+80)：700(x+80) = 1.4×700x","去括号：700x + 56000 = 980x","移项：280x = 56000"],
+    root:200, rootLabel:"200",
+    markPool:[{v:80,l:"80"},{v:120,l:"120"},{v:280,l:"280"},{v:350,l:"350"},{v:400,l:"400"}],
+    hint:"时间 = 路程 ÷ 速度：A 车 700/x、B 车 700/(x+80)；A 车更慢所以时间更长，(1+40%) 应乘在 B 车时间上。",
+    answer:"x = 200：A 车时间 = 700÷200 = 3.5 h，B 车时间 = 700÷280 = 2.5 h。检验：200×280 ≠ 0，3.5 = 1.4×2.5，符合实际。",
+    full:[
+      "题意：里程 700 km；A 车速度 x km/h、B 车 (x+80) km/h；A 车时间比 B 车多 40%（教参 典例9）。",
+      "等量关系：700/x = (1+40%)×700/(x+80)。",
+      "去分母：两边同乘 x(x+80)，得 700(x+80) = 980x。",
+      "解整式方程：700x + 56000 = 980x，即 280x = 56000，解得 x = 200。",
+      "检验：x(x+80) = 200×280 ≠ 0；A 车 3.5 h = 1.4×2.5 h，符合实际。",
+      "结论：A 车行驶 3.5 小时，B 车行驶 2.5 小时。"
+    ]
+  },
+  app10:{
+    type:"app", theme:"街道改造", src:"对应教参·典例10（工程问题）",
+    problem:[
+      "某市区一条主要街道的改造工程有甲、乙两个工程队投标。经测算，若两个工程队共同工作，恰好 12 天能够完成任务；若两队共同工作 9 天后，剩下的任务由甲队单独完成，则还需 5 天。从缩短工期的角度考虑，应该选择哪个工程队？",
+      "思路提示：把总工作量看作 1。两队合作每天完成 1/12，合作 9 天完成 9/12；设甲队单独完成需 x 天，每天完成 1/x，5 天完成 5/x。装配等量关系：合作 9 天的量 + 甲 5 天的量 = 总量 1。"
+    ],
+    table:null,
+    relation:"等量关系：合作 9 天的工作量 + 甲队 5 天的工作量 = 1",
+    tmpl:[{slot:"s0"},{op:"+"},{slot:"s1"},{op:"="},{slot:"s2"}],
+    chips:[
+      {id:"a", spec:{kind:"frac",n:"9",d:"12"}, ok:"s0"},
+      {id:"b", spec:{kind:"frac",n:"5",d:"x"}, ok:"s1"},
+      {id:"c", spec:{kind:"txt",v:"1"}, ok:"s2"},
+      {id:"d", spec:{kind:"frac",n:"12",d:"9"}, ok:""},
+      {id:"e", spec:{kind:"frac",n:"x",d:"5"}, ok:""},
+      {id:"f", spec:{kind:"frac",n:"1",d:"12"}, ok:""},
+      {id:"g", spec:{kind:"txt",v:"5"}, ok:""}
+    ],
+    solveSteps:["两边同乘 12x：9x + 60 = 12x","移项：3x = 60"],
+    root:20, rootLabel:"20",
+    markPool:[{v:12,l:"12"},{v:15,l:"15"},{v:24,l:"24"},{v:30,l:"30"},{v:60,l:"60"}],
+    hint:"工作量 = 效率 × 时间：合作 9 天是 9×(1/12) = 9/12，甲 5 天是 5×(1/x) = 5/x，总量记作 1。",
+    answer:"甲队单独需 20 天；乙队每天完成 1/12 − 1/20 = 1/30，单独需 30 天。20 < 30，从缩短工期考虑应选甲队。",
+    full:[
+      "题意：两队合作 12 天完成；合作 9 天后甲队再单独 5 天完成。设甲队单独完成需 x 天（教参 典例10）。",
+      "把总量看作 1：合作每天 1/12，9 天完成 9/12；甲每天 1/x，5 天完成 5/x。",
+      "等量关系：9/12 + 5/x = 1。",
+      "去分母：两边同乘 12x，得 9x + 60 = 12x。",
+      "解整式方程：3x = 60，解得 x = 20；乙队单独需 1÷(1/12 − 1/20) = 30 天。",
+      "检验：12x = 240 ≠ 0；20 天 < 30 天，结论：从缩短工期考虑应选甲队。"
+    ]
+  },
+
+  /* ---------- 增根探究站（典例6：增根求字母 k） ---------- */
+  det6:{
+    type:"det", theme:"增根探究站", src:"对应教参·典例6（增根求 k）",
+    eq:{ L:[F("1","x−3"), F("k","x+3","+")], R:[F("k+3","x²−9")] },
+    given:"已知：关于 x 的方程有增根。增根从哪里来？——令最简公分母 x²−9 = 0！",
+    tiles:[{v:"3"},{v:"−3"},{v:"9"},{v:"−9"},{v:"0"}],
+    correctPair:{a:3, b:-3},
+    derive:"两边同乘 x²−9 去分母：(x+3) + k(x−3) = k+3，整理得 (k+1)x = 4k",
+    subA:"把 x = 3 代入：3(k+1) = 4k → 3k+3 = 4k → k = 3",
+    subB:"把 x = −3 代入：−3(k+1) = 4k → −3k−3 = 4k → −7k = 3 → k = −3/7",
+    final:"k = 3 或 k = −3/7（两个值都会让方程产生增根）",
+    full:[
+      "方程：1/(x−3) + k/(x+3) = (k+3)/(x²−9)，已知它有增根（教参 典例6）。",
+      "第一步 找增根：令最简公分母 x²−9 = 0，得 x = 3 或 x = −3。",
+      "第二步 转化：两边同乘 x²−9，得 (x+3) + k(x−3) = k+3，整理得 (k+1)x = 4k。",
+      "第三步 代入求值：x = 3 时，3(k+1) = 4k，解得 k = 3；x = −3 时，−3(k+1) = 4k，即 −7k = 3，解得 k = −3/7。",
+      "检验：k = 3 时整式方程的解恰为 x = 3；k = −3/7 时解恰为 x = −3，都使 x²−9 = 0，确为增根。",
+      "结论：k = 3 或 k = −3/7。"
+    ]
+  }
+};
+
+/* 难度分档：初级=例题级，中级=练习级，高级=变式/综合级 */
+var TIERS = {
+  easy:{ label:"初级", name:"彩虹浅滩", levels:["sort","ex4","ex5","app3"], fixedFirst:"sort" },
+  mid: { label:"中级", name:"智慧海湾", levels:["ex21","ex92","app8","app11"], fixedFirst:"" },
+  hard:{ label:"高级", name:"星辰远航", levels:["ex22","ex91","app9","app10","det6"], fixedFirst:"" }
+};
+
+/* ============================================================
+   全局状态
+   ============================================================ */
+var state = {
+  tierKey:null, order:[], idx:0, steps:0, seconds:0, timerId:null,
+  levelWrong:0, done:0, rulesShown:false, busy:false
+};
+
+function addStep(){ state.steps++; $("#hud-steps").textContent = "操作 " + state.steps + " 步"; }
+function addWrong(){ state.levelWrong++; state.steps++; $("#hud-steps").textContent = "操作 " + state.steps + " 步"; }
+
+function startTimer(){
+  stopTimer();
+  state.timerId = setInterval(function(){
+    state.seconds++;
+    $("#hud-time").textContent = "用时 " + pad2(Math.floor(state.seconds/60)) + ":" + pad2(state.seconds%60);
+  }, 1000);
+}
+function stopTimer(){ if(state.timerId){ clearInterval(state.timerId); state.timerId=null; } }
+
+function showScreen(id){
+  var list = document.querySelectorAll(".screen");
+  for(var i=0;i<list.length;i++){ list[i].classList.remove("active"); }
+  $("#"+id).classList.add("active");
+}
+
+/* ============================================================
+   拖拽引擎（Pointer Events，鼠标 + 触屏通用）
+   ============================================================ */
+var DZones = []; // 已注册的放置区 {el, id}
+function addZone(el, id){
+  DZones.push({el:el, id:id});
+  el.classList.add("dz");
+}
+function clearZones(){ DZones = []; }
+function zoneAt(x,y){
+  for(var i=0;i<DZones.length;i++){
+    var r = DZones[i].el.getBoundingClientRect();
+    if(x>=r.left && x<=r.right && y>=r.top && y<=r.bottom){ return DZones[i]; }
+  }
+  return null;
+}
+/* 让元素可拖拽；payload 会原样传给 onDrop */
+function makeDraggable(el, payload){
+  el.addEventListener("pointerdown", function(ev){
+    if(state.busy || el.classList.contains("locked") || el.classList.contains("gone")){ return; }
+    ev.preventDefault();
+    var ghost = el.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    ghost.style.width = el.getBoundingClientRect().width + "px";
+    document.body.appendChild(ghost);
+    el.classList.add("drag-src");
+    function moveGhost(e){
+      ghost.style.left = e.clientX + "px";
+      ghost.style.top  = e.clientY + "px";
+    }
+    moveGhost(ev);
+    var zoneHot = null;
+    function onMove(e){
+      moveGhost(e);
+      var z = zoneAt(e.clientX, e.clientY);
+      if(zoneHot && zoneHot !== z){ zoneHot.el.classList.remove("hot"); }
+      zoneHot = z;
+      if(z){ z.el.classList.add("hot"); }
+    }
+    function onUp(e){
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      ghost.remove();
+      el.classList.remove("drag-src");
+      if(zoneHot){ zoneHot.el.classList.remove("hot"); }
+      var z = zoneAt(e.clientX, e.clientY);
+      if(z && DZONES.onDrop){ DZONES.onDrop(payload, z.id, el); }
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  });
+}
+var DZONES = { onDrop:null }; // 当前关卡的放置回调
+
+/* ============================================================
+   HUD / 步骤条 / 弹窗
+   ============================================================ */
+function renderHUD(){
+  var t = TIERS[state.tierKey];
+  $("#hud-level").textContent = t.label + "·" + t.name + " 第" + (state.idx+1) + "关：" + LEVELS[state.order[state.idx]].theme;
+  $("#hud-src").textContent = LEVELS[state.order[state.idx]].src;
+  var dots = "";
+  for(var i=0;i<state.order.length;i++){
+    dots += '<span class="dot ' + (i<state.done ? "done" : (i===state.idx ? "now" : "")) + '"></span>';
+  }
+  $("#hud-dots").innerHTML = dots;
+}
+function setStages(names, activeIdx){
+  var h = "";
+  for(var i=0;i<names.length;i++){
+    h += '<div class="stage ' + (i<activeIdx ? "did" : (i===activeIdx ? "on" : "")) + '">' + names[i] + '</div>';
+  }
+  $("#stagebar").innerHTML = h;
+}
+function hint(text, kind){
+  var el = $("#hintline");
+  if(!el){ return; }
+  el.textContent = text;
+  el.className = "hintline " + (kind||"");
+}
+function openModal(id){ $("#"+id).classList.add("show"); }
+function closeModal(id){ $("#"+id).classList.remove("show"); }
+
+/* ============================================================
+   开始一局
+   ============================================================ */
+function startGame(tierKey){
+  state.tierKey = tierKey;
+  var t = TIERS[tierKey];
+  var order = shuffle(t.levels);
+  if(t.fixedFirst){ // 初级把"识别"关固定在第一
+    order = [t.fixedFirst].concat(order.filter(function(x){ return x !== t.fixedFirst; }));
+  }
+  state.order = order;
+  state.idx = 0; state.steps = 0; state.seconds = 0; state.done = 0;
+  $("#hud-time").textContent = "用时 00:00";
+  $("#hud-steps").textContent = "操作 0 步";
+  applyRandomPalette(); // 每局随机主色
+  showScreen("screen-game");
+  startTimer();
+  loadLevel();
+  if(!state.rulesShown){
+    state.rulesShown = true;
+    openModal("modal-rules");
+  }
+}
+function loadLevel(){
+  state.levelWrong = 0;
+  state.busy = false;
+  clearZones();
+  DZONES.onDrop = null;
+  renderHUD();
+  var L = LEVELS[state.order[state.idx]];
+  if(L.type === "sort"){ renderSort(L); }
+  else if(L.type === "solve"){ renderSolve(L); }
+  else if(L.type === "app"){ renderApp(L); }
+  else { renderDet(L); }
+}
+
+/* 通关某关后的小结面板 */
+function levelDone(L, headline){
+  state.busy = true;
+  var stars = state.levelWrong === 0 ? 3 : (state.levelWrong <= 3 ? 2 : 1);
+  var li = "";
+  for(var i=0;i<L.full.length;i++){ li += "<li>"+L.full[i]+"</li>"; }
+  var panel = document.createElement("div");
+  panel.className = "panel done-panel pop";
+  panel.innerHTML =
+    '<h4>本关完成！</h4>'+
+    '<div class="stars">' + "⭐".repeat(stars) + "☆".repeat(3-stars) + '</div>'+
+    '<div class="final-line">'+ headline +'</div>'+
+    '<details class="solved"><summary>查看完整解析</summary><ol>'+ li +'</ol></details>'+
+    '<div class="btnrow"><button id="btn-next">'+ (state.idx < state.order.length-1 ? "下一关 →" : "通关结算 →") +'</button></div>';
+  $("#stage").appendChild(panel);
+  panel.scrollIntoView({behavior:"smooth", block:"nearest"});
+  $("#btn-next").addEventListener("click", function(){
+    state.done++;
+    if(state.idx < state.order.length-1){
+      state.idx++;
+      loadLevel();
+    }else{
+      finishGame();
+    }
+  });
+}
+function finishGame(){
+  stopTimer();
+  $("#stat-time").textContent = pad2(Math.floor(state.seconds/60)) + ":" + pad2(state.seconds%60);
+  $("#stat-steps").textContent = state.steps;
+  $("#stat-levels").textContent = state.order.length;
+  $("#final-stars").textContent = "🏆🌟🎉";
+  showScreen("screen-final");
+  confettiBurst(4200);
+}
+
+/* ============================================================
+   关卡一：分拣卡片（识别分式方程）
+   ============================================================ */
+function renderSort(L){
+  setStages(["分拣卡片"], 0);
+  var cardsHTML = "";
+  for(var i=0;i<L.cards.length;i++){
+    var c = L.cards[i];
+    cardsHTML += '<div class="card" id="card-'+c.id+'">'+ termsHTML(c.terms) +
+                 (c.note ? '<span class="note">'+c.note+'</span>' : "") + '</div>';
+  }
+  $("#stage").innerHTML =
+    '<div class="panel"><h4>第1步 · 把卡片拖进收集篮</h4>'+
+    '<p class="problem-text">'+ L.tip +'</p>'+
+    '<div class="cards-grid">'+ cardsHTML +'</div>'+
+    '<div class="bins">'+
+      '<div class="bin" id="bin-yes"><span class="b-ico">🎁</span><span class="b-name">是分式方程</span><span class="b-cnt" id="cnt-yes">已收 0 张</span></div>'+
+      '<div class="bin" id="bin-no"><span class="b-ico">🧺</span><span class="b-name">不是分式方程</span><span class="b-cnt" id="cnt-no">已收 0 张</span></div>'+
+    '</div>'+
+    '<div class="hintline" id="hintline">拖一拖试试：先看有没有等号，再看分母里有没有未知数 x。</div></div>';
+  var cnt = {yes:0, no:0};
+  addZone($("#bin-yes"), "bin-yes");
+  addZone($("#bin-no"), "bin-no");
+  DZONES.onDrop = function(payload, zoneId, el){
+    var card = L.cards[payload.i];
+    var wantYes = (zoneId === "bin-yes");
+    if(wantYes === card.isFrac){
+      addStep();
+      cnt[card.isFrac ? "yes" : "no"]++;
+      $("#cnt-yes").textContent = "已收 " + cnt.yes + " 张";
+      $("#cnt-no").textContent = "已收 " + cnt.no + " 张";
+      el.classList.add("gone");
+      hint(card.why, "good");
+      if(cnt.yes + cnt.no === L.cards.length){
+        setTimeout(function(){ levelDone(L, L.final); }, 500);
+      }
+    }else{
+      addWrong();
+      el.classList.add("shake");
+      setTimeout(function(){ el.classList.remove("shake"); }, 500);
+      hint("再想想：它是方程吗？分母中含有未知数 x 吗？", "bad");
+    }
+  };
+  for(var k=0;k<L.cards.length;k++){
+    makeDraggable($("#card-"+L.cards[k].id), {i:k});
+  }
+}
+
+/* ============================================================
+   关卡二：解分式方程流水线（钥匙 → 数轴 → 检测仪）
+   ============================================================ */
+function renderSolve(L){
+  setStages(["一去·分母","二解·整式方程","三检验·增根"], 0);
+  $("#stage").innerHTML =
+    '<div class="panel"><h4>第1步 · 去分母：把"最简公分母钥匙"拖到乘号槽</h4>'+
+    '<p class="problem-text">'+ L.brief +'</p>'+
+    '<div class="scale-wrap">'+
+      '<div class="scale-beam"></div>'+
+      '<div class="scale-cols">'+
+        '<div class="pan" id="panL">'+ termsHTML(L.eq.L) +'</div>'+
+        '<div class="scale-mid"><span class="eqmark">×</span><div class="mult-slot" id="keyslot">拖钥匙到这里<br>（两边同乘…）</div><div class="scale-post"></div></div>'+
+        '<div class="pan" id="panR">'+ termsHTML(L.eq.R) +'</div>'+
+      '</div>'+
+      '<div class="scale-base"></div>'+
+    '</div>'+
+    '<div class="keyrow" id="keyrow"></div>'+
+    '<div class="hintline" id="hintline">'+ (L.hintA||"") +'</div></div>';
+
+  /* 生成钥匙（正确钥匙 + 干扰项，随机排列） */
+  var keys = shuffle([{k:L.lcd, ok:true}].concat(L.distractors.map(function(d){ return {k:d, ok:false}; })));
+  var kh = "";
+  for(var i=0;i<keys.length;i++){
+    kh += '<div class="keycard" data-ki="'+i+'">'+ keys[i].k +'</div>';
+  }
+  $("#keyrow").innerHTML = kh;
+  addZone($("#keyslot"), "keyslot");
+  DZONES.onDrop = function(payload, zoneId){
+    if(zoneId !== "keyslot" || state.busy){ return; }
+    var key = keys[payload.i];
+    if(key.ok){
+      state.busy = true;
+      addStep();
+      hint("好钥匙！两边同乘 "+ L.lcd +"，分母正在被约掉……", "good");
+      var fr = $("#stage").querySelectorAll(".fx .fr");
+      for(var j=0;j<fr.length;j++){ fr[j].classList.add("zap"); }
+      setTimeout(function(){
+        $("#panL").innerHTML = '<div class="pop">'+ termsHTML(L.intEq.L) +'</div>';
+        $("#panR").innerHTML = '<div class="pop">'+ termsHTML(L.intEq.R) +'</div>';
+        $("#keyslot").innerHTML = "已乘 " + L.lcd;
+        state.busy = false;
+        solveStage2(L);
+      }, 560);
+    }else{
+      addWrong();
+      $("#keyslot").classList.add("shake");
+      setTimeout(function(){ $("#keyslot").classList.remove("shake"); }, 500);
+      hint("这把钥匙约不干净所有分母哦。"+ (L.hintA||""), "bad");
+    }
+  };
+  var kc = $("#stage").querySelectorAll(".keycard");
+  for(var m=0;m<kc.length;m++){
+    makeDraggable(kc[m], {i:parseInt(kc[m].getAttribute("data-ki"),10)});
+  }
+}
+
+/* 第2步：数轴寻根 */
+function solveStage2(L){
+  setStages(["一去·分母","二解·整式方程","三检验·增根"], 1);
+  var oldHint = document.getElementById("hintline");
+  if(oldHint){ oldHint.removeAttribute("id"); } // 提示条编号转移给新面板
+  var marks = shuffle(L.markPool).slice(0,4).concat([{v:L.root, l:L.rootLabel}]);
+  marks.sort(function(a,b){ return a.v - b.v; }); // 数轴按大小排列
+  var wrap = document.createElement("div");
+  wrap.className = "panel pop";
+  wrap.innerHTML =
+    '<h4>第2步 · 解整式方程：把 x 水晶拖到数轴上它的位置</h4>'+
+    '<p class="problem-text">去分母得到整式方程，解它：'+ L.intSteps +'　—— x 是多少？把水晶拖到正确刻度上！</p>'+
+    '<div class="nline-outer"><div class="nline" id="nline"></div></div>'+
+    '<div class="hintline" id="hintline">'+ (L.hintB||"") +'</div>';
+  $("#stage").appendChild(wrap);
+  buildNumberLine($("#nline"), marks, L.root, function(){
+    checkStage3(L);
+  });
+  wrap.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+/* 通用：数轴 + 可拖水晶；拖对调用 onWin */
+function buildNumberLine(box, marks, rootValue, onWin){
+  var lo = marks[0].v, hi = marks[marks.length-1].v;
+  var padV = (hi - lo) * 0.12 + 0.4;
+  var lo2 = lo - padV, hi2 = hi + padV;
+  var h = '<div class="axis"></div>';
+  for(var i=0;i<marks.length;i++){
+    var pct = 4 + (marks[i].v - lo2) / (hi2 - lo2) * 92;
+    h += '<div class="mark" style="left:'+pct+'%"><span class="lbl">'+marks[i].l+'</span></div>';
+  }
+  h += '<div class="crystal" id="crystal" style="left:8%">x</div>';
+  box.innerHTML = h;
+  var crystal = $("#crystal");
+  var done = false;
+  crystal.addEventListener("pointerdown", function(ev){
+    if(done || state.busy){ return; }
+    ev.preventDefault();
+    var rect = box.getBoundingClientRect();
+    function pctOf(x){ return Math.max(2, Math.min(98, (x - rect.left) / rect.width * 100)); }
+    function onMove(e){
+      crystal.style.left = pctOf(e.clientX) + "%";
+    }
+    function onUp(e){
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      var p = pctOf(e.clientX);
+      var best = null, bestDist = 1e9;
+      for(var i=0;i<marks.length;i++){
+        var mp = 4 + (marks[i].v - lo2) / (hi2 - lo2) * 92;
+        if(Math.abs(mp - p) < bestDist){ bestDist = Math.abs(mp - p); best = marks[i]; }
+      }
+      var bp = 4 + (best.v - lo2) / (hi2 - lo2) * 92;
+      crystal.style.left = bp + "%";
+      if(best.v === rootValue){
+        done = true;
+        crystal.classList.add("locked","win");
+        addStep();
+        setTimeout(onWin, 700);
+      }else{
+        addWrong();
+        hint("位置不对，再算一算：先去括号、移项、合并同类项，求出 x 的值。", "bad");
+        crystal.classList.add("shake");
+        setTimeout(function(){ crystal.classList.remove("shake"); }, 500);
+      }
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+}
+
+/* 第3步：检验（公分母检测仪 + 宝箱/回收站） */
+function checkStage3(L){
+  setStages(["一去·分母","二解·整式方程","三检验·增根"], 2);
+  var oldHint = document.getElementById("hintline");
+  if(oldHint){ oldHint.removeAttribute("id"); } // 提示条编号转移给新面板
+  var wrap = document.createElement("div");
+  wrap.className = "panel pop";
+  wrap.innerHTML =
+    '<h4>第3步 · 检验：这颗根能收下吗？</h4>'+
+    '<p class="problem-text">把根 x = '+ L.rootLabel +' 拖进"公分母检测仪"，看看代入 '+ L.lcd +' 后是不是 0。</p>'+
+    '<div class="test-row">'+
+      '<div class="machine" id="tester"><div class="m-title">公分母检测仪</div><div class="m-slot" id="testslot">放入根</div><div class="m-out" id="testout">待检测…</div></div>'+
+    '</div>'+
+    '<div class="btnrow" id="targets" style="display:none">'+
+      '<div class="target" id="tgt-box"><span class="t-ico">🎁</span>收入宝箱<div style="font-size:15px;font-weight:400">它是原方程的解</div></div>'+
+      '<div class="target" id="tgt-bin"><span class="t-ico">♻️</span>送入回收站<div style="font-size:15px;font-weight:400">它是增根，必须舍去</div></div>'+
+    '</div>'+
+    '<div class="hintline" id="hintline">先检测，再决定去宝箱还是回收站。</div>';
+  $("#stage").appendChild(wrap);
+  var orb = document.createElement("div");
+  orb.className = "orb";
+  orb.innerHTML = '<span class="fx"><span class="tx">x = '+ L.rootLabel +'</span></span>';
+  orb.style.margin = "14px auto 0";
+  orb.style.width = "max-content";
+  wrap.insertBefore(orb, wrap.querySelector(".test-row"));
+  addZone($("#testslot"), "testslot");
+  var tested = false;
+  DZONES.onDrop = function(payload, zoneId, el){
+    if(state.busy){ return; }
+    if(zoneId === "testslot" && !tested){
+      tested = true;
+      addStep();
+      el.classList.add("locked");
+      $("#testslot").innerHTML = "x = " + L.rootLabel;
+      state.busy = true;
+      setTimeout(function(){
+        $("#testout").textContent = L.lcdCalc + (L.zero ? "  → 分母为 0！" : "  → 分母不为 0");
+        $("#tester").classList.add(L.zero ? "alarm" : "pass");
+        hint(L.zero ? "警报：分母为 0，x = "+ L.rootLabel +" 是增根！它不是原方程的根。" :
+                      "分母不为 0，x = "+ L.rootLabel +" 不是增根，可以收下！", L.zero ? "bad" : "good");
+        state.busy = false;
+        el.remove();
+        var orb2 = document.createElement("div");
+        orb2.className = "orb pop";
+        orb2.id = "orb2";
+        orb2.innerHTML = '<span class="fx"><span class="tx">x = '+ L.rootLabel +'</span></span>';
+        orb2.style.margin = "12px auto 0";
+        orb2.style.width = "max-content";
+        wrap.insertBefore(orb2, wrap.querySelector(".btnrow"));
+        $("#targets").style.display = "flex";
+        addZone($("#tgt-box"), "tgt-box");
+        addZone($("#tgt-bin"), "tgt-bin");
+        makeDraggable(orb2, {kind:"orb"});
+        DZONES.onDrop = function(p2, zoneId2, el2){
+          if(p2.kind !== "orb"){ return; }
+          var wantBin = L.zero;
+          if((zoneId2 === "tgt-bin") === wantBin){
+            addStep();
+            el2.remove();
+            levelDone(L, L.final);
+          }else{
+            addWrong();
+            el2.classList.add("shake");
+            setTimeout(function(){ el2.classList.remove("shake"); }, 500);
+            hint(L.zero ? "分母都是 0 了，这颗是增根，不能收哦！" : "分母不为 0，它是真根，别丢掉！", "bad");
+          }
+        };
+      }, 900);
+      return;
+    }
+  };
+  makeDraggable(orb, {kind:"root"});
+}
+
+/* ============================================================
+   关卡三：应用题装配厂
+   ============================================================ */
+function renderApp(L){
+  setStages(["装配方程","解方程·检验"], 0);
+  var tbl = "";
+  if(L.table){
+    var rows = "";
+    for(var r=0;r<L.table.rows.length;r++){
+      rows += "<tr><th>"+ L.table.rows[r][0] +"</th>";
+      for(var c=1;c<L.table.rows[r].length;c++){ rows += "<td>"+ L.table.rows[r][c] +"</td>"; }
+      rows += "</tr>";
+    }
+    tbl = '<table class="qtable"><tr><th>'+ L.table.head[0] +'</th><th>'+ L.table.head[1] +'</th><th>'+ L.table.head[2] +'</th></tr>'+ rows +'</table>';
+  }
+  var probs = "";
+  for(var i=0;i<L.problem.length;i++){ probs += '<p class="problem-text">'+ L.problem[i] +'</p>'; }
+  var tmpl = "";
+  for(var t=0;t<L.tmpl.length;t++){
+    var it = L.tmpl[t];
+    tmpl += it.op ? '<span class="op">'+ it.op +'</span>'
+                   : '<div class="slot" id="'+ it.slot +'">空位</div>';
+  }
+  $("#stage").innerHTML =
+    '<div class="panel"><h4>第1步 · 装配方程：把式子拖进空位</h4>'+
+    probs + tbl +
+    '<div class="relation">'+ L.relation +'</div>'+
+    '<div class="assemble" style="margin-top:12px">'+ tmpl +'</div>'+
+    '<div class="chip-tray" id="tray" style="margin-top:12px"></div>'+
+    '<div class="btnrow"><button id="btn-launch">启动天平 ⚖️</button></div>'+
+    '<div class="hintline" id="hintline">'+ L.hint +'</div></div>';
+
+  /* 筹码（随机顺序） */
+  var chips = shuffle(L.chips);
+  var placed = {}; // slotId -> chipId
+  function renderTray(){
+    var h = "";
+    for(var i=0;i<chips.length;i++){
+      var c = chips[i];
+      var used = false;
+      for(var s in placed){ if(placed[s] === c.id){ used = true; } }
+      if(used){ continue; }
+      h += '<div class="chip" data-cid="'+ c.id +'">'+ specHTML(c.spec, true) +'</div>';
+    }
+    $("#tray").innerHTML = h;
+    var els = $("#tray").querySelectorAll(".chip");
+    for(var k=0;k<els.length;k++){ makeDraggable(els[k], {cid: els[k].getAttribute("data-cid"), from:"tray"}); }
+  }
+  renderTray();
+  /* 注册空位与托盘为放置区 */
+  for(var q=0;q<L.tmpl.length;q++){
+    if(L.tmpl[q].slot){ addZone($("#"+L.tmpl[q].slot), L.tmpl[q].slot); }
+  }
+  addZone($("#tray"), "tray");
+
+  DZONES.onDrop = function(payload, zoneId){
+    if(state.busy){ return; }
+    if(zoneId === "tray"){
+      if(payload.from !== "tray"){ delete placed[payload.from]; fillSlots(); renderTray(); addStep(); }
+      return;
+    }
+    /* 放进某个空位 */
+    if(placed[zoneId] && placed[zoneId] !== payload.cid){ return; } // 空位已有筹码
+    if(payload.from !== "tray"){ delete placed[payload.from]; }
+    placed[zoneId] = payload.cid;
+    addStep();
+    fillSlots(); renderTray();
+  };
+  function chipSpec(cid){
+    for(var i=0;i<chips.length;i++){ if(chips[i].id === cid){ return chips[i]; } }
+    return null;
+  }
+  function fillSlots(){
+    for(var s in placed){
+      var slot = $("#"+s);
+      slot.innerHTML = '<div class="chip">'+ specHTML(chipSpec(placed[s]).spec, true) +'</div>';
+      slot.classList.add("filled");
+      makeDraggable(slot.firstChild, {cid: placed[s], from:s});
+    }
+    for(var q=0;q<L.tmpl.length;q++){
+      var sid = L.tmpl[q].slot;
+      if(sid && !placed[sid]){
+        var sl = $("#"+sid);
+        sl.innerHTML = "空位";
+        sl.classList.remove("filled");
+      }
+    }
+  }
+
+  $("#btn-launch").addEventListener("click", function(){
+    if(state.busy){ return; }
+    var filledAll = true;
+    for(var q=0;q<L.tmpl.length;q++){ if(L.tmpl[q].slot && !placed[L.tmpl[q].slot]){ filledAll = false; } }
+    if(!filledAll){ addWrong(); hint("还有空位没填满，先把每个空位都装上式子。", "bad"); return; }
+    var okAll = true;
+    for(var s in placed){
+      var chip = chipSpec(placed[s]);
+      if(chip.ok !== s){ okAll = false; }
+    }
+    if(okAll){
+      state.busy = true;
+      addStep();
+      hint("装配正确！天平平衡了，开始去分母求解……", "good");
+      var steps = "";
+      for(var k=0;k<L.solveSteps.length;k++){ steps += "<li>"+ L.solveSteps[k] +"</li>"; }
+      var oldHint = document.getElementById("hintline");
+      if(oldHint){ oldHint.removeAttribute("id"); } // 提示条编号转移给新面板
+      var wrap = document.createElement("div");
+      wrap.className = "panel pop";
+      wrap.innerHTML =
+        '<h4>第2步 · 解方程：把 x 水晶拖到数轴上</h4>'+
+        '<ol style="font-size:18px">'+ steps +'</ol>'+
+        '<p class="problem-text">那么 x = ？把水晶拖到正确刻度上！</p>'+
+        '<div class="nline-outer"><div class="nline" id="nline-app"></div></div>'+
+        '<div class="hintline" id="hintline">根据上面的整式方程求 x，注意“慢/快”“早/晚”的方向。</div>';
+      $("#stage").appendChild(wrap);
+      var marks = shuffle(L.markPool).slice(0,4).concat([{v:L.root, l:L.rootLabel}]);
+      marks.sort(function(a,b){ return a.v - b.v; });
+      state.busy = false; // 解锁数轴拖拽
+      buildNumberLine($("#nline-app"), marks, L.root, function(){
+        setStages(["装配方程","解方程·检验"], 2);
+        levelDone(L, L.answer);
+      });
+      wrap.scrollIntoView({behavior:"smooth", block:"nearest"});
+    }else{
+      addWrong();
+      $(".assemble").classList.add("tiltL");
+      setTimeout(function(){ $(".assemble").classList.remove("tiltL"); }, 600);
+      hint("天平不平衡——装配有误。"+ L.hint, "bad");
+    }
+  });
+}
+
+/* ============================================================
+   关卡四：增根探究站（典例6）
+   ============================================================ */
+function renderDet(L){
+  setStages(["找增根","代入求 k","收集答案"], 0);
+  $("#stage").innerHTML =
+    '<div class="panel"><h4>第1步 · 增根从哪来？令 x²−9 = 0</h4>'+
+    '<p class="problem-text">方程 '+ termsHTML(L.eq.L) +' <span class="fx"><span class="tx">=</span></span> '+ termsHTML(L.eq.R) +'</p>'+
+    '<p class="problem-text">'+ L.given +'</p>'+
+    '<div class="kslots">x² − 9 = 0，则 x = <div class="slot" id="ks0" style="min-height:70px;border:3px dashed var(--c-primary);border-radius:12px;display:flex;align-items:center;justify-content:center;min-width:96px;">?</div> 或 <div class="slot" id="ks1" style="min-height:70px;border:3px dashed var(--c-primary);border-radius:12px;display:flex;align-items:center;justify-content:center;min-width:96px;">?</div></div>'+
+    '<div class="tilerow" id="tilerow"></div>'+
+    '<div class="hintline" id="hintline">把正确的数字砖拖进两个空位（x²−9=0 的两个解）。</div></div>';
+
+  var got = {ks0:null, ks0ok:false, ks1:null, ks1ok:false};
+  var tiles = shuffle(L.tiles);
+  var th = "";
+  for(var i=0;i<tiles.length;i++){ th += '<div class="tile" data-tv="'+ tiles[i].v +'">'+ tiles[i].v +'</div>'; }
+  $("#tilerow").innerHTML = th;
+  addZone($("#ks0"), "ks0");
+  addZone($("#ks1"), "ks1");
+  DZONES.onDrop = function(payload, zoneId, el){
+    if(state.busy){ return; }
+    if(zoneId !== "ks0" && zoneId !== "ks1"){ return; }
+    var val = payload.tv;
+    var ok = (val === 3 || val === -3); // x²−9=0 的解
+    /* 两个空位不能填同一个数 */
+    if((zoneId==="ks0" && got.ks0!==null) || (zoneId==="ks1" && got.ks1!==null)){ return; }
+    $("#"+zoneId).textContent = val;
+    el.classList.add("gone");
+    if(ok){
+      addStep();
+      if(zoneId==="ks0"){ got.ks0 = val; } else { got.ks1 = val; }
+      if(got.ks0 !== null && got.ks1 !== null && (got.ks0!==got.ks1)){
+        hint("两个可疑根 x = 3 和 x = −3 找到了！进入检测环节。", "good");
+        setTimeout(function(){ detStage2(L); }, 600);
+      }else if(got.ks0 !== null && got.ks1 !== null && got.ks0===got.ks1){
+        hint("两个空位要填两个不同的解哦。", "bad");
+      }
+    }else{
+      addWrong();
+      $("#"+zoneId).textContent = "?";
+      el.classList.remove("gone");
+      el.classList.add("shake");
+      setTimeout(function(){ el.classList.remove("shake"); }, 500);
+      hint("这个数代进去 x²−9 不是 0，再算算。", "bad");
+    }
+  };
+  var tl = $("#tilerow").querySelectorAll(".tile");
+  for(var k=0;k<tl.length;k++){
+    /* 数据里的减号是全角"−"，parseFloat 不认识，先替换成 ASCII "-" 再解析 */
+    makeDraggable(tl[k], {tv: parseFloat(tl[k].getAttribute("data-tv").replace(/−/g, "-"))});
+  }
+}
+function detStage2(L){
+  setStages(["找增根","代入求 k","收集答案"], 1);
+  var oldHint = document.getElementById("hintline");
+  if(oldHint){ oldHint.removeAttribute("id"); } // 提示条编号转移给新面板
+  var wrap = document.createElement("div");
+  wrap.className = "panel pop";
+  wrap.innerHTML =
+    '<h4>第2步 · 检测 + 代入：把两颗根依次送进机器</h4>'+
+    '<p class="problem-text">'+ L.derive +'。</p>'+
+    '<div class="test-row">'+
+      '<div class="machine" id="det-test"><div class="m-title">公分母检测仪</div><div class="m-slot" id="det-slot">放入根</div><div class="m-out" id="det-out">两颗根都来测一测</div></div>'+
+      '<div class="machine" id="det-sub"><div class="m-title">代入机 (k+1)x = 4k</div><div class="m-slot" id="sub-slot">放入已确认的增根</div><div class="m-out" id="sub-out">把增根代入求 k</div></div>'+
+    '</div>'+
+    '<div class="tilerow" id="orbrow"></div>'+
+    '<div class="tilerow" id="krow"></div>'+
+    '<div class="kslots" id="collect" style="display:none">答案收纳台：k = <div class="slot" id="kp0" style="min-width:110px">?</div> 或 k = <div class="slot" id="kp1" style="min-width:110px">?</div></div>'+
+    '<div class="hintline" id="hintline">先拖进检测仪确认增根，再送进代入机算出 k，最后把 k 收进答案台。</div>';
+  $("#stage").appendChild(wrap);
+  var tested = {"3":false, "-3":false};
+  var orbRow = $("#orbrow");
+  ["3","-3"].forEach(function(v){
+    var orb = document.createElement("div");
+    orb.className = "orb";
+    orb.setAttribute("data-ov", v);
+    orb.innerHTML = '<span class="fx"><span class="tx">x = '+ v.replace("-","−") +'</span></span>';
+    orbRow.appendChild(orb);
+    makeDraggable(orb, {kind:"orb", v:v});
+  });
+  addZone($("#det-slot"), "det-slot");
+  addZone($("#sub-slot"), "sub-slot");
+  var collected = 0;
+  DZONES.onDrop = function(payload, zoneId, el){
+    if(state.busy){ return; }
+    if(zoneId === "det-slot" && payload.kind === "orb"){
+      addStep();
+      var v = payload.v;
+      $("#det-slot").textContent = "x = " + v.replace("-","−");
+      $("#det-out").textContent = "x²−9 = ("+v.replace("-","−")+")² − 9 = 0 → 确认是增根！";
+      $("#det-test").classList.add("alarm");
+      el.classList.add("confirmed"); /* 只标记"已确认"，不能加 locked——之后还要拖它进代入机 */
+      tested[v] = true;
+      hint("分母为 0，确认是增根！接着把它送进右边的代入机。", "bad");
+      return;
+    }
+    if(zoneId === "sub-slot" && payload.kind === "orb"){
+      if(!tested[payload.v]){ hint("先过检测仪确认它是增根，才能代入哦。", "bad"); addWrong(); return; }
+      addStep();
+      state.busy = true;
+      var vv = payload.v;
+      $("#sub-slot").textContent = "x = " + vv.replace("-","−");
+      $("#sub-out").textContent = (vv === "3" ? L.subA : L.subB);
+      el.remove();
+      setTimeout(function(){
+        var kc = document.createElement("div");
+        kc.className = "tile kcrystal pop";
+        kc.setAttribute("data-kv", vv === "3" ? "k=3" : "k=−3/7");
+        kc.textContent = vv === "3" ? "k = 3" : "k = −3/7";
+        $("#krow").appendChild(kc);
+        makeDraggable(kc, {kind:"k", v: vv === "3" ? "3" : "−3/7"});
+        state.busy = false;
+        if($("#krow").children.length === 1){
+          $("#collect").style.display = "flex";
+          $("#collect").style.justifyContent = "center";
+          addZone($("#kp0"), "kp0");
+          addZone($("#kp1"), "kp1");
+        }
+      }, 500);
+      return;
+    }
+    if((zoneId === "kp0" || zoneId === "kp1") && payload.kind === "k"){
+      var slotEl = $("#"+zoneId);
+      if(slotEl.textContent !== "?"){ return; }
+      slotEl.textContent = "k = " + payload.v;
+      el.remove();
+      addStep();
+      collected++;
+      if(collected === 2){
+        hint("两个 k 值都收集齐啦！", "good");
+        setTimeout(function(){ levelDone(L, L.final); }, 500);
+      }
+    }
+  };
+}
+
+/* ============================================================
+   彩纸庆祝（Canvas）
+   ============================================================ */
+var cvs = $("#confetti"), ctx = cvs.getContext("2d");
+function confettiBurst(ms){
+  cvs.width = window.innerWidth; cvs.height = window.innerHeight;
+  var colors = [ "#ff7a45","#ffb347","#4caf50","#3d9be9","#f26d9d","#8e6fd8" ];
+  var parts = [];
+  for(var i=0;i<120;i++){
+    parts.push({
+      x: Math.random()*cvs.width, y: -20 - Math.random()*cvs.height*0.5,
+      w: 6+Math.random()*8, h: 8+Math.random()*10,
+      c: colors[Math.floor(Math.random()*colors.length)],
+      vy: 2+Math.random()*3.2, vx: -1.4+Math.random()*2.8,
+      rot: Math.random()*Math.PI, vr: -0.12+Math.random()*0.24
+    });
+  }
+  var t0 = Date.now();
+  function frame(){
+    ctx.clearRect(0,0,cvs.width,cvs.height);
+    for(var j=0;j<parts.length;j++){
+      var p = parts[j];
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    }
+    if(Date.now() - t0 < ms){
+      requestAnimationFrame(frame);
+    }else{
+      ctx.clearRect(0,0,cvs.width,cvs.height);
+    }
+  }
+  frame();
+}
+
+/* ============================================================
+   按钮与入口绑定
+   ============================================================ */
+$("#tier-easy").addEventListener("click", function(){ startGame("easy"); });
+$("#tier-mid").addEventListener("click", function(){ startGame("mid"); });
+$("#tier-hard").addEventListener("click", function(){ startGame("hard"); });
+$("#btn-rules-home").addEventListener("click", function(){ openModal("modal-rules"); });
+$("#btn-rules").addEventListener("click", function(){ openModal("modal-rules"); });
+$("#btn-rules-ok").addEventListener("click", function(){ closeModal("modal-rules"); });
+$("#btn-reveal").addEventListener("click", function(){
+  var L = LEVELS[state.order[state.idx]];
+  var li = "";
+  for(var i=0;i<L.full.length;i++){ li += "<li>"+ L.full[i] +"</li>"; }
+  $("#reveal-list").innerHTML = li + '<li><b>本关结论：</b>'+ (L.final || L.answer) +'</li>';
+  openModal("modal-reveal");
+});
+$("#btn-reveal-ok").addEventListener("click", function(){ closeModal("modal-reveal"); });
+$("#btn-restart").addEventListener("click", function(){ if(state.tierKey){ loadLevel(); } });
+$("#btn-back").addEventListener("click", function(){
+  stopTimer();
+  state.tierKey = null;
+  showScreen("screen-home");
+});
+$("#btn-again").addEventListener("click", function(){
+  var t = state.tierKey;
+  if(t){ startGame(t); }
+});
+$("#btn-home2").addEventListener("click", function(){
+  state.tierKey = null;
+  showScreen("screen-home");
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-jc-p/g010", "name": "\u5206\u5f0f\u65b9\u7a0b\u63a2\u9669\u53f7 \u00b7 \u4e92\u52a8\u95ef\u5173\u6e38\u620f\uff0810.5 \u5206\u5f0f\u65b9\u7a0b\uff09", "file": "g010.html", "jiaocan": "\u301023\u3011\u5341\u3001\u5206\u5f0f\uff1a10.5\u5206\u5f0f\u65b9\u7a0b", "unit": "", "grade": "8\u5e74\u7ea7\u4e0b", "stage": "\u521d\u4e2d", "series": "P\uff1a\u6559\u6750\u89e3\u8bfb", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-jc-p"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

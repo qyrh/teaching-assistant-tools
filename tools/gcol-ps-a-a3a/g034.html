@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>盈亏小管家 · 快乐分一分（第17讲 盈亏问题·下）</title>
+<style>
+/* ============ 全局与配色变量（每局随机换色板） ============ */
+:root{
+  --c1:#1565c0;      /* 主色 */
+  --c2:#e3f2fd;      /* 背景色 */
+  --ac:#ff9800;      /* 点缀色 */
+  --ink:#0d47a1;     /* 深色文字 */
+  --ying:#2e7d32;    /* 盈（多出来）固定语义色 */
+  --ying-bg:#e8f5e9;
+  --kui:#e65100;     /* 亏（不够）固定语义色 */
+  --kui-bg:#fff3e0;
+  --card:#ffffff;
+  --line:3px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  background:var(--c2); color:#212121; font-size:18px; line-height:1.6;
+  min-height:100vh; overscroll-behavior-y:contain;
+}
+.hidden{display:none !important;}
+b{color:var(--c1);}
+.hl{color:#d84315; font-weight:900; padding:0 2px; font-size:1.15em;}
+
+/* ============ 顶部信息栏（计时 / 步数 / 功能按钮） ============ */
+#hud{
+  position:sticky; top:0; z-index:50; background:var(--c1); color:#fff;
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
+  padding:8px 14px; box-shadow:0 3px 8px rgba(0,0,0,.25); gap:6px;
+}
+#hudTitle{font-weight:900; font-size:20px;}
+.hud-right{display:flex; align-items:center; flex-wrap:wrap; gap:6px;}
+.pill{background:rgba(255,255,255,.22); border-radius:999px; padding:3px 12px; font-size:16px; font-weight:700; white-space:nowrap;}
+
+/* ============ 通用按钮 ============ */
+.btn{
+  border:none; border-radius:14px; cursor:pointer; font-family:inherit;
+  background:var(--ac); color:#fff; font-size:18px; font-weight:900;
+  padding:10px 18px; min-height:46px; box-shadow:0 3px 0 rgba(0,0,0,.2);
+  transition:transform .08s;
+}
+.btn:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.2);}
+.btn.small{font-size:15px; padding:6px 12px; min-height:38px; background:rgba(255,255,255,.25);}
+.btn.small:hover{background:rgba(255,255,255,.4);}
+.btn.blue{background:var(--c1);}
+.btn.ghostb{background:#78909c;}
+.btn.big{font-size:21px; padding:12px 26px;}
+
+/* ============ 主区域 ============ */
+#app{max-width:1080px; margin:0 auto; padding:14px 12px 60px;}
+
+/* ---- 难度选择菜单 ---- */
+.menu-head{text-align:center; padding:26px 8px 10px;}
+.big-icon{font-size:54px; letter-spacing:8px;}
+.menu-head h1{margin:8px 0 4px; font-size:clamp(26px,5vw,40px); color:var(--c1); text-shadow:2px 2px 0 rgba(0,0,0,.08);}
+.menu-head .sub{font-size:clamp(16px,3vw,22px); color:var(--ink); font-weight:700;}
+.formula-banner{
+  margin:12px auto; max-width:640px; background:var(--card); border:var(--line) solid var(--c1);
+  border-radius:18px; padding:10px 16px; text-align:center; font-size:clamp(17px,3.4vw,24px); font-weight:900; color:var(--ink);
+}
+.menu-cards{display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:14px;}
+.diff-card{
+  flex:1 1 240px; max-width:320px; background:var(--card); border:var(--line) solid var(--c1);
+  border-radius:22px; padding:18px 14px; cursor:pointer; font-family:inherit; text-align:center;
+  box-shadow:0 6px 14px rgba(0,0,0,.12); transition:transform .12s;
+}
+.diff-card:hover{transform:translateY(-4px);}
+.diff-card .dc-icons{font-size:44px;}
+.diff-card h2{margin:6px 0 4px; font-size:23px; color:var(--c1);}
+.diff-card p{margin:0; font-size:16px; color:#546e7a;}
+.diff-card.mid{border-color:#00897b;} .diff-card.mid h2{color:#00897b;}
+.diff-card.hard{border-color:#d84315;} .diff-card.hard h2{color:#d84315;}
+.menu-foot{text-align:center; padding:18px 0 6px;}
+
+/* ---- 题面卡片 ---- */
+#storyCard{
+  background:var(--card); border:var(--line) solid var(--c1); border-radius:20px;
+  padding:14px 18px; margin:12px 0; box-shadow:0 4px 10px rgba(0,0,0,.1);
+}
+.story-top{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+.story-ic{font-size:44px;}
+.lv-name{font-size:15px; color:#fff; background:var(--ac); border-radius:999px; padding:2px 14px; font-weight:900;}
+#storyText{font-size:clamp(18px,3.6vw,23px); font-weight:700; margin:8px 0 4px;}
+#storyAsk{font-size:clamp(17px,3.4vw,21px); color:#d84315; font-weight:900;}
+
+/* ---- 阶段区块 ---- */
+.phase{margin:16px 0;}
+.phase-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+.ph-num{
+  width:40px; height:40px; border-radius:50%; background:var(--c1); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:900; flex:0 0 auto;
+}
+.phase-head h3{margin:0; font-size:clamp(18px,3.6vw,24px); color:var(--ink);}
+.lock-tip{color:#90a4ae; font-weight:700; font-size:15px;}
+.phase-body{
+  background:var(--card); border:var(--line) dashed #b0bec5; border-radius:20px; padding:14px;
+}
+.phase-body.locked{opacity:.55; pointer-events:none; filter:grayscale(.6);}
+.phase-body.open{border-style:solid; border-color:var(--c1);}
+.lead{margin:2px 0 10px; font-weight:700; color:#455a64;}
+
+/* ---- 差额珠仓库（可拖拽） ---- */
+.supply{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:linear-gradient(135deg,#fffde7,#fff8e1); border:3px solid #f9a825; border-radius:18px; padding:10px 14px; margin-bottom:12px;
+}
+.supply-label{font-weight:900; color:#e65100; font-size:17px;}
+.chips{display:flex; gap:10px; flex-wrap:wrap;}
+.chip{
+  user-select:none; touch-action:none; cursor:grab; border-radius:16px; padding:8px 14px; font-weight:900; font-size:18px;
+  display:flex; align-items:center; gap:6px; box-shadow:0 3px 0 rgba(0,0,0,.15);
+}
+.chip b{color:#fff;}
+.chip.bundle{background:#f9a825; color:#5d4037; border:3px solid #ef6c00;}
+.chip.single{background:#42a5f5; color:#fff; border:3px solid #1565c0;}
+.chip-ic{font-size:24px;}
+.drag-ghost{
+  position:fixed; z-index:200; width:60px; height:60px; border-radius:14px; pointer-events:none;
+  display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:900; color:#fff;
+  background:var(--ac); border:3px solid #fff; box-shadow:0 6px 16px rgba(0,0,0,.3); opacity:.92;
+}
+.supply-tip{font-size:14px; color:#8d6e63; width:100%;}
+
+/* ---- 方案卡片与托盘 ---- */
+#planWrap{display:flex; gap:14px; flex-wrap:wrap;}
+.plan-card{
+  flex:1 1 300px; border-radius:20px; padding:12px 14px; border:var(--line) solid; background:var(--card);
+}
+.plan-card.ying{border-color:var(--ying); background:var(--ying-bg);}
+.plan-card.kui{border-color:var(--kui); background:var(--kui-bg);}
+.plan-head{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;}
+.plan-tag{background:var(--c1); color:#fff; border-radius:10px; padding:2px 12px; font-weight:900; font-size:17px;}
+.kind-badge{border-radius:999px; padding:2px 12px; font-weight:900; font-size:16px; color:#fff;}
+.kind-badge.ying{background:var(--ying);}
+.kind-badge.kui{background:var(--kui);}
+.plan-desc{font-size:clamp(16px,3.2vw,19px); font-weight:700; margin:8px 0; color:#37474f;}
+/* 暗盈暗亏探秘盘 */
+.widget{background:rgba(255,255,255,.85); border:2px dashed #90a4ae; border-radius:14px; padding:8px 10px; margin:6px 0;}
+.w-title{font-size:15px; font-weight:900; color:#546e7a; margin-bottom:6px;}
+.plates{display:flex; gap:10px; flex-wrap:wrap;}
+.plate{
+  background:#eceff1; border:3px solid #b0bec5; border-radius:14px; padding:8px;
+  display:flex; gap:4px; flex-wrap:wrap; max-width:100%;
+}
+.slot{
+  width:26px; height:26px; border-radius:8px; display:inline-block; border:2px solid #90a4ae;
+  background:#cfd8dc; position:relative;
+}
+.slot.filled{background:var(--c1); border-color:var(--ink);}
+.slot.ghost{background:repeating-linear-gradient(45deg,#fff,#fff 4px,#ffcdd2 4px,#ffcdd2 8px); cursor:pointer; border-color:var(--kui);}
+.slot.ghost.used{background:#c8e6c9; border-color:var(--ying); cursor:default;}
+.slot.ghost.used::after{content:"✔"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--ying); font-size:16px; font-weight:900;}
+.w-note{font-size:14px; color:#bf360c; font-weight:700; margin-top:6px;}
+/* 托盘 */
+.tray{
+  margin-top:8px; background:#fff; border:3px solid #b0bec5; border-radius:16px; padding:8px 10px; min-height:96px;
+  transition:box-shadow .2s, border-color .2s;
+}
+.tray.hot{border-color:var(--ac); box-shadow:0 0 0 6px rgba(255,152,0,.35);}
+.tray.locked{border-color:var(--ying); box-shadow:0 0 0 5px rgba(46,125,50,.3); background:#f1f8e9;}
+.tray-label{font-size:15px; font-weight:900; color:#607d8b;}
+.tray-tokens{display:flex; gap:6px; flex-wrap:wrap; min-height:38px; align-items:center; margin:4px 0;}
+.tk{border-radius:50%; cursor:pointer; user-select:none;}
+.tk1{width:28px; height:28px; background:#42a5f5; border:2px solid #1565c0; color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; font-weight:900;}
+.tkb{width:auto; min-width:56px; height:30px; padding:0 8px; border-radius:999px; background:#f9a825; border:2px solid #ef6c00; color:#5d4037; font-size:14px; display:flex; align-items:center; justify-content:center; font-weight:900;}
+.tk:hover{filter:brightness(1.12);}
+.tk-empty{color:#b0bec5; font-size:14px; font-weight:700;}
+.tray-foot{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+.tray-count{font-size:30px; font-weight:900; color:var(--c1); min-width:56px;}
+.tray-count::after{content:"颗"; font-size:15px; color:#90a4ae;}
+.tray-state{font-size:15px; font-weight:900; color:var(--ying); min-height:22px;}
+.plan-hint{font-size:14px; color:#d84315; font-weight:700; min-height:20px; margin-top:4px;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.shake{animation:shake .3s;}
+.flydot{position:fixed; width:22px; height:22px; border-radius:50%; background:var(--ac); border:2px solid #fff; z-index:180; pointer-events:none; transition:left .35s ease, top .35s ease;}
+
+/* ---- 智慧分组机 ---- */
+.machine-top{display:flex; gap:14px; flex-wrap:wrap; align-items:stretch;}
+.hopper{
+  flex:1 1 220px; background:linear-gradient(160deg,#455a64,#263238); color:#fff; border-radius:18px;
+  padding:12px; text-align:center; border:3px solid #cfd8dc; position:relative; overflow:hidden;
+}
+.hopper .h-name{font-weight:900; font-size:19px;}
+.hopper .h-count{font-size:42px; font-weight:900; color:#ffd54f; line-height:1.2;}
+.hopper .h-count::after{content:"颗"; font-size:16px; color:#b0bec5;}
+.hopper.pour{animation:pour .8s;}
+@keyframes pour{0%,100%{transform:rotate(0)}30%{transform:rotate(-3deg)}60%{transform:rotate(3deg)}}
+.dialbox{
+  flex:1 1 260px; background:#fff; border:3px solid var(--c1); border-radius:18px; padding:10px 12px; text-align:center;
+}
+.dial-title{font-weight:900; color:var(--ink); font-size:17px;}
+#dialValue{font-size:44px; font-weight:900; color:var(--ac); line-height:1.1;}
+#dialValue::after{content:"颗/盒"; font-size:15px; color:#90a4ae;}
+#dialTrack{
+  position:relative; height:38px; margin:8px 6px 2px; background:#eceff1; border-radius:999px;
+  border:3px solid #b0bec5; cursor:pointer; touch-action:none;
+}
+.dial-tick{
+  position:absolute; top:50%; transform:translate(-50%,-50%); width:26px; height:26px; border-radius:50%;
+  background:#cfd8dc; color:#455a64; font-size:13px; font-weight:900; display:flex; align-items:center; justify-content:center;
+  border:2px solid #90a4ae;
+}
+#dialThumb{
+  position:absolute; top:50%; transform:translate(-50%,-50%); width:40px; height:40px; border-radius:50%;
+  background:var(--ac); border:3px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,.35); z-index:5;
+  display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; font-size:12px; pointer-events:none;
+}
+.machine-mid{text-align:center; margin:10px 0;}
+#machineMsg{font-size:17px; font-weight:900; color:var(--ink); min-height:26px; margin:6px 0;}
+#machineMsg.bad{color:var(--kui);}
+#machineMsg.good{color:var(--ying);}
+.mach-shake{animation:shake .4s;}
+#boxesArea{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:8px; min-height:70px;}
+.mbox{
+  width:58px; height:58px; border-radius:12px; background:#fff; border:3px solid #90a4ae; position:relative;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:2px; padding:4px; overflow:hidden;
+  transition:transform .2s;
+}
+.mbox.full{border-color:var(--ying); background:var(--ying-bg); transform:scale(1.06);}
+.mbox .mface{position:absolute; font-size:30px; z-index:3;}
+.mbox .mnum{
+  position:absolute; bottom:-2px; right:2px; background:var(--ying); color:#fff; font-size:12px; font-weight:900;
+  border-radius:8px; padding:0 6px; z-index:4;
+}
+.mdot{width:10px; height:10px; border-radius:50%; background:var(--c1); display:inline-block; animation:dotin .25s;}
+@keyframes dotin{from{transform:scale(0)}to{transform:scale(1)}}
+#boxLabel{text-align:center; font-size:19px; font-weight:900; color:var(--c1); min-height:28px; margin-top:6px;}
+
+/* ---- 验证区 ---- */
+.vrow{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:10px 0;}
+.vres{
+  flex:1 1 260px; background:#fafafa; border:2px solid #cfd8dc; border-radius:14px; padding:8px 12px; font-weight:700; color:#455a64;
+}
+.vres .vline{margin:2px 0;}
+.stamp{display:inline-block; border-radius:10px; padding:2px 12px; font-size:17px; font-weight:900; color:#fff; margin-bottom:4px;}
+.stamp.ok{background:var(--ying);}
+.stamp.bad{background:var(--kui);}
+.treasure{
+  text-align:center; font-size:20px; font-weight:900; color:#6d4c41; background:#fff8e1;
+  border:3px dashed #f9a825; border-radius:18px; padding:10px; margin-top:8px;
+}
+.treasure.opened{border-style:solid; background:#e8f5e9; color:var(--ying);}
+
+/* ---- 弹窗 / 覆盖层 ---- */
+.modal,.ov{
+  position:fixed; inset:0; background:rgba(38,50,56,.66); z-index:300; display:none;
+  align-items:center; justify-content:center; padding:14px;
+}
+.modal.show,.ov.show{display:flex;}
+.modal-card,.ov-card{
+  background:#fff; border-radius:22px; border:var(--line) solid var(--c1); max-width:680px; width:100%;
+  max-height:88vh; overflow:auto; padding:20px 22px; box-shadow:0 10px 30px rgba(0,0,0,.35); position:relative; z-index:5;
+}
+.modal-card h2,.ov-card h2{margin:0 0 10px; color:var(--c1); font-size:26px;}
+.rule-step{display:flex; gap:10px; margin:10px 0; align-items:flex-start;}
+.rule-step .rs-n{
+  flex:0 0 34px; width:34px; height:34px; border-radius:50%; background:var(--ac); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-weight:900; font-size:18px;
+}
+.rule-step p{margin:2px 0; font-weight:700; color:#37474f;}
+.sol-line{margin:6px 0; font-weight:700; color:#37474f; font-size:17px;}
+.ans-big{
+  background:var(--ying-bg); border:3px solid var(--ying); border-radius:16px; padding:10px 14px;
+  font-size:clamp(20px,4vw,28px); font-weight:900; color:var(--ying); text-align:center; margin:10px 0;
+}
+.ov-btns{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:14px;}
+.ov-stars,.end-stars{font-size:40px; text-align:center; letter-spacing:6px;}
+#confetti{position:fixed; inset:0; z-index:4; pointer-events:none;}
+
+/* ---- 提示条 ---- */
+#toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:#37474f; color:#fff;
+  border-radius:999px; padding:10px 22px; font-size:17px; font-weight:900; z-index:400; opacity:0;
+  pointer-events:none; transition:opacity .3s; max-width:92vw; text-align:center;
+}
+#toast.show{opacity:.97;}
+
+/* ---- 移动端适配 ---- */
+@media (max-width:720px){
+  body{font-size:16px;}
+  #hudTitle{font-size:17px;}
+  .btn.small{font-size:13px; padding:5px 8px;}
+  .plan-card{flex:1 1 100%;}
+  .slot{width:22px; height:22px;}
+  .mbox{width:50px; height:50px;}
+  .mbox .mface{font-size:24px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ======== 顶部信息栏 ======== -->
+<header id="hud" class="hidden">
+  <div class="hud-left">
+    <span id="hudTitle">盈亏小管家</span>
+    <span class="pill" id="hudProgress">第 1/3 关</span>
+  </div>
+  <div class="hud-right">
+    <span class="pill" id="hudTimer">⏱ 00:00</span>
+    <span class="pill" id="hudSteps">🐾 0 步</span>
+    <button class="btn small" id="btnRules">规则</button>
+    <button class="btn small" id="btnReveal">揭示答案</button>
+    <button class="btn small" id="btnRestart">重新开始</button>
+    <button class="btn small" id="btnBack">返回难度</button>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- ======== 难度选择界面 ======== -->
+  <section id="screenMenu">
+    <div class="menu-head">
+      <div class="big-icon">🏕️🎁🍌</div>
+      <h1>盈亏小管家 · 快乐分一分</h1>
+      <p class="sub">两种分法比一比：多出来的叫“盈”，不够的叫“亏”</p>
+    </div>
+    <div class="formula-banner">智慧口诀：（盈 + 亏）÷ 每份差 ＝ 份数</div>
+    <div class="menu-cards">
+      <button class="diff-card easy" data-diff="easy">
+        <div class="dc-icons">🏕️🎁</div>
+        <h2>初级 · 补给小站</h2>
+        <p>盈和亏都写在题目里，拖一拖珠子、开一开分组机就能通关！</p>
+      </button>
+      <button class="diff-card mid" data-diff="mid">
+        <div class="dc-icons">🌻📚</div>
+        <h2>中级 · 智慧驿站</h2>
+        <p>有一种数量藏着不说（暗盈暗亏），点一点探秘盘，自己把它找出来！</p>
+      </button>
+      <button class="diff-card hard" data-diff="hard">
+        <div class="dc-icons">🪢🚀</div>
+        <h2>高级 · 勇者高峰</h2>
+        <p>对折绳量井深、太空行李、还剩零头的大挑战，等你来闯！</p>
+      </button>
+    </div>
+    <div class="menu-foot">
+      <button class="btn big" id="btnRulesMenu">玩法说明</button>
+    </div>
+  </section>
+
+  <!-- ======== 游戏主界面 ======== -->
+  <section id="screenGame" class="hidden">
+
+    <!-- 题面 -->
+    <div id="storyCard">
+      <div class="story-top">
+        <span class="story-ic" id="storyIcon">🏕️</span>
+        <span class="lv-name" id="lvName">关卡</span>
+      </div>
+      <div id="storyText">题面加载中……</div>
+      <div id="storyAsk"></div>
+    </div>
+
+    <!-- 第一步：摆盈亏 -->
+    <section class="phase" id="phaseA">
+      <div class="phase-head">
+        <span class="ph-num">1</span><h3>第一步 · 摆出“盈”和“亏”</h3>
+      </div>
+      <div class="phase-body open">
+        <p class="lead">读题：哪种分法会“多出来”（盈）？哪种会“不够”（亏）？把差额珠拖到对应的盘子里！</p>
+        <div class="supply">
+          <div class="supply-label">差额珠仓库 👇 拖我</div>
+          <div class="chips">
+            <div class="chip bundle" id="chipTen"><span class="chip-ic">🧮</span>十颗一串<b>+10</b></div>
+            <div class="chip single" id="chipOne"><span class="chip-ic">🔵</span>单颗<b>+1</b></div>
+          </div>
+          <div class="supply-tip">小贴士：点盘子里的珠子可以把它放回仓库；藏起来的数量要在“探秘盘”里点空格找出来哦。</div>
+        </div>
+        <div id="planWrap"></div>
+      </div>
+    </section>
+
+    <!-- 第二步：智慧分组机 -->
+    <section class="phase" id="phaseB">
+      <div class="phase-head">
+        <span class="ph-num">2</span><h3>第二步 · 开动智慧分组机</h3>
+        <span class="lock-tip" id="lockB">🔒 两盘都确认正确后开启</span>
+      </div>
+      <div class="phase-body locked" id="bodyB">
+        <div class="machine-top">
+          <div class="hopper" id="hopper">
+            <div class="h-name">两级差额合体仓 🌀</div>
+            <div class="h-count" id="hopperCount">0</div>
+            <div style="font-size:14px;color:#b0bec5;">盈盘 + 亏盘 的珠子都倒进来啦</div>
+          </div>
+          <div class="dialbox">
+            <div class="dial-title">每个盒子装几颗？拨一拨旋钮 👇</div>
+            <div id="dialValue">3</div>
+            <div id="dialTrack">
+              <div id="dialThumb">拽我</div>
+            </div>
+            <div style="font-size:14px;color:#90a4ae;font-weight:700;">提示：两种分法“每份相差几”，盒子就装几颗！</div>
+          </div>
+        </div>
+        <div class="machine-mid">
+          <button class="btn big" id="btnRun">🚚 开动分组机</button>
+          <div id="machineMsg">先选好每盒数量，再开动！</div>
+          <div id="boxesArea"></div>
+          <div id="boxLabel"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第三步：双方案验证 -->
+    <section class="phase" id="phaseC">
+      <div class="phase-head">
+        <span class="ph-num">3</span><h3>第三步 · 双方案验证开宝箱</h3>
+        <span class="lock-tip" id="lockC">🔒 分组机装满整盒后开启</span>
+      </div>
+      <div class="phase-body locked" id="bodyC">
+        <p class="lead">盒子数对不对？分别按两种方案“发一发”，和题目比一比，全对上宝箱就打开！</p>
+        <div class="vrow">
+          <button class="btn big blue" id="btnV1">按方案一发一发</button>
+          <div class="vres" id="resV1">还没有验证</div>
+        </div>
+        <div class="vrow">
+          <button class="btn big blue" id="btnV2">按方案二发一发</button>
+          <div class="vres" id="resV2">还没有验证</div>
+        </div>
+        <div class="treasure" id="treasure">🎁 神秘宝箱：两个方案都和题目对上，宝箱就打开！</div>
+      </div>
+    </section>
+
+  </section>
+</main>
+
+<!-- ======== 玩法规则弹窗 ======== -->
+<div class="modal" id="mdRules">
+  <div class="modal-card">
+    <h2>🎮 玩法说明</h2>
+    <div class="rule-step"><div class="rs-n">1</div><p><b>读题找盈亏</b>：多出来的叫“盈”（绿色），不够的叫“亏”（橙色）。有一种数量藏着不说，要在<b>探秘盘</b>里点一点空格子，把缺少的数量找出来！</p></div>
+    <div class="rule-step"><div class="rs-n">2</div><p><b>摆差额珠</b>：把仓库里的珠子（十颗一串或单颗）<b>拖</b>到对应的盘子里，摆好后点“确认”。点盘子里的珠子可以放回。</p></div>
+    <div class="rule-step"><div class="rs-n">3</div><p><b>开分组机</b>：两盘珠子合在一起。拨动旋钮选“每盒装几颗”，开动！<b>刚好装满整盒、一颗不剩</b>才算成功。盒子数就是份数（帐篷数、人数……）。</p></div>
+    <div class="rule-step"><div class="rs-n">4</div><p><b>双方案验证</b>：按方案一、方案二各“发一发”，结果和题目完全一样，宝箱就打开，还能看到完整解题过程！</p></div>
+    <div class="formula-banner" style="margin-top:8px;">智慧口诀：（盈 + 亏）÷ 每份差 ＝ 份数</div>
+    <div class="ov-btns"><button class="btn big" id="btnRulesClose">知道啦，出发！</button></div>
+  </div>
+</div>
+
+<!-- ======== 揭示答案弹窗 ======== -->
+<div class="modal" id="mdReveal">
+  <div class="modal-card">
+    <h2>💡 揭示答案</h2>
+    <div id="revealBody"></div>
+    <div class="ov-btns"><button class="btn big" id="btnRevealClose">我再看一看，继续动手！</button></div>
+  </div>
+</div>
+
+<!-- ======== 通关覆盖层（含彩纸庆祝） ======== -->
+<div class="ov" id="ovWin">
+  <canvas id="confetti"></canvas>
+  <div class="ov-card">
+    <div class="ov-stars" id="winStars">⭐⭐⭐</div>
+    <h2 style="text-align:center;" id="winTitle">太棒了，宝箱打开啦！</h2>
+    <div class="ans-big" id="winAns"></div>
+    <div id="winSol"></div>
+    <div class="ov-btns">
+      <button class="btn big" id="btnNext">下一关 ➜</button>
+      <button class="btn ghostb" id="btnAgainLv">再玩本关</button>
+      <button class="btn ghostb" id="btnWinBack">返回难度</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== 全部通关覆盖层 ======== -->
+<div class="ov" id="ovEnd">
+  <div class="ov-card">
+    <h2 style="text-align:center;">🎉 三关全部通关！</h2>
+    <div class="end-stars" id="endStars"></div>
+    <div id="endStats" style="text-align:center;font-weight:900;color:#37474f;font-size:19px;"></div>
+    <div class="formula-banner" style="margin-top:10px;">你已经掌握：（盈 + 亏）÷ 每份差 ＝ 份数</div>
+    <div class="ov-btns">
+      <button class="btn big" id="btnAgainAll">🎲 再来一局（新配色新题目）</button>
+      <button class="btn ghostb" id="btnEndBack">返回难度</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ==================================================================
+   盈亏小管家 · 快乐分一分
+   核心玩法与“盈亏问题”深度绑定：
+   1) 拖差额珠摆出盈/亏（暗盈暗亏要自己点探秘盘算出来）
+   2) 智慧分组机把（盈+亏）颗珠子按“每份差”分盒 → 盒数=份数
+   3) 双方案验证：按每份×份数发一发，余量与题目一致即通关
+   ================================================================== */
+
+/* ---------------- 小工具 ---------------- */
+function $(s){ return document.querySelector(s); }
+function $all(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
+function shuffle(arr){ /* 洗牌：保证每局抽到的题目组合不同 */
+  var b = arr.slice();
+  for(var i = b.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = b[i]; b[i] = b[j]; b[j] = t;
+  }
+  return b;
+}
+function clamp(v, lo, hi){ return v < lo ? lo : (v > hi ? hi : v); }
+function pad2(n){ return (n < 10 ? '0' : '') + n; }
+
+/* ---------------- 音效（WebAudio 小提示音，无外部资源） ---------------- */
+var audioCtx = null;
+function tone(freq, dur, type, gain){
+  try{
+    if(!audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC){ return; }
+      audioCtx = new AC();
+    }
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.value = gain || 0.1;
+    o.connect(g); g.connect(audioCtx.destination);
+    var t = audioCtx.currentTime;
+    o.start(t);
+    g.gain.setValueAtTime(gain || 0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.stop(t + dur + 0.03);
+  }catch(e){ /* 音频不可用时安静降级 */ }
+}
+function sndOk(){ tone(660, .12); setTimeout(function(){ tone(880, .16); }, 90); }
+function sndErr(){ tone(190, .22, 'square', 0.07); }
+function sndTick(){ tone(1250, .04, 'sine', 0.045); }
+function sndWin(){ var fs = [523, 659, 784, 1047]; fs.forEach(function(f, i){ setTimeout(function(){ tone(f, .2); }, i * 130); }); }
+
+/* ==================================================================
+   关卡数据库（源自教参第17讲·盈亏问题（下），含少量同题型自创变式）
+   p1/p2: per=每份数, kind='盈'|'亏', amt=盈亏数量, hidden=探秘盘配置
+   groups=正确份数, total=被分物品总量（用于验证）, unit=单位
+   ================================================================== */
+var LEVELS = {
+  easy: [
+    { /* 例4：帐篷（亏+盈） */
+      name:'帐篷小管家', icon:'🏕️', unit:'人', groupNoun:'顶帐篷', groupIcon:'⛺',
+      storyHtml:'三年级同学们去郊外参加夏令营：如果每个帐篷住<b class="hl">4</b>名同学，则有<b class="hl">7</b>名同学没有地方住；如果每个帐篷住<b class="hl">5</b>名同学，则会空出<b class="hl">3</b>个床位。',
+      ask:'参加夏令营的同学一共有多少人？',
+      p1:{ per:4, kind:'亏', amt:7, say:'有7名同学没地方住', desc:'每个帐篷住4名同学 → 有7名同学没地方住（缺7个床位）',
+           hint:'没地方住＝床位不够，是“亏”，缺7个床位。' },
+      p2:{ per:5, kind:'盈', amt:3, say:'会空出3个床位', desc:'每个帐篷住5名同学 → 会空出3个床位（多3个床位）',
+           hint:'空出来的床位＝多出来，是“盈”，多3个床位。' },
+      groups:10, total:47, totalFormula:'4×10＋7＝47',
+      answerText:'参加夏令营的同学一共有 47 人',
+      solution:['床位差：7＋3＝10（个）','每个帐篷多住：5－4＝1（人）','帐篷数：10÷1＝10（顶）','同学人数：4×10＋7＝47（人）']
+    },
+    { /* 练习10：分礼物 */
+      name:'礼物分发员', icon:'🎁', unit:'个', groupNoun:'个小朋友', groupIcon:'🧒',
+      storyHtml:'乐乐老师为小朋友们分发儿童节礼物：如果每人分<b class="hl">2</b>个，会剩下<b class="hl">12</b>个礼物；如果每人发<b class="hl">3</b>个，最后会少<b class="hl">2</b>个礼物。',
+      ask:'一共有多少个小朋友在等着领礼物？',
+      p1:{ per:2, kind:'盈', amt:12, say:'会剩下12个礼物', desc:'每人分2个 → 剩下12个（多12个）',
+           hint:'剩下＝多出来，是“盈”，多12个。' },
+      p2:{ per:3, kind:'亏', amt:2, say:'最后会少2个礼物', desc:'每人发3个 → 少2个（不够2个）',
+           hint:'少＝不够，是“亏”，少2个。' },
+      groups:14, total:40, totalFormula:'2×14＋12＝40',
+      answerText:'一共有 14 个小朋友在等着领礼物',
+      solution:['两种分法相差：12＋2＝14（个）','每人多分：3－2＝1（个）','小朋友人数：14÷1＝14（个）','礼物总数：2×14＋12＝40（个）']
+    },
+    { /* 自创变式：分糖果 */
+      name:'糖果小当家', icon:'🍬', unit:'颗', groupNoun:'只小动物', groupIcon:'🐻',
+      storyHtml:'小熊老师给小动物们分糖果：如果每只分<b class="hl">3</b>颗，会剩下<b class="hl">6</b>颗；如果每只分<b class="hl">4</b>颗，还缺<b class="hl">2</b>颗。',
+      ask:'这批糖果一共有多少颗？',
+      p1:{ per:3, kind:'盈', amt:6, say:'会剩下6颗', desc:'每只分3颗 → 剩下6颗（多6颗）',
+           hint:'剩下6颗＝盈6。' },
+      p2:{ per:4, kind:'亏', amt:2, say:'还缺2颗', desc:'每只分4颗 → 还缺2颗（少2颗）',
+           hint:'缺2颗＝亏2。' },
+      groups:8, total:30, totalFormula:'3×8＋6＝30',
+      answerText:'这批糖果一共有 30 颗',
+      solution:['差额：6＋2＝8（颗）','每只多分：4－3＝1（颗）','小动物：8÷1＝8（只）','糖果总数：3×8＋6＝30（颗）']
+    },
+    { /* 自创变式：苹果装箱 */
+      name:'苹果装箱师', icon:'🍎', unit:'个', groupNoun:'个纸箱', groupIcon:'📦',
+      storyHtml:'果园里要把一批苹果装进纸箱：如果每箱装<b class="hl">8</b>个，会多出<b class="hl">6</b>个苹果；如果每箱装<b class="hl">10</b>个，还缺<b class="hl">4</b>个苹果。',
+      ask:'这批苹果一共有多少个？',
+      p1:{ per:8, kind:'盈', amt:6, say:'会多出6个苹果', desc:'每箱装8个 → 多出6个（盈6）',
+           hint:'多出6个＝盈6。' },
+      p2:{ per:10, kind:'亏', amt:4, say:'还缺4个苹果', desc:'每箱装10个 → 缺4个（亏4）',
+           hint:'缺4个＝亏4。' },
+      groups:5, total:46, totalFormula:'8×5＋6＝46',
+      answerText:'这批苹果一共有 46 个',
+      solution:['差额：6＋4＝10（个）','每箱多装：10－8＝2（个）','纸箱数：10÷2＝5（个）','苹果总数：8×5＋6＝46（个）']
+    }
+  ],
+  mid: [
+    { /* 例5：种花（明盈暗亏） */
+      name:'种花小园丁', icon:'🌻', unit:'棵', groupNoun:'个小朋友', groupIcon:'🧒',
+      storyHtml:'乐乐老师带小朋友去种花：如果每人种<b class="hl">5</b>棵，会剩下<b class="hl">3</b>棵花没人种；如果让<b class="hl">2</b>个小朋友各种<b class="hl">4</b>棵、其余每人种<b class="hl">6</b>棵，花正好种完。',
+      ask:'有多少个小朋友参加种花？一共要种多少棵花？',
+      p1:{ per:5, kind:'盈', amt:3, say:'会剩下3棵花没人种', desc:'每人种5棵 → 剩下3棵没人种（盈3）',
+           hint:'剩下3棵＝盈3。' },
+      p2:{ per:6, kind:'亏', amt:4, say:'2人各种4棵、其余每人种6棵，花正好种完', desc:'2人各种4棵、其余每人种6棵，正好种完 → 想想：如果每人都种6棵，会缺几棵？',
+           hint:'如果每人都种6棵：2个小朋友各少种6－4＝2棵，共缺(6－4)×2＝4棵，是暗藏的“亏4”。',
+           hidden:{ plates:2, per:6, filled:4, title:'每人应种6棵：2个小朋友只种了4棵，点一点空格，把缺的花找出来！' } },
+      groups:7, total:38, totalFormula:'5×7＋3＝38',
+      answerText:'有 7 个小朋友参加种花，一共要种 38 棵花',
+      solution:['暗亏：若每人都种6棵，2人各少(6－4)＝2棵，共缺 2×2＝4（棵）','差额：3＋4＝7（棵）','每人多种：6－5＝1（棵）','小朋友：7÷1＝7（个）','花总数：5×7＋3＝38（棵）']
+    },
+    { /* 练习13：挖树坑（明盈暗亏） */
+      name:'植树小卫士', icon:'🌳', unit:'个', groupNoun:'名队员', groupIcon:'🧑‍🌾',
+      storyHtml:'少先队员参加植树节活动：如果每人挖<b class="hl">6</b>个树坑，会剩下<b class="hl">5</b>个树坑没人挖；如果让<b class="hl">2</b>个人各挖<b class="hl">3</b>个、其余每人挖<b class="hl">7</b>个，正好挖完。',
+      ask:'一共需要挖多少个树坑？',
+      p1:{ per:6, kind:'盈', amt:5, say:'会剩下5个树坑没人挖', desc:'每人挖6个 → 剩下5个没人挖（盈5）',
+           hint:'剩下5个＝盈5。' },
+      p2:{ per:7, kind:'亏', amt:8, say:'2人各挖3个、其余每人挖7个，正好挖完', desc:'2人各挖3个、其余每人挖7个，正好挖完 → 若每人都挖7个，会缺几个？',
+           hint:'若每人都挖7个：2人各少挖7－3＝4个，共缺 4×2＝8个，是暗藏的“亏8”。',
+           hidden:{ plates:2, per:7, filled:3, title:'每人应挖7个：2个人只挖了3个，点一点空格，数出少挖了几个！' } },
+      groups:13, total:83, totalFormula:'6×13＋5＝83',
+      answerText:'一共需要挖 83 个树坑',
+      solution:['暗亏：(7－3)×2＝8（个）','差额：5＋8＝13（个）','每人多挖：7－6＝1（个）','少先队员：13÷1＝13（人）','树坑总数：6×13＋5＝83（个）']
+    },
+    { /* 练习15：分书（明盈暗亏） */
+      name:'读书日管家', icon:'📚', unit:'本', groupNoun:'个班', groupIcon:'🏫',
+      storyHtml:'读书日这天，学校买来一批少儿读物：如果每个班分<b class="hl">8</b>本，会剩下<b class="hl">18</b>本；如果让<b class="hl">2</b>个班各分<b class="hl">7</b>本、其余每个班分<b class="hl">10</b>本，恰好分完。',
+      ask:'学校一共买来多少本少儿读物？',
+      p1:{ per:8, kind:'盈', amt:18, say:'会剩下18本', desc:'每班分8本 → 剩下18本（盈18）',
+           hint:'剩下18本＝盈18。' },
+      p2:{ per:10, kind:'亏', amt:6, say:'2个班各分7本、其余每班分10本，恰好分完', desc:'2个班各分7本、其余每班分10本，恰好分完 → 若每班都分10本，会少几本？',
+           hint:'若每班都分10本：2个班各少(10－7)＝3本，共少 3×2＝6本，是暗藏的“亏6”。',
+           hidden:{ plates:2, per:10, filled:7, title:'每班应分10本：2个班只分了7本，点一点空格，数出少分了几本！' } },
+      groups:12, total:114, totalFormula:'8×12＋18＝114',
+      answerText:'学校一共买来 114 本少儿读物',
+      solution:['暗亏：(10－7)×2＝6（本）','差额：18＋6＝24（本）','每班多分：10－8＝2（本）','班级数：24÷2＝12（个）','书本总数：8×12＋18＝114（本）']
+    },
+    { /* 练习16：分香蕉（明盈暗亏） */
+      name:'香蕉分享家', icon:'🍌', unit:'根', groupNoun:'只猴子', groupIcon:'🐒',
+      storyHtml:'猴王给一群猴子分香蕉：如果每只分<b class="hl">5</b>根，会剩下<b class="hl">16</b>根；如果每只分<b class="hl">7</b>根，最后一只猴子只能拿到<b class="hl">3</b>根。',
+      ask:'猴王一共有多少根香蕉？',
+      p1:{ per:5, kind:'盈', amt:16, say:'会剩下16根', desc:'每只分5根 → 剩下16根（盈16）',
+           hint:'剩下16根＝盈16。' },
+      p2:{ per:7, kind:'亏', amt:4, say:'最后一只猴子只能拿到3根', desc:'每只分7根，最后一只只拿到3根 → 缺了几根？',
+           hint:'最后一只应得7根、只拿到3根，缺7－3＝4根，是暗藏的“亏4”。',
+           hidden:{ plates:1, per:7, filled:3, title:'每只应得7根：最后一只只拿到3根，点一点空格，数出少了几根！' } },
+      groups:10, total:66, totalFormula:'5×10＋16＝66',
+      answerText:'猴王一共有 66 根香蕉',
+      solution:['暗亏：7－3＝4（根）','差额：16＋4＝20（根）','每只多分：7－5＝2（根）','猴子数：20÷2＝10（只）','香蕉总数：5×10＋16＝66（根）']
+    },
+    { /* 练习11：帐篷（明亏暗盈） */
+      name:'营地安排官', icon:'⛺', unit:'人', groupNoun:'顶帐篷', groupIcon:'⛺',
+      storyHtml:'夏令营里分帐篷：如果每个帐篷住<b class="hl">4</b>名同学，有<b class="hl">7</b>名同学没地方住；如果每个帐篷住<b class="hl">5</b>名同学，会有<b class="hl">2</b>顶帐篷整个空出来。',
+      ask:'参加夏令营的同学有多少人？',
+      p1:{ per:4, kind:'亏', amt:7, say:'有7名同学没地方住', desc:'每帐篷住4人 → 7名同学没地方住（缺7个床位）',
+           hint:'没地方住＝亏7。' },
+      p2:{ per:5, kind:'盈', amt:10, say:'会有2顶帐篷整个空出来', desc:'每帐篷住5人 → 2顶帐篷整个空出来 → 多出几个床位？',
+           hint:'空出2顶帐篷，每顶5个床位，多出 2×5＝10个床位，是暗藏的“盈10”。',
+           hidden:{ plates:2, per:5, filled:0, title:'空出来的帐篷每顶有5个床位：点一点空格，数出多出了几个床位！' } },
+      groups:17, total:75, totalFormula:'4×17＋7＝75',
+      answerText:'参加夏令营的同学有 75 人',
+      solution:['暗盈：空出2顶帐篷＝多出 2×5＝10（个床位）','床位差：7＋10＝17（个）','每个帐篷多住：5－4＝1（人）','帐篷数：17÷1＝17（顶）','同学人数：4×17＋7＝75（人）']
+    }
+  ],
+  hard: [
+    { /* 练习12：太空行李（明盈暗亏） */
+      name:'太空行李官', icon:'🧳', unit:'件', groupNoun:'名队员', groupIcon:'👩‍🚀',
+      storyHtml:'一群科学家去太空探险，出发前队长分配行李：如果每人拿<b class="hl">12</b>件，会剩下<b class="hl">2</b>件没人拿；如果每人拿<b class="hl">15</b>件，最后一名队员只用拿<b class="hl">5</b>件。',
+      ask:'这次探险的队员一共有多少人？',
+      p1:{ per:12, kind:'盈', amt:2, say:'会剩下2件没人拿', desc:'每人拿12件 → 剩下2件没人拿（盈2）',
+           hint:'剩下2件＝盈2。' },
+      p2:{ per:15, kind:'亏', amt:10, say:'最后一名队员只用拿5件', desc:'每人拿15件，最后一名只拿5件 → 缺几件？',
+           hint:'最后一名应拿15件、只拿5件，缺15－5＝10件，是暗藏的“亏10”。',
+           hidden:{ plates:1, per:15, filled:5, title:'每名队员应拿15件：最后一名只拿了5件，点一点空格，数出少了几件！' } },
+      groups:4, total:50, totalFormula:'12×4＋2＝50',
+      answerText:'这次探险的队员一共有 4 人',
+      solution:['暗亏：15－5＝10（件）','差额：2＋10＝12（件）','每人多拿：15－12＝3（件）','队员数：12÷3＝4（人）','行李总数：12×4＋2＝50（件）']
+    },
+    { /* 练习17：绳子量井（折数盈亏） */
+      name:'井深测量员', icon:'🪢', unit:'米', groupNoun:'米（井深）', groupIcon:'📏',
+      storyHtml:'用一根绳子测量井深：把绳子对折放入井中，井口外还会多出<b class="hl">3</b>米；把绳子折成<b class="hl">3</b>折来量，一端到井口时，另一端距井底还有<b class="hl">2</b>米。',
+      ask:'井深和绳长各是多少？',
+      p1:{ per:2, kind:'盈', amt:6, say:'井口外还会多出3米', desc:'对折（每股相当于2个井深）→ 每股多出3米 → 绳子一共多出几米？',
+           hint:'对折有2股，每股多3米，共多出 3×2＝6米，是“盈6”。',
+           hidden:{ plates:2, per:3, filled:0, title:'对折后有2股，每股多出3米：点一点空格，数出绳子一共多出几米！' } },
+      p2:{ per:3, kind:'亏', amt:6, say:'另一端距井底还有2米', desc:'折3折（每股相当于3个井深）→ 每股还差2米 → 绳子一共少几米？',
+           hint:'3折有3股，每股差2米，共少 2×3＝6米，是“亏6”。',
+           hidden:{ plates:3, per:2, filled:0, title:'折成3折后每股还差2米：点一点空格，数出绳子一共少了几米！' } },
+      groups:12, total:30, totalFormula:'2×12＋6＝30',
+      answerText:'井深 12 米，绳长 30 米',
+      solution:['对折多出：3×2＝6（米）→ 盈6','三折缺少：2×3＝6（米）→ 亏6','差额：6＋6＝12（米）','每股绳长差：3－2＝1（米）','井深：12÷1＝12（米）','绳长：2×12＋6＝30（米）']
+    },
+    { /* 例6：巧克力（明盈暗亏·含零头回退） */
+      name:'巧克力管家', icon:'🍫', unit:'块', groupNoun:'个小朋友', groupIcon:'🧒',
+      storyHtml:'乐乐老师把一桶巧克力分给小朋友：如果每人分<b class="hl">6</b>块，则剩下<b class="hl">10</b>块；如果让<b class="hl">3</b>个人每人分<b class="hl">4</b>块、其他每人分<b class="hl">7</b>块，最后还剩下<b class="hl">1</b>块。',
+      ask:'乐乐老师一共有多少块巧克力？',
+      p1:{ per:6, kind:'盈', amt:10, say:'会剩下10块', desc:'每人分6块 → 剩下10块（盈10）',
+           hint:'剩下10块＝盈10。' },
+      p2:{ per:7, kind:'亏', amt:8, say:'3人每人4块、其余每人7块，最后还剩下1块', desc:'3人每人4块、其余每人7块，最后还剩1块 → 若每人都分7块，真正缺几块？',
+           hint:'若每人都分7块：3人各少(7－4)＝3块，共少9块；但此时还剩1块没用完，真正缺少 9－1＝8块。',
+           hidden:{ plates:3, per:7, filled:4, title:'每人应分7块：3个小朋友只分了4块，点一点空格数出空格数；别忘了最后还剩1块，要把多算的1颗珠子点一点放回托盘哦！' } },
+      groups:18, total:118, totalFormula:'6×18＋10＝118',
+      answerText:'乐乐老师一共有 118 块巧克力',
+      solution:['暗亏：3人各少(7－4)＝3块，共少 3×3＝9块，但还剩1块 → 真缺 9－1＝8（块）','差额：10＋8＝18（块）','每人多分：7－6＝1（块）','小朋友：18÷1＝18（人）','巧克力总数：6×18＋10＝118（块）']
+    },
+    { /* 自创变式：骑行速度盈亏 */
+      name:'骑行小骑手', icon:'🚲', unit:'米', groupNoun:'分钟', groupIcon:'⏱️',
+      storyHtml:'乐乐骑车去图书馆还书：如果每分钟骑<b class="hl">50</b>米，到还书时间时还差<b class="hl">40</b>米才能到；如果每分钟骑<b class="hl">55</b>米，到还书时间时已经多骑了<b class="hl">15</b>米。',
+      ask:'从家到图书馆一共有多少米？',
+      p1:{ per:50, kind:'亏', amt:40, say:'到还书时间时还差40米才能到', desc:'每分钟骑50米 → 到点还差40米（亏40）',
+           hint:'还差40米＝亏40。' },
+      p2:{ per:55, kind:'盈', amt:15, say:'到还书时间时已经多骑了15米', desc:'每分钟骑55米 → 到点多骑了15米（盈15）',
+           hint:'多骑15米＝盈15。' },
+      groups:11, total:590, totalFormula:'50×11＋40＝590',
+      answerText:'从家到图书馆一共有 590 米',
+      solution:['差额：40＋15＝55（米）','每分钟多骑：55－50＝5（米）','时间：55÷5＝11（分钟）','路程：50×11＋40＝590（米）']
+    }
+  ]
+};
+
+/* ---------------- 随机配色板（每局换色，多次玩不腻） ---------------- */
+var PALETTES = [
+  { name:'晴空蓝', c1:'#1565c0', c2:'#e3f2fd', ac:'#ff9800', ink:'#0d47a1' },
+  { name:'草地绿', c1:'#2e7d32', c2:'#e8f5e9', ac:'#fb8c00', ink:'#1b5e20' },
+  { name:'蜜桃粉', c1:'#c2185b', c2:'#fce4ec', ac:'#7cb342', ink:'#880e4f' },
+  { name:'暖阳橘', c1:'#ef6c00', c2:'#fff3e0', ac:'#00897b', ink:'#bf360c' },
+  { name:'紫罗兰', c1:'#6a1b9a', c2:'#f3e5f5', ac:'#fbc02d', ink:'#4a148c' },
+  { name:'青碧湖', c1:'#00838f', c2:'#e0f7fa', ac:'#e91e63', ink:'#006064' }
+];
+function applyPalette(){
+  var p = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  var r = document.documentElement.style;
+  r.setProperty('--c1', p.c1); r.setProperty('--c2', p.c2);
+  r.setProperty('--ac', p.ac); r.setProperty('--ink', p.ink);
+}
+
+/* ---------------- 全局状态 ---------------- */
+var S = {
+  diff:'easy', queue:[], idx:0, lv:null,
+  steps:0, t0:0, timerId:0, stars:[], sawAnswer:false, rulesShown:false
+};
+/* 三步各自的状态 */
+var A = [ {count:0, locked:false, tries:0, tokens:[]}, {count:0, locked:false, tries:0, tokens:[]} ];
+var B = { size:3, ran:false, k:0, jams:0, dealing:false };
+var C = { v1:'', v2:'', fails:0 };
+
+/* ---------------- 步数 / 计时 / 提示条 ---------------- */
+function addStep(){ S.steps += 1; $('#hudSteps').textContent = '🐾 ' + S.steps + ' 步'; }
+function startTimer(){
+  S.t0 = Date.now();
+  if(S.timerId){ clearInterval(S.timerId); }
+  S.timerId = setInterval(function(){
+    var ms = Date.now() - S.t0;
+    $('#hudTimer').textContent = '⏱ ' + pad2(Math.floor(ms / 60000)) + ':' + pad2(Math.floor(ms / 1000) % 60);
+  }, 500);
+}
+var toastTimer = 0;
+function toast(msg){
+  var t = $('#toast');
+  t.textContent = msg; t.classList.add('show');
+  if(toastTimer){ clearTimeout(toastTimer); }
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+}
+
+/* ---------------- 屏幕切换 ---------------- */
+function showScreen(name){
+  if(name === 'menu'){
+    $('#screenMenu').classList.remove('hidden');
+    $('#screenGame').classList.add('hidden');
+    $('#hud').classList.add('hidden');
+  }else{
+    $('#screenMenu').classList.add('hidden');
+    $('#screenGame').classList.remove('hidden');
+    $('#hud').classList.remove('hidden');
+  }
+}
+
+/* ---------------- 会话与关卡 ---------------- */
+function startSession(diff){
+  S.diff = diff;
+  /* 反重复：每局从该难度题库随机抽3道，顺序也打乱 */
+  S.queue = shuffle(LEVELS[diff]).slice(0, 3);
+  S.idx = 0; S.steps = 0; S.stars = [];
+  applyPalette();                       /* 每局随机换配色 */
+  $('#hudSteps').textContent = '🐾 0 步';
+  startTimer();
+  showScreen('game');
+  enterLevel(0);
+  if(!S.rulesShown){ openModal('mdRules'); S.rulesShown = true; }  /* 首次进入弹出规则 */
+}
+
+function enterLevel(i){
+  S.idx = i; S.lv = S.queue[i]; S.sawAnswer = false;
+  resetLevelState();
+  renderStory();
+  renderPlans();
+  updateHudProgress();
+  $('#hudTitle').textContent = '盈亏小管家 · ' + diffName(S.diff);
+  window.scrollTo(0, 0);
+  toast('第 ' + (i + 1) + ' 关 · ' + S.lv.name + ' ' + S.lv.icon);
+}
+function diffName(d){ return d === 'easy' ? '初级' : (d === 'mid' ? '中级' : '高级'); }
+function updateHudProgress(){ $('#hudProgress').textContent = '第 ' + (S.idx + 1) + '/3 关'; }
+
+function resetLevelState(){
+  A[0] = { count:0, locked:false, tries:0, tokens:[] };
+  A[1] = { count:0, locked:false, tries:0, tokens:[] };
+  B = { size: 2 + Math.floor(Math.random() * 4), ran:false, k:0, jams:0, dealing:false };
+  C = { v1:'', v2:'', fails:0 };
+  /* 第二步、第三步重新上锁 */
+  $('#bodyB').classList.add('locked'); $('#bodyB').classList.remove('open');
+  $('#bodyC').classList.add('locked'); $('#bodyC').classList.remove('open');
+  $('#lockB').textContent = '🔒 两盘都确认正确后开启';
+  $('#lockC').textContent = '🔒 分组机装满整盒后开启';
+  $('#hopperCount').textContent = '0';
+  $('#boxesArea').innerHTML = '';
+  $('#boxLabel').textContent = '';
+  setMachineMsg('先选好每盒数量，再开动！', '');
+  $('#resV1').textContent = '还没有验证';
+  $('#resV2').textContent = '还没有验证';
+  $('#treasure').classList.remove('opened');
+  $('#treasure').textContent = '🎁 神秘宝箱：两个方案都和题目对上，宝箱就打开！';
+  setDial(B.size);
+}
+
+/* ---------------- 题面渲染 ---------------- */
+function renderStory(){
+  $('#storyIcon').textContent = S.lv.icon;
+  $('#lvName').textContent = '第 ' + (S.idx + 1) + ' 关 · ' + S.lv.name;
+  $('#storyText').innerHTML = S.lv.storyHtml;
+  $('#storyAsk').textContent = '问：' + S.lv.ask;
+}
+
+/* ---------------- 第一步：方案卡片 / 探秘盘 / 托盘 ---------------- */
+function planCardHTML(pi){
+  var p = S.lv['p' + (pi + 1)];
+  var kindCls = (p.kind === '盈') ? 'ying' : 'kui';
+  var h = '';
+  h += '<div class="plan-card ' + kindCls + '" id="plan' + pi + '">';
+  h += '<div class="plan-head"><span class="plan-tag">' + (pi === 0 ? '方案一' : '方案二') + '</span>';
+  h += '<span class="kind-badge ' + kindCls + '">' + (p.kind === '盈' ? '盈 · 多出来' : '亏 · 不够啦') + '</span></div>';
+  h += '<div class="plan-desc">' + p.desc + '</div>';
+  if(p.hidden){
+    var w = p.hidden;
+    h += '<div class="widget"><div class="w-title">🔎 探秘盘：' + w.title + '</div><div class="plates">';
+    for(var a = 0; a < w.plates; a++){
+      h += '<div class="plate">';
+      for(var s = 0; s < w.per; s++){
+        if(s < w.filled){ h += '<span class="slot filled"></span>'; }
+        else{ h += '<span class="slot ghost" data-pi="' + pi + '"></span>'; }
+      }
+      h += '</div>';
+    }
+    h += '</div></div>';
+  }
+  h += '<div class="tray" data-pi="' + pi + '" id="tray' + pi + '">';
+  h += '<div class="tray-label">' + (p.kind === '盈' ? '盈盘：把“多出来”的数量摆进来' : '亏盘：把“缺少”的数量摆进来') + '</div>';
+  h += '<div class="tray-tokens" id="tokens' + pi + '"></div>';
+  h += '<div class="tray-foot"><span class="tray-count" id="count' + pi + '">0</span>';
+  h += '<button class="btn" data-confirm="' + pi + '">确认' + (p.kind === '盈' ? '盈' : '亏') + '量 ✔</button></div>';
+  h += '<div class="tray-state" id="state' + pi + '"></div></div>';
+  h += '<div class="plan-hint" id="hint' + pi + '"></div>';
+  h += '</div>';
+  return h;
+}
+function renderPlans(){
+  $('#planWrap').innerHTML = planCardHTML(0) + planCardHTML(1);
+  renderTray(0); renderTray(1);
+  /* 探秘盘空格：点一下送一颗差额珠到对应托盘（把暗盈暗亏“点”出来） */
+  $all('#planWrap .slot.ghost').forEach(function(sl){
+    sl.addEventListener('click', function(){
+      var pi = parseInt(sl.getAttribute('data-pi'), 10);
+      if(A[pi].locked){ toast('这一盘已经确认啦！'); return; }
+      if(sl.classList.contains('used')){ return; }
+      sl.classList.add('used');
+      flyDot(sl, $('#tray' + pi));
+      addToken(pi, 1);
+      addStep(); sndTick();
+    });
+  });
+  /* 确认按钮 */
+  $all('#planWrap [data-confirm]').forEach(function(btn){
+    btn.addEventListener('click', function(){ confirmTray(parseInt(btn.getAttribute('data-confirm'), 10)); });
+  });
+  /* 点托盘里的珠子放回仓库（可自由增减，支持零头修正） */
+  [0, 1].forEach(function(pi){
+    $('#tokens' + pi).addEventListener('click', function(ev){
+      var t = ev.target;
+      if(!t.classList || !t.classList.contains('tk')){ return; }
+      if(A[pi].locked){ toast('已经锁定的盘子不能再改啦'); return; }
+      var idx = parseInt(t.getAttribute('data-i'), 10);
+      var v = A[pi].tokens[idx];
+      if(typeof v === 'number'){
+        A[pi].tokens.splice(idx, 1);
+        A[pi].count -= v;
+        renderTray(pi); addStep(); sndTick();
+      }
+    });
+  });
+}
+function renderTray(pi){
+  var box = $('#tokens' + pi);
+  var html = '';
+  if(A[pi].tokens.length === 0){
+    html = '<span class="tk-empty">空盘 · 把差额珠拖进来吧</span>';
+  }else{
+    A[pi].tokens.forEach(function(v, i){
+      if(v >= 10){ html += '<span class="tk tkb" data-i="' + i + '" title="点我放回">串10</span>'; }
+      else{ html += '<span class="tk tk1" data-i="' + i + '" title="点我放回">1</span>'; }
+    });
+  }
+  box.innerHTML = html;
+  $('#count' + pi).textContent = A[pi].count;
+}
+function addToken(pi, v){
+  A[pi].tokens.push(v);
+  A[pi].count += v;
+  renderTray(pi);
+}
+/* 飞珠动画：从探秘盘飞到托盘 */
+function flyDot(fromEl, toEl){
+  try{
+    var a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+    var d = document.createElement('div');
+    d.className = 'flydot';
+    d.style.left = (a.left + a.width / 2 - 11) + 'px';
+    d.style.top = (a.top + a.height / 2 - 11) + 'px';
+    document.body.appendChild(d);
+    requestAnimationFrame(function(){
+      d.style.left = (b.left + 40) + 'px';
+      d.style.top = (b.top + 20) + 'px';
+    });
+    setTimeout(function(){ if(d.parentNode){ d.parentNode.removeChild(d); } }, 420);
+  }catch(e){ /* 动画失败不影响逻辑 */ }
+}
+function confirmTray(pi){
+  var p = S.lv['p' + (pi + 1)];
+  if(A[pi].locked){ return; }
+  addStep();
+  if(A[pi].count === p.amt){
+    A[pi].locked = true;
+    $('#tray' + pi).classList.add('locked');
+    $('#state' + pi).textContent = '✔ 摆对啦，锁定！' + (p.kind === '盈' ? '盈' : '亏') + ' ' + p.amt + ' ' + S.lv.unit;
+    sndOk();
+    checkPhaseADone();
+  }else{
+    A[pi].tries += 1;
+    $('#tray' + pi).classList.add('shake');
+    setTimeout(function(){ $('#tray' + pi).classList.remove('shake'); }, 350);
+    sndErr();
+    if(A[pi].tries >= 2){
+      $('#hint' + pi).textContent = '💡 提示：' + p.hint;
+      toast('数量不对哦，看看亮起来的提示吧！');
+    }else{
+      toast('数量不对，再读一读题目，数一数珠子！');
+    }
+  }
+}
+function checkPhaseADone(){
+  if(A[0].locked && A[1].locked){
+    var total = S.lv.p1.amt + S.lv.p2.amt;
+    /* 料仓倒珠动画 + 数字滚动，解锁第二步 */
+    $('#bodyB').classList.remove('locked'); $('#bodyB').classList.add('open');
+    $('#lockB').textContent = '✅ 已开启';
+    $('#hopper').classList.add('pour');
+    setTimeout(function(){ $('#hopper').classList.remove('pour'); }, 850);
+    countUp($('#hopperCount'), total, 800);
+    setMachineMsg('两种差额合在一起啦！拨好旋钮再开动分组机！', '');
+    sndOk();
+    toast('第二步解锁：开动智慧分组机！');
+    setTimeout(function(){ $('#phaseB').scrollIntoView({ behavior:'smooth', block:'start' }); }, 400);
+  }
+}
+function countUp(el, to, ms){
+  var t0 = Date.now();
+  function frame(){
+    var r = Math.min(1, (Date.now() - t0) / ms);
+    el.textContent = Math.round(to * r);
+    if(r < 1){ requestAnimationFrame(frame); }
+  }
+  frame();
+}
+
+/* ---------------- 差额珠拖拽（仓库 → 托盘，Pointer 触控通用） ---------------- */
+function trayHit(x, y){
+  var hit = -1;
+  $all('#planWrap .tray').forEach(function(tr){
+    var r = tr.getBoundingClientRect();
+    if(x >= r.left && x <= r.right && y >= r.top && y <= r.bottom){
+      hit = parseInt(tr.getAttribute('data-pi'), 10);
+    }
+  });
+  return hit;
+}
+function highlightTrays(x, y){
+  $all('#planWrap .tray').forEach(function(tr){
+    var r = tr.getBoundingClientRect();
+    var on = (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
+    tr.classList.toggle('hot', on);
+  });
+}
+function initChip(el, val, label){
+  el.addEventListener('pointerdown', function(ev){
+    ev.preventDefault();
+    var ghost = document.createElement('div');
+    ghost.className = 'drag-ghost';
+    ghost.textContent = label;
+    document.body.appendChild(ghost);
+    ghost.style.left = (ev.clientX - 30) + 'px';
+    ghost.style.top = (ev.clientY - 30) + 'px';
+    function mv(e2){
+      ghost.style.left = (e2.clientX - 30) + 'px';
+      ghost.style.top = (e2.clientY - 30) + 'px';
+      highlightTrays(e2.clientX, e2.clientY);
+    }
+    function up(e2){
+      window.removeEventListener('pointermove', mv);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      highlightTrays(-9999, -9999);
+      var pi = trayHit(e2.clientX, e2.clientY);
+      if(ghost.parentNode){ ghost.parentNode.removeChild(ghost); }
+      if(pi >= 0){
+        if(A[pi].locked){ toast('这一盘已经确认啦，不能改咯'); return; }
+        addToken(pi, val);
+        addStep(); sndTick();
+      }
+    }
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+}
+
+/* ---------------- 第二步：拨钮（连续滑调）+ 分组机 ---------------- */
+function setMachineMsg(msg, cls){ var m = $('#machineMsg'); m.textContent = msg; m.className = cls || ''; }
+function setDial(v){
+  B.size = clamp(v, 1, 8);
+  $('#dialValue').textContent = B.size;
+  $('#dialThumb').style.left = ((B.size - 1) / 7 * 100) + '%';
+}
+function initDial(){
+  var track = $('#dialTrack');
+  /* 刻度 1~8 */
+  for(var v = 1; v <= 8; v++){
+    var tick = document.createElement('div');
+    tick.className = 'dial-tick';
+    tick.textContent = v;
+    tick.style.left = ((v - 1) / 7 * 100) + '%';
+    tick.setAttribute('data-v', v);
+    track.appendChild(tick);
+  }
+  function fromX(x){
+    var r = track.getBoundingClientRect();
+    var t = clamp((x - r.left) / r.width, 0, 1);
+    return clamp(Math.round(t * 7) + 1, 1, 8);
+  }
+  var dragging = false;
+  track.addEventListener('pointerdown', function(e){ e.preventDefault(); dragging = true; setDial(fromX(e.clientX)); });
+  window.addEventListener('pointermove', function(e){ if(dragging){ setDial(fromX(e.clientX)); } });
+  window.addEventListener('pointerup', function(){ if(dragging){ dragging = false; addStep(); sndTick(); } });
+}
+function runMachine(){
+  if(B.dealing){ return; }
+  if(!A[0].locked || !A[1].locked){ return; }
+  addStep();
+  var total = S.lv.p1.amt + S.lv.p2.amt;
+  var size = B.size;
+  if(total % size !== 0){
+    /* 装不完整：机器摇一摇，请换每盒数量（单份差的选择正是本题核心思考点） */
+    B.jams += 1;
+    $('#hopper').classList.add('mach-shake');
+    setTimeout(function(){ $('#hopper').classList.remove('mach-shake'); }, 450);
+    sndErr();
+    setMachineMsg('哎呀，还有 ' + (total % size) + ' 颗装不进整盒！换个“每盒数量”再试吧！', 'bad');
+    toast('装不完整哦！想想两种分法每份相差几？');
+    return;
+  }
+  /* 开始发珠：逐颗飞进盒子（操作结果可视化） */
+  B.dealing = true; B.ran = false; B.k = total / size;
+  C = { v1:'', v2:'', fails:0 };
+  $('#bodyC').classList.add('locked'); $('#bodyC').classList.remove('open');
+  $('#lockC').textContent = '🔒 分组机装满整盒后开启';
+  $('#resV1').textContent = '还没有验证';
+  $('#resV2').textContent = '还没有验证';
+  $('#treasure').classList.remove('opened');
+  $('#treasure').textContent = '🎁 神秘宝箱：两个方案都和题目对上，宝箱就打开！';
+  var area = $('#boxesArea');
+  area.innerHTML = '';
+  $('#boxLabel').textContent = '';
+  setMachineMsg('分组机开动啦……', '');
+  var boxes = [];
+  for(var j = 0; j < B.k; j++){
+    var bx = document.createElement('div');
+    bx.className = 'mbox';
+    area.appendChild(bx);
+    boxes.push(bx);
+  }
+  var stag = Math.max(16, Math.round(700 / total));
+  var i = 0;
+  var timer = setInterval(function(){
+    var box = boxes[Math.floor(i / size)];
+    var d = document.createElement('span');
+    d.className = 'mdot';
+    box.appendChild(d);
+    if(i % 4 === 0){ sndTick(); }
+    i += 1;
+    if(i >= total){
+      clearInterval(timer);
+      finishBoxes(boxes);
+    }
+  }, stag);
+}
+function finishBoxes(boxes){
+  boxes.forEach(function(bx, j){
+    setTimeout(function(){
+      bx.classList.add('full');
+      bx.innerHTML = '<span class="mface">' + S.lv.groupIcon + '</span><span class="mnum">' + (j + 1) + '</span>';
+      tone(700 + j * 30, .08);
+    }, j * 90);
+  });
+  setTimeout(function(){
+    B.dealing = false; B.ran = true;
+    setMachineMsg('太好了！' + (S.lv.p1.amt + S.lv.p2.amt) + ' 颗差额珠正好装满整盒，一颗不剩！', 'good');
+    $('#boxLabel').textContent = '正好分成 ' + B.k + ' 盒 → 是不是有 ' + B.k + ' ' + S.lv.groupNoun + '？去第三步验证吧！';
+    $('#bodyC').classList.remove('locked'); $('#bodyC').classList.add('open');
+    $('#lockC').textContent = '✅ 已开启';
+    sndOk();
+    toast('第三步解锁：双方案验证！');
+    setTimeout(function(){ $('#phaseC').scrollIntoView({ behavior:'smooth', block:'start' }); }, 400);
+  }, boxes.length * 90 + 250);
+}
+
+/* ---------------- 第三步：双方案验证 ---------------- */
+function verifyPlan(which){
+  if(!B.ran || B.dealing){ return; }
+  addStep();
+  var p = S.lv['p' + which];
+  var k = B.k;
+  var used = p.per * k;
+  var rem = S.lv.total - used;                     /* rem>0 发出后有剩余；rem<0 总量不够发 */
+  var trueRem = S.lv.total - p.per * S.lv.groups;  /* 该方案在“真实份数”下的余量（与盈亏视角无关） */
+  var ok = (rem === trueRem);
+  var res = $('#resV' + which);
+  var h = '';
+  h += '<div class="stamp ' + (ok ? 'ok' : 'bad') + '">' + (ok ? '✔ 和题目一致' : '✘ 和题目不一样') + '</div>';
+  h += '<div class="vline">每份 ' + p.per + ' ' + S.lv.unit + ' × ' + k + ' 份 ＝ 需要发出 ' + used + ' ' + S.lv.unit + '</div>';
+  if(rem >= 0){
+    h += '<div class="vline">发出之后<strong>还剩 ' + rem + ' ' + S.lv.unit + '</strong>（题目说：' + p.say + '）</div>';
+  }else{
+    h += '<div class="vline">按这个分法，<strong>总量还差 ' + (-rem) + ' ' + S.lv.unit + ' 才够</strong>（题目说：' + p.say + '）</div>';
+  }
+  res.innerHTML = h;
+  if(ok){
+    sndOk();
+    if(which === 1){ C.v1 = 'ok'; } else { C.v2 = 'ok'; }
+    if(C.v1 === 'ok' && C.v2 === 'ok'){
+      setTimeout(winLevel, 650);
+    }else{
+      toast('这个方案对上啦！再验证另一个方案！');
+    }
+  }else{
+    sndErr();
+    C.fails += 1;
+    if(which === 1){ C.v1 = 'bad'; } else { C.v2 = 'bad'; }
+    toast('和题目说的不一样！盒子数不对，回到第二步换个“每盒数量”再试！');
+    setMachineMsg('盒子数量不对哦！提示：每盒数量 ＝ 两种分法每份的差（' + S.lv.p1.per + ' 和 ' + S.lv.p2.per + ' 相差几？）', 'bad');
+  }
+}
+
+/* ---------------- 通关 / 星级 / 庆祝 ---------------- */
+function winLevel(){
+  var mistakes = A[0].tries + A[1].tries + B.jams + C.fails + (S.sawAnswer ? 2 : 0);
+  var star = (mistakes === 0) ? 3 : (mistakes <= 3 ? 2 : 1);
+  S.stars.push(star);
+  $('#winStars').textContent = '⭐'.repeat(star) + '☆'.repeat(3 - star);
+  $('#winTitle').textContent = (star === 3 ? '完美通关，太厉害啦！' : (star === 2 ? '宝箱打开啦，真棒！' : '宝箱打开啦，继续加油！'));
+  $('#winAns').innerHTML = S.lv.ask + '<br>' + S.lv.answerText;
+  var sol = '';
+  S.lv.solution.forEach(function(line){ sol += '<div class="sol-line">✔ ' + line + '</div>'; });
+  sol += '<div class="sol-line">🧮 总量检验：' + S.lv.totalFormula + '</div>';
+  $('#winSol').innerHTML = sol;
+  $('#btnNext').textContent = (S.idx >= 2) ? '查看总成绩 🏆' : '下一关 ➜';
+  $('#treasure').classList.add('opened');
+  $('#treasure').textContent = '🎁 宝箱打开啦！' + S.lv.answerText;
+  showOverlay('ovWin');
+  sndWin();
+  launchConfetti(2800);
+}
+function endSession(){
+  var totalStars = 0;
+  var st = '';
+  S.stars.forEach(function(s){ totalStars += s; st += '⭐'.repeat(s) + '☆'.repeat(3 - s) + '　'; });
+  $('#endStars').textContent = st;
+  var ms = Date.now() - S.t0;
+  $('#endStats').innerHTML = '获得星星：' + totalStars + ' / 9<br>总用时 ' + pad2(Math.floor(ms / 60000)) + ' 分 ' + pad2(Math.floor(ms / 1000) % 60) + ' 秒 · 共 ' + S.steps + ' 步';
+  showOverlay('ovEnd');
+  sndWin();
+  launchConfetti(3200);
+}
+
+/* ---------------- 彩纸庆祝动画（Canvas 实现） ---------------- */
+var confettiRunning = false;
+function launchConfetti(durMs){
+  try{
+    var cv = $('#confetti');
+    var ctx = cv.getContext('2d');
+    cv.width = window.innerWidth; cv.height = window.innerHeight;
+    var colors = ['#f44336', '#ff9800', '#ffeb3b', '#4caf50', '#2196f3', '#9c27b0', '#e91e73'];
+    var parts = [];
+    for(var i = 0; i < 160; i++){
+      parts.push({
+        x: Math.random() * cv.width,
+        y: -20 - Math.random() * cv.height * 0.5,
+        vx: (Math.random() - 0.5) * 3,
+        vy: 2 + Math.random() * 3.5,
+        w: 6 + Math.random() * 8,
+        h: 8 + Math.random() * 10,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.25,
+        c: colors[Math.floor(Math.random() * colors.length)]
+      });
+    }
+    var start = Date.now();
+    confettiRunning = true;
+    function frame(){
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      parts.forEach(function(p){
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.c;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+      if(Date.now() - start < durMs){
+        requestAnimationFrame(frame);
+      }else{
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        confettiRunning = false;
+      }
+    }
+    if(!confettiRunning){ frame(); }
+  }catch(e){ /* 画布不可用时静默 */ }
+}
+
+/* ---------------- 弹窗 / 覆盖层 ---------------- */
+function openModal(id){ $('#' + id).classList.add('show'); }
+function closeModal(id){ $('#' + id).classList.remove('show'); }
+function showOverlay(id){ $('#' + id).classList.add('show'); }
+function hideOverlay(id){ $('#' + id).classList.remove('show'); }
+
+/* 揭示答案：完整解题步骤（看完仍可继续动手操作） */
+function openReveal(){
+  if(!S.lv){ return; }
+  S.sawAnswer = true;
+  var lv = S.lv;
+  var h = '';
+  h += '<div class="sol-line"><b>方案一</b>：' + lv.p1.desc + ' → ' + (lv.p1.kind === '盈' ? '盈' : '亏') + ' ' + lv.p1.amt + ' ' + lv.unit + '</div>';
+  h += '<div class="sol-line"><b>方案二</b>：' + lv.p2.desc + ' → ' + (lv.p2.kind === '盈' ? '盈' : '亏') + ' ' + lv.p2.amt + ' ' + lv.unit + '</div>';
+  h += '<div class="formula-banner">（盈 + 亏）÷ 每份差 ＝ 份数</div>';
+  lv.solution.forEach(function(line){ h += '<div class="sol-line">✔ ' + line + '</div>'; });
+  h += '<div class="ans-big">' + lv.answerText + '</div>';
+  h += '<div class="sol-line" style="color:#90a4ae;">看完答案也推荐自己动手再玩一遍，动手才会真正记住方法哦！</div>';
+  $('#revealBody').innerHTML = h;
+  openModal('mdReveal');
+}
+
+/* ---------------- 事件绑定（启动） ---------------- */
+function hideAllOverlays(){
+  ['ovWin', 'ovEnd', 'mdRules', 'mdReveal'].forEach(function(id){ $('#' + id).classList.remove('show'); });
+}
+function bindAll(){
+  /* 难度卡片（三档难度） */
+  $all('.diff-card').forEach(function(card){
+    card.addEventListener('click', function(){ startSession(card.getAttribute('data-diff')); });
+  });
+  /* 规则弹窗（进入时自动弹出 + 随时再看） */
+  $('#btnRulesMenu').addEventListener('click', function(){ openModal('mdRules'); });
+  $('#btnRules').addEventListener('click', function(){ openModal('mdRules'); });
+  $('#btnRulesClose').addEventListener('click', function(){ closeModal('mdRules'); });
+  /* 揭示答案 */
+  $('#btnReveal').addEventListener('click', openReveal);
+  $('#btnRevealClose').addEventListener('click', function(){ closeModal('mdReveal'); });
+  /* 重新开始本关 */
+  $('#btnRestart').addEventListener('click', function(){
+    if(!S.lv){ return; }
+    enterLevel(S.idx);
+    toast('本关重新开始！');
+  });
+  /* 返回难度选择 */
+  function backMenu(){
+    hideAllOverlays();
+    if(S.timerId){ clearInterval(S.timerId); }
+    S.lv = null;
+    showScreen('menu');
+  }
+  $('#btnBack').addEventListener('click', backMenu);
+  $('#btnWinBack').addEventListener('click', backMenu);
+  $('#btnEndBack').addEventListener('click', backMenu);
+  /* 通关覆盖层按钮 */
+  $('#btnAgainLv').addEventListener('click', function(){ hideOverlay('ovWin'); enterLevel(S.idx); });
+  $('#btnNext').addEventListener('click', function(){
+    hideOverlay('ovWin');
+    if(S.idx >= 2){ endSession(); }
+    else{ enterLevel(S.idx + 1); }
+  });
+  /* 全部通关：再来一局（重新抽题 + 换配色） */
+  $('#btnAgainAll').addEventListener('click', function(){
+    hideOverlay('ovEnd');
+    startSession(S.diff);
+  });
+  /* 分组机与验证 */
+  $('#btnRun').addEventListener('click', runMachine);
+  $('#btnV1').addEventListener('click', function(){ verifyPlan(1); });
+  $('#btnV2').addEventListener('click', function(){ verifyPlan(2); });
+  /* 差额珠拖拽源 */
+  initChip($('#chipTen'), 10, '串10');
+  initChip($('#chipOne'), 1, '单颗');
+  /* 旋钮 */
+  initDial();
+}
+
+/* ---------------- 启动 ---------------- */
+applyPalette();   /* 菜单页也随机配色 */
+bindAll();
+showScreen('menu');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3a/g034", "name": "\u76c8\u4e8f\u5c0f\u7ba1\u5bb6 \u00b7 \u5feb\u4e50\u5206\u4e00\u5206\uff08\u7b2c17\u8bb2 \u76c8\u4e8f\u95ee\u9898\u00b7\u4e0b\uff09", "file": "g034.html", "jiaocan": "\u301034\u3011\u7b2c17\u8bb2 \u76c8\u4e8f\u95ee\u9898\uff08\u4e0b\uff09", "unit": "\u7b2c17\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

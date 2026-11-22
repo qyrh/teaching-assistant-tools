@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻找“宝藏”·方向探险队</title>
+<style>
+/* ================= 基础样式与随机色板变量 ================= */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  --bg:#fff8ef; --panel:#ffffff; --primary:#e8720c; --primary-dark:#c55a00;
+  --accent:#1f7ae0; --soft:#fdebd4; --text:#3a2a18;
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:var(--bg); color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+}
+:root{--cell:clamp(52px,10.5vw,74px);--gap:7px}
+.hidden{display:none !important}
+button{font-family:inherit}
+
+/* ================= 开始界面 ================= */
+#scr-start{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.start-box{max-width:960px;text-align:center}
+.start-box h1{
+  font-size:clamp(36px,6vw,58px);color:var(--primary);
+  text-shadow:3px 3px 0 var(--soft);letter-spacing:4px;animation:floaty 2.6s ease-in-out infinite
+}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.subtitle{font-size:clamp(17px,2.4vw,21px);margin-top:12px;font-weight:700}
+.diff-row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:30px 0 22px}
+.diff-card{
+  flex:1;min-width:230px;max-width:290px;background:var(--panel);
+  border:3px solid var(--primary);border-radius:18px;padding:22px 16px;cursor:pointer;
+  display:flex;flex-direction:column;gap:9px;align-items:center;transition:.2s;
+  box-shadow:0 5px 0 var(--primary-dark)
+}
+.diff-card:hover{transform:translateY(-5px)}
+.d-tag{background:var(--primary);color:#fff;border-radius:999px;padding:5px 20px;font-size:20px;font-weight:700;letter-spacing:3px}
+.d-name{font-size:22px;font-weight:700}
+.d-desc{font-size:16px;line-height:1.55;opacity:.8}
+.start-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+
+/* ================= 通用按钮 ================= */
+.btn{
+  border:3px solid var(--primary-dark);background:var(--primary);color:#fff;
+  font-size:18px;font-weight:700;padding:10px 20px;border-radius:12px;cursor:pointer;
+  box-shadow:0 3px 0 var(--primary-dark)
+}
+.btn:active{transform:translateY(2px);box-shadow:none}
+.btn.ghost{background:transparent;color:var(--primary-dark)}
+.btn.small{font-size:16px;padding:7px 14px}
+
+/* ================= 游戏界面布局 ================= */
+#scr-game{min-height:100vh;display:flex;flex-direction:column}
+.hud{
+  display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;
+  padding:10px 14px;background:var(--panel);border-bottom:4px solid var(--primary);
+  position:sticky;top:0;z-index:10
+}
+.hud-title{font-size:19px;font-weight:800;color:var(--primary-dark)}
+.hud-stats{display:flex;gap:16px;font-size:18px;font-weight:700;flex-wrap:wrap}
+.hud-stats b{color:var(--accent)}
+.hud-btns{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.game-main{display:flex;gap:16px;padding:14px;align-items:flex-start;flex:1}
+.map-area{
+  position:relative;flex:1;display:flex;justify-content:center;align-items:flex-start;
+  padding:24px 14px 14px;background:var(--panel);
+  border:3px dashed var(--primary);border-radius:18px;overflow:auto
+}
+.north-mark{
+  position:absolute;top:10px;left:14px;font-size:19px;font-weight:800;color:var(--primary);
+  background:var(--soft);border:2px solid var(--primary);padding:4px 13px;border-radius:50%;z-index:6
+}
+
+/* ================= 地图网格 ================= */
+#grid{position:relative;display:grid;gap:var(--gap);user-select:none}
+.cell{
+  width:var(--cell);height:var(--cell);background:var(--soft);
+  border:2px solid rgba(0,0,0,.14);border-radius:10px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  transition:box-shadow .15s,background .15s
+}
+.cell.ray{box-shadow:inset 0 0 0 3px var(--accent)}
+.cell.hint-cell{animation:cellPulse .9s infinite}
+@keyframes cellPulse{0%,100%{box-shadow:inset 0 0 0 3px #2e9e4f}50%{box-shadow:inset 0 0 0 6px #7fd98f}}
+.cell.bad{animation:flashRed .4s}
+@keyframes flashRed{0%,100%{background:var(--soft)}50%{background:#f3b4ae}}
+.venue{
+  position:absolute;inset:2px;background:var(--primary);color:#fff;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:16px;font-weight:700;line-height:1.12;padding:2px;overflow:hidden;z-index:2
+}
+.venue.anchor{background:var(--accent)}
+.venue.locked{background:var(--primary-dark)}
+.wp-star{
+  position:absolute;top:-11px;left:-7px;font-size:21px;color:#ffd34d;z-index:4;
+  text-shadow:0 0 4px #b8860b,0 1px 0 #000;animation:pop .4s
+}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.4)}100%{transform:scale(1)}}
+
+/* ================= 地图上的活动角色 ================= */
+.tok{
+  position:absolute;z-index:5;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-weight:800;
+  transition:left .28s ease, top .28s ease;pointer-events:none
+}
+.tok.explorer{
+  background:#fff;color:var(--text);border:4px solid var(--primary-dark);
+  font-size:clamp(18px,calc(var(--cell)*.33),26px);box-shadow:0 3px 10px rgba(0,0,0,.3)
+}
+.tok.explorer.draggable{pointer-events:auto;cursor:grab;touch-action:none}
+.tok.treasure{
+  border-radius:12px;background:radial-gradient(circle at 35% 30%,#ffe9a8,#f4b400);
+  border:4px solid #b8860b;color:#7a4b00;font-size:clamp(18px,calc(var(--cell)*.33),26px);
+  box-shadow:0 0 26px 8px rgba(244,180,0,.55);animation:treasurePop .6s
+}
+@keyframes treasurePop{0%{transform:scale(0) rotate(-30deg)}70%{transform:scale(1.25) rotate(6deg)}100%{transform:scale(1)}}
+
+/* ================= 提示气泡 ================= */
+.toast{
+  position:absolute;left:50%;bottom:12px;transform:translateX(-50%) translateY(24px);
+  opacity:0;background:rgba(25,25,35,.85);color:#fff;padding:10px 18px;border-radius:12px;
+  font-size:18px;font-weight:700;transition:.25s;max-width:92%;text-align:center;z-index:20;pointer-events:none
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{background:#2e9e4f}
+.toast.err{background:#c0392b}
+
+/* ================= 右侧面板 ================= */
+.side{width:330px;display:flex;flex-direction:column;gap:14px;flex-shrink:0}
+.card{
+  background:var(--panel);border:3px solid var(--primary);border-radius:16px;
+  padding:14px;box-shadow:0 3px 0 var(--primary-dark)
+}
+.card h3{font-size:19px;color:var(--primary-dark);margin-bottom:8px;border-bottom:2px dashed var(--soft);padding-bottom:6px}
+.clue-tip{font-size:16px;line-height:1.6;margin-bottom:8px}
+.clue-main{font-size:18px;line-height:1.65;font-weight:700}
+.clue-line{font-size:17px;line-height:1.55;padding:4px 0 4px 8px;border-left:4px solid var(--soft);margin:5px 0}
+.clue-line.done{color:#2e9e4f;text-decoration:line-through;border-left-color:#2e9e4f}
+.facts{margin-top:9px;font-size:16px;line-height:1.6;opacity:.9}
+.target-now{margin-top:9px;background:var(--soft);border-radius:8px;padding:8px 10px;font-size:17px;font-weight:700;color:var(--primary-dark)}
+#chips{display:flex;flex-wrap:wrap;gap:12px}
+.chip{
+  padding:10px 15px;background:var(--primary);color:#fff;border-radius:10px;
+  font-size:18px;font-weight:700;cursor:grab;user-select:none;touch-action:none;
+  box-shadow:0 3px 0 var(--primary-dark)
+}
+.chip.drag-src{opacity:.35}
+.chip-ghost{
+  position:fixed;z-index:99;pointer-events:none;opacity:.92;
+  transform:translate(-50%,-55%) rotate(-3deg);
+  padding:10px 15px;background:var(--primary);color:#fff;border-radius:10px;
+  font-size:18px;font-weight:700;box-shadow:0 8px 18px rgba(0,0,0,.3)
+}
+.ghost-exp{
+  position:fixed;z-index:99;pointer-events:none;width:56px;height:56px;border-radius:50%;
+  background:#fff;border:4px solid var(--primary-dark);transform:translate(-50%,-55%);
+  display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;
+  box-shadow:0 8px 18px rgba(0,0,0,.3)
+}
+
+/* ================= 罗盘 ================= */
+.compass{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:250px;margin:0 auto}
+.cbtn{
+  height:58px;border-radius:12px;border:3px solid var(--primary-dark);background:var(--soft);
+  color:var(--text);font-size:19px;font-weight:800;cursor:pointer;touch-action:manipulation
+}
+.cbtn:hover:not(:disabled),.cbtn:active:not(:disabled){background:var(--primary);color:#fff}
+.cbtn:disabled{opacity:.35;cursor:not-allowed}
+.ccenter{height:58px;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--primary-dark);font-weight:700}
+.compass-tip{text-align:center;font-size:16px;margin-top:9px;opacity:.85;line-height:1.5}
+.shake{animation:shakeX .4s}
+@keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+
+/* ================= 路线记录 ================= */
+#route-log{display:flex;flex-wrap:wrap;gap:7px;min-height:30px}
+.log-chip{background:var(--accent);color:#fff;padding:4px 11px;border-radius:999px;font-size:16px;font-weight:700}
+
+/* ================= 弹层 ================= */
+.overlay{
+  position:fixed;inset:0;background:rgba(18,20,32,.58);display:flex;
+  align-items:center;justify-content:center;z-index:50;padding:16px
+}
+.ov-box{
+  background:var(--panel);border:4px solid var(--primary);border-radius:22px;
+  padding:26px 24px;max-width:600px;width:100%;text-align:center;max-height:88vh;overflow:auto
+}
+.ov-box h2{font-size:29px;color:var(--primary);margin-bottom:10px}
+.ov-stars{font-size:46px;letter-spacing:7px;color:#d9d9d9;margin:8px 0}
+.ov-stars .on{color:#f4b400;text-shadow:0 2px 8px rgba(180,120,0,.45)}
+.ov-msg{font-size:19px;font-weight:700;margin:8px 0}
+.ov-stats{font-size:17px;opacity:.85;line-height:1.6;margin-bottom:6px}
+.ov-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.rules-body{text-align:left;font-size:17px;line-height:1.7}
+.rules-body h3{color:var(--primary-dark);margin:12px 0 5px;font-size:18px}
+.mini-compass{display:grid;grid-template-columns:repeat(3,72px);gap:6px;justify-content:center;margin:8px 0}
+.mini-compass .mc{
+  height:44px;border-radius:9px;border:2px solid var(--primary-dark);background:var(--soft);
+  display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800
+}
+.mini-compass .mc.core{background:var(--accent);color:#fff}
+
+/* ================= 撒花画布 ================= */
+#fx{position:fixed;inset:0;pointer-events:none;z-index:80}
+
+/* ================= 响应式 ================= */
+@media (max-width:920px){
+  .game-main{flex-direction:column}
+  .side{width:100%}
+  .hud-btns{margin-left:0}
+}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+
+<!-- ============ 开始界面：难度选择 ============ -->
+<section id="scr-start" class="screen">
+  <div class="start-box">
+    <h1>寻找“宝藏”</h1>
+    <p class="subtitle">方向探险队 —— 用东、南、西、北和东北、东南、西北、西南，八个方向找宝藏！</p>
+    <div class="diff-row">
+      <button class="diff-card" data-diff="easy" type="button">
+        <span class="d-tag">初 级</span><span class="d-name">方向小侦探</span>
+        <span class="d-desc">读方向线索，把场所卡拖到地图上正确的格子里</span>
+      </button>
+      <button class="diff-card" data-diff="mid" type="button">
+        <span class="d-tag">中 级</span><span class="d-name">寻宝路线员</span>
+        <span class="d-desc">读懂寻宝线索，点罗盘指挥探险家按方向一格一格走到宝藏</span>
+      </button>
+      <button class="diff-card" data-diff="hard" type="button">
+        <span class="d-tag">高 级</span><span class="d-name">藏宝图大师</span>
+        <span class="d-desc">推理登陆口登上海岛寻宝，再加连环线索摆图综合挑战</span>
+      </button>
+    </div>
+    <div class="start-btns">
+      <button id="btn-rules-start" class="btn" type="button">规则说明</button>
+      <button id="btn-know-start" class="btn ghost" type="button">知识加油站</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 游戏界面 ============ -->
+<section id="scr-game" class="hidden">
+  <header class="hud">
+    <div class="hud-title" id="task-badge">初级 · 第1关</div>
+    <div class="hud-stats">
+      <span>时间 <b id="hud-time">0:00</b></span>
+      <span>操作 <b id="hud-steps">0</b> 次</span>
+      <span>星星 <b id="hud-stars">0/0</b></span>
+    </div>
+    <div class="hud-btns">
+      <button id="btn-rules-g" class="btn small ghost" type="button">规则说明</button>
+      <button id="btn-know-g" class="btn small ghost" type="button">知识加油站</button>
+      <button id="btn-reveal" class="btn small" type="button">揭示答案</button>
+      <button id="btn-restart" class="btn small" type="button">重新开始</button>
+      <button id="btn-back" class="btn small ghost" type="button">返回难度选择</button>
+    </div>
+  </header>
+  <main class="game-main">
+    <div class="map-area" id="map-area">
+      <div class="north-mark">北</div>
+      <div id="grid"></div>
+      <div id="toast" class="toast"></div>
+    </div>
+    <aside class="side">
+      <div class="card" id="clue-card"></div>
+      <div class="card" id="compass-card">
+        <h3>探险罗盘</h3>
+        <div class="compass" id="compass"></div>
+        <div class="compass-tip">点一个方向，探险家就走一格；<br>手指指向按钮时会点亮这个方向的路线。</div>
+      </div>
+      <div class="card hidden" id="tray-card">
+        <h3>场所卡片（拖我上地图）</h3>
+        <div id="chips"></div>
+      </div>
+      <div class="card hidden" id="log-card">
+        <h3>路线记录</h3>
+        <div id="route-log"></div>
+      </div>
+    </aside>
+  </main>
+</section>
+
+<!-- ============ 单关完成弹层 ============ -->
+<div id="ov-complete" class="overlay hidden">
+  <div class="ov-box">
+    <h2>本关完成！</h2>
+    <div class="ov-stars" id="ov-stars"></div>
+    <div class="ov-msg" id="ov-cmsg"></div>
+    <div class="ov-stats" id="ov-cstats"></div>
+    <div class="ov-btns">
+      <button id="btn-next" class="btn" type="button">下一关</button>
+      <button id="btn-again" class="btn ghost" type="button">再玩一次本关</button>
+      <button id="btn-back2" class="btn ghost" type="button">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 全部通关弹层 ============ -->
+<div id="ov-final" class="overlay hidden">
+  <div class="ov-box">
+    <h2>全部通关，宝藏大丰收！</h2>
+    <div class="ov-stars" id="ov-fstars"></div>
+    <div class="ov-msg">你是真正的方向探险家！</div>
+    <div class="ov-stats" id="ov-fstats"></div>
+    <div class="ov-btns">
+      <button id="btn-fagain" class="btn" type="button">再挑战一次（题目重新随机）</button>
+      <button id="btn-fback" class="btn ghost" type="button">返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 规则说明弹层 ============ -->
+<div id="md-rules" class="overlay hidden">
+  <div class="ov-box">
+    <h2>规则说明</h2>
+    <div class="rules-body">
+      <h3>八个方向要记牢</h3>
+      <div class="mini-compass">
+        <div class="mc">西北</div><div class="mc">北</div><div class="mc">东北</div>
+        <div class="mc">西</div><div class="mc core">看</div><div class="mc">东</div>
+        <div class="mc">西南</div><div class="mc">南</div><div class="mc">东南</div>
+      </div>
+      <p>东面和北面之间是<b>东北</b>，西面和南面之间是<b>西南</b>，东面和南面之间是<b>东南</b>，西面和北面之间是<b>西北</b>。地图上方是北、左边是西。</p>
+      <h3>三档难度怎么玩</h3>
+      <p><b>初级·方向小侦探：</b>读线索卡，把场所卡片<b>拖</b>到地图上正确的格子。每个场所都在参照物紧挨着的一格（斜方向就是斜着挨着的一格）。</p>
+      <p><b>中级·寻宝路线员：</b>读寻宝线索，点击罗盘方向键，指挥探险家按方向一格一格走，依次到达线索里的每个地点，走完路线找到宝藏。走过的方向会记在“路线记录”里。</p>
+      <p><b>高级·藏宝图大师：</b>先把探险家<b>拖</b>到正确的登陆口登上海岛，再按线索走到藏宝地点（注意“不能拐向东北”这样的提醒）；之后还有连环线索关，几条线索互相牵着，要把所有场所一次摆对。</p>
+      <h3>小约定</h3>
+      <p>右上角有计时和操作次数。卡住了可以点<b>「揭示答案」</b>看完整路线；<b>「重新开始」</b>重玩本关；<b>「返回难度选择」</b>回到主页。想集齐三颗星，就要少绕路、不揭示答案哦！</p>
+    </div>
+    <div class="ov-btns"><button class="btn" data-close type="button">开始探险</button></div>
+  </div>
+</div>
+
+<!-- ============ 知识加油站弹层 ============ -->
+<div id="md-know" class="overlay hidden">
+  <div class="ov-box">
+    <h2>知识加油站</h2>
+    <div class="rules-body">
+      <h3>野外辨方向 · 日影法</h3>
+      <p>在平地上垂直插一根约1米长的木棍，先标记木棍顶端影子的落点A（上午）；等15~30分钟，再标记新影子的落点B。连接A和B，这条线大致指向东西方向（A偏西，B偏东）；与它垂直的方向就是南北方向。北半球：左脚踩A、右脚踩B，面朝的方向大致是北；南半球则相反。</p>
+      <h3>野外辨方向 · 手表法</h3>
+      <p>把有时针、分针的传统手表水平放置，让时针指向太阳，时针与12:00刻度夹角的角平分线方向大致指向南方。（南半球要让12:00指向太阳，角平分线指向北方。）</p>
+      <h3>有趣的“几点钟”方向</h3>
+      <p>以自己为中心，像钟面一样划分方向：12点钟方向在正前方，3点钟方向在正右方，6点钟方向在正后方，9点钟方向在正左方；1、2点钟在右前方，4、5点钟在右后方，7、8点钟在左后方，10、11点钟在左前方。</p>
+    </div>
+    <div class="ov-btns"><button class="btn" data-close type="button">知道了</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ================================================================
+   寻找“宝藏”·方向探险队
+   核心玩法：罗盘八方向调度探险家行走 + 拖拽场所按方向线索摆图
+   ================================================================ */
+
+/* ---------- 方向定义：[列偏移, 行偏移]，行0在北，列0在西 ---------- */
+const DIR_DELTA = {
+  '北':[0,-1], '南':[0,1], '东':[1,0], '西':[-1,0],
+  '东北':[1,-1], '西北':[-1,-1], '东南':[1,1], '西南':[-1,1]
+};
+const COMPASS_ORDER = ['西北','北','东北','西','中心','东','西南','南','东南'];
+function dirText(d){ return d.length===1 ? d+'面' : d+'方向'; }
+
+/* ---------- 随机色板（每局随机换一种主色） ---------- */
+const PALETTES = [
+  {bg:'#fff8ef',panel:'#ffffff',primary:'#e8720c',primaryDark:'#c55a00',accent:'#1f7ae0',soft:'#fdebd4',text:'#3a2a18'},
+  {bg:'#f2f9f0',panel:'#ffffff',primary:'#2e9e4f',primaryDark:'#1f7a3a',accent:'#e07b1f',soft:'#e2f4e5',text:'#1e3325'},
+  {bg:'#eef6fd',panel:'#ffffff',primary:'#1f6fd0',primaryDark:'#15529e',accent:'#e89520',soft:'#dbeafe',text:'#17293e'},
+  {bg:'#f7f2fb',panel:'#ffffff',primary:'#7a45b8',primaryDark:'#5d3290',accent:'#0fa3a3',soft:'#efe4fa',text:'#2f2340'},
+  {bg:'#fdf3f1',panel:'#ffffff',primary:'#d8453c',primaryDark:'#a83329',accent:'#2e8b57',soft:'#fbe3df',text:'#3d2320'},
+  {bg:'#12233d',panel:'#1c3252',primary:'#f0a828',primaryDark:'#c9860f',accent:'#5fd4a2',soft:'#24405f',text:'#f2f7ff'}
+];
+
+/* ---------- 初级：单锚点方向摆放（每条线索=参照物紧邻一格，答案唯一） ---------- */
+const PLACE_SETS = [
+  {theme:'向阳生态园·A号门', size:5, anchor:{name:'A号门',c:2,r:2}, items:[
+    {name:'牡丹园',ref:'A号门',dir:'北'},
+    {name:'猴山',ref:'A号门',dir:'西南'},
+    {name:'百鸟园',ref:'A号门',dir:'西北'},
+    {name:'中心广场',ref:'A号门',dir:'东南'}]},
+  {theme:'向阳生态园·中心广场', size:5, anchor:{name:'中心广场',c:2,r:2}, items:[
+    {name:'猴山',ref:'中心广场',dir:'南'},
+    {name:'A号门',ref:'中心广场',dir:'东南'},
+    {name:'牡丹园',ref:'中心广场',dir:'北'},
+    {name:'B号门',ref:'中心广场',dir:'东北'}]},
+  {theme:'神秘小岛·登陆口C', size:5, anchor:{name:'登陆口C',c:2,r:2}, items:[
+    {name:'猴头岩',ref:'登陆口C',dir:'西'},
+    {name:'鱼嘴湾',ref:'登陆口C',dir:'东北'},
+    {name:'大榕树',ref:'登陆口C',dir:'西北'},
+    {name:'蝙蝠洞',ref:'登陆口C',dir:'南'}]},
+  {theme:'阳光小学校园', size:5, anchor:{name:'校门',c:2,r:2}, items:[
+    {name:'升旗台',ref:'校门',dir:'东北'},
+    {name:'教学楼',ref:'校门',dir:'西北'},
+    {name:'中心草坪',ref:'校门',dir:'西南'},
+    {name:'食堂',ref:'校门',dir:'东'}]},
+  {theme:'向阳生态园·B号门', size:5, anchor:{name:'B号门',c:2,r:2}, items:[
+    {name:'月季园',ref:'B号门',dir:'西北'},
+    {name:'中心广场',ref:'B号门',dir:'东北'},
+    {name:'猴山',ref:'B号门',dir:'南'},
+    {name:'牡丹园',ref:'B号门',dir:'西'}]},
+  {theme:'开心动物园·熊猫馆', size:5, anchor:{name:'熊猫馆',c:2,r:2}, items:[
+    {name:'正门',ref:'熊猫馆',dir:'东南'},
+    {name:'长颈鹿馆',ref:'熊猫馆',dir:'东北'},
+    {name:'海豹池',ref:'熊猫馆',dir:'西北'},
+    {name:'猴山',ref:'熊猫馆',dir:'西南'}]}
+];
+
+/* ---------- 中级：寻宝路线（路线每一段都严格沿罗盘方向） ---------- */
+const ROUTES = [
+  {theme:'向阳生态园', start:'B号门',
+   venues:[['B号门',4,4],['月季园',2,2],['百鸟园',4,0],['中心广场',5,3],['A号门',6,5],['牡丹园',6,4],['猴山',5,4]],
+   legs:[{dir:'西北',dist:2,target:'月季园'},{dir:'东北',dist:2,target:'百鸟园'}],
+   facts:['中心广场在B号门的东北方向','猴山在中心广场的南面','A号门在中心广场的东南方向','牡丹园在A号门的北面']},
+  {theme:'阳光小学校园', start:'校门',
+   venues:[['校门',4,5],['教学楼',2,3],['升旗台',4,1],['百草园',4,3],['食堂',5,2],['中心草坪',3,5],['体艺楼',2,2],['图书馆',6,2]],
+   legs:[{dir:'西北',dist:2,target:'教学楼'},{dir:'东北',dist:2,target:'升旗台'},{dir:'南',dist:2,target:'百草园'}],
+   facts:['食堂在升旗台的东南方向','中心草坪在校门的西面','体艺楼在教学楼的北面','图书馆在食堂的东面']},
+  {theme:'开心动物园', start:'正门',
+   venues:[['正门',2,5],['长颈鹿馆',4,3],['熊猫馆',3,2],['海豹池',1,4],['大象馆',5,2],['猴山',2,2]],
+   legs:[{dir:'东北',dist:2,target:'长颈鹿馆'},{dir:'西北',dist:1,target:'熊猫馆'},{dir:'西南',dist:2,target:'海豹池'}],
+   facts:['大象馆在长颈鹿馆的东北方向','猴山在熊猫馆的西面']},
+  {theme:'向阳生态园·另一条路线', start:'中心广场',
+   venues:[['中心广场',3,3],['月季园',1,1],['百鸟园',1,0],['猴山',3,4],['A号门',4,4],['牡丹园',4,3],['B号门',5,2]],
+   legs:[{dir:'西北',dist:2,target:'月季园'},{dir:'北',dist:1,target:'百鸟园'}],
+   facts:['猴山在中心广场的南面','A号门在中心广场的东南方向','牡丹园在A号门的北面','B号门在中心广场的东北方向']}
+];
+
+/* ---------- 高级第一关：海岛藏宝图（来自教参的推理题） ---------- */
+const ISLAND = {
+  theme:'神秘小岛·藏宝图',
+  venues:[['登陆口A',5,6],['登陆口B',1,1],['登陆口C',3,6],['猴头岩',2,6],['鱼嘴湾',5,1],['大榕树',3,4],['石头桥',2,3],['蝙蝠洞',0,5]],
+  landings:['登陆口A','登陆口B','登陆口C'],
+  facts:['登陆口C在小岛的南面','猴头岩在登陆口C的西面','登陆口B在小岛的西北方向','鱼嘴湾在小岛的东北方向'],
+  clues:['选择一个登陆口登上小岛','从登陆口出发，往西北方向走才能到达第一个地点','从第一个地点出发时，不能拐向东北方向','从第二个地点往西南方向走，就能到达藏宝地点'],
+  start:'登陆口A',
+  path:[{dir:'西北',dist:2,target:'大榕树'},{dir:'西北',dist:1,target:'石头桥'},{dir:'西南',dist:2,target:'蝙蝠洞'}],
+  treasure:'蝙蝠洞'
+};
+
+/* ---------- 高级第二关：连环线索摆放（链式参照，答案唯一） ---------- */
+const CHAIN_SETS = [
+  {theme:'向阳生态园·连环线索', size:6, anchor:{name:'中心广场',c:2,r:3}, items:[
+    {name:'牡丹园',ref:'中心广场',dir:'北'},
+    {name:'A号门',ref:'中心广场',dir:'东南'},
+    {name:'猴山',ref:'A号门',dir:'西南'},
+    {name:'月季园',ref:'中心广场',dir:'西'},
+    {name:'百鸟园',ref:'牡丹园',dir:'东北'}]},
+  {theme:'阳光小学·连环线索', size:6, anchor:{name:'校门',c:3,r:4}, items:[
+    {name:'升旗台',ref:'校门',dir:'东北'},
+    {name:'食堂',ref:'升旗台',dir:'北'},
+    {name:'教学楼',ref:'食堂',dir:'西'},
+    {name:'中心草坪',ref:'教学楼',dir:'西南'},
+    {name:'图书馆',ref:'食堂',dir:'东'},
+    {name:'体艺楼',ref:'中心草坪',dir:'南'}]},
+  {theme:'神秘小岛·连环线索', size:6, anchor:{name:'登陆口C',c:2,r:3}, items:[
+    {name:'猴头岩',ref:'登陆口C',dir:'西'},
+    {name:'鱼嘴湾',ref:'登陆口C',dir:'东北'},
+    {name:'大榕树',ref:'鱼嘴湾',dir:'北'},
+    {name:'石头桥',ref:'大榕树',dir:'西北'},
+    {name:'蝙蝠洞',ref:'登陆口C',dir:'南'}]}
+];
+
+/* ---------- 预计算：给摆放类条目算出目标格坐标与线索句 ---------- */
+function resolveSet(set){
+  const pos = {};
+  pos[set.anchor.name] = [set.anchor.c, set.anchor.r];
+  set.items.forEach(function(it){
+    const base = pos[it.ref];
+    const d = DIR_DELTA[it.dir];
+    it.tc = base[0] + d[0];
+    it.tr = base[1] + d[1];
+    it.clue = it.name + '在' + it.ref + '的' + dirText(it.dir) + '。';
+    pos[it.name] = [it.tc, it.tr];
+  });
+  return set;
+}
+PLACE_SETS.forEach(resolveSet);
+CHAIN_SETS.forEach(resolveSet);
+
+/* ---------- 工具函数 ---------- */
+function $(id){ return document.getElementById(id); }
+function shuffle(a){
+  const arr = a.slice();
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    const t = arr[i]; arr[i]=arr[j]; arr[j]=t;
+  }
+  return arr;
+}
+function fmt(sec){ const m=Math.floor(sec/60), s=sec%60; return m+':'+String(s).padStart(2,'0'); }
+function elapsed(){ return Math.floor((Date.now()-S.startTs)/1000); }
+
+const DIFF_LABEL = {easy:'初级', mid:'中级', hard:'高级'};
+
+/* ---------- 全局状态 ---------- */
+const S = {
+  diff:null, tasks:[], idx:0, steps:0, stars:0,
+  startTs:Date.now(), timerId:null, rulesShown:false, palette:PALETTES[0],
+  cur:null, animating:false, walkTimer:null
+};
+
+/* ---------- 地图运行数据 ---------- */
+let cells = [];      // cells[行][列] -> 格子元素
+let venueMap = {};   // '列,行' -> 场所名
+let tokE = null;     // 探险家
+let tokT = null;     // 宝藏
+
+/* ================================================================
+   界面切换 / 计时 / 状态栏
+   ================================================================ */
+function applyPalette(p){
+  S.palette = p;
+  const b = document.body.style;
+  b.setProperty('--bg',p.bg); b.setProperty('--panel',p.panel);
+  b.setProperty('--primary',p.primary); b.setProperty('--primary-dark',p.primaryDark);
+  b.setProperty('--accent',p.accent); b.setProperty('--soft',p.soft);
+  b.setProperty('--text',p.text);
+}
+function tick(){ $('hud-time').textContent = fmt(elapsed()); }
+function startTimer(){
+  if(S.timerId){ clearInterval(S.timerId); }
+  S.startTs = Date.now();
+  S.timerId = setInterval(tick, 500);
+  tick();
+}
+function updateHud(){
+  $('hud-steps').textContent = S.steps;
+  $('hud-stars').textContent = S.stars + '/' + (S.tasks.length*3);
+  const t = S.tasks[S.idx];
+  let theme = '';
+  if(t){
+    if(t.type==='place' || t.type==='chain'){ theme = t.set.theme; }
+    else if(t.type==='route'){ theme = t.route.theme; }
+    else { theme = ISLAND.theme; }
+  }
+  $('task-badge').textContent = (S.diff ? DIFF_LABEL[S.diff] : '') + ' · 第' + (S.idx+1) + '/' + S.tasks.length + '关 · ' + theme;
+}
+function toast(msg, kind){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || '');
+  clearTimeout(toast._tid);
+  toast._tid = setTimeout(function(){ t.className = 'toast'; }, 2800);
+}
+function openModal(id){ $(id).classList.remove('hidden'); }
+function hideOverlay(id){ $(id).classList.add('hidden'); }
+
+/* ================================================================
+   任务组装（反重复：每次开局从题池随机抽样并打乱）
+   ================================================================ */
+function buildTasks(diff){
+  if(diff==='easy'){
+    return shuffle(PLACE_SETS).slice(0,3).map(function(s){ return {type:'place', set:s}; });
+  }
+  if(diff==='mid'){
+    return shuffle(ROUTES).slice(0,2).map(function(r){ return {type:'route', route:r}; });
+  }
+  const chain = shuffle(CHAIN_SETS)[0];
+  return [{type:'island'}, {type:'chain', set:chain}];
+}
+function startGame(diff){
+  S.diff = diff;
+  S.tasks = buildTasks(diff);
+  S.steps = 0; S.stars = 0; S.idx = 0;
+  applyPalette(PALETTES[Math.floor(Math.random()*PALETTES.length)]);
+  $('scr-start').classList.add('hidden');
+  $('scr-game').classList.remove('hidden');
+  hideOverlay('ov-complete'); hideOverlay('ov-final');
+  startTimer();
+  if(!S.rulesShown){
+    S.rulesShown = true;
+    setTimeout(function(){ openModal('md-rules'); }, 350);
+  }
+  startTask(0);
+}
+function gotoStart(){
+  clearWalkTimer();
+  if(S.timerId){ clearInterval(S.timerId); S.timerId = null; }
+  ['ov-complete','ov-final','md-rules','md-know'].forEach(hideOverlay);
+  $('scr-game').classList.add('hidden');
+  $('scr-start').classList.remove('hidden');
+}
+
+/* ================================================================
+   地图渲染
+   ================================================================ */
+function buildGrid(size){
+  const g = $('grid');
+  g.innerHTML = '';
+  cells = []; venueMap = {}; tokE = null; tokT = null;
+  g.style.gridTemplateColumns = 'repeat(' + size + ', var(--cell))';
+  for(let r=0;r<size;r++){
+    const row = [];
+    for(let c=0;c<size;c++){
+      const d = document.createElement('div');
+      d.className = 'cell';
+      d.dataset.c = c; d.dataset.r = r;
+      g.appendChild(d);
+      row.push(d);
+    }
+    cells.push(row);
+  }
+}
+function addVenue(name, c, r, cls){
+  const v = document.createElement('div');
+  v.className = 'venue' + (cls ? ' ' + cls : '');
+  v.textContent = name;
+  cells[r][c].appendChild(v);
+  venueMap[c + ',' + r] = name;
+  return v;
+}
+function venueNameAt(c, r){ return venueMap[c + ',' + r] || ''; }
+function venuePosIn(list, name){
+  for(let i=0;i<list.length;i++){ if(list[i][0]===name){ return [list[i][1], list[i][2]]; } }
+  return [0,0];
+}
+function makeToken(cls, ch){
+  const t = document.createElement('div');
+  t.className = 'tok ' + cls;
+  t.textContent = ch;
+  $('grid').appendChild(t);
+  return t;
+}
+function posToken(t, c, r){
+  const cell = cells[r][c];
+  t.style.left = cell.offsetLeft + 'px';
+  t.style.top = cell.offsetTop + 'px';
+  t.style.width = cell.offsetWidth + 'px';
+  t.style.height = cell.offsetHeight + 'px';
+}
+function repositionTokens(){
+  if(!S.cur){ return; }
+  if(tokE){ posToken(tokE, S.cur.ec, S.cur.er); }
+  if(tokT && S.cur.tPos){ posToken(tokT, S.cur.tPos[0], S.cur.tPos[1]); }
+}
+function flashCell(cell){
+  cell.classList.add('bad');
+  setTimeout(function(){ cell.classList.remove('bad'); }, 420);
+}
+function shake(el){
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+  setTimeout(function(){ el.classList.remove('shake'); }, 420);
+}
+function lockWaypoint(c, r){
+  const cell = cells[r][c];
+  const star = document.createElement('div');
+  star.className = 'wp-star';
+  star.textContent = '★';
+  cell.appendChild(star);
+  const v = cell.querySelector('.venue');
+  if(v){ v.classList.add('locked'); }
+}
+function clearWaypointVisual(){
+  document.querySelectorAll('#grid .wp-star').forEach(function(n){ n.remove(); });
+  document.querySelectorAll('#grid .venue.locked').forEach(function(n){ n.classList.remove('locked'); });
+}
+
+/* ================================================================
+   任务启动与渲染
+   ================================================================ */
+function clearWalkTimer(){
+  if(S.walkTimer){ clearInterval(S.walkTimer); S.walkTimer = null; }
+  S.animating = false;
+}
+function startTask(i){
+  clearWalkTimer();
+  S.idx = i;
+  const task = S.tasks[i];
+  S.cur = {
+    task:task, type:task.type, size:7,
+    mistakes:0, revealed:false, placed:0, total:0,
+    legIdx:0, wpIdx:0, phase:'walk', log:[],
+    ec:0, er:0, steps0:S.steps, done:false, finished:false, tPos:null
+  };
+  renderTask();
+  updateHud();
+}
+function restartTask(){
+  if(!S.tasks.length){ return; }
+  hideOverlay('ov-complete'); hideOverlay('ov-final');
+  toast('本关重新开始，加油！', 'ok');
+  startTask(S.idx);
+}
+function renderTask(){
+  const cur = S.cur;
+  const task = cur.task;
+  $('route-log').innerHTML = '';
+  if(cur.type==='place' || cur.type==='chain'){
+    renderPlaceLike(task.set);
+  } else if(cur.type==='route'){
+    renderRoute(task.route);
+  } else {
+    renderIsland();
+  }
+}
+
+/* ---------- 摆放类（初级 / 高级连环） ---------- */
+function renderPlaceLike(set){
+  const cur = S.cur;
+  cur.size = set.size || 5;
+  buildGrid(cur.size);
+  addVenue(set.anchor.name, set.anchor.c, set.anchor.r, 'anchor');
+  cur.total = set.items.length;
+  cur.placed = 0;
+  set.items.forEach(function(it){ it.placedFlag = false; it.chipEl = null; });
+  $('compass-card').classList.add('hidden');
+  $('log-card').classList.add('hidden');
+  $('tray-card').classList.remove('hidden');
+  const tray = $('chips');
+  tray.innerHTML = '';
+  shuffle(set.items).forEach(function(it){
+    const ch = document.createElement('div');
+    ch.className = 'chip';
+    ch.textContent = it.name;
+    enableChipDrag(ch, it);
+    tray.appendChild(ch);
+    it.chipEl = ch;
+  });
+  const hard = cur.type==='chain';
+  let html = '<h3>' + (hard ? '连环线索卡 · ' : '线索卡 · ') + set.theme + '</h3>';
+  html += '<div class="clue-tip">把场所卡片<b>拖</b>到地图上正确的格子里。每个场所都在它参照物的<b>紧邻一格</b>（斜方向就是斜着挨着的一格）。' +
+          (hard ? '高级线索一环扣一环，先放好参照物，再放别人引用它的场所！' : '') + '</div>';
+  set.items.forEach(function(it){
+    html += '<div class="clue-line" data-name="' + it.name + '">' + it.clue + '</div>';
+  });
+  html += '<div class="facts">地图上<span style="color:var(--accent);font-weight:800">高亮色</span>的「' + set.anchor.name + '」已经标好，它就是出发点。</div>';
+  $('clue-card').innerHTML = html;
+}
+function markClueDone(name){
+  const line = document.querySelector('#clue-card .clue-line[data-name="' + name + '"]');
+  if(line){ line.classList.add('done'); }
+}
+function enableChipDrag(chip, item){
+  chip.addEventListener('pointerdown', function(e){
+    if(S.animating || !S.cur || S.cur.done){ return; }
+    e.preventDefault();
+    const ghost = document.createElement('div');
+    ghost.className = 'chip-ghost';
+    ghost.textContent = item.name;
+    document.body.appendChild(ghost);
+    ghost.style.left = e.clientX + 'px';
+    ghost.style.top = e.clientY + 'px';
+    chip.classList.add('drag-src');
+    function mv(ev){
+      ghost.style.left = ev.clientX + 'px';
+      ghost.style.top = ev.clientY + 'px';
+    }
+    function up(ev){
+      window.removeEventListener('pointermove', mv);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      ghost.remove();
+      chip.classList.remove('drag-src');
+      const cell = cellFromPoint(ev.clientX, ev.clientY);
+      dropChip(item, cell);
+    }
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+}
+function cellFromPoint(x, y){
+  const list = document.elementsFromPoint(x, y) || [];
+  for(let i=0;i<list.length;i++){
+    if(list[i].classList && list[i].classList.contains('cell')){ return list[i]; }
+  }
+  return null;
+}
+function dropChip(item, cell){
+  if(!cell){
+    toast('要把卡片拖到地图的格子里哦', 'err');
+    return;
+  }
+  S.steps++; updateHud();
+  if(+cell.dataset.c === item.tc && +cell.dataset.r === item.tr){
+    addVenue(item.name, item.tc, item.tr, 'locked');
+    if(item.chipEl){ item.chipEl.remove(); item.chipEl = null; }
+    item.placedFlag = true;
+    S.cur.placed++;
+    markClueDone(item.name);
+    toast('太棒了！' + item.name + '放对啦', 'ok');
+    if(S.cur.placed >= S.cur.total){
+      setTimeout(completeTask, 480);
+    }
+  } else {
+    S.cur.mistakes++;
+    flashCell(cell);
+    toast('再想想：' + item.clue, 'err');
+  }
+}
+
+/* ---------- 中级：路线行走 ---------- */
+function routeClueText(rt){
+  const parts = rt.legs.map(function(l){ return '往' + l.dir + '方向走到' + l.target; });
+  parts[0] = '先' + parts[0];
+  if(parts.length > 2){ parts[parts.length-1] = '最后' + parts[parts.length-1]; }
+  else if(parts.length === 2){ parts[1] = '再' + parts[1]; }
+  return '从' + rt.start + '出发，' + parts.join('，') + '，“宝藏”就藏在那里！';
+}
+function renderRoute(rt){
+  const cur = S.cur;
+  cur.size = 7;
+  buildGrid(7);
+  rt.venues.forEach(function(v){ addVenue(v[0], v[1], v[2], ''); });
+  const st = venuePosIn(rt.venues, rt.start);
+  cur.ec = st[0]; cur.er = st[1];
+  cur.legs = rt.legs; cur.legIdx = 0;
+  tokE = makeToken('explorer', '探');
+  posToken(tokE, cur.ec, cur.er);
+  $('compass-card').classList.remove('hidden');
+  $('tray-card').classList.add('hidden');
+  $('log-card').classList.remove('hidden');
+  setCompassEnabled(true);
+  let html = '<h3>寻宝线索 · ' + rt.theme + '</h3>';
+  html += '<p class="clue-main">' + routeClueText(rt) + '</p>';
+  html += '<div class="facts"><b>地图上的信息：</b>' + rt.facts.join('；') + '。</div>';
+  html += '<div class="target-now" id="target-now">当前目标：' + rt.legs[0].target + '</div>';
+  html += '<div class="facts">点右侧罗盘的方向键，探险家就走一格。走过一格，方向就会记进“路线记录”。</div>';
+  $('clue-card').innerHTML = html;
+}
+function setTargetNow(t){
+  const n = $('target-now');
+  if(n){ n.textContent = '当前目标：' + t; }
+}
+
+/* ---------- 高级：海岛藏宝图 ---------- */
+function renderIsland(){
+  const cur = S.cur;
+  cur.size = 7;
+  buildGrid(7);
+  ISLAND.venues.forEach(function(v){ addVenue(v[0], v[1], v[2], ''); });
+  cur.phase = 'choose';
+  cur.wpIdx = 0;
+  cur.ec = 3; cur.er = 3;   // 探险家先站在小岛中央的空地，等待拖到登陆口
+  tokE = makeToken('explorer', '探');
+  tokE.classList.add('draggable');
+  posToken(tokE, 3, 3);
+  enableExplorerDrag();
+  $('compass-card').classList.remove('hidden');
+  $('tray-card').classList.add('hidden');
+  $('log-card').classList.remove('hidden');
+  setCompassEnabled(false);
+  let html = '<h3>藏宝图 · 神秘小岛</h3>';
+  html += '<div class="facts"><b>藏宝图上的信息：</b>' + ISLAND.facts.join('；') + '。</div>';
+  html += '<div class="clue-tip"><b>寻宝线索：</b></div>';
+  ISLAND.clues.forEach(function(c){ html += '<div class="clue-line">▶ ' + c + '</div>'; });
+  html += '<div class="target-now" id="island-tip">先把「探险家」<b>拖</b>到一个登陆口上，登上小岛吧！</div>';
+  html += '<div style="margin-top:10px"><button id="btn-reland" class="btn small ghost" type="button">回到登陆口</button></div>';
+  $('clue-card').innerHTML = html;
+  $('btn-reland').classList.add('hidden');
+  $('btn-reland').addEventListener('click', reland);
+}
+function enableExplorerDrag(){
+  tokE.addEventListener('pointerdown', function(e){
+    if(!S.cur || S.cur.type!=='island' || S.cur.phase!=='choose' || S.animating || S.cur.done){ return; }
+    e.preventDefault();
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost-exp';
+    ghost.textContent = '探';
+    document.body.appendChild(ghost);
+    ghost.style.left = e.clientX + 'px';
+    ghost.style.top = e.clientY + 'px';
+    tokE.style.opacity = '.3';
+    function mv(ev){
+      ghost.style.left = ev.clientX + 'px';
+      ghost.style.top = ev.clientY + 'px';
+    }
+    function up(ev){
+      window.removeEventListener('pointermove', mv);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      ghost.remove();
+      tokE.style.opacity = '1';
+      const cell = cellFromPoint(ev.clientX, ev.clientY);
+      dropExplorer(cell);
+    }
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+}
+function dropExplorer(cell){
+  const cur = S.cur;
+  if(!cell){
+    toast('要把探险家拖到小岛的格子上哦', 'err');
+    return;
+  }
+  const name = venueNameAt(+cell.dataset.c, +cell.dataset.r);
+  if(name && ISLAND.landings.indexOf(name) >= 0){
+    land(name);
+  } else {
+    cur.mistakes++;
+    if(name){ toast('这里是' + name + '，要拖到登陆口A、B或C上才能登岛', 'err'); }
+    else { toast('这里不是登陆口，要拖到登陆口A、B或C上', 'err'); }
+  }
+}
+function land(name, silent){
+  const cur = S.cur;
+  const p = venuePosIn(ISLAND.venues, name);
+  cur.phase = 'walk';
+  cur.startLanding = name;
+  cur.ec = p[0]; cur.er = p[1];
+  posToken(tokE, p[0], p[1]);
+  tokE.classList.remove('draggable');
+  setCompassEnabled(true);
+  const btn = $('btn-reland');
+  if(btn){ btn.classList.remove('hidden'); }
+  updateIslandTip();
+  if(!silent){ toast('从' + name + '登上小岛！跟着线索出发吧', 'ok'); }
+}
+function reland(){
+  const cur = S.cur;
+  if(!cur || cur.type!=='island' || cur.done){ return; }
+  cur.phase = 'choose';
+  cur.ec = 3; cur.er = 3;
+  posToken(tokE, 3, 3);
+  tokE.classList.add('draggable');
+  setCompassEnabled(false);
+  const btn = $('btn-reland');
+  if(btn){ btn.classList.add('hidden'); }
+  updateIslandTip();
+  toast('回到小岛中央，重新选一个登陆口吧', 'ok');
+}
+function updateIslandTip(){
+  const t = $('island-tip');
+  if(!t){ return; }
+  const cur = S.cur;
+  if(cur.phase!=='walk'){
+    t.innerHTML = '先把「探险家」<b>拖</b>到一个登陆口上，登上小岛吧！';
+  } else if(cur.wpIdx===0){
+    t.textContent = '从' + cur.startLanding + '出发：往西北方向走，找到第一个地点！';
+  } else if(cur.wpIdx===1){
+    t.textContent = '已到第一个地点！记住不能拐向东北，想想接下来往哪走～';
+  } else {
+    t.textContent = '从第二个地点往西南方向走，就能到达藏宝地点！';
+  }
+}
+
+/* ================================================================
+   罗盘：方向按钮 + 路线点亮 + 行走
+   ================================================================ */
+function buildCompass(){
+  const comp = $('compass');
+  comp.innerHTML = '';
+  COMPASS_ORDER.forEach(function(name){
+    if(name==='中心'){
+      const d = document.createElement('div');
+      d.className = 'ccenter';
+      d.textContent = '罗盘';
+      comp.appendChild(d);
+      return;
+    }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cbtn';
+    b.textContent = name;
+    b.addEventListener('click', function(){
+      moveExplorer(name);
+      clearRay();
+    });
+    b.addEventListener('pointerenter', function(){ showRay(name); });
+    b.addEventListener('pointerleave', clearRay);
+    comp.appendChild(b);
+  });
+}
+function setCompassEnabled(on){
+  document.querySelectorAll('#compass .cbtn').forEach(function(b){ b.disabled = !on; });
+}
+function showRay(dir){
+  const cur = S.cur;
+  if(!cur || cur.done){ return; }
+  if(!(cur.type==='route' || (cur.type==='island' && cur.phase==='walk'))){ return; }
+  const d = DIR_DELTA[dir];
+  let c = cur.ec, r = cur.er;
+  while(true){
+    c += d[0]; r += d[1];
+    if(c<0 || r<0 || c>=cur.size || r>=cur.size){ break; }
+    cells[r][c].classList.add('ray');
+  }
+}
+function clearRay(){
+  document.querySelectorAll('#grid .cell.ray').forEach(function(n){ n.classList.remove('ray'); });
+}
+function expectedDir(){
+  const cur = S.cur;
+  if(cur.type==='route'){
+    return cur.legs && cur.legs[cur.legIdx] ? cur.legs[cur.legIdx].dir : '';
+  }
+  if(cur.type==='island' && cur.phase==='walk'){
+    return ISLAND.path[cur.wpIdx] ? ISLAND.path[cur.wpIdx].dir : '';
+  }
+  return '';
+}
+function moveExplorer(dir){
+  const cur = S.cur;
+  if(!cur || cur.done || S.animating){ return; }
+  if(cur.type==='island' && cur.phase!=='walk'){
+    toast('先拖到登陆口登岛，才能用罗盘出发哦', 'err');
+    return;
+  }
+  if(cur.type!=='route' && cur.type!=='island'){ return; }
+  /* 海岛特殊规则：站在第一个地点（大榕树）时不能拐向东北 */
+  if(cur.type==='island' && cur.wpIdx===1 && dir==='东北'){
+    const here = venueNameAt(cur.ec, cur.er);
+    if(here === ISLAND.path[0].target){
+      cur.mistakes++;
+      toast('线索说：从第一个地点出发，不能拐向东北方向！', 'err');
+      shake($('compass'));
+      return;
+    }
+  }
+  const d = DIR_DELTA[dir];
+  const nc = cur.ec + d[0], nr = cur.er + d[1];
+  if(nc<0 || nr<0 || nc>=cur.size || nr>=cur.size){
+    toast('已经到地图边缘啦，换个方向试试', 'err');
+    return;
+  }
+  if(dir !== expectedDir()){ cur.mistakes++; }   // 绕路也计入失误（影响星级）
+  cur.ec = nc; cur.er = nr;
+  posToken(tokE, nc, nr);
+  S.steps++; updateHud();
+  pushLog(dir);
+  afterMove(nc, nr);
+}
+function afterMove(c, r){
+  const cur = S.cur;
+  const vname = venueNameAt(c, r);
+  if(cur.type==='route'){
+    const legs = cur.legs;
+    if(vname && legs[cur.legIdx] && vname === legs[cur.legIdx].target){
+      lockWaypoint(c, r);
+      cur.legIdx++;
+      if(cur.legIdx >= legs.length){
+        arriveTreasure(c, r);
+      } else {
+        toast('到达' + vname + '！继续出发～', 'ok');
+        setTargetNow(legs[cur.legIdx].target);
+      }
+    } else if(vname){
+      toast('这里是' + vname + '，先按线索去' + legs[cur.legIdx].target + '吧', 'err');
+    }
+    return;
+  }
+  /* 海岛逻辑 */
+  const wp = ISLAND.path;
+  if(vname && cur.wpIdx < wp.length-1 && vname === wp[cur.wpIdx].target){
+    lockWaypoint(c, r);
+    cur.wpIdx++;
+    toast('找到了第' + cur.wpIdx + '个地点！', 'ok');
+    updateIslandTip();
+    return;
+  }
+  if(vname && vname === ISLAND.treasure){
+    if(cur.wpIdx >= wp.length-1){
+      arriveTreasure(c, r);
+    } else {
+      toast('线索说要从第二个地点往西南走才能到藏宝地点，先找到前两个地点吧', 'err');
+    }
+    return;
+  }
+  if(vname){
+    toast('这里是' + vname + '，线索里的下一个地点不是这里哦', 'err');
+  }
+  /* 死路提醒：从B或C出发往西北走到头也没有地点 */
+  if(cur.wpIdx===0 && c===0 && (r===3 || r===0)){
+    toast('往西北走到头也没有地点——这个登陆口可能不对，点「回到登陆口」重选吧', 'err');
+  }
+}
+function arriveTreasure(c, r){
+  const cur = S.cur;
+  if(cur.done){ return; }
+  cur.done = true;
+  cur.tPos = [c, r];
+  tokT = makeToken('treasure', '宝');
+  posToken(tokT, c, r);
+  toast('宝藏找到啦！', 'ok');
+  celebration();
+  setTimeout(completeTask, 950);
+}
+function pushLog(dir){
+  const cur = S.cur;
+  const el = $('route-log');
+  const lg = cur.log;
+  if(lg.length && lg[lg.length-1][0]===dir){
+    lg[lg.length-1][1]++;
+    if(el.lastChild){ el.lastChild.textContent = dir + ' ×' + lg[lg.length-1][1]; }
+  } else {
+    lg.push([dir, 1]);
+    const s = document.createElement('span');
+    s.className = 'log-chip';
+    s.textContent = dir;
+    el.appendChild(s);
+  }
+}
+
+/* ================================================================
+   揭示答案（自动演示完整正确过程）
+   ================================================================ */
+function revealAnswer(){
+  const cur = S.cur;
+  if(!cur || cur.done || S.animating){ return; }
+  cur.revealed = true;
+  if(cur.type==='place' || cur.type==='chain'){
+    const set = cur.task.set;
+    const rest = set.items.filter(function(it){ return !it.placedFlag; });
+    if(!rest.length){
+      toast('已经全部放对啦，答案就在地图上', 'ok');
+      cur.revealed = false;
+      return;
+    }
+    rest.forEach(function(it, k){
+      const cell = cells[it.tr][it.tc];
+      cell.classList.add('hint-cell');
+      setTimeout(function(){
+        cell.classList.remove('hint-cell');
+        addVenue(it.name, it.tc, it.tr, 'locked');
+        if(it.chipEl){ it.chipEl.remove(); it.chipEl = null; }
+        it.placedFlag = true;
+        cur.placed++;
+        markClueDone(it.name);
+        if(cur.placed >= cur.total){ completeTask(); }
+      }, 500 + k*450);
+    });
+    toast('答案已揭示：绿色格子就是正确位置', 'ok');
+    return;
+  }
+  if(cur.type==='route'){
+    autoWalk(buildPathFrom(cur.task.route.start, cur.task.route.legs));
+  } else {
+    clearWaypointVisual();
+    cur.wpIdx = 0;
+    if(cur.phase!=='walk'){ land(ISLAND.start, true); }
+    else {
+      const p = venuePosIn(ISLAND.venues, ISLAND.start);
+      cur.ec = p[0]; cur.er = p[1];
+      posToken(tokE, p[0], p[1]);
+    }
+    autoWalk(buildPathFrom(ISLAND.start, ISLAND.path));
+  }
+  toast('答案已揭示，看看正确的探险路线吧', 'ok');
+}
+function buildPathFrom(startName, legs){
+  const list = (S.cur.type==='route') ? S.cur.task.route.venues : ISLAND.venues;
+  const p0 = venuePosIn(list, startName);
+  const pts = [[p0[0], p0[1]]];
+  let c = p0[0], r = p0[1];
+  legs.forEach(function(l){
+    const d = DIR_DELTA[l.dir];
+    for(let k=0;k<l.dist;k++){
+      c += d[0]; r += d[1];
+      pts.push([c, r]);
+    }
+  });
+  return pts;
+}
+function autoWalk(pts){
+  const cur = S.cur;
+  S.animating = true;
+  setCompassEnabled(false);
+  if(cur.type==='route'){ cur.legIdx = 0; clearWaypointVisual(); }
+  let i = 1;
+  S.walkTimer = setInterval(function(){
+    if(i >= pts.length){
+      clearWalkTimer();
+      setCompassEnabled(true);
+      arriveTreasure(pts[pts.length-1][0], pts[pts.length-1][1]);
+      return;
+    }
+    const c = pts[i][0], r = pts[i][1];
+    cur.ec = c; cur.er = r;
+    posToken(tokE, c, r);
+    pushLog(expectedDir());
+    if(cur.type==='route'){
+      const legs = cur.legs;
+      if(legs[cur.legIdx]){
+        const vname = venueNameAt(c, r);
+        if(vname === legs[cur.legIdx].target){
+          lockWaypoint(c, r);
+          cur.legIdx++;
+          setTargetNow(legs[Math.min(cur.legIdx, legs.length-1)].target);
+        }
+      }
+    } else {
+      const wp = ISLAND.path;
+      const vname = venueNameAt(c, r);
+      if(vname && cur.wpIdx < wp.length && vname === wp[Math.min(cur.wpIdx, wp.length-1)].target){
+        lockWaypoint(c, r);
+        cur.wpIdx = Math.min(cur.wpIdx+1, wp.length);
+        updateIslandTip();
+      }
+    }
+    i++;
+  }, 430);
+}
+
+/* ================================================================
+   通关结算
+   ================================================================ */
+function completeTask(){
+  const cur = S.cur;
+  if(!cur || cur.finished){ return; }
+  cur.finished = true; cur.done = true;
+  const stars = cur.revealed ? 1 : (cur.mistakes<=2 ? 3 : (cur.mistakes<=8 ? 2 : 1));
+  S.stars += stars;
+  updateHud();
+  const last = S.idx >= S.tasks.length-1;
+  if(last){ showFinal(); } else { showComplete(stars); }
+}
+function fillStars(el, n){
+  el.innerHTML = '';
+  for(let i=1;i<=3;i++){
+    const s = document.createElement('span');
+    s.textContent = '★';
+    if(i<=n){ s.className = 'on'; }
+    el.appendChild(s);
+  }
+}
+function showComplete(stars){
+  fillStars($('ov-stars'), stars);
+  $('ov-cmsg').textContent = stars===3 ? '完美通关，方向感超强！' : (stars===2 ? '顺利找到宝藏，真棒！' : '完成挑战，继续加油！');
+  $('ov-cstats').textContent = '本关操作 ' + (S.steps - S.cur.steps0) + ' 次 · 绕路/失误 ' + S.cur.mistakes + ' 次 · 累计用时 ' + fmt(elapsed());
+  openModal('ov-complete');
+}
+function showFinal(){
+  if(S.timerId){ clearInterval(S.timerId); S.timerId = null; }
+  fillStars($('ov-fstars'), 3);
+  $('ov-fstats').textContent = '共收集星星 ' + S.stars + '/' + (S.tasks.length*3) + ' · 总用时 ' + fmt(elapsed()) + ' · 总操作 ' + S.steps + ' 次';
+  openModal('ov-final');
+  celebration();
+}
+
+/* ================================================================
+   撒花庆祝（Canvas 彩纸）
+   ================================================================ */
+const fx = $('fx');
+const fctx = fx.getContext('2d');
+let parts = [];
+let fxRun = false;
+function sizeFx(){ fx.width = window.innerWidth; fx.height = window.innerHeight; }
+function burst(n){
+  const colors = [S.palette.primary, '#f4b400', '#2e9e4f', '#1f7ae0', '#e84393', '#ffffff'];
+  for(let i=0;i<n;i++){
+    parts.push({
+      x: Math.random()*fx.width,
+      y: -20 - Math.random()*fx.height*0.3,
+      vx: (Math.random()-0.5)*3,
+      vy: 2 + Math.random()*3.5,
+      size: 7 + Math.random()*8,
+      rot: Math.random()*Math.PI,
+      vr: (Math.random()-0.5)*0.3,
+      color: colors[i % colors.length],
+      life: 1,
+      decay: 0.004 + Math.random()*0.004,
+      round: Math.random() < 0.3
+    });
+  }
+  if(!fxRun){ fxRun = true; requestAnimationFrame(stepFx); }
+}
+function stepFx(){
+  fctx.clearRect(0, 0, fx.width, fx.height);
+  parts = parts.filter(function(p){ return p.life > 0 && p.y < fx.height + 30; });
+  parts.forEach(function(p){
+    p.x += p.vx; p.y += p.vy; p.vy += 0.05;
+    p.rot += p.vr; p.life -= p.decay;
+    fctx.save();
+    fctx.globalAlpha = Math.max(0, p.life);
+    fctx.translate(p.x, p.y);
+    fctx.rotate(p.rot);
+    fctx.fillStyle = p.color;
+    if(p.round){
+      fctx.beginPath();
+      fctx.arc(0, 0, p.size/2, 0, Math.PI*2);
+      fctx.fill();
+    } else {
+      fctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.62);
+    }
+    fctx.restore();
+  });
+  if(parts.length){ requestAnimationFrame(stepFx); }
+  else { fxRun = false; fctx.clearRect(0, 0, fx.width, fx.height); }
+}
+function celebration(){
+  burst(150);
+  setTimeout(function(){ burst(110); }, 650);
+  setTimeout(function(){ burst(110); }, 1350);
+}
+
+/* ================================================================
+   事件绑定与初始化
+   ================================================================ */
+document.querySelectorAll('.diff-card').forEach(function(b){
+  b.addEventListener('click', function(){ startGame(b.dataset.diff); });
+});
+$('btn-rules-start').addEventListener('click', function(){ openModal('md-rules'); });
+$('btn-know-start').addEventListener('click', function(){ openModal('md-know'); });
+$('btn-rules-g').addEventListener('click', function(){ openModal('md-rules'); });
+$('btn-know-g').addEventListener('click', function(){ openModal('md-know'); });
+$('btn-reveal').addEventListener('click', revealAnswer);
+$('btn-restart').addEventListener('click', restartTask);
+$('btn-back').addEventListener('click', gotoStart);
+$('btn-next').addEventListener('click', function(){
+  hideOverlay('ov-complete');
+  startTask(S.idx + 1);
+});
+$('btn-again').addEventListener('click', function(){
+  hideOverlay('ov-complete');
+  restartTask();
+});
+$('btn-back2').addEventListener('click', function(){
+  hideOverlay('ov-complete');
+  gotoStart();
+});
+$('btn-fagain').addEventListener('click', function(){
+  hideOverlay('ov-final');
+  startGame(S.diff);
+});
+$('btn-fback').addEventListener('click', function(){
+  hideOverlay('ov-final');
+  gotoStart();
+});
+document.querySelectorAll('[data-close]').forEach(function(b){
+  b.addEventListener('click', function(){
+    const ov = b.closest('.overlay');
+    if(ov){ ov.classList.add('hidden'); }
+  });
+});
+window.addEventListener('resize', function(){
+  sizeFx();
+  repositionTokens();
+});
+buildCompass();
+sizeFx();
+})();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-n/g014", "name": "\u5bfb\u627e\u201c\u5b9d\u85cf\u201d\u00b7\u65b9\u5411\u63a2\u9669\u961f", "file": "g014.html", "jiaocan": "\u301042\u3011\u4e94\u3001\u957f\u65b9\u5f62\u548c\u6b63\u65b9\u5f62\uff1a\u5bfb\u627e\u201c\u5b9d\u85cf\u201d", "unit": "", "grade": "3\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "N\uff1a\u6559\u6750\u89e3\u8bfb3", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb3\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-n"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

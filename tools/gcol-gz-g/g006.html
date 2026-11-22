@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>复平面寻星之旅 · 12.2 复数的运算（高中）</title>
+<!-- ============================================================
+     复平面寻星之旅 —— 12.2 复数的运算 互动游戏（单文件自包含）
+     玩法核心：把复数变成复平面上的“星辰”，学生通过
+       1) 拖动金色星辰构造 加/减/乘/除/共轭/虚根 的结果点
+       2) 转动 i 的周期转盘（每转一格相当于乘一个 i）
+       3) 滑动“纯虚数调音台”滑块让乘积实部归零
+     操作本身就是计算与思考，配合三档难度、计时、步数、
+     揭示答案、重新开始、庆祝动画与随机配色。
+     ============================================================ -->
+<style>
+:root{--bg:#0B1B33;--panel:#10254A;--primary:#4DA3FF;--accent:#FFC94D;--ink:#F5F8FF}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+ background:var(--bg);color:var(--ink);display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 16px;
+ background:var(--panel);border-bottom:3px solid var(--primary)}
+header h1{font-size:21px;letter-spacing:1px;white-space:nowrap}
+header small{font-size:15px;opacity:.8;font-weight:400}
+header .hud{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chip{background:rgba(255,255,255,.08);border:2px solid var(--primary);border-radius:999px;
+ padding:4px 14px;font-size:18px;font-weight:700;white-space:nowrap}
+button{font-family:inherit;font-size:18px;font-weight:700;color:var(--ink);
+ background:rgba(255,255,255,.10);border:2px solid var(--primary);border-radius:12px;
+ padding:9px 16px;cursor:pointer;transition:transform .08s,background .2s}
+button:hover{background:rgba(255,255,255,.22)}
+button:active{transform:scale(.96)}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--primary);color:#08111f}
+button.accentb{background:var(--accent);color:#2a1c00}
+main{flex:1;min-height:0;position:relative}
+.screen{position:absolute;inset:0;display:flex;min-height:0}
+.hidden{display:none !important}
+/* ---------- 主菜单 ---------- */
+#screen-menu{flex-direction:column;align-items:center;justify-content:center;gap:16px;
+ padding:20px;text-align:center;overflow:auto}
+#screen-menu h2{font-size:42px;letter-spacing:4px;text-shadow:0 0 24px var(--primary)}
+#screen-menu .sub{font-size:19px;opacity:.92;max-width:820px;line-height:1.7}
+.diffs{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.diffcard{width:262px;padding:20px 16px;border-radius:18px;border:3px solid var(--primary);
+ background:rgba(255,255,255,.06);transition:transform .12s}
+.diffcard:hover{transform:translateY(-6px);background:rgba(255,255,255,.14)}
+.diffcard b{display:block;font-size:23px;margin-bottom:10px;color:var(--accent)}
+.diffcard span{font-size:16px;line-height:1.65;display:block;font-weight:400}
+/* ---------- 游戏界面 ---------- */
+#screen-game{gap:14px;padding:14px}
+.stage{flex:1;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+.stack{position:relative;width:600px;height:600px}
+#board-bg{position:absolute;left:0;top:0;width:100%;height:100%;border-radius:16px;
+ background-size:100% 100%;pointer-events:none;background-color:var(--panel)}
+#board{position:absolute;left:0;top:0;touch-action:none;cursor:grab}
+/* 输入期间的动态元素用 DOM 合成层呈现（画布零重绘，稳定省电） */
+.mark{position:absolute;left:0;top:0;pointer-events:none;z-index:6;
+ display:flex;flex-direction:column;align-items:center;will-change:transform}
+.mark .mark-star{font-size:34px;line-height:1;font-weight:700}
+.mark .mark-star.gold{color:#FFD34D;text-shadow:0 0 14px #FFD34D}
+.mark .mark-star.blue{color:#6FB7FF}
+.mark .mark-star.green{color:#7BE3A5}
+.mark .mark-label{background:rgba(7,11,22,.85);border:2px solid #FFD34D;border-radius:12px;
+ padding:2px 10px;font-size:16px;font-weight:700;color:#fff;white-space:nowrap;margin-top:5px}
+.mark.blue-lab .mark-label{border-color:#6FB7FF}
+.mark.onaxis .mark-star{color:#35E08F;text-shadow:0 0 16px #35E08F}
+.mark.onaxis .mark-label{border-color:#35E08F}
+#mark-dial{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:6}
+#dial-arm{position:absolute;left:50%;top:50%;height:7px;border-radius:4px;background:var(--primary);transform-origin:0 50%}
+#dial-knob{position:absolute;width:34px;height:34px;border-radius:50%;background:#FFD34D;color:#5a4200;
+ font-size:16px;font-weight:800;text-align:center;line-height:34px;box-shadow:0 0 14px #FFD34D;will-change:transform}
+/* 点亮成功的脉冲圈（纯 CSS 动画，零画布开销） */
+.mark-ring{display:none;width:46px;height:46px;border:4px solid #35E08F;border-radius:50%;
+ position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.mark.solved .mark-ring{display:block;animation:ringpulse 1.1s ease-out infinite}
+.mark.solved .mark-star{color:#35E08F;text-shadow:0 0 16px #35E08F}
+.mark.solved .mark-label{border-color:#35E08F}
+#dial-pulse{position:absolute;width:52px;height:52px;border:4px solid #35E08F;border-radius:50%;
+ display:none;transform:translate(-50%,-50%)}
+#dial-pulse.on{display:block;animation:ringpulse 1.1s ease-out infinite}
+@keyframes ringpulse{0%{transform:translate(-50%,-50%) scale(.7);opacity:1}
+ 100%{transform:translate(-50%,-50%) scale(1.5);opacity:.25}}
+.panel{width:372px;flex:none;display:flex;flex-direction:column;gap:12px;background:var(--panel);
+ border:2px solid var(--primary);border-radius:16px;padding:16px;overflow:auto}
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+#m-index{font-size:17px;color:var(--accent);font-weight:700;white-space:nowrap}
+#m-name{font-size:21px;font-weight:800;text-align:right}
+#m-text{font-size:19px;line-height:1.8;background:rgba(255,255,255,.06);border-radius:12px;padding:12px}
+#m-text .tip{display:block;margin-top:8px;font-size:16px;color:var(--accent);opacity:.95}
+#m-readout{font-size:23px;font-weight:800;background:rgba(0,0,0,.30);
+ border:2px dashed var(--primary);border-radius:12px;padding:10px 12px;text-align:center;line-height:1.5}
+#m-extra{display:flex;flex-direction:column;gap:8px}
+.qrow{font-size:17px;background:rgba(255,255,255,.06);border-radius:10px;padding:8px 10px;
+ border:2px solid transparent;line-height:1.6}
+.qrow.ok{border-color:#35e08f;color:#a8ffcf}
+.srow{display:flex;justify-content:space-between;font-size:17px;background:rgba(255,255,255,.06);
+ border-radius:10px;padding:6px 10px}
+.sbar{position:relative;height:16px;background:rgba(0,0,0,.35);border-radius:8px;overflow:hidden}
+.sbar .zero{position:absolute;left:50%;top:0;bottom:0;width:3px;background:#fff;opacity:.85}
+.sbar .fill{position:absolute;top:2px;bottom:2px;background:var(--primary);border-radius:6px}
+.sbar .fill.im{background:var(--accent)}
+input[type=range]{width:100%;height:40px;cursor:pointer;accent-color:var(--accent)}
+#m-explain{font-size:17px;line-height:1.85;background:rgba(0,0,0,.3);
+ border-left:6px solid var(--accent);border-radius:10px;padding:12px}
+#m-explain b{color:var(--accent)}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap}
+#btn-next{font-size:21px;padding:12px}
+#progress{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px;align-items:center}
+#progress .lab{font-size:15px;opacity:.8}
+#progress .st{font-size:26px;opacity:.3;line-height:1}
+#progress .st.done{opacity:1;color:#FFD34D;text-shadow:0 0 10px #FFD34D}
+#progress .st.aid{opacity:.95;color:#9fb6d8}
+/* ---------- 弹窗 / 结算 / 提示 ---------- */
+.modal{position:fixed;inset:0;background:rgba(4,8,18,.8);display:flex;align-items:center;
+ justify-content:center;z-index:60;padding:16px}
+.modal .box{max-width:780px;max-height:86vh;overflow:auto;background:var(--panel);
+ border:3px solid var(--primary);border-radius:18px;padding:26px}
+.modal h3{font-size:25px;margin-bottom:12px;color:var(--accent)}
+.modal h4{font-size:19px;margin:14px 0 6px;color:var(--primary)}
+.modal p,.modal li{font-size:17px;line-height:1.8}
+.modal ul{padding-left:22px}
+#screen-done{flex-direction:column;align-items:center;justify-content:center;gap:16px;
+ background:rgba(6,10,22,.92);z-index:50;text-align:center;padding:20px}
+#screen-done h2{font-size:38px;color:var(--accent);text-shadow:0 0 22px var(--accent)}
+#screen-done .stats{font-size:20px;line-height:2}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:70}
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(10,16,30,.94);
+ border:2px solid var(--accent);font-size:19px;font-weight:700;padding:10px 22px;border-radius:999px;
+ z-index:80;opacity:0;pointer-events:none;transition:opacity .25s;max-width:92vw;text-align:center}
+#toast.show{opacity:1}
+@media (max-width:920px){
+ #screen-game{flex-direction:column;overflow:auto}
+ .stage{min-height:56vh}
+ .panel{width:100%}
+ header h1{font-size:17px}
+ #screen-menu h2{font-size:32px}
+}
+</style>
+</head>
+<body>
+<!-- 顶栏：标题 + 右上角计时/步数（G7）+ 玩法说明入口 -->
+<header>
+ <h1>★ 复平面寻星之旅 <small>高中数学 · 第12章 复数 · 12.2 复数的运算</small></h1>
+ <div class="hud">
+  <span class="chip">时间 <span id="hud-time">00:00</span></span>
+  <span class="chip">步数 <span id="hud-steps">0</span></span>
+  <button id="btn-rules">玩法说明</button>
+ </div>
+</header>
+<main>
+ <!-- 难度选择（G3） -->
+ <div class="screen" id="screen-menu">
+  <h2>复平面寻星之旅</h2>
+  <p class="sub">把每颗星辰安放到位，点亮整片复平面星图！横轴是实轴、纵轴是虚轴，点 (a, b) 就是复数 a+bi。拖一拖、转一转、调一调，玩着玩着就把「复数的运算」练明白了。</p>
+  <div class="diffs">
+   <button class="diffcard" data-diff="easy"><b>初级 · 星际见习生</b>
+    <span>4 个任务：复数加法、共轭镜像、乘以 i、i 的旋转周期转盘<br>（例题级，全程配有引导虚线，友好启航）</span></button>
+   <button class="diffcard" data-diff="mid"><b>中级 · 星域领航员</b>
+    <span>5 个任务：复数减法、乘法跃迁、除法分母实数化、纯虚数调音台、i 的周期<br>（练习级，答错后才会出现引导虚线）</span></button>
+   <button class="diffcard" data-diff="hard"><b>高级 · 复空间探险家</b>
+    <span>6 个任务：三星连环加减、乘法、除法、虚根成对方程、调音台、大指数周期<br>（变式综合级，全靠真功夫）</span></button>
+  </div>
+  <p class="sub" style="opacity:.75;font-size:16px">每一局的任务数值都会重新随机生成（并随机混入教材典例），每次游玩都是一张新星图！</p>
+ </div>
+ <!-- 游戏：画布 + 任务面板 -->
+ <div class="screen hidden" id="screen-game">
+  <div class="stage">
+    <div class="stack">
+      <div id="board-bg"></div>
+      <canvas id="board"></canvas>
+      <div id="drag-mark" class="mark hidden"><div class="mark-ring"></div><div class="mark-star gold">✦</div><div class="mark-label" id="drag-mark-label"></div></div>
+      <div id="mark-z1" class="mark blue-lab hidden"><div class="mark-star blue">✦</div><div class="mark-label" id="mark-z1-label"></div></div>
+      <div id="mark-pr" class="mark hidden"><div class="mark-star gold">✦</div><div class="mark-label" id="mark-pr-label"></div></div>
+      <div id="mark-dial" class="hidden"><div id="dial-arm"></div><div id="dial-knob">i</div><div id="dial-pulse"></div></div>
+    </div>
+  </div>
+  <div class="panel">
+   <div class="mhead"><span id="m-index">第 1 关</span><span id="m-name"></span></div>
+   <div id="m-text"></div>
+   <div id="m-readout"></div>
+   <div id="m-extra"></div>
+   <div id="m-explain" class="hidden"></div>
+   <button id="btn-next" class="primary hidden">下一关 →</button>
+   <div class="btnrow">
+    <button id="btn-reveal" class="accentb">揭示答案</button>
+    <button id="btn-restart">重新开始</button>
+    <button id="btn-back">返回难度选择</button>
+   </div>
+   <div id="progress"></div>
+  </div>
+ </div>
+ <!-- 结算（G5 庆祝） -->
+ <div class="screen hidden" id="screen-done">
+  <h2>恭喜完成全部航行，星图已被点亮！</h2>
+  <div class="stats" id="done-stats"></div>
+  <div class="btnrow" style="justify-content:center">
+   <button id="btn-again" class="primary">再玩一次（同难度新数据）</button>
+   <button id="btn-back2">返回难度选择</button>
+  </div>
+ </div>
+</main>
+<!-- 规则说明面板（G6：进入时自动弹出，可随时再看） -->
+<div id="modal-rules" class="modal hidden">
+ <div class="box">
+  <h3>玩法说明 · 数学锦囊</h3>
+  <h4>星图怎么看</h4>
+  <p>整个画布是<strong>复平面</strong>：横轴是实轴（Re），纵轴是虚轴（Im）。平面上的点 (a, b) 代表复数 a+bi，每颗星辰就是一个复数；把金色星辰拖到正确的位置，就是把运算结果亲手“构造”出来。</p>
+  <h4>三种操作</h4>
+  <ul>
+   <li><strong>拖星辰</strong>：按住金色星辰拖到目标点，松手即判定（位置会自动吸附到半个格）。</li>
+   <li><strong>转转盘</strong>（i 的周期）：按住金色旋钮转动指针，每转过一格相当于再乘一个 i，松手停在答案对应的值上。</li>
+   <li><strong>拉滑块</strong>（纯虚数调音台）：左右调节实数 a，观察乘积星辰，让它恰好落在虚轴上（实部为 0）。</li>
+  </ul>
+  <h4>数学锦囊（12.2 复数的运算）</h4>
+  <ul>
+   <li><strong>加减法</strong>：实部与实部、虚部与虚部分别相加减：(a+bi)±(c+di)=(a±c)+(b±d)i；与向量加减一致，满足平行四边形法则。</li>
+   <li><strong>共轭复数</strong>：z 的共轭记作 z̄，等于 a−bi：实部相等、虚部互为相反数，图上关于实轴对称；且 z·z̄=a²+b²。</li>
+   <li><strong>乘法</strong>：(a+bi)(c+di)=(ac−bd)+(ad+bc)i，像多项式一样展开，记得把 i² 换成 −1；乘 i 相当于绕原点逆时针旋转 90°，长度不变。</li>
+   <li><strong>除法</strong>：把除式写成分数，分子分母同乘分母的共轭复数，先把分母“实数化”成 c²+d²，再化简。</li>
+   <li><strong>纯虚数</strong>：实部为 0 且虚部不为 0。</li>
+   <li><strong>i 的幂的周期</strong>：i¹=i，i²=−1，i³=−i，i⁴=1，四个一循环，只看指数除以 4 的余数。</li>
+   <li><strong>实系数一元二次方程</strong>：当判别式小于 0 时两个虚根互为共轭复数（虚根成对）；根与系数的关系依然成立：z₁+z₂=−p，z₁·z₂=q。</li>
+  </ul>
+  <h4>计分与按钮</h4>
+  <p>右上角实时显示<b>用时</b>与<b>步数</b>（每次拖放/调节计一步）。「揭示答案」会给出完整解析，但该关不计入点亮；「重新开始」换一批新数据再来一局；「返回难度选择」回到主菜单。初级 / 中级 / 高级任选，每局数据随机生成，玩多少遍都不重样。</p>
+  <button id="btn-rules-close" class="primary" style="margin-top:14px">开始探索</button>
+ </div>
+</div>
+<canvas id="fx"></canvas>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   一、基础工具函数（数值 / 随机 / 显示格式化）
+   ============================================================ */
+function rint(a,b){ return a+Math.floor(Math.random()*(b-a+1)); }        // [a,b] 内随机整数
+function nz(a,b){ let v=0; do{ v=rint(a,b); }while(v===0); return v; }   // 非零随机整数
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ const t=a%b; a=b; b=t; } return a||1; }
+function dist(p,q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); }
+function pairwiseFar(pts,min){ for(let i=0;i<pts.length;i++){ for(let j=i+1;j<pts.length;j++){ if(dist(pts[i],pts[j])<min) return false; } } return true; }
+function farEnough(pts,t,min){ return pts.every(function(p){ return dist(p,t)>=min; }); }
+
+/* 半单位整数字符串：v 是“真实值×2”，可精确表示所有 0.5 步位置 */
+function halfStr(v){ const s=v<0?'−':''; const a=Math.abs(v); return a%2===0 ? s+(a/2) : s+a+'/2'; }
+/* 六分之一网格字符串（调音台的 a 与乘积） */
+function fmt6(g){ const s=g<0?'−':''; const n=Math.abs(g); const d=gcd(n,6); const a=n/d, b=6/d; return b===1 ? s+a : s+a+'/'+b; }
+/* 复数字符串 cpx(实部×2, 虚部×2)，例如 cpx(6,2) = "3 + i" */
+function cpx(hx,hy){
+  if(hx===0 && hy===0) return '0';
+  const im = (Math.abs(hy)===2) ? ((hy<0?'−':'')+'i') : (halfStr(hy)+'i');
+  if(hy===0) return halfStr(hx);
+  if(hx===0) return im;
+  return halfStr(hx) + (hy>0?' + ':' − ') + ((Math.abs(hy)===2)?'i':halfStr(Math.abs(hy))+'i');
+}
+/* 六分之一网格复数字符串：cpx6(实部×6, 虚部×6) */
+function cpx6(x6,y6){
+  if(x6===0 && y6===0) return '0';
+  const im = (Math.abs(y6)===6) ? ((y6<0?'−':'')+'i') : (fmt6(y6)+'i');
+  if(y6===0) return fmt6(x6);
+  if(x6===0) return im;
+  return fmt6(x6) + (y6>0?' + ':' − ') + ((Math.abs(y6)===6)?'i':fmt6(Math.abs(y6))+'i');
+}
+/* 整数带符号拼接，用于解析文本："+3" / "−3" */
+function sgnAdd(v){ return v>=0 ? '+'+v : '−'+(-v); }
+
+/* ============================================================
+   二、任务数据生成模块（纯数据，可独立测试）
+   每个生成器返回一个任务对象；数值随机 + 混入教材典例
+   ============================================================ */
+const C = { blue:'#6FB7FF', green:'#7BE3A5', violet:'#C9A6FF', gold:'#FFD34D' };
+const VAL = ['1','i','−1','−i'];           // i 的幂循环值
+const OB = '<span style="text-decoration:overline">z</span>'; // z 的共轭（网页显示用）
+
+/* ---- 1. 加法：拖到 z1+z2 ---- */
+function genAdd(diff){
+  if(Math.random()<0.45){ return addMission(3,5,3,-4,true); }   // 教材典例 例1-1(1)
+  for(let t=0;t<300;t++){
+    const a=rint(-5,5), b=rint(-5,5), c=rint(-5,5), d=rint(-5,5);
+    const tx=a+c, ty=b+d;
+    if(Math.abs(tx)>7 || Math.abs(ty)>7) continue;
+    if(tx===0 && ty===0) continue;
+    if(!pairwiseFar([[a,b],[c,d]],2.2)) continue;
+    if(!farEnough([[a,b],[c,d]],[tx,ty],1.6)) continue;
+    return addMission(a,b,c,d,false);
+  }
+  return addMission(2,4,3,-3,false);
+}
+function addMission(a,b,c,d,classic){
+  const tx=a+c, ty=b+d;
+  return { type:'add', name:'和之星 · 平行四边形航线',
+    text:'星图上已有两颗星辰：<b>z₁ = '+cpx(a*2,b*2)+'</b>（蓝星）与 <b>z₂ = '+cpx(c*2,d*2)+'</b>（绿星）。请把<b>金色星辰</b>拖到 <b>z₁ + z₂</b> 对应的点上，放好后松手即可。'
+      + (classic ? '<span class="tip">本题源自教材典例：复数相加就是实部加实部、虚部加虚部。</span>'
+                 : '<span class="tip">锦囊：(a+bi)+(c+di)=(a+c)+(b+d)i；引导虚线会围成平行四边形，缺失的顶点就是“和”。</span>'),
+    fixeds:[{x:a,y:b,label:'z₁',color:C.blue},{x:c,y:d,label:'z₂',color:C.green}],
+    target:{x:tx,y:ty}, hint:{mode:'para',after:0},
+    explain:'复数加法：实部相加、虚部相加。<br>z₁+z₂ = ('+a+sgnAdd(c)+') + ['+b+sgnAdd(d)+']i = <b>'+cpx(tx*2,ty*2)+'</b>，对应点 ('+tx+', '+ty+')。'
+  };
+}
+
+/* ---- 2. 减法：拖到 z1−z2 ---- */
+function genSub(diff){
+  if(Math.random()<0.4){ return subClassic(); }   // 教材典例 例17(2)
+  for(let t=0;t<300;t++){
+    const a=rint(-5,5), b=rint(-5,5), c=rint(-5,5), d=rint(-5,5);
+    const tx=a-c, ty=b-d;
+    if(Math.abs(tx)>7 || Math.abs(ty)>7) continue;
+    if(tx===0 && ty===0) continue;
+    if(!pairwiseFar([[a,b],[c,d]],2.2)) continue;
+    if(!farEnough([[a,b],[c,d]],[tx,ty],1.6)) continue;
+    return subMission(a,b,c,d,false);
+  }
+  return subMission(5,2,2,4,false);
+}
+/* 减法典例：例17(2) z+(1−2i)=3−i，则 z=(3−i)−(1−2i)=2+i */
+function subClassic(){
+  return { type:'sub', name:'差之星 · 逆运算航线',
+    text:'教材典例：复数 z 满足 <b>z + (1−2i) = 3−i</b>。图上已标出 z₁ = <b>3−i</b>（蓝星）与 z₂ = <b>1−2i</b>（绿星），则 z = z₁ − z₂。请把<b>金色星辰</b>拖到 z 对应的点上，放好后松手即可。<span class="tip">锦囊：减法是加法的逆运算——把 1−2i 移到等号右边相减；答错一次后会出现“−z₂”幽灵星与引导虚线。</span>',
+    fixeds:[{x:3,y:-1,label:'z₁',color:C.blue},{x:1,y:-2,label:'z₂',color:C.green}],
+    target:{x:2,y:1}, hint:{mode:'subp',after:1},
+    explain:'由 z + (1−2i) = 3−i，移项得 z = (3−i) − (1−2i) = (3−1) + [(−1)+2]i = <b>'+cpx(4,2)+'</b>，对应点 (2, 1)。'
+  };
+}
+function subMission(a,b,c,d,classic){
+  const tx=a-c, ty=b-d;
+  return { type:'sub', name:'差之星 · 逆运算航线',
+    text:'星图上已有两颗星辰：<b>z₁ = '+cpx(a*2,b*2)+'</b>（蓝星）与 <b>z₂ = '+cpx(c*2,d*2)+'</b>（绿星）。请把<b>金色星辰</b>拖到 <b>z₁ − z₂</b> 对应的点上，放好后松手即可。'
+      + (classic ? '<span class="tip">本题源自教材典例：减法是加法的逆运算，也可以看成“加上 z₂ 的相反数”。</span>'
+                 : '<span class="tip">锦囊：(a+bi)−(c+di)=(a−c)+(b−d)i；答错一次后会出现“−z₂”幽灵星与引导虚线。</span>'),
+    fixeds:[{x:a,y:b,label:'z₁',color:C.blue},{x:c,y:d,label:'z₂',color:C.green}],
+    target:{x:tx,y:ty}, hint:{mode:'subp',after:1},
+    explain:'复数减法：实部相减、虚部相减（等于加上 z₂ 的相反数）。<br>z₁−z₂ = ('+a+sgnAdd(-c)+') + ['+b+sgnAdd(-d)+']i = <b>'+cpx(tx*2,ty*2)+'</b>，对应点 ('+tx+', '+ty+')。'
+  };
+}
+
+/* ---- 3. 共轭：拖到 z 的共轭复数 ---- */
+function genConj(diff){
+  if(Math.random()<0.45){ return conjMission(-4,3,true); }      // 教材典例 例4-8(2)：z=3i−4
+  for(let t=0;t<200;t++){
+    const a=rint(-6,6), b=nz(-6,6);
+    if(Math.abs(2*b)<2) continue;                               // 目标与原星至少差 1 格
+    return conjMission(a,b,false);
+  }
+  return conjMission(2,5,false);
+}
+function conjMission(a,b,classic){
+  const tx=a, ty=-b;
+  return { type:'conj', name:'镜像之约 · 共轭星辰',
+    text:(classic ? '星辰 <b>z = 3i−4</b>（可先整理为 z = −4+3i，蓝星已标出）。' : '星辰 <b>z = '+cpx(a*2,b*2)+'</b>（蓝星）。')
+      + '请把<b>金色星辰</b>拖到 z 的共轭复数 '+OB+' 对应的位置上。<span class="tip">锦囊：共轭复数实部相等、虚部互为相反数——相当于把蓝星关于实轴“照镜子”。</span>',
+    fixeds:[{x:a,y:b,label:'z',color:C.blue}],
+    target:{x:tx,y:ty}, hint:{mode:'mirror',after:0},
+    explain:'共轭复数：实部相等、虚部互为相反数（关于实轴对称）。'+(classic?'z = 3i−4 先整理成 −4+3i，所以 '+OB+' = <b>'+cpx(tx*2,ty*2)+'</b>（切勿写成 3i+4），对应点 ('+tx+', '+ty+')。':OB+' = <b>'+cpx(tx*2,ty*2)+'</b>，对应点 ('+tx+', '+ty+')。')
+  };
+}
+
+/* ---- 4. 乘法：拖到 z1×k ---- */
+function genMul(diff){
+  const pools = { easy:[[0,1],[0,-1]], mid:[[1,1],[1,-1],[0,2],[-1,1]], hard:[[-1,-1],[2,1],[1,2],[-2,1]] };
+  if(diff==='easy' && Math.random()<0.45){ return mulMission(2,3,0,1,'i',diff); }            // 典例 例3-5：i(2+3i)
+  if(diff==='mid' && Math.random()<0.45){ return mulMission(1,-1,1,1,'1+i',diff); }          // 典例 例3-6 型：(a+i)(1−i) 反向
+  if(diff==='hard' && Math.random()<0.45){ return mulMission(1,1,0,-2,'(1−i)² = −2i',diff); } // 典例 例7-14：(1+i)(1−i)²
+  for(let t=0;t<300;t++){
+    const k=pick(pools[diff]); const r=(diff==='easy'?5:3);
+    const a=rint(-r,r), b=rint(-r,r);
+    const tx=a*k[0]-b*k[1], ty=a*k[1]+b*k[0];
+    if(Math.abs(tx)>7 || Math.abs(ty)>7) continue;
+    if(tx===a && ty===b) continue;
+    if(Math.hypot(tx-a,ty-b)<1.6) continue;
+    return mulMission(a,b,k[0],k[1],null,diff);
+  }
+  return mulMission(2,3,0,1,'i',diff);
+}
+function mulMission(a,b,kx,ky,kDisp,diff){
+  const tx=a*kx-b*ky, ty=a*ky+b*kx;
+  const kd = kDisp || cpx(kx*2,ky*2);
+  const after = diff==='easy'?0:(diff==='mid'?1:2);
+  return { type:'mul', name:'旋转跃迁 · 乘积定位',
+    text:'蓝星 <b>z₁ = '+cpx(a*2,b*2)+'</b> 已就位；常数 <b>k = '+kd+'</b>。请把<b>金色星辰</b>拖到乘积 <b>z₁ · k</b> 对应的位置上。<span class="tip">锦囊：按多项式乘法展开并把 i² 换成 −1：(a+bi)(c+di)=(ac−bd)+(ad+bc)i；乘 i 相当于绕原点逆时针转 90°，到原点距离不变。</span>',
+    fixeds:[{x:a,y:b,label:'z₁',color:C.blue}],
+    target:{x:tx,y:ty}, hint:{mode:'radius',after:after}, kx:kx, ky:ky,
+    explain:'乘法法则：(a+bi)(c+di)=(ac−bd)+(ad+bc)i。<br>'+cpx(a*2,b*2)+' × '+kd+' = <b>'+cpx(tx*2,ty*2)+'</b>，对应点 ('+tx+', '+ty+')。'
+      + ((kx===0 && (ky===1||ky===-1)) ? '（乘 ±i 就是绕原点旋转 ±90°，星辰到原点的距离保持不变。）' : '')
+  };
+}
+
+/* ---- 5. 除法：拖到 z1÷z2（分母实数化） ---- */
+function genDiv(diff){
+  if(Math.random()<0.4){ return divMission(6,0,1,1); }   // 典例：6÷(1+i)=3−3i
+  for(let t=0;t<400;t++){
+    const qx=rint(-3,3), qy=rint(-3,3); if(qx===0&&qy===0) continue;
+    const c=nz(-2,2), d=nz(-2,2);
+    const ax=qx*c-qy*d, ay=qx*d+qy*c;   // 被除数 = 商×除数，保证结果是整数点
+    if(Math.abs(ax)>7 || Math.abs(ay)>7) continue;
+    if(Math.hypot(ax-c,ay-d)<2) continue;
+    if(Math.hypot(ax-qx,ay-qy)<1.6) continue;
+    if(Math.hypot(c-qx,d-qy)<1.6) continue;
+    return divMission(ax,ay,c,d);
+  }
+  return divMission(6,0,1,1);
+}
+function divMission(ax,ay,c,d){
+  const den=c*c+d*d;
+  const qx=(ax*c+ay*d)/den, qy=(ay*c-ax*d)/den;   // 精确整数（构造保证）
+  const nx=ax*c+ay*d-0, ny=ay*c-ax*d;             // 分子 = z1 × z2 的共轭
+  const conj=cpx(c*2,(-d)*2);
+  return { type:'div', name:'分母实数化 · 商之定位',
+    text:'蓝星（被除数）<b>z₁ = '+cpx(ax*2,ay*2)+'</b>，绿星（除数）<b>z₂ = '+cpx(c*2,d*2)+'</b>。请把<b>金色星辰</b>拖到商 <b>z₁ ÷ z₂</b> 对应的位置上。<span class="tip">锦囊：把除式写成分数，分子分母同乘 z₂ 的共轭复数，先把分母变成实数 '+den+'，再化简。</span>',
+    fixeds:[{x:ax,y:ay,label:'z₁',color:C.blue},{x:c,y:d,label:'z₂',color:C.green}],
+    target:{x:qx,y:qy}, hint:{mode:'none',after:99},
+    explain:'分母实数化：分子分母同乘 '+conj+'（z₂ 的共轭复数）。<br>分母：'+cpx(c*2,d*2)+' × '+conj+' = '+c+'²+'+d+'² = '+den+'；分子：'+cpx(ax*2,ay*2)+' × '+conj+' = '+cpx(nx*2,ny*2)+'。<br>所以 z₁÷z₂ = '+cpx(nx*2,ny*2)+' ÷ '+den+' = <b>'+cpx(qx*2,qy*2)+'</b>，对应点 ('+qx+', '+qy+')。'
+  };
+}
+
+/* ---- 6. 三星连环：z1+z2−z3 ---- */
+function genChain(diff){
+  if(Math.random()<0.4){ return chainMission(-2,2,3,3,2,-1); }   // 教材典例 例16
+  for(let t=0;t<400;t++){
+    const a=rint(-4,4), b=rint(-4,4), c=rint(-4,4), d=rint(-4,4), e=rint(-4,4), f=rint(-4,4);
+    const tx=a+c-e, ty=b+d-f;
+    if(Math.abs(tx)>7 || Math.abs(ty)>7) continue;
+    if(!pairwiseFar([[a,b],[c,d],[e,f]],2)) continue;
+    if(!farEnough([[a,b],[c,d],[e,f]],[tx,ty],1.8)) continue;
+    return chainMission(a,b,c,d,e,f);
+  }
+  return chainMission(-2,2,3,3,2,-1);
+}
+function chainMission(a,b,c,d,e,f){
+  const sx=a+c, sy=b+d, tx=sx-e, ty=sy-f;
+  return { type:'chain', name:'连环航行 · 三星接力',
+    text:'三颗星辰：<b>z₁ = '+cpx(a*2,b*2)+'</b>（蓝）、<b>z₂ = '+cpx(c*2,d*2)+'</b>（绿）、<b>z₃ = '+cpx(e*2,f*2)+'</b>（紫）。请把<b>金色星辰</b>拖到 <b>z₁ + z₂ − z₃</b> 对应的位置上。<span class="tip">锦囊：先算 z₁+z₂（实部合、虚部合），再减去 z₃（减去一个数等于加上它的相反数）。</span>',
+    fixeds:[{x:a,y:b,label:'z₁',color:C.blue},{x:c,y:d,label:'z₂',color:C.green},{x:e,y:f,label:'z₃',color:C.violet}],
+    target:{x:tx,y:ty}, hint:{mode:'none',after:99},
+    explain:'逐步计算：z₁+z₂ = '+cpx(sx*2,sy*2)+'；再减 z₃：'+cpx(sx*2,sy*2)+' − '+cpx(e*2,f*2)+' = <b>'+cpx(tx*2,ty*2)+'</b>，对应点 ('+tx+', '+ty+')。'
+  };
+}
+
+/* ---- 7. 虚根成对：实系数一元二次方程的另一个根 ---- */
+function genQuad(diff){
+  if(Math.random()<0.4){ return quadMission(-1,1,true); }   // 教材典例 例21：z²+2z+2=0
+  for(let t=0;t<200;t++){
+    const a=rint(-3,3), b=nz(-4,4);
+    if(a*a+b*b>26) continue;
+    return quadMission(a,b,false);
+  }
+  return quadMission(2,-3,false);
+}
+function quadMission(a,b,classic){
+  const p=-2*a, q=a*a+b*b;
+  const pTerm = p===0 ? '' : (p>0 ? '+ '+p+'z ' : '− '+(-p)+'z ');
+  const qTerm = '+ '+q+' ';
+  const target={x:a,y:-b};
+  return { type:'quad', name:'虚根成对 · 双星守望',
+    text:'实系数一元二次方程 <b>z² '+pTerm+qTerm+'= 0</b>（系数都是实数）的一个根已用紫星标出：z₁ = '+cpx(a*2,b*2)+'。虚数根总是成对出现——请把<b>金色星辰</b>拖到<b>另一个根</b>的位置，让「两根之和」与「两根之积」两栏同时变绿！'
+      + (classic?'<span class="tip">本题源自教材典例：实系数方程的虚根互为共轭复数。</span>':'<span class="tip">锦囊：根与系数的关系 z₁+z₂=−p、z₁·z₂=q 依然成立；先定“和”，再用“积”校准。</span>'),
+    fixeds:[{x:a,y:b,label:'z₁',color:C.violet}],
+    target:target, hint:{mode:'none',after:99}, extras:'quad', pa:-p, q:q, ra:a, rb:b,
+    explain:'实系数方程的虚根互为共轭：另一个根 z₂ = z₁ 的共轭 = <b>'+cpx(a*2,(-b)*2)+'</b>，对应点 ('+a+', '+(-b)+')。<br>验证根与系数的关系：z₁+z₂ = '+(2*a)+' = −p；z₁·z₂ = '+a+'²+'+b+'² = '+q+' = q。'
+  };
+}
+
+/* ---- 8. 纯虚数调音台：滑块调节 a，使 z1·z2 实部为 0 ---- */
+function genSlider(diff){
+  if(Math.random()<0.4){ return sliderMission(3,4); }   // 教材典例 例3-7 型：z₂=3+4i
+  const c=rint(2,3), d=nz(-4,4);
+  return sliderMission(c,d);
+}
+function sliderMission(c,d){
+  const a6=d*6/c;                 // 正解 a=d/c，落在 1/6 网格上
+  let start6=0;
+  do{ start6=rint(-24,24); }while(start6===a6);
+  const im6=a6*d+6*c;             // 解处虚部（六分之一）
+  return { type:'slider', name:'纯虚数调音台 · 实部归零',
+    text:'z₁ = a + i，其中实数 <b>a 由你用滑块调节</b>（蓝星会沿直线“虚部=1”滑动）；z₂ = <b>'+c+sgnAdd(d)+'i</b>（绿星固定）。请调节滑块，让乘积 z₁·z₂ 恰好成为<b>纯虚数</b>——也就是让金色的乘积星辰正好落在虚轴上（实部为 0，虚部不为 0）。<span class="tip">锦囊：乘积 = (a·'+c+' − '+d+') + (a·'+d+' + '+c+')i；纯虚数要求实部为 0，解一个关于 a 的小方程即可。</span>',
+    fixeds:[], target:null, hint:{mode:'none',after:99}, extras:'slider',
+    c:c, d:d, a6:a6, start6:start6,
+    explain:'(a+i)('+c+sgnAdd(d)+'i) = (a·'+c+' − '+d+') + (a·'+d+' + '+c+')i。纯虚数要求实部为 0：a·'+c+' = '+d+'，解得 <b>a = '+d+'/'+c+' = '+fmt6(a6)+'</b>；此时虚部 = '+fmt6(im6)+' ≠ 0，乘积恰好是纯虚数。'
+  };
+}
+
+/* ---- 9. i 的周期转盘 ---- */
+function genDial(diff){
+  let n=0, text2='';
+  if(Math.random()<0.3){ n=pick([2023,2024,2025,2026]); }
+  else if(diff==='easy'){ n=rint(5,24); }
+  else if(diff==='mid'){ n=rint(50,999); }
+  else{
+    if(Math.random()<0.5){ n=rint(1000,9999); }
+    else{ const n1=rint(30,800), n2=rint(30,800); n=n1+n2; text2='（同底数幂相乘，指数相加：i<sup>'+n1+'</sup>·i<sup>'+n2+'</sup> = i<sup>'+n+'</sup>）'; }
+  }
+  const ansIdx=((n%4)+4)%4, r=n%4;
+  return { type:'dial', name:'i 的旋转周期 · 转盘领航',
+    text:'i 的幂每乘一次 i 就逆时针转一格：i¹=i，i²=−1，i³=−i，i⁴=1，然后循环往复。请转动指针（每转过一格相当于再乘一个 i），让它停在 <b>i<sup>'+n+'</sup></b> 对应的值上，松手即判定。'+text2+'<span class="tip">锦囊：只看指数除以 4 的余数——余 1 是 i，余 2 是 −1，余 3 是 −i，余 0（整除）是 1。</span>',
+    fixeds:[], target:null, hint:{mode:'none',after:99}, extras:'dial', n:n, ansIdx:ansIdx,
+    explain:n+' ÷ 4 = '+Math.floor(n/4)+' …… 余 '+r+'，而 i⁴ = 1，所以 i<sup>'+n+'</sup> = i<sup>'+r+'</sup> = <b>'+VAL[ansIdx]+'</b>'+(r===0?'（余 0，正好是 (i⁴) 的幂，值为 1）':'')+'。'
+  };
+}
+
+/* ---- 各难度的任务清单（顺序打乱，数值每局随机） ---- */
+const ROSTER = { easy:['add','conj','mul','dial'], mid:['sub','mul','div','slider','dial'], hard:['chain','quad','mul','div','slider','dial'] };
+const GEN = { add:genAdd, sub:genSub, conj:genConj, mul:genMul, div:genDiv, chain:genChain, quad:genQuad, slider:genSlider, dial:genDial };
+/* ===== 【可独立测试】任务数据生成模块 结束 ===== */
+
+/* ============================================================
+   三、全局状态与 DOM 引用
+   ============================================================ */
+const S = { diff:null, list:[], idx:0, steps:0, solvedCount:0, aidedCount:0, sec:0, timerId:null, firstRun:true, pal:null };
+const D = { pos:{x:0,y:0}, dragging:false, moved:false, miss:0, solved:false, revealed:false,
+            hintOn:false, sparks:[], dialAcc:0, lastAng:0, a6:0 };
+let M = null;
+
+function $(id){ return document.getElementById(id); }
+/* 主画布只承载动态元素；静态星图渲染成一次性 PNG 背景图（见 buildStatic） */
+const cv=$('board'), CTX=cv.getContext('2d');
+const bgEl=$('board-bg');
+const fx=$('fx'), FCTX=fx.getContext('2d');
+/* 缓存全部会反复访问的 DOM 引用：交互期间不再做逐帧查询 */
+const EL={
+  screenGame:$('screen-game'), screenMenu:$('screen-menu'), screenDone:$('screen-done'),
+  hudTime:$('hud-time'), hudSteps:$('hud-steps'),
+  mIndex:$('m-index'), mName:$('m-name'), mText:$('m-text'), mReadout:$('m-readout'),
+  mExtra:$('m-extra'), mExplain:$('m-explain'),
+  btnNext:$('btn-next'), btnReveal:$('btn-reveal'), btnRestart:$('btn-restart'),
+  btnBack:$('btn-back'), progress:$('progress'), toast:$('toast'),
+  modalRules:$('modal-rules'), doneStats:$('done-stats'),
+  stage:document.querySelector('.stage'),
+  dragMark:$('drag-mark'), dragMarkLabel:$('drag-mark-label'),
+  markZ1:$('mark-z1'), markZ1Label:$('mark-z1-label'),
+  markPr:$('mark-pr'), markPrLabel:$('mark-pr-label'),
+  markDial:$('mark-dial'), dialArm:$('dial-arm'), dialKnob:$('dial-knob')
+};
+/* 把 DOM 标记移动到画布坐标（只改 transform，走合成器，不触发布局） */
+function moveMark(el, x, y){ el.style.transform='translate('+x+'px,'+y+'px) translate(-50%,-17px)'; }
+const GRID=8, PAD=50;
+let W=600, H=600, dpr=1;
+
+/* 预设色板：每局随机选一套主色（G8） */
+const PALS=[
+ {name:'深空蓝',bg:'#0B1B33',panel:'#10254A',primary:'#4DA3FF',accent:'#FFC94D'},
+ {name:'星云紫',bg:'#190F2E',panel:'#2A1B4E',primary:'#B08CFF',accent:'#FFD166'},
+ {name:'深海青',bg:'#062024',panel:'#0B3237',primary:'#37D6C0',accent:'#FF9E6D'},
+ {name:'暗夜翠',bg:'#0A241C',panel:'#10402F',primary:'#52E3A4',accent:'#FFE066'},
+ {name:'暮光玫',bg:'#2A1020',panel:'#45182E',primary:'#FF8FB0',accent:'#7FD8FF'},
+ {name:'子夜金',bg:'#1C1A10',panel:'#33301B',primary:'#E8C766',accent:'#7EE0C3'}
+];
+function applyPalette(){
+  S.pal=pick(PALS);
+  const r=document.documentElement.style;
+  r.setProperty('--bg',S.pal.bg); r.setProperty('--panel',S.pal.panel);
+  r.setProperty('--primary',S.pal.primary); r.setProperty('--accent',S.pal.accent);
+}
+
+/* ============================================================
+   四、画布尺寸与坐标换算
+   ============================================================ */
+function sizeBoard(){
+  const st=EL.stage;
+  if(!st) return;
+  const avail=Math.min(st.clientWidth, st.clientHeight)-8;
+  const s=Math.max(320, Math.min(avail||560, 780));
+  dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(s*dpr); cv.height=Math.round(s*dpr);
+  const stack=cv.parentElement;
+  stack.style.width=s+'px'; stack.style.height=s+'px';
+  cv.style.width=s+'px'; cv.style.height=s+'px';
+  CTX.setTransform(dpr,0,0,dpr,0,0);
+  W=s; H=s;
+  if(M){ buildStatic(); requestRender(); }   // 尺寸变化后重建静态层
+}
+function sizeFx(){ dpr=window.devicePixelRatio||1; fx.width=window.innerWidth*dpr; fx.height=window.innerHeight*dpr; FCTX.setTransform(dpr,0,0,dpr,0,0); }
+function unit(){ return (W-PAD*2)/(GRID*2); }
+function toPx(x,y){ const u=unit(), cx=W/2, cy=H/2; return {x:cx+x*u, y:cy-y*u}; }
+function toMath(px,py){ const u=unit(), cx=W/2, cy=H/2; return {x:(px-cx)/u, y:(cy-py)/u}; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+/* ============================================================
+   五、绘制辅助：DC 指向“当前绘制目标”（主画布 / 离屏静态层）
+   ============================================================ */
+let DC=null;   // 当前 2D 上下文（构建静态层时切换为离屏层）
+function line(x1,y1,x2,y2){ DC.beginPath(); DC.moveTo(x1,y1); DC.lineTo(x2,y2); DC.stroke(); }
+function arrowLine(x1,y1,x2,y2,color,w){
+  DC.save(); DC.strokeStyle=color; DC.fillStyle=color; DC.lineWidth=w;
+  DC.beginPath(); DC.moveTo(x1,y1); DC.lineTo(x2,y2); DC.stroke();
+  const ang=Math.atan2(y2-y1,x2-x1), s=9;
+  DC.beginPath(); DC.moveTo(x2,y2);
+  DC.lineTo(x2-s*Math.cos(ang-0.42), y2-s*Math.sin(ang-0.42));
+  DC.lineTo(x2-s*Math.cos(ang+0.42), y2-s*Math.sin(ang+0.42));
+  DC.closePath(); DC.fill(); DC.restore();
+}
+function starPath(x,y,r){
+  DC.beginPath();
+  for(let i=0;i<8;i++){
+    const ang=Math.PI/2 + i*Math.PI/4;
+    const rad=(i%2===0)?r:r*0.42;
+    const px=x+Math.cos(ang)*rad, py=y-Math.sin(ang)*rad;
+    if(i===0){ DC.moveTo(px,py); } else { DC.lineTo(px,py); }
+  }
+  DC.closePath();
+}
+function drawStar(x,y,r,color,glow){
+  DC.save();
+  if(glow){ DC.shadowColor=color; DC.shadowBlur=18; }
+  DC.fillStyle=color; starPath(x,y,r); DC.fill();
+  DC.shadowBlur=0;
+  DC.strokeStyle='rgba(255,255,255,.9)'; DC.lineWidth=1.6; DC.stroke();
+  DC.restore();
+}
+function roundRect(x,y,w,h,r){
+  DC.beginPath();
+  DC.moveTo(x+r,y); DC.arcTo(x+w,y,x+w,y+h,r); DC.arcTo(x+w,y+h,x,y+h,r);
+  DC.arcTo(x,y+h,x,y,r); DC.arcTo(x,y,x+w,y,r); DC.closePath();
+}
+function pill(cx,cy,text,color,above){
+  DC.save();
+  DC.font='700 16px "Microsoft YaHei", system-ui, sans-serif';
+  const tw=DC.measureText(text).width, w=tw+18, h=27;
+  let x=clamp(cx-w/2, 6, W-w-6), y=above? cy-16-h : cy+16;
+  roundRect(x,y,w,h,13);
+  DC.fillStyle='rgba(7,11,22,.82)'; DC.fill();
+  DC.strokeStyle=color; DC.lineWidth=2; DC.stroke();
+  DC.fillStyle='#FFFFFF'; DC.textAlign='center'; DC.textBaseline='middle';
+  DC.fillText(text, x+w/2, y+h/2+1);
+  DC.restore();
+}
+
+/* ============================================================
+   六、双层画面：静态层（低频重建）+ 动态层（每次重绘很少量）
+   静态层 = 网格、坐标轴、固定星辰、引导虚线、转盘底图
+   动态层 = 金星 / 脉冲圈 / 星屑 / 指针 / 乘积星辰
+   （分层后交互期间每帧画布操作量极小，稳定且省电）
+   ============================================================ */
+/* 静态层：离屏渲染一次 → 转成 PNG 背景（纯纹理合成，主画布每帧只画极少量动态元素） */
+const OFF=document.createElement('canvas');
+const OCTX=OFF.getContext('2d');
+/* 重建静态层：任务加载 / 提示出现 / 揭示答案 / 尺寸变化时调用 */
+function buildStatic(){
+  if(!M) return;
+  OFF.width=Math.round(W*dpr); OFF.height=Math.round(H*dpr);
+  OCTX.setTransform(dpr,0,0,dpr,0,0);
+  OCTX.clearRect(0,0,W,H);
+  DC=OCTX;
+  if(M.type==='dial'){ drawDialStatic(); }
+  else if(M.type==='slider'){ drawPlaneBase(true); drawSliderTrack(); }
+  else{ drawPlaneBase(false); drawHints(); drawFixedStars(); drawRevealOnPlane(); }
+  DC=CTX;
+  bgEl.style.backgroundImage='url('+OFF.toDataURL('image/png')+')';
+}
+function drawPlaneBase(highImagAxis){
+  const p=S.pal;
+  DC.fillStyle=p.panel; DC.fillRect(0,0,W,H);
+  const u=unit(), cx=W/2, cy=H/2;
+  /* 半格与整格网格线 */
+  for(let g=-GRID; g<=GRID; g++){
+    if(g===0) continue;
+    DC.strokeStyle='rgba(255,255,255,.11)'; DC.lineWidth=1;
+    line(cx+g*u, PAD-8, cx+g*u, H-PAD+8);
+    line(PAD-8, cy-g*u, W-PAD+8, cy-g*u);
+  }
+  DC.strokeStyle='rgba(255,255,255,.055)';
+  for(let g=-GRID+0.5; g<=GRID; g+=0.5){
+    if(g===0) continue;
+    line(cx+g*u, PAD-8, cx+g*u, H-PAD+8);
+    line(PAD-8, cy-g*u, W-PAD+8, cy-g*u);
+  }
+  /* 虚轴高亮（调音台任务用） */
+  if(highImagAxis){
+    DC.save(); DC.strokeStyle=p.accent; DC.globalAlpha=.55; DC.lineWidth=6;
+    line(cx, PAD-8, cx, H-PAD+8); DC.restore();
+  }
+  /* 坐标轴与箭头 */
+  const ax='rgba(255,255,255,.8)';
+  arrowLine(PAD-14, cy, W-PAD+16, cy, ax, 3);
+  arrowLine(cx, H-PAD+14, cx, PAD-16, ax, 3);
+  /* 刻度数字（每 2 格标注，字号 16px） */
+  DC.save();
+  DC.font='500 16px "Microsoft YaHei", system-ui, sans-serif';
+  DC.fillStyle='rgba(255,255,255,.72)';
+  DC.textAlign='center'; DC.textBaseline='top';
+  for(let t=-GRID; t<=GRID; t+=2){
+    if(t===0) continue;
+    DC.fillText(String(t).replace('-','−'), cx+t*u, cy+8);
+  }
+  DC.textAlign='right'; DC.textBaseline='middle';
+  for(let t=-GRID; t<=GRID; t+=2){
+    if(t===0) continue;
+    DC.fillText(String(t).replace('-','−'), cx-10, cy-t*u);
+  }
+  DC.font='700 16px "Microsoft YaHei", system-ui, sans-serif';
+  DC.fillStyle='rgba(255,255,255,.9)';
+  DC.textAlign='right'; DC.textBaseline='bottom';
+  DC.fillText('实轴 Re', W-PAD+4, cy-10);
+  DC.textAlign='left'; DC.textBaseline='top';
+  DC.fillText('虚轴 Im', cx+12, PAD-30);
+  DC.restore();
+}
+
+/* 画固定星辰（含从原点出发的向量箭头） */
+function drawFixedStars(){
+  const cx=W/2, cy=H/2;
+  for(let i=0;i<M.fixeds.length;i++){
+    const f=M.fixeds[i], q=toPx(f.x,f.y);
+    DC.save(); DC.globalAlpha=.6;
+    arrowLine(cx,cy,q.x,q.y,f.color,2.4); DC.restore();
+    drawStar(q.x,q.y,11,f.color,false);
+    pill(q.x,q.y,f.label+' = '+cpx(f.x*2,f.y*2),f.color,i%2===0);
+  }
+}
+
+/* 引导虚线：按任务类型与失误次数决定是否显示 */
+function drawHints(){
+  if(!D.hintOn || !M.hint || M.hint.mode==='none') return;
+  const p=S.pal, t=M.target;
+  if(M.hint.mode==='para' && M.fixeds.length>=2){
+    const a=toPx(M.fixeds[0].x,M.fixeds[0].y), b=toPx(M.fixeds[1].x,M.fixeds[1].y), c=toPx(t.x,t.y);
+    DC.save(); DC.strokeStyle=p.accent; DC.globalAlpha=.85; DC.lineWidth=2.6; DC.setLineDash([8,7]);
+    line(a.x,a.y,c.x,c.y); line(b.x,b.y,c.x,c.y); DC.restore();
+  }
+  if(M.hint.mode==='subp' && M.fixeds.length>=2){
+    const a=toPx(M.fixeds[0].x,M.fixeds[0].y);
+    const g={x:-M.fixeds[1].x, y:-M.fixeds[1].y};
+    const gp=toPx(g.x,g.y), c=toPx(t.x,t.y);
+    DC.save(); DC.strokeStyle=p.accent; DC.globalAlpha=.85; DC.lineWidth=2.6; DC.setLineDash([8,7]);
+    line(a.x,a.y,c.x,c.y); line(gp.x,gp.y,c.x,c.y); DC.restore();
+    DC.save(); DC.strokeStyle='rgba(255,255,255,.75)'; DC.setLineDash([5,5]); DC.lineWidth=2;
+    DC.beginPath(); DC.arc(gp.x,gp.y,10,0,Math.PI*2); DC.stroke(); DC.restore();
+    pill(gp.x,gp.y,'−z₂ = '+cpx(g.x*2,g.y*2),'#cfd8ea',true);
+  }
+  if(M.hint.mode==='mirror' && M.fixeds.length>=1){
+    const f=M.fixeds[0], fp=toPx(f.x,f.y), cy=H/2;
+    DC.save(); DC.strokeStyle=p.accent; DC.globalAlpha=.6; DC.lineWidth=6;
+    line(PAD-8, cy, W-PAD+8, cy); DC.restore();
+    DC.save(); DC.strokeStyle=p.accent; DC.globalAlpha=.9; DC.lineWidth=2.4; DC.setLineDash([6,6]);
+    line(fp.x,fp.y,fp.x,cy); DC.restore();
+    DC.save(); DC.strokeStyle=p.accent; DC.globalAlpha=.9; DC.lineWidth=2.4;
+    DC.strokeRect(fp.x-5, cy-5, 10, 10); DC.restore();
+  }
+  if(M.hint.mode==='radius' && t){
+    const r=Math.hypot(t.x,t.y)*unit(), cx=W/2, cy=H/2;
+    DC.save(); DC.strokeStyle=p.accent; DC.globalAlpha=.7; DC.lineWidth=2.2; DC.setLineDash([9,7]);
+    DC.beginPath(); DC.arc(cx,cy,r,0,Math.PI*2); DC.stroke(); DC.restore();
+    pill(cx, cy-r-6, '与蓝星到原点等距', p.accent, true);
+  }
+}
+
+/* 揭示答案在平面任务上的标记（画入静态层，随背景一起呈现） */
+function drawRevealOnPlane(){
+  if(!(D.revealed && M.target)) return;
+  const p=S.pal, q=toPx(M.target.x,M.target.y);
+  DC.save(); DC.strokeStyle=p.accent; DC.lineWidth=3.4; DC.setLineDash([7,6]);
+  DC.beginPath(); DC.arc(q.x,q.y,20,0,Math.PI*2); DC.stroke(); DC.restore();
+  drawStar(q.x,q.y,12,p.accent,false);
+  pill(q.x,q.y,'答案：'+cpx(M.target.x*2,M.target.y*2),p.accent,true);
+}
+
+/* 调音台静态层的揭示圈（揭示后随静态层一起重建） */
+function drawSliderTrack(){
+  const t1=toPx(-4.4,1), t2=toPx(4.4,1);
+  DC.save(); DC.strokeStyle='rgba(255,255,255,.4)'; DC.lineWidth=2; DC.setLineDash([6,6]);
+  line(t1.x,t1.y,t2.x,t2.y); DC.restore();
+  pill(t2.x, t2.y, '轨道：虚部 = 1', '#cfd8ea', false);
+  const z2=toPx(M.c,M.d);
+  drawStar(z2.x,z2.y,11,C.green,false);
+  pill(z2.x,z2.y,'z₂ = '+cpx(M.c*2,M.d*2),C.green,false);
+  if(D.revealed){
+    const ansY=M.a6*M.d+6*M.c;
+    const qp=toPx(0, ansY/6);
+    DC.save(); DC.strokeStyle=S.pal.accent; DC.lineWidth=3.2; DC.setLineDash([7,6]);
+    DC.beginPath(); DC.arc(qp.x,qp.y,20,0,Math.PI*2); DC.stroke(); DC.restore();
+    pill(qp.x,qp.y,'答案：a = '+fmt6(M.a6),S.pal.accent,true);
+  }
+}
+
+/* 转盘静态层：扇区、分隔线、外圈、值标签、×i 提示、标题 */
+function drawDialStatic(){
+  const p=S.pal;
+  DC.fillStyle=p.panel; DC.fillRect(0,0,W,H);
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2-64;
+  for(let k=0;k<4;k++){
+    const a0=-(k*90+45)*Math.PI/180, a1=-(k*90-45)*Math.PI/180;
+    DC.beginPath(); DC.moveTo(cx,cy); DC.arc(cx,cy,R,a1,a0);
+    DC.closePath();
+    DC.fillStyle = (k%2===0) ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.045)';
+    if(D.revealed && k===M.ansIdx){ DC.fillStyle=p.accent; DC.globalAlpha=.30; }
+    DC.fill(); DC.globalAlpha=1;
+  }
+  DC.save(); DC.strokeStyle='rgba(255,255,255,.5)'; DC.lineWidth=2;
+  for(let k=0;k<4;k++){
+    const ang=-(k*90+45)*Math.PI/180;
+    line(cx,cy, cx+Math.cos(ang)*R, cy+Math.sin(ang)*R);
+  }
+  DC.restore();
+  DC.save(); DC.strokeStyle=p.primary; DC.lineWidth=5;
+  DC.beginPath(); DC.arc(cx,cy,R,0,Math.PI*2); DC.stroke(); DC.restore();
+  DC.save();
+  DC.font='800 26px "Microsoft YaHei", system-ui, sans-serif';
+  DC.textAlign='center'; DC.textBaseline='middle';
+  for(let k=0;k<4;k++){
+    const ang=k*90*Math.PI/180, rr=R-34;
+    const lx=cx+Math.cos(ang)*rr, ly=cy-Math.sin(ang)*rr;
+    DC.fillStyle = (D.revealed&&k===M.ansIdx) ? p.accent : '#FFFFFF';
+    DC.fillText(VAL[k], lx, ly);
+  }
+  DC.font='700 16px "Microsoft YaHei", system-ui, sans-serif';
+  DC.fillStyle='rgba(255,255,255,.62)';
+  for(let k=0;k<4;k++){
+    const ang=(k*90+45)*Math.PI/180, rr=R-30;
+    DC.fillText('×i', cx+Math.cos(ang)*rr, cy-Math.sin(ang)*rr);
+  }
+  DC.font='800 24px "Microsoft YaHei", system-ui, sans-serif';
+  DC.fillStyle='#FFFFFF';
+  DC.fillText('iⁿ = ?', cx, cy+R*0.30+34);
+  /* 中心轴点 */
+  DC.fillStyle=p.accent; DC.beginPath(); DC.arc(cx,cy,11,0,Math.PI*2); DC.fill();
+  if(D.revealed){
+    const lx=cx+Math.cos(M.ansIdx*90*Math.PI/180)*(R+18), ly=cy-Math.sin(M.ansIdx*90*Math.PI/180)*(R+18);
+    pill(lx,ly,'答案：'+VAL[M.ansIdx],p.accent,true);
+  }
+  DC.restore();
+}
+
+/* ============================================================
+   七、渲染调度：事件驱动重绘 + 仅动画期运行的短循环
+   说明：不使用常驻 requestAnimationFrame。拖拽等高频交互期间
+   既无循环也无 DOM 查询，只在确有动画（星屑 / 脉冲）时启动
+   短循环并在动画结束后自动停止。
+   ============================================================ */
+let RENDER_QUEUED=false;   // 是否已排队一次重绘（合并请求）
+let ANIM_ON=false;         // 动画短循环是否在运行
+let GAME_VISIBLE=false;    // 游戏界面是否可见（缓存，代替逐帧查询）
+
+/* 请求一次重绘（同一帧内的多次请求自动合并） */
+function requestRender(){
+  if(RENDER_QUEUED){ return; }
+  RENDER_QUEUED=true;
+  requestAnimationFrame(function(){
+    RENDER_QUEUED=false;
+    renderScene(performance.now());
+  });
+}
+/* 动画已全部 CSS 化，无需逐帧刷新 */
+function animNeeded(ts){ return false; }
+/* 绘制一帧（三种画面：平面 / 调音台 / 转盘） */
+function renderScene(ts){
+  if(!M || !GAME_VISIBLE){ return; }
+  if(PANEL_DIRTY){ PANEL_DIRTY=false; updatePanel(); }
+  drawCore(ts);
+}
+/* 绘制一帧：顶层画布恒为空——静态星图在背景图上，动态元素全是 DOM 标记。
+   画布只承担“静态层的光栅化”（buildStatic 一次性完成，与输入错峰），
+   点亮脉冲等动画交给 CSS，确保交互期间零画布重绘。 */
+function drawCore(ts){
+  if(!M){ return; }
+  DC=CTX;
+  CTX.clearRect(0,0,W,H);
+}
+
+
+/* ============================================================
+   八、任务流程：生成 / 载入 / 判定 / 揭示 / 下一关
+   ============================================================ */
+function startGame(diff){
+  S.diff=diff; applyPalette();                       // 每局随机配色（G8）
+  S.list=shuffle(ROSTER[diff]).map(function(t){ return GEN[t](diff); });
+  S.idx=0; S.steps=0; S.solvedCount=0; S.aidedCount=0;
+  EL.hudSteps.textContent='0';
+  buildProgress();
+  showScreen('game');
+  requestAnimationFrame(function(){ sizeBoard(); loadMission(0); });
+  startTimer();
+  if(S.firstRun){ S.firstRun=false; openRules(); }
+}
+function loadMission(i){
+  M=S.list[i];
+  D.miss=0; D.solved=false; D.revealed=false; D.dragging=false; D.moved=false;
+  D.sparks.length=0; D.dialAcc=0; D.lastAng=0; D.animUntil=0;
+  D.hintOn = !!(M.hint && M.hint.mode!=='none' && M.hint.after===0);
+  D.a6 = M.type==='slider' ? M.start6 : 0;
+  D.pos = initDragPos(M);
+  EL.mIndex.textContent='第 '+(i+1)+' 关 / 共 '+S.list.length+' 关';
+  EL.mName.textContent=M.name;
+  EL.mText.innerHTML=M.text;
+  EL.mExplain.classList.add('hidden'); EL.mExplain.innerHTML='';
+  EL.btnNext.classList.add('hidden');
+  setRevealEnabled(true);
+  /* 读数区骨架每关只建一次，之后仅改文本（避免高频 innerHTML） */
+  if(M.type==='dial'){ EL.mReadout.innerHTML='指针当前值：<b id="ro-val" style="color:var(--accent)">1</b>'; }
+  else if(M.type==='slider'){ EL.mReadout.innerHTML='乘积 z₁·z₂ = <b id="ro-val" style="color:var(--accent)"></b><span id="ro-tag"></span>'; }
+  else{ EL.mReadout.innerHTML='金色星辰当前：z = <b id="ro-val" style="color:var(--accent)"></b>'; }
+  ROVAL=$('ro-val'); RAGTAG=$('ro-tag');
+  /* 每关重置“上次写入值”缓存，保证新读数元素能被正确写入 */
+  LASTVAL.ro=''; LASTVAL.re=''; LASTVAL.im=''; LASTVAL.a='';
+  LASTVAL.sum=''; LASTVAL.prod=''; LASTVAL.okS=null; LASTVAL.okP=null;
+  LASTVAL.turns=''; LASTVAL.barRe=null; LASTVAL.barIm=null;
+  buildExtra();
+  /* 重置 / 启用各类 DOM 标记（所有动态都不走画布） */
+  EL.dragMark.classList.remove('solved');
+  EL.dragMark.classList.toggle('hidden', M.type==='slider' || M.type==='dial');
+  EL.markZ1.classList.toggle('hidden', M.type!=='slider');
+  EL.markPr.classList.toggle('hidden', M.type!=='slider');
+  EL.markDial.classList.toggle('hidden', M.type!=='dial');
+  $('dial-pulse').classList.remove('on');
+  buildStatic();
+  if(M.type==='slider'){ updateSliderMarks(); }
+  if(M.type==='dial'){ layoutDialMark(); }
+  if(M.type!=='slider' && M.type!=='dial'){ positionDragMark(); }
+  PANEL_DIRTY=true;
+  updatePanel();
+  requestRender();
+}
+/* 金星初始位置：随机且离目标与固定星保持距离 */
+function initDragPos(m){
+  if(m.type==='slider' || m.type==='dial') return {x:0,y:0};
+  const fixedPts=m.fixeds.map(function(f){ return [f.x,f.y]; });
+  for(let t=0;t<400;t++){
+    const x=rint(-5,5), y=rint(-5,5);
+    if(Math.hypot(x-m.target.x,y-m.target.y)<2) continue;
+    if(!farEnough(fixedPts,[x,y],1.8)) continue;
+    return {x:x,y:y};
+  }
+  return {x:-5,y:5};
+}
+/* 附加信息区的元素引用（buildExtra 时缓存，供高频刷新使用） */
+let XREF={};
+/* 右侧附加信息区（方程约束 / 调音台读数 / 转盘读数） */
+function buildExtra(){
+  const ex=EL.mExtra; ex.innerHTML=''; XREF={};
+  if(M.extras==='quad'){
+    ex.innerHTML =
+      '<div class="qrow" id="q-row-sum">两根之和 z₁+z₂ = <b id="q-sum">…</b>（应为 −p = '+M.pa+'）</div>'+
+      '<div class="qrow" id="q-row-prod">两根之积 z₁·z₂ = <b id="q-prod">…</b>（应为 q = '+M.q+'）</div>';
+    XREF.qSum=$('q-sum'); XREF.qProd=$('q-prod');
+    XREF.qRowSum=$('q-row-sum'); XREF.qRowProd=$('q-row-prod');
+  } else if(M.extras==='slider'){
+    ex.innerHTML =
+      '<div class="srow"><span>实部 a·'+M.c+' − '+M.d+'（调到 0）</span><b id="s-re"></b></div>'+
+      '<div class="sbar"><div class="zero"></div><div class="fill" id="s-re-bar"></div></div>'+
+      '<div class="srow"><span>虚部 a·'+M.d+' + '+M.c+'（不为 0）</span><b id="s-im"></b></div>'+
+      '<div class="sbar"><div class="zero"></div><div class="fill im" id="s-im-bar"></div></div>'+
+      '<div class="srow"><span>滑块当前：a =</span><b id="s-a"></b></div>'+
+      '<input type="range" id="s-slider" min="-24" max="24" step="1" value="'+D.a6+'">'+
+      '<div class="qrow" style="font-size:15px">拖动滑块调节实数 a，实时观察乘积位置；右侧两栏给出实时读数。</div>';
+    XREF.sRe=$('s-re'); XREF.sIm=$('s-im'); XREF.sA=$('s-a');
+    XREF.sReBar=$('s-re-bar'); XREF.sImBar=$('s-im-bar');
+    const sl=$('s-slider');
+    sl.addEventListener('input', function(){ D.a6=parseInt(sl.value,10); updateSliderMarks(); panelDirty(); requestRender(); });
+    sl.addEventListener('change', function(){ addStep(); checkSlider(); });
+  } else if(M.extras==='dial'){
+    ex.innerHTML =
+      '<div class="qrow">指针当前值：<b id="d-val">1</b></div>'+
+      '<div class="qrow">已转过格数（每格相当于 ×i）：<b id="d-turns">0</b></div>';
+    XREF.dVal=$('d-val'); XREF.dTurns=$('d-turns');
+  }
+}
+/* 读数高亮值（缓存引用，避免高频查询） */
+let ROVAL=null, RAGTAG=null;
+/* 上次写入值（内容不变时跳过 DOM 写，降低交互期的样式失效频率） */
+const LASTVAL={ro:'', re:'', im:'', a:'', sum:'', prod:'', okS:null, okP:null, turns:'', barRe:null, barIm:null};
+/* 实时读数面板刷新（只写 textContent，不重建 HTML） */
+function updatePanel(){
+  if(M.type==='dial'){
+    const idx=dialIdx();
+    const v=VAL[idx];
+    if(ROVAL && LASTVAL.ro!==v){ ROVAL.textContent=v; LASTVAL.ro=v; }
+    const t=String(Math.abs(Math.round(D.dialAcc/90)));
+    if(XREF.dVal && XREF.dVal.textContent!==v){ XREF.dVal.textContent=v; }
+    if(XREF.dTurns && XREF.dTurns.textContent!==t){ XREF.dTurns.textContent=t; }
+    return;
+  }
+  if(M.type==='slider'){
+    const re6=D.a6*M.c-6*M.d, im6=D.a6*M.d+6*M.c;
+    const txt=cpx6(re6,im6);
+    if(ROVAL && LASTVAL.ro!==txt){
+      ROVAL.textContent=txt;
+      ROVAL.style.color = re6===0 ? '#35E08F' : '';
+      LASTVAL.ro=txt;
+    }
+    if(RAGTAG){ const tag=re6===0?'（纯虚数，正在虚轴上！）':''; if(RAGTAG.textContent!==tag){ RAGTAG.textContent=tag; } }
+    if(XREF.sRe){ const v=fmt6(re6); if(LASTVAL.re!==v){ XREF.sRe.textContent=v; XREF.sRe.style.color=re6===0?'#35E08F':''; LASTVAL.re=v; } }
+    if(XREF.sIm){ const v=fmt6(im6); if(LASTVAL.im!==v){ XREF.sIm.textContent=v; LASTVAL.im=v; } }
+    if(XREF.sA){ const v=fmt6(D.a6); if(LASTVAL.a!==v){ XREF.sA.textContent=v; LASTVAL.a=v; } }
+    if(XREF.sReBar){ const k=Math.round(Math.min(Math.abs(re6/6)/14,1)*50); if(LASTVAL.barRe!==re6){ setBar(XREF.sReBar,re6/6); LASTVAL.barRe=re6; } }
+    if(XREF.sImBar){ if(LASTVAL.barIm!==im6){ setBar(XREF.sImBar,im6/6); LASTVAL.barIm=im6; } }
+    return;
+  }
+  const ptxt=cpx(D.pos.x*2,D.pos.y*2);
+  if(ROVAL && LASTVAL.ro!==ptxt){ ROVAL.textContent=ptxt; LASTVAL.ro=ptxt; }
+  if(M.extras==='quad'){
+    const sum=cpx((M.ra+D.pos.x)*2,(M.rb+D.pos.y)*2);
+    const pr=(M.ra*D.pos.x-M.rb*D.pos.y), pi=(M.ra*D.pos.y+M.rb*D.pos.x);
+    const prod=cpx(pr*2,pi*2);
+    const okS=(M.ra+D.pos.x===M.pa&&M.rb+D.pos.y===0);
+    const okP=(pr===M.q&&pi===0);
+    if(XREF.qSum && LASTVAL.sum!==sum){ XREF.qSum.textContent=sum; LASTVAL.sum=sum; }
+    if(XREF.qProd && LASTVAL.prod!==prod){ XREF.qProd.textContent=prod; LASTVAL.prod=prod; }
+    if(XREF.qRowSum && LASTVAL.okS!==okS){ XREF.qRowSum.classList.toggle('ok',okS); LASTVAL.okS=okS; }
+    if(XREF.qRowProd && LASTVAL.okP!==okP){ XREF.qRowProd.classList.toggle('ok',okP); LASTVAL.okP=okP; }
+  }
+}
+function setBar(el,val){
+  const pct=Math.min(Math.abs(val)/14,1)*50;
+  if(val>=0){ el.style.left='50%'; el.style.width=pct+'%'; }
+  else{ el.style.left=(50-pct)+'%'; el.style.width=pct+'%'; }
+}
+function dialIdx(){ return ((Math.round(D.dialAcc/90)%4)+4)%4; }
+
+/* ---------- 判定 ---------- */
+function checkPlane(){
+  if(Math.abs(D.pos.x-M.target.x)<1e-9 && Math.abs(D.pos.y-M.target.y)<1e-9){ solve(); }
+  else{ miss('目前星辰在 '+cpx(D.pos.x*2,D.pos.y*2)+'，对照条件再挪一挪。'); }
+}
+function checkDial(){
+  if(dialIdx()===M.ansIdx){ solve(); }
+  else{ miss('指针停在 '+VAL[dialIdx()]+'，再想想 i 的循环规律。'); }
+}
+function checkSlider(){
+  const re6=D.a6*M.c-6*M.d;
+  if(re6===0){ solve(); }
+  else{ miss('实部还是 '+fmt6(re6)+'，离 0 有距离，继续微调滑块。'); }
+}
+function miss(msg){
+  D.miss++;
+  if(M.hint && M.hint.mode!=='none' && D.miss>=M.hint.after && !D.hintOn){
+    D.hintOn=true; setTimeout(buildStatic, 40);   // 引导虚线出现时重建静态层（与输入错峰）
+  }
+  showToast(msg);
+  PANEL_DIRTY=true; updatePanel(); scheduleRender();
+}
+/* 输入事件结束后稍作延迟再写画布（与输入派发完全错峰，更加稳妥） */
+function scheduleRender(){ setTimeout(requestRender, 40); }
+function solve(){
+  D.solved=true; S.solvedCount++;
+  if(M.type==='dial'){
+    const R=Math.min(W,H)/2-64;
+    const lx=W/2+Math.cos(M.ansIdx*90*Math.PI/180)*(R-34), ly=H/2-Math.sin(M.ansIdx*90*Math.PI/180)*(R-34);
+    const dp=$('dial-pulse');
+    dp.style.left=lx+'px'; dp.style.top=ly+'px'; dp.classList.add('on');
+  } else if(M.type==='slider'){
+    updateSliderMarks();                          // 乘积星保持绿色达标态
+  } else {
+    EL.dragMark.classList.add('solved');          // 金星变绿 + CSS 脉冲圈
+  }
+  showToast('点亮成功，干得漂亮！');
+  EL.mExplain.innerHTML='<b>做对啦 · 解析</b><br>'+M.explain;
+  EL.mExplain.classList.remove('hidden');
+  EL.btnNext.classList.remove('hidden');
+  setRevealEnabled(false);
+  markProgress(S.idx,'done');
+  if(M.type==='slider'){ updateSliderMarks(); }
+  PANEL_DIRTY=true; updatePanel(); scheduleRender();
+}
+function reveal(){
+  if(D.solved||D.revealed) return;
+  D.revealed=true; S.aidedCount++;
+  setTimeout(buildStatic, 40);              // 转盘答案扇区高亮属于静态层（与输入错峰）
+  EL.mExplain.innerHTML='<b>答案与解析</b><br>'+M.explain;
+  EL.mExplain.classList.remove('hidden');
+  EL.btnNext.classList.remove('hidden');
+  setRevealEnabled(false);
+  markProgress(S.idx,'aid');
+  showToast('已揭示答案，读完解析继续前进。');
+  PANEL_DIRTY=true; updatePanel(); scheduleRender();
+}
+function setRevealEnabled(on){ EL.btnReveal.disabled=!on; }
+function nextMission(){
+  if(S.idx>=S.list.length-1){ finish(); return; }
+  loadMission(++S.idx);
+}
+function finish(){
+  stopTimer();
+  const total=S.list.length;
+  EL.doneStats.innerHTML=
+    '任务总数：<b>'+total+'</b> 关<br>'+
+    '自力点亮：<b style="color:#FFD34D">'+S.solvedCount+'</b> 关　·　借助提示学会：<b>'+S.aidedCount+'</b> 关<br>'+
+    '总用时：<b>'+fmtTime(S.sec)+'</b>　·　总步数：<b>'+S.steps+'</b><br>'+
+    (S.solvedCount===total ? '满分航行！复数的加减乘除、共轭与虚根都被你点亮啦！' : '继续航行，下一局全部点亮它们！');
+  showScreen('done');
+  confetti(200);
+}
+
+/* ---------- 进度星 / 计时 / 步数 ---------- */
+let PSTARS=[];
+function buildProgress(){
+  const pr=EL.progress; pr.innerHTML='<span class="lab">点亮进度：</span>';
+  PSTARS=[];
+  for(let i=0;i<S.list.length;i++){
+    const s=document.createElement('span');
+    s.className='st'; s.textContent='★';
+    pr.appendChild(s); PSTARS.push(s);
+  }
+}
+function markProgress(i,cls){
+  const s=PSTARS[i]; if(!s) return;
+  s.classList.remove('aid'); s.classList.add(cls==='done'?'done':'aid');
+}
+function fmtTime(sec){
+  const m=String(Math.floor(sec/60)).padStart(2,'0');
+  const s2=String(sec%60).padStart(2,'0');
+  return m+':'+s2;
+}
+function startTimer(){
+  stopTimer(); S.sec=0; EL.hudTime.textContent='00:00';
+  S.timerId=setInterval(function(){ S.sec++; EL.hudTime.textContent=fmtTime(S.sec); },1000);
+}
+function stopTimer(){ if(S.timerId){ clearInterval(S.timerId); S.timerId=null; } }
+function addStep(){ S.steps++; EL.hudSteps.textContent=String(S.steps); }
+
+/* ============================================================
+   九、指针交互（拖星辰 / 转转盘；触摸同样可用）
+   拖拽期间画布零重绘：金星 / 转盘指针 / 调音台双星全部用
+   DOM 合成层元素跟随，只有松手后的静态呈现才写画布。
+   ============================================================ */
+/* 拖拽金星的 DOM 标记跟随 */
+function positionDragMark(){
+  const q=toPx(D.pos.x,D.pos.y);
+  moveMark(EL.dragMark, q.x, q.y);
+  EL.dragMarkLabel.textContent='z = '+cpx(D.pos.x*2,D.pos.y*2);
+}
+/* 调音台双星（z₁ 与乘积）的 DOM 标记刷新 */
+function updateSliderMarks(){
+  const a=D.a6/6;
+  const z1=toPx(clamp(a,-7.6,7.6),1);
+  moveMark(EL.markZ1, z1.x, z1.y);
+  EL.markZ1Label.textContent='z₁ = '+fmt6(D.a6)+' + i';
+  const re6=D.a6*M.c-6*M.d, im6=D.a6*M.d+6*M.c;
+  const px=toPx(clamp(re6/6,-7.7,7.7), clamp(im6/6,-7.7,7.7));
+  moveMark(EL.markPr, px.x, px.y);
+  EL.markPrLabel.textContent='z₁·z₂ = '+cpx6(re6,im6);
+  EL.markPr.classList.toggle('onaxis', re6===0);
+}
+/* 转盘指针（DOM）：臂旋转 + 旋钮平移 */
+function layoutDialMark(){
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2-64;
+  EL.dialArm.style.width=(R*0.8)+'px';
+  EL.dialArm.style.transform='rotate('+(-D.dialAcc)+'deg)';
+  const a=D.dialAcc*Math.PI/180;
+  const kx=cx+Math.cos(a)*R*0.56, ky=cy-Math.sin(a)*R*0.56;
+  EL.dialKnob.style.transform='translate('+(kx-17)+'px,'+(ky-17)+'px)';
+}
+/* 事件坐标：按下时缓存画布矩形，移动中不再重复触发布局计算 */
+let CVC_RECT=null;
+function cacheRect(){ CVC_RECT=cv.getBoundingClientRect(); }
+function evtPos(e){
+  const r=CVC_RECT||cv.getBoundingClientRect();
+  return {x:e.clientX-r.left, y:e.clientY-r.top};
+}
+/* 面板刷新合并到渲染帧：输入事件里只做标记，避免高频同步 DOM 更新 */
+let PANEL_DIRTY=false;
+function panelDirty(){ PANEL_DIRTY=true; }
+function rawAng(q){
+  const cx=W/2, cy=H/2;
+  return Math.atan2(cy-q.y, q.x-cx)*180/Math.PI;
+}
+cv.addEventListener('pointerdown', function(e){
+  if(!M || D.solved || D.revealed) return;
+  cacheRect();                                  // 按下时缓存一次画布位置
+  const q=evtPos(e);
+  if(M.type==='dial'){
+    D.dragging=true; D.moved=false; D.lastAng=rawAng(q);
+    return;
+  }
+  if(M.type==='slider') return;               // 调音台用滑块，不拖星辰
+  const s=toPx(D.pos.x,D.pos.y);
+  if(Math.hypot(q.x-s.x,q.y-s.y)<=40){
+    D.dragging=true; D.moved=false;   // 金星本就是 DOM 标记，拖拽期间画布零重绘
+  }
+});
+window.addEventListener('pointermove', function(e){
+  if(!D.dragging || !M) return;
+  const q=evtPos(e);
+  if(M.type==='dial'){
+    const a=rawAng(q);
+    let da=a-D.lastAng; da=((da+540)%360)-180;
+    D.dialAcc+=da; D.lastAng=a; D.moved=true;
+    layoutDialMark();                           // 指针旋转只改 transform
+    panelDirty(); requestRender();
+    return;
+  }
+  const m=toMath(q.x,q.y);
+  const nx=clamp(Math.round(m.x*2)/2,-7.5,7.5);
+  const ny=clamp(Math.round(m.y*2)/2,-7.5,7.5);
+  if(nx!==D.pos.x||ny!==D.pos.y) D.moved=true;
+  D.pos={x:nx,y:ny};
+  positionDragMark();                           // DOM 标记跟随（无画布重绘）
+  panelDirty(); requestRender();
+});
+window.addEventListener('pointerup', function(){
+  if(!D.dragging || !M) return;
+  D.dragging=false;
+  if(M.type==='dial'){
+    D.dialAcc=Math.round(D.dialAcc/90)*90;
+    layoutDialMark();
+    if(D.moved){ addStep(); }
+    if(!D.solved && !D.revealed){ checkDial(); }
+    PANEL_DIRTY=true; updatePanel(); scheduleRender();
+    return;
+  }
+  positionDragMark();                            // 松手后金星停留在落点
+  if(D.moved){ addStep(); if(!D.solved && !D.revealed){ checkPlane(); } }
+  scheduleRender();
+});
+window.addEventListener('pointercancel', function(){ D.dragging=false; });
+
+/* ============================================================
+   十、庆祝动画（Canvas 彩纸与星星，G5）
+   ============================================================ */
+const FX_PARTS=[];
+function confetti(n){
+  const cols=[S.pal.primary,S.pal.accent,'#FFD34D','#FFFFFF','#35E08F','#FF8FB0'];
+  for(let i=0;i<n;i++){
+    FX_PARTS.push({
+      x:Math.random()*window.innerWidth,
+      y:-30-Math.random()*window.innerHeight*0.5,
+      vx:(Math.random()-0.5)*2.4,
+      vy:2+Math.random()*3.4,
+      rot:Math.random()*Math.PI*2,
+      vr:(Math.random()-0.5)*0.24,
+      size:7+Math.random()*9,
+      color:pick(cols),
+      star:Math.random()<0.4,
+      life:1
+    });
+  }
+  if(!confetti.running){ confetti.running=true; requestAnimationFrame(fxFrame); }
+}
+function fxFrame(){
+  FCTX.clearRect(0,0,window.innerWidth,window.innerHeight);
+  for(let i=FX_PARTS.length-1;i>=0;i--){
+    const p=FX_PARTS[i];
+    p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+    if(p.y>window.innerHeight+40){ FX_PARTS.splice(i,1); continue; }
+    FCTX.save();
+    FCTX.translate(p.x,p.y); FCTX.rotate(p.rot);
+    FCTX.fillStyle=p.color;
+    if(p.star){ starPath.call(null,0,0,p.size); FCTX.fill(); }
+    else{ FCTX.fillRect(-p.size/2,-p.size/4,p.size,p.size/2); }
+    FCTX.restore();
+  }
+  if(FX_PARTS.length>0){ requestAnimationFrame(fxFrame); }
+  else{ confetti.running=false; FCTX.clearRect(0,0,window.innerWidth,window.innerHeight); }
+}
+
+/* ============================================================
+   十一、界面切换 / 弹窗 / 提示条 / 初始化
+   ============================================================ */
+function showScreen(name){
+  EL.screenMenu.classList.toggle('hidden', name!=='menu');
+  EL.screenGame.classList.toggle('hidden', name!=='game');
+  EL.screenDone.classList.toggle('hidden', name!=='done');
+  GAME_VISIBLE = (name==='game');
+  if(name==='game'){ requestAnimationFrame(function(){ sizeBoard(); requestRender(); }); }
+}
+function openRules(){ EL.modalRules.classList.remove('hidden'); }
+function closeRules(){ EL.modalRules.classList.add('hidden'); }
+let toastTimer=null;
+function showToast(msg){
+  const t=EL.toast;
+  t.textContent=msg; t.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ t.classList.remove('show'); },2400);
+}
+/* 按钮绑定 */
+document.querySelectorAll('.diffcard').forEach(function(b){
+  b.addEventListener('click', function(){ startGame(b.dataset.diff); });
+});
+$('btn-rules').addEventListener('click', openRules);
+$('btn-rules-close').addEventListener('click', closeRules);
+EL.modalRules.addEventListener('click', function(e){ if(e.target===EL.modalRules) closeRules(); });
+EL.btnReveal.addEventListener('click', reveal);
+EL.btnRestart.addEventListener('click', function(){ startGame(S.diff); showToast('新的一局开始，数值已重新生成！'); });
+EL.btnBack.addEventListener('click', function(){ stopTimer(); showScreen('menu'); });
+$('btn-back2').addEventListener('click', function(){ stopTimer(); showScreen('menu'); });
+$('btn-again').addEventListener('click', function(){ startGame(S.diff); });
+EL.btnNext.addEventListener('click', nextMission);
+window.addEventListener('resize', function(){ sizeBoard(); sizeFx(); requestRender(); });
+
+/* 初始化（无常驻渲染循环，按需重绘） */
+applyPalette();
+sizeFx();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-gz-g/g006", "name": "\u590d\u5e73\u9762\u5bfb\u661f\u4e4b\u65c5 \u00b7 12.2 \u590d\u6570\u7684\u8fd0\u7b97\uff08\u9ad8\u4e2d\uff09", "file": "g006.html", "jiaocan": "\u301030\u3011\u7b2c12\u7ae0 \u590d\u6570\uff1a12.2 \u590d\u6570\u7684\u8fd0\u7b97\uff1a\u5fc5\u5907\u77e5\u8bc6\u89e3\u8bfb+\u5173\u952e\u80fd\u529b\u6784\u5efa+\u6838\u5fc3\u7d20\u517b\u805a\u7126", "unit": "", "grade": "", "stage": "\u9ad8\u4e2d", "series": "G\uff1a\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb1-\u9ad8\u6570\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-gz-g"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

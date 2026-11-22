@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>神奇的染色问题 · 彩虹方块染色实验室</title>
+<style>
+/* ============================================================
+   彩虹方块染色实验室 —— 单文件自包含互动游戏
+   核心方法：每两个小正方体重合一次，就少 2 个面（未涂色 = 重合面 × 2）
+   ============================================================ */
+
+/* ---------- 全局重置与基础样式 ---------- */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root{
+  --accent:#1aa2e0;        /* 主题强调色（JS随机覆盖） */
+  --accent-dark:#0e6fa8;
+  --accent-soft:#d4f0ff;
+  --ink:#21303a;           /* 主文字色 */
+  --paper:#fbfdff;         /* 背景纸色 */
+  --panel:#ffffff;
+  --shadow:0 6px 22px rgba(40,70,110,.16);
+}
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC","Source Han Sans CN",sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(1200px 600px at 12% -8%, var(--accent-soft) 0%, transparent 55%),
+    radial-gradient(1000px 500px at 100% 110%, #eafff4 0%, transparent 55%),
+    var(--paper);
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-user-select:none; user-select:none;
+}
+
+/* ---------- 难度选择屏 ---------- */
+#menuScreen{
+  min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; padding:24px 16px; gap:14px;
+}
+.brand{ text-align:center; margin-bottom:6px; }
+.brand .logo{
+  font-size:clamp(30px,6vw,52px); font-weight:900; letter-spacing:1px;
+  background:linear-gradient(120deg,var(--accent),#27d3a6);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  text-shadow:0 2px 0 rgba(255,255,255,.4);
+}
+.brand .sub{ font-size:clamp(14px,2.4vw,18px); color:#5d7382; margin-top:4px; }
+.method-card{
+  max-width:720px; width:100%; background:var(--panel); border-radius:18px;
+  box-shadow:var(--shadow); padding:18px 20px; margin:10px 0 4px;
+  border:3px solid var(--accent-soft);
+}
+.method-card h3{ color:var(--accent-dark); font-size:18px; margin-bottom:8px; }
+.method-card p{ font-size:15px; line-height:1.7; color:#41525e; }
+.method-card .formula{
+  display:inline-block; margin-top:10px; padding:8px 16px; border-radius:12px;
+  background:linear-gradient(120deg,var(--accent),#27d3a6); color:#fff;
+  font-weight:800; font-size:17px; letter-spacing:.5px;
+}
+.diff-grid{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+  max-width:760px; width:100%;
+}
+.diff-card{
+  cursor:pointer; background:var(--panel); border-radius:18px; padding:20px 12px;
+  text-align:center; box-shadow:var(--shadow); border:3px solid transparent;
+  transition:transform .15s, border-color .15s, box-shadow .15s;
+}
+.diff-card:hover{ transform:translateY(-4px); border-color:var(--accent); }
+.diff-card .star{ font-size:24px; letter-spacing:2px; }
+.diff-card .lvl{ font-size:21px; font-weight:900; margin:8px 0 4px; }
+.diff-card .desc{ font-size:13px; color:#5d7382; line-height:1.5; }
+.menu-tip{ font-size:13px; color:#7c93a3; margin-top:10px; }
+.menu-btns{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+
+/* ---------- 通用按钮 ---------- */
+.btn{
+  font-family:inherit; cursor:pointer; border:none; border-radius:12px;
+  padding:12px 20px; font-size:16px; font-weight:700; color:#fff;
+  background:linear-gradient(120deg,var(--accent),var(--accent-dark));
+  box-shadow:0 4px 0 rgba(0,0,0,.12), 0 6px 14px rgba(40,80,130,.25);
+  transition:transform .08s, box-shadow .08s; touch-action:manipulation;
+}
+.btn:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.12); }
+.btn.ghost{
+  background:#fff; color:var(--accent-dark); border:2px solid var(--accent);
+  box-shadow:0 4px 0 rgba(0,0,0,.06);
+}
+.btn.warm{ background:linear-gradient(120deg,#ff8a3d,#ff5d8f); }
+.btn.green{ background:linear-gradient(120deg,#2bcf7e,#16a085); }
+.btn.small{ padding:9px 14px; font-size:14px; }
+.btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* ---------- 游戏屏布局 ---------- */
+#gameScreen{ display:none; min-height:100vh; flex-direction:column; }
+#gameScreen.on{ display:flex; }
+.hud{
+  display:flex; align-items:center; gap:10px; padding:10px 14px; flex-wrap:wrap;
+  background:rgba(255,255,255,.85); backdrop-filter:blur(6px);
+  border-bottom:3px solid var(--accent-soft); position:sticky; top:0; z-index:30;
+}
+.hud .title{ font-weight:900; font-size:17px; color:var(--accent-dark); margin-right:auto; }
+.hud .chip{
+  display:inline-flex; align-items:center; gap:6px; background:var(--accent-soft);
+  color:var(--accent-dark); font-weight:800; font-size:14px; padding:7px 12px; border-radius:20px;
+}
+.hud .chip b{ font-size:16px; }
+
+.stage{
+  flex:1; display:grid; grid-template-columns:1fr 320px; gap:0; min-height:0;
+}
+@media (max-width:880px){ .stage{ grid-template-columns:1fr; } }
+
+.canvas-wrap{
+  position:relative; display:flex; align-items:center; justify-content:center;
+  padding:14px; min-height:46vh;
+}
+#gameCanvas{ display:block; width:100%; height:100%; max-width:100%; touch-action:none; border-radius:14px; }
+.rotate-hint{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  background:rgba(33,48,58,.78); color:#fff; font-size:12px; padding:6px 12px; border-radius:20px;
+  pointer-events:none; opacity:0; transition:opacity .3s;
+}
+.rotate-hint.show{ opacity:1; }
+
+/* ---------- 右侧操作面板 ---------- */
+.panel{
+  background:var(--panel); border-left:3px solid var(--accent-soft);
+  padding:16px; display:flex; flex-direction:column; gap:14px; overflow-y:auto;
+}
+@media (max-width:880px){ .panel{ border-left:none; border-top:3px solid var(--accent-soft); } }
+.panel h3{ color:var(--accent-dark); font-size:16px; }
+.objective{
+  background:linear-gradient(120deg,var(--accent-soft),#eafff4); border-radius:14px;
+  padding:12px 14px; font-size:14px; line-height:1.6;
+}
+.objective b{ color:var(--accent-dark); }
+.counter-box{ display:flex; flex-direction:column; gap:10px; }
+.count-row{
+  display:flex; align-items:center; justify-content:space-between;
+  background:#f3f8ff; border-radius:12px; padding:10px 14px;
+}
+.count-row .lbl{ font-size:14px; color:#41525e; }
+.count-row .val{ font-size:24px; font-weight:900; color:var(--accent-dark); }
+.formula-line{
+  text-align:center; font-size:16px; font-weight:800; color:#ff5d8f;
+  background:#fff0f5; border-radius:10px; padding:8px;
+}
+.tool-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.tool-grid .btn{ width:100%; }
+.full{ grid-column:1 / -1; }
+.feedback{
+  min-height:42px; font-size:14px; line-height:1.5; font-weight:700;
+  padding:8px 10px; border-radius:10px; text-align:center;
+}
+.feedback.ok{ background:#e6fbef; color:#16a085; }
+.feedback.bad{ background:#fff0f0; color:#e05a5a; }
+.feedback.idle{ background:#f1f5f9; color:#7c93a3; }
+
+/* ---------- 模态层（规则 / 通关） ---------- */
+.modal{
+  position:fixed; inset:0; background:rgba(20,35,55,.55); backdrop-filter:blur(4px);
+  display:none; align-items:center; justify-content:center; z-index:100; padding:18px;
+}
+.modal.on{ display:flex; }
+.modal .card{
+  background:#fff; border-radius:20px; padding:24px 22px; max-width:540px; width:100%;
+  box-shadow:var(--shadow); max-height:88vh; overflow-y:auto;
+}
+.modal h2{ color:var(--accent-dark); font-size:24px; margin-bottom:12px; text-align:center; }
+.modal .rules{ font-size:15px; line-height:1.85; color:#3c4d59; }
+.modal .rules li{ margin:6px 0; }
+.modal .rules .key{ color:var(--accent-dark); font-weight:800; }
+.modal .close-row{ display:flex; justify-content:center; gap:10px; margin-top:18px; flex-wrap:wrap; }
+.win-stars{ text-align:center; font-size:34px; letter-spacing:4px; margin:6px 0 4px; }
+.win-formula{
+  background:linear-gradient(120deg,var(--accent-soft),#eafff4); border-radius:14px;
+  padding:14px; margin:12px 0; font-size:16px; line-height:1.8; text-align:center; font-weight:700;
+}
+.win-formula .big{ font-size:24px; color:#ff5d8f; display:block; margin-top:4px; }
+
+/* ---------- 庆祝彩纸层 ---------- */
+#confetti{ position:fixed; inset:0; pointer-events:none; z-index:200; }
+
+/* ---------- 装饰小方块 ---------- */
+.deco{ position:fixed; pointer-events:none; opacity:.5; z-index:0; }
+</style>
+</head>
+<body>
+
+<!-- ===================== 难度选择屏 ===================== -->
+<section id="menuScreen">
+  <div class="brand">
+    <div class="logo">🌈 彩虹方块染色实验室</div>
+    <div class="sub">第9讲 · 神奇的染色问题（下）</div>
+  </div>
+
+  <div class="method-card">
+    <h3>🔎 今天我们要练什么？</h3>
+    <p>把一堆小正方体堆成造型，再整个<b>浸入染缸</b>。染料只能染到<b>露在外面的面</b>；
+       两个小正方体<b>紧紧贴在一起</b>的地方（重合面），染料进不去，这两个面就<b>不会被涂色</b>。</p>
+    <p style="margin-top:8px;">所以——</p>
+    <span class="formula">未被涂色的小正方形 = 重合面个数 × 2</span>
+  </div>
+
+  <div class="diff-grid">
+    <div class="diff-card" data-diff="easy">
+      <div class="star">⭐</div>
+      <div class="lvl">初级</div>
+      <div class="desc">2~3 个方块<br>找 1~2 处重合<br>认识“重合”</div>
+    </div>
+    <div class="diff-card" data-diff="mid">
+      <div class="star">⭐⭐</div>
+      <div class="lvl">中级</div>
+      <div class="desc">6~7 个方块<br>找 6~9 处重合<br>对应练习</div>
+    </div>
+    <div class="diff-card" data-diff="hard">
+      <div class="star">⭐⭐⭐</div>
+      <div class="lvl">高级</div>
+      <div class="desc">10 个以上方块<br>多层堆叠<br>综合挑战</div>
+    </div>
+  </div>
+
+  <div class="menu-btns">
+    <button class="btn ghost" id="openRulesMenu">📖 规则说明</button>
+  </div>
+  <div class="menu-tip">提示：进入后可以用手指或鼠标<b>拖动画面</b>转一转，从不同角度观察哦！</div>
+</section>
+
+<!-- ===================== 游戏屏 ===================== -->
+<section id="gameScreen">
+  <div class="hud">
+    <span class="title">🌈 彩虹方块染色实验室</span>
+    <span class="chip">难度：<b id="hudDiff">初级</b></span>
+    <span class="chip">⏱ <b id="hudTime">0</b> 秒</span>
+    <span class="chip">👣 <b id="hudSteps">0</b> 步</span>
+    <button class="btn ghost small" id="btnRules">📖 规则</button>
+  </div>
+
+  <div class="stage">
+    <div class="canvas-wrap">
+      <canvas id="gameCanvas"></canvas>
+      <div class="rotate-hint" id="rotateHint">↔ 拖动转一转</div>
+    </div>
+
+    <aside class="panel">
+      <div class="objective">
+        🎯 <b>任务</b>：找出所有<b>重合面</b>——也就是两个小正方体紧紧贴在一起的地方。<br>
+        👉 操作：先点一个方块，再点与它<b>贴着</b>的另一个方块。
+      </div>
+
+      <div class="counter-box">
+        <div class="count-row">
+          <span class="lbl">已发现重合面</span>
+          <span class="val"><span id="foundCount">0</span> 个</span>
+        </div>
+        <div class="formula-line">未涂色小正方形 = 2 × <span id="foundCount2">0</span> = <span id="unpainted">0</span> 个</div>
+      </div>
+
+      <div class="tool-grid">
+        <button class="btn ghost" id="btnRotL">↩ 转一转</button>
+        <button class="btn ghost" id="btnRotR">转一转 ↪</button>
+        <button class="btn warm full" id="btnDip">🎨 浸入染缸</button>
+        <button class="btn ghost" id="btnReveal">💡 揭示答案</button>
+        <button class="btn green" id="btnRestart">🔄 重新开始</button>
+        <button class="btn ghost" id="btnBack">🏠 返回难度</button>
+      </div>
+
+      <div class="feedback idle" id="feedback">点一个方块开始寻找重合面吧！</div>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 规则弹窗 ===================== -->
+<div class="modal" id="rulesModal">
+  <div class="card">
+    <h2>📖 游戏规则</h2>
+    <ol class="rules">
+      <li>画面上是一堆堆在一起的小正方体，它将整体被<b>浸入染缸</b>染色。</li>
+      <li>染料只能染到<b>露在外面的面</b>。两个小正方体<b>紧紧贴在一起</b>的地方叫<span class="key">重合面</span>，
+          重合面被夹在中间，染料进不去，所以<span class="key">每个重合面会藏起 2 个小正方形</span>。</li>
+      <li>你的任务：<b>点一个方块，再点与它贴着的另一个方块</b>，把所有重合面都找出来。</li>
+      <li>找对一个重合面，计数器 +1，并自动算出 <span class="key">未涂色 = 重合面 × 2</span>。</li>
+      <li>找完后点<span class="key">「浸入染缸」</span>。若全部找对，染料会染上外面，重合处保持原色，通关庆祝！</li>
+      <li>可用按钮或<b>拖动画面</b>旋转视角，看清被挡住的方块。</li>
+      <li>卡住了可点「揭示答案」，但试试自己先找全哦！</li>
+    </ol>
+    <div class="close-row">
+      <button class="btn" id="closeRules">明白啦，开始！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 通关弹窗 ===================== -->
+<div class="modal" id="winModal">
+  <div class="card">
+    <h2 id="winTitle">🎉 太棒了，全部找到！</h2>
+    <div class="win-stars" id="winStars">⭐⭐⭐</div>
+    <div class="win-formula" id="winFormula"></div>
+    <div style="text-align:center;font-size:14px;color:#5d7382;" id="winSub"></div>
+    <div class="close-row">
+      <button class="btn green" id="winAgain">🔄 再玩一次</button>
+      <button class="btn ghost" id="winBack">🏠 换个难度</button>
+    </div>
+  </div>
+</div>
+
+<!-- 庆祝彩纸画布 -->
+<canvas id="confetti"></canvas>
+
+<script>
+/* =================================================================
+   数据：题库（从教参第9讲“神奇的染色问题”提炼并扩展）
+   每个图形由若干小正方体的坐标 {x,y,z} 组成。
+   重合面（两个方块共一个面）由程序自动计算，答案 = 重合面数 × 2，
+   因此界面、计数、答案永远自洽。
+   ----------------------------------------------------------------- */
+
+// 初级：2~3 个方块，1~2 处重合（对应例题级，认识“重合”）
+const SHAPES_EASY = [
+  { name:'并排两块',   cubes:[{x:0,y:0,z:0},{x:1,y:0,z:0}] },                                  // 1 重合 → 2
+  { name:'三块排一排', cubes:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0}] },                    // 2 重合 → 4
+  { name:'小拐角',     cubes:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0}] },                    // 2 重合 → 4
+  { name:'叠两层',     cubes:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:0,z:1}] },                    // 2 重合 → 4
+  { name:'田字底座',   cubes:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0}] }        // 4 重合 → 8
+];
+
+// 中级：6~7 个方块，6~9 处重合（对应练习12“7块、16个未涂色”等同型）
+const SHAPES_MID = [
+  // 7块、8重合 → 16（与教参练习12同款答案）
+  { name:'双层小台阶', cubes:[
+      {x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},  // 底层 2×2
+      {x:0,y:0,z:1},{x:1,y:0,z:1},                              // 二层两块
+      {x:0,y:0,z:2}                                             // 顶层一块
+  ]},
+  // 7块、9重合 → 18（2×2×2 缺一角）
+  { name:'缺角的方块', cubes:[
+      {x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},
+      {x:0,y:0,z:1},{x:1,y:0,z:1},{x:0,y:1,z:1}
+  ]},
+  // 6块、6重合 → 12（T形 + 顶）
+  { name:'T字小楼', cubes:[
+      {x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},
+      {x:1,y:1,z:0},{x:0,y:1,z:0},{x:1,y:0,z:1}
+  ]}
+];
+
+// 高级：10 个以上方块，多层堆叠的综合挑战
+const SHAPES_HARD = [
+  // 2×2×3 整块，12块、20重合 → 40
+  { name:'整块长方体', cubes:(function(){
+      const a=[]; for(let z=0;z<3;z++)for(let y=0;y<2;y++)for(let x=0;x<2;x++)a.push({x:x,y:y,z:z}); return a; })()
+  },
+  // 3×3 底 + 中心叠 1：10块、13重合 → 26
+  { name:'九宫高塔', cubes:(function(){
+      const a=[]; for(let y=0;y<3;y++)for(let x=0;x<3;x++)a.push({x:x,y:y,z:0});
+      a.push({x:1,y:1,z:1}); return a; })()
+  },
+  // 阶梯塔：8块、10重合 → 20
+  { name:'阶梯金字塔', cubes:[
+      {x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},
+      {x:0,y:0,z:1},{x:1,y:0,z:1},{x:0,y:1,z:1},{x:0,y:0,z:2}
+  ]}
+];
+
+const DIFF_LIB = { easy:SHAPES_EASY, mid:SHAPES_MID, hard:SHAPES_HARD };
+const DIFF_LABEL = { easy:'初级', mid:'中级', hard:'高级' };
+
+/* ---------- 计算所有重合面对（共一面） ---------- */
+function computeOverlaps(cubes){
+  const res=[];
+  for(let i=0;i<cubes.length;i++){
+    for(let j=i+1;j<cubes.length;j++){
+      const a=cubes[i], b=cubes[j];
+      const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y), dz=Math.abs(a.z-b.z);
+      const shared = (dx===1&&dy===0&&dz===0) || (dx===0&&dy===1&&dz===0) || (dx===0&&dy===0&&dz===1);
+      if(shared) res.push([i,j]);
+    }
+  }
+  return res;
+}
+
+/* =================================================================
+   主题色板（每局随机一个，保证多次玩不腻）
+   ----------------------------------------------------------------- */
+const THEMES = [
+  { name:'海洋蓝', h:205 },
+  { name:'森林绿', h:145 },
+  { name:'蜜桃橙', h:28 },
+  { name:'葡萄紫', h:275 },
+  { name:'樱花粉', h:335 },
+  { name:'阳光黄', h:48 },
+  { name:'天空青', h:188 },
+  { name:'薄荷绿', h:160 }
+];
+
+/* =================================================================
+   全局状态
+   ----------------------------------------------------------------- */
+const STATE = {
+  diff:'easy',
+  shape:null,            // {name, cubes}
+  overlaps:[],           // [[i,j],...] 全部重合对（答案）
+  found:new Set(),       // 已找到的重合对 key "i-j"
+  selected:null,         // 当前选中的方块索引
+  rot:0,                 // 视角旋转 0/1/2/3
+  total:0,
+  painted:false,         // 是否已浸染
+  paintProgress:0,       // 浸染动画进度 0..1
+  paintAnim:null,
+  startTime:0,
+  steps:0,
+  timerId:null,
+  theme:THEMES[0],
+  finished:false
+};
+
+/* 未染色（木头）色 与 已染色（主题）色 */
+function woodColors(){
+  return { top:'hsl(36,32%,85%)', right:'hsl(36,28%,72%)', left:'hsl(36,28%,58%)', edge:'rgba(70,50,20,.35)' };
+}
+function themeColors(h){
+  return { top:`hsl(${h},70%,67%)`, right:`hsl(${h},64%,53%)`, left:`hsl(${h},62%,40%)`, edge:'rgba(20,25,45,.45)' };
+}
+
+/* =================================================================
+   等距 3D 渲染
+   ----------------------------------------------------------------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let S = 46;                       // 方块边长（像素），会按画面自适应
+const TW0 = 0.866, TH0 = 0.5;     // 30° 投影常量
+
+let dpr = 1, viewW = 0, viewH = 0;
+
+function resizeCanvas(){
+  const wrap = canvas.parentElement;
+  dpr = Math.max(1, window.devicePixelRatio||1);
+  viewW = wrap.clientWidth;
+  viewH = Math.max(360, wrap.clientHeight);
+  canvas.style.width = viewW+'px';
+  canvas.style.height = viewH+'px';
+  canvas.width = Math.round(viewW*dpr);
+  canvas.height = Math.round(viewH*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+window.addEventListener('resize', resizeCanvas);
+
+/* 旋转坐标：围绕形状中心做 90° 旋转 */
+function rotateCoord(x,y,z,rot,cx,cy){
+  let dx=x-cx, dy=y-cy;
+  for(let k=0;k<rot;k++){ const t=dx; dx=-dy; dy=t; }
+  return { rx:dx, ry:dy, rz:z };
+}
+
+/* 投影到屏幕（相对原点） */
+function project(rx,ry,rz){
+  const tw = S*TW0, th=S*TH0;
+  return { x:(rx-ry)*tw, y:(rx+ry)*th - rz*S };
+}
+
+/* 点在多边形内（射线法） */
+function pointInPoly(px,py,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    const hit = ((yi>py)!==(yj>py)) && (px < (xj-xi)*(py-yi)/((yj-yi)||1e-9)+xi);
+    if(hit) inside=!inside;
+  }
+  return inside;
+}
+
+/* 主绘制 */
+function draw(){
+  ctx.clearRect(0,0,viewW,viewH);
+  if(!STATE.shape){ return; }
+  const cubes = STATE.shape.cubes;
+
+  // 形状几何中心
+  let cx=0, cy=0;
+  cubes.forEach(c=>{cx+=c.x; cy+=c.y;});
+  cx/=cubes.length; cy/=cubes.length;
+
+  // 旋转后坐标
+  const rc = cubes.map(c=>rotateCoord(c.x,c.y,c.z,STATE.rot,cx,cy));
+
+  // 计算包围盒以居中 & 自适应缩放（用基础 S=46 先估一次）
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  const corners=[];
+  rc.forEach((c,idx)=>{
+    const cube=cubes[idx];
+    for(let dz=0;dz<=1;dz++)for(let dx=0;dx<=1;dx++)for(let dy=0;dy<=1;dy++){
+      corners.push(project(c.rx+dx, c.ry+dy, cube.z+dz));
+    }
+  });
+  corners.forEach(p=>{ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
+
+  // 自适应 S：基于基础 S=46 估算后缩放
+  const baseS=46;
+  const pad=70;
+  const bw=(maxX-minX), bh=(maxY-minY);
+  const needW = bw*viewW/(baseS*TW0*2) ; // 不直接用，改用比例
+  // 直接按当前 S 计算包围，再缩放到画面
+  const scale = Math.min((viewW-pad*2)/Math.max(bw,1), (viewH-pad*2)/Math.max(bh,1), 1.6);
+  S = Math.max(20, Math.min(60, baseS*scale));
+  // 用新 S 重算包围
+  const rc2 = cubes.map(c=>rotateCoord(c.x,c.y,c.z,STATE.rot,cx,cy));
+  minX=1e9;maxX=-1e9;minY=1e9;maxY=-1e9;
+  const corn2=[];
+  rc2.forEach((c,idx)=>{
+    const cube=cubes[idx];
+    for(let dz=0;dz<=1;dz++)for(let dx=0;dx<=1;dx++)for(let dy=0;dy<=1;dy++){
+      const p=project(c.rx+dx, c.ry+dy, cube.z+dz); corn2.push(p);
+    }
+  });
+  corn2.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);});
+  const offX = viewW/2 - (minX+maxX)/2;
+  const offY = viewH/2 - (minY+maxY)/2 + S*0.1;
+
+  // 渲染顺序：后到前（rx+ry 升序，再 rz 升序）
+  const order = rc2.map((c,idx)=>({idx, c, cube:cubes[idx]}))
+    .sort((a,b)=>{
+      const da=a.c.rx+a.c.ry, db=b.c.rx+b.c.ry;
+      if(da!==db) return da-db;
+      return a.cube.z-b.cube.z;
+    });
+
+  // 画地面阴影
+  ctx.save();
+  ctx.globalAlpha=0.12;
+  ctx.fillStyle='#5b6b7a';
+  ctx.beginPath();
+  const shadowPad=0.6;
+  const sp1=project(minX/maxX>0?-shadowPad:0,0,0); // 简单椭圆阴影
+  ctx.ellipse(offX+viewW/2-offX, offY+(maxY-minY)/2+minY+S*0.9, (maxX-minX)/2+S, S*0.5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // 画每个方块
+  const theme = themeColors(STATE.theme.h);
+  const wood = woodColors();
+  order.forEach(({idx,c,cube})=>{
+    drawCube(c.rx, c.ry, cube.z, offX, offY, idx, theme, wood);
+  });
+
+  // 画已发现的重合面连接（金色连线 + 星标）
+  STATE.found.forEach(key=>{
+    const [i,j]=key.split('-').map(Number);
+    drawOverlapLink(rc2[i], cubes[i], rc2[j], cubes[j], offX, offY);
+  });
+
+  // 选中高亮
+  if(STATE.selected!==null){
+    const c=rc2[STATE.selected]; const cube=cubes[STATE.selected];
+    drawSelection(c.rx,c.ry,cube.z,offX,offY);
+  }
+
+  // 浸染进度遮罩（染料波）
+  if(STATE.painted && STATE.paintProgress<1){
+    drawDyeWave(order, offX, offY);
+  }
+}
+
+/* 画单个方块的三面 */
+function drawCube(rx,ry,z,ox,oy,idx,theme,wood){
+  // 8 角点
+  const P=(dx,dy,dz)=>{ const p=project(rx+dx,ry+dy,z+dz); return {x:p.x+ox, y:p.y+oy}; };
+  const c000=P(0,0,0), c100=P(1,0,0), c010=P(0,1,0), c110=P(1,1,0);
+  const c001=P(0,0,1), c101=P(1,0,1), c011=P(0,1,1), c111=P(1,1,1);
+
+  // 决定该方块当前涂色状态：浸染动画按 (rx+ry) 由后向前推进
+  const depth = rx+ry;
+  const maxDepth = 12; // 安全上限
+  const order01 = Math.min(1, depth/maxDepth);
+  const isPainted = STATE.painted && (STATE.paintProgress>=1 || STATE.paintProgress>order01);
+
+  const pal = isPainted ? theme : wood;
+  const lineW = Math.max(1.2, S*0.035);
+
+  // 顶面（最亮）
+  ctx.beginPath();
+  ctx.moveTo(c001.x,c001.y);
+  [c101,c111,c011].forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.closePath();
+  ctx.fillStyle = pal.top; ctx.fill();
+  ctx.lineWidth=lineW; ctx.strokeStyle=pal.edge; ctx.stroke();
+
+  // 右面（x+1）
+  ctx.beginPath();
+  ctx.moveTo(c100.x,c100.y);
+  [c110,c111,c101].forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.closePath();
+  ctx.fillStyle = pal.right; ctx.fill(); ctx.stroke();
+
+  // 左面（y+1）
+  ctx.beginPath();
+  ctx.moveTo(c010.x,c010.y);
+  [c110,c111,c011].forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.closePath();
+  ctx.fillStyle = pal.left; ctx.fill(); ctx.stroke();
+
+  // 调试序号（小角标）—— 课堂可关，这里画淡色编号便于辨认
+  if(false){ // 默认关闭
+    const ctr=project(rx+0.5,ry+0.5,z+0.5);
+    ctx.fillStyle='#fff'; ctx.font=`bold ${Math.round(S*0.3)}px sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(idx, ctr.x+ox, ctr.y+oy);
+  }
+}
+
+/* 选中描边 */
+function drawSelection(rx,ry,z,ox,oy){
+  const P=(dx,dy,dz)=>{ const p=project(rx+dx,ry+dy,z+dz); return {x:p.x+ox, y:p.y+oy}; };
+  const hex=[P(0,0,1),P(1,0,1),P(1,0,0),P(1,1,0),P(0,1,0),P(0,1,1)];
+  const pulse = 0.6+0.4*Math.abs(Math.sin(performance.now()/300));
+  ctx.save();
+  ctx.lineWidth=Math.max(3,S*0.08);
+  ctx.strokeStyle=`rgba(255,212,0,${pulse})`;
+  ctx.shadowColor='rgba(255,200,0,0.9)'; ctx.shadowBlur=14;
+  ctx.beginPath();
+  ctx.moveTo(hex[0].x,hex[0].y);
+  hex.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.closePath(); ctx.stroke();
+  ctx.restore();
+}
+
+/* 重合面连接（金色星标） */
+function drawOverlapLink(rcA,cubeA,rcB,cubeB,ox,oy){
+  const a=project(rcA.rx+0.5,rcA.ry+0.5,cubeA.z+0.5);
+  const b=project(rcB.rx+0.5,rcB.ry+0.5,cubeB.z+0.5);
+  const ax=a.x+ox, ay=a.y+oy, bx=b.x+ox, by=b.y+oy;
+  const mx=(ax+bx)/2, my=(ay+by)/2;
+
+  ctx.save();
+  // 连线
+  ctx.lineWidth=Math.max(2,S*0.06);
+  ctx.strokeStyle='rgba(255,190,40,0.85)';
+  ctx.setLineDash([S*0.12,S*0.1]);
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+  ctx.setLineDash([]);
+  // 星标
+  const r=S*0.28;
+  const grad=ctx.createRadialGradient(mx,my,1,mx,my,r);
+  grad.addColorStop(0,'#fff3b0'); grad.addColorStop(1,'#ffb400');
+  ctx.fillStyle=grad;
+  ctx.beginPath(); ctx.arc(mx,my,r,0,Math.PI*2); ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle='#e07b00'; ctx.stroke();
+  // ×2 文字
+  ctx.fillStyle='#7a3d00';
+  ctx.font=`bold ${Math.round(S*0.26)}px sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('×2', mx, my+1);
+  ctx.restore();
+}
+
+/* 染料波（一道斜向高光带） */
+function drawDyeWave(order,ox,oy){
+  // 简化：整体不再额外遮罩，涂色状态已在 drawCube 中按进度切换。
+  // 这里只画一条扫过的光带提示。
+}
+
+/* =================================================================
+   点击命中检测（从前到后）
+   ----------------------------------------------------------------- */
+function pickCube(px,py){
+  if(!STATE.shape) return null;
+  const cubes=STATE.shape.cubes;
+  let cx=0,cy=0; cubes.forEach(c=>{cx+=c.x;cy+=c.y;}); cx/=cubes.length; cy/=cubes.length;
+  const rc=cubes.map(c=>rotateCoord(c.x,c.y,c.z,STATE.rot,cx,cy));
+  // 重新计算偏移（与 draw 一致）
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  rc.forEach((c,idx)=>{const cube=cubes[idx];
+    for(let dz=0;dz<=1;dz++)for(let dx=0;dx<=1;dx++)for(let dy=0;dy<=1;dy++){
+      const p=project(c.rx+dx,c.ry+dy,cube.z+dz);
+      minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
+    }});
+  const offX=viewW/2-(minX+maxX)/2;
+  const offY=viewH/2-(minY+maxY)/2+S*0.1;
+
+  // 前到后
+  const order=rc.map((c,idx)=>({idx,c,cube:cubes[idx]}))
+    .sort((a,b)=>{const da=a.c.rx+a.c.ry,db=b.c.rx+b.c.ry; if(da!==db)return db-da; return b.cube.z-a.cube.z;});
+  for(const o of order){
+    const hex=[
+      project(o.c.rx+0,o.c.ry+0,o.cube.z+1),
+      project(o.c.rx+1,o.c.ry+0,o.cube.z+1),
+      project(o.c.rx+1,o.c.ry+0,o.cube.z+0),
+      project(o.c.rx+1,o.c.ry+1,o.cube.z+0),
+      project(o.c.rx+0,o.c.ry+1,o.cube.z+0),
+      project(o.c.rx+0,o.c.ry+1,o.cube.z+1)
+    ].map(p=>({x:p.x+offX,y:p.y+offY}));
+    if(pointInPoly(px,py,hex)) return o.idx;
+  }
+  return null;
+}
+
+/* =================================================================
+   游戏流程
+   ----------------------------------------------------------------- */
+function setFeedback(msg,type){
+  const el=document.getElementById('feedback');
+  el.textContent=msg;
+  el.className='feedback '+(type||'idle');
+}
+
+function updateCounters(){
+  const n=STATE.found.size;
+  document.getElementById('foundCount').textContent=n;
+  document.getElementById('foundCount2').textContent=n;
+  document.getElementById('unpainted').textContent=n*2;
+}
+
+function startGame(diff){
+  STATE.diff=diff;
+  STATE.theme = THEMES[Math.floor(Math.random()*THEMES.length)];
+  applyTheme(STATE.theme);
+  // 随机抽一个该难度的图形
+  const lib=DIFF_LIB[diff];
+  STATE.shape = JSON.parse(JSON.stringify(lib[Math.floor(Math.random()*lib.length)]));
+  STATE.overlaps = computeOverlaps(STATE.shape.cubes);
+  STATE.total = STATE.overlaps.length;
+  STATE.found = new Set();
+  STATE.selected=null;
+  STATE.rot=0;
+  STATE.painted=false;
+  STATE.paintProgress=0;
+  STATE.finished=false;
+  STATE.steps=0;
+  STATE.startTime=Date.now();
+
+  document.getElementById('hudDiff').textContent=DIFF_LABEL[diff];
+  document.getElementById('hudSteps').textContent='0';
+  setFeedback('点一个方块开始寻找重合面吧！','idle');
+  updateCounters();
+
+  // 切屏
+  document.getElementById('menuScreen').style.display='none';
+  const gs=document.getElementById('gameScreen'); gs.classList.add('on');
+  // 计时器
+  if(STATE.timerId) clearInterval(STATE.timerId);
+  STATE.timerId=setInterval(()=>{
+    const s=Math.floor((Date.now()-STATE.startTime)/1000);
+    document.getElementById('hudTime').textContent=s;
+  },500);
+
+  // 旋转提示闪一下
+  const hint=document.getElementById('rotateHint'); hint.classList.add('show');
+  setTimeout(()=>hint.classList.remove('show'),2200);
+
+  setTimeout(resizeCanvas,30);
+}
+
+function applyTheme(t){
+  const root=document.documentElement.style;
+  root.setProperty('--accent',`hsl(${t.h},68%,52%)`);
+  root.setProperty('--accent-dark',`hsl(${t.h},60%,38%)`);
+  root.setProperty('--accent-soft',`hsl(${t.h},70%,90%)`);
+}
+
+/* 点击方块：选择 / 配对 */
+function handleTap(clientX,clientY){
+  if(STATE.finished || STATE.painted) return;
+  const rect=canvas.getBoundingClientRect();
+  const px=clientX-rect.left, py=clientY-rect.top;
+  const idx=pickCube(px,py);
+  STATE.steps++;
+  document.getElementById('hudSteps').textContent=STATE.steps;
+
+  if(idx===null){
+    STATE.selected=null; draw(); return;
+  }
+  if(STATE.selected===null){
+    STATE.selected=idx;
+    setFeedback('已选中一个方块，再点与它“紧紧贴着”的另一个方块～','idle');
+    draw(); return;
+  }
+  if(STATE.selected===idx){
+    STATE.selected=null;
+    setFeedback('已取消选中。再点一个方块开始吧！','idle');
+    draw(); return;
+  }
+  // 配对检测
+  const a=STATE.selected, b=idx;
+  const key=a<b? (a+'-'+b):(b+'-'+a);
+  if(STATE.found.has(key)){
+    setFeedback('这处重合面已经找过啦，换一处试试～','idle');
+    STATE.selected=null; draw(); return;
+  }
+  const isOverlap = STATE.overlaps.some(p=>{
+    const k=p[0]<p[1]?(p[0]+'-'+p[1]):(p[1]+'-'+p[0]); return k===key;
+  });
+  if(isOverlap){
+    STATE.found.add(key);
+    STATE.selected=null;
+    updateCounters();
+    const left=STATE.total-STATE.found.size;
+    if(left>0) setFeedback('太棒了！找到一处重合面（×2）。还差 '+left+' 处！','ok');
+    else setFeedback('全部重合面都找到啦！点「浸入染缸」验证一下吧！','ok');
+    pulseStar();
+  }else{
+    setFeedback('这两个方块没有紧紧贴在一起哦，再想想～','bad');
+    shake();
+    STATE.selected=null;
+  }
+  draw();
+}
+
+/* 浸入染缸：验证 + 动画 */
+function dipAndCheck(){
+  if(STATE.finished) return;
+  if(STATE.found.size===0){
+    setFeedback('先找出至少一处重合面，再来浸染吧！','bad'); return;
+  }
+  if(STATE.found.size<STATE.total){
+    setFeedback('还差 '+(STATE.total-STATE.found.size)+' 处重合面没找到，浸染会漏掉哦！再找找看～','bad');
+    return;
+  }
+  // 全部找对，开始浸染动画
+  STATE.painted=true; STATE.paintProgress=0; STATE.selected=null;
+  setFeedback('🎨 正在浸入染缸……','ok');
+  const dur=1100, t0=performance.now();
+  if(STATE.paintAnim) cancelAnimationFrame(STATE.paintAnim);
+  const step=()=>{
+    const p=Math.min(1,(performance.now()-t0)/dur);
+    STATE.paintProgress=p; draw();
+    if(p<1){ STATE.paintAnim=requestAnimationFrame(step); }
+    else{ onDyeComplete(); }
+  };
+  STATE.paintAnim=requestAnimationFrame(step);
+}
+
+function onDyeComplete(){
+  STATE.finished=true;
+  const n=STATE.total;
+  const total2=n*2;
+  document.getElementById('winTitle').textContent='🎉 全部找到，浸染成功！';
+  document.getElementById('winStars').textContent = '⭐⭐⭐';
+  document.getElementById('winFormula').innerHTML =
+    '这个“'+STATE.shape.name+'”共有 <b>'+n+'</b> 处重合面。<br>'+
+    '每处重合面藏起 <b>2</b> 个小正方形，<br>'+
+    '<span class="big">未涂色的小正方形 = 2 × '+n+' = '+total2+' 个</span>';
+  document.getElementById('winSub').textContent =
+    '共用时 '+Math.floor((Date.now()-STATE.startTime)/1000)+' 秒，'+STATE.steps+' 步。记住口诀：重合一次，少 2 个面！';
+  document.getElementById('winModal').classList.add('on');
+  launchConfetti();
+}
+
+/* 揭示答案 */
+function revealAll(){
+  if(STATE.finished) return;
+  STATE.overlaps.forEach(p=>{
+    const k=p[0]<p[1]?(p[0]+'-'+p[1]):(p[1]+'-'+p[0]);
+    STATE.found.add(k);
+  });
+  STATE.selected=null;
+  updateCounters();
+  setFeedback('已揭示全部 '+STATE.total+' 处重合面。未涂色 = '+(STATE.total*2)+' 个。','ok');
+  draw();
+}
+
+/* 重新开始（同难度换一个随机图形） */
+function restart(){
+  if(STATE.paintAnim) cancelAnimationFrame(STATE.paintAnim);
+  startGame(STATE.diff);
+}
+
+/* =================================================================
+   交互事件（鼠标 + 触摸；拖动旋转 + 点击选择）
+   ----------------------------------------------------------------- */
+let drag={ active:false, sx:0, sy:0, moved:0, lastStep:0 };
+
+function pointerDown(x,y){
+  drag.active=true; drag.sx=x; drag.sy=y; drag.moved=0; drag.lastStep=0;
+}
+function pointerMove(x,y){
+  if(!drag.active) return;
+  const dx=x-drag.sx;
+  const dist=Math.abs(dx)+Math.abs(y-drag.sy);
+  drag.moved=Math.max(drag.moved,dist);
+  if(drag.moved>10){
+    // 每 60px 旋转一格
+    const stepNow=Math.round(dx/60);
+    if(stepNow!==drag.lastStep){
+      const delta=stepNow-drag.lastStep;
+      STATE.rot=((STATE.rot+delta)%4+4)%4;
+      drag.lastStep=stepNow;
+      draw();
+      const hint=document.getElementById('rotateHint');
+      hint.classList.add('show'); clearTimeout(window.__rh);
+      window.__rh=setTimeout(()=>hint.classList.remove('show'),900);
+    }
+  }
+}
+function pointerUp(x,y){
+  if(!drag.active) return;
+  const wasTap = drag.moved<8;
+  drag.active=false;
+  if(wasTap){ handleTap(x,y); }
+}
+
+canvas.addEventListener('mousedown',e=>pointerDown(e.clientX,e.clientY));
+canvas.addEventListener('mousemove',e=>pointerMove(e.clientX,e.clientY));
+window.addEventListener('mouseup',e=>pointerUp(e.clientX,e.clientY));
+canvas.addEventListener('touchstart',e=>{ if(e.touches[0]){pointerDown(e.touches[0].clientX,e.touches[0].clientY);} },{passive:true});
+canvas.addEventListener('touchmove',e=>{ if(e.touches[0]){pointerMove(e.touches[0].clientX,e.touches[0].clientY);} },{passive:true});
+canvas.addEventListener('touchend',e=>{ const t=e.changedTouches[0]; if(t){pointerUp(t.clientX,t.clientY);} },{passive:true});
+
+// 旋转按钮
+document.getElementById('btnRotL').addEventListener('click',()=>{ STATE.rot=((STATE.rot-1)%4+4)%4; draw(); });
+document.getElementById('btnRotR').addEventListener('click',()=>{ STATE.rot=(STATE.rot+1)%4; draw(); });
+
+document.getElementById('btnDip').addEventListener('click',dipAndCheck);
+document.getElementById('btnReveal').addEventListener('click',revealAll);
+document.getElementById('btnRestart').addEventListener('click',restart);
+document.getElementById('btnBack').addEventListener('click',()=>{
+  if(STATE.timerId) clearInterval(STATE.timerId);
+  if(STATE.paintAnim) cancelAnimationFrame(STATE.paintAnim);
+  document.getElementById('gameScreen').classList.remove('on');
+  document.getElementById('menuScreen').style.display='flex';
+});
+
+// 难度卡片
+document.querySelectorAll('.diff-card').forEach(c=>{
+  c.addEventListener('click',()=>startGame(c.dataset.diff));
+});
+
+// 规则弹窗
+function openRules(){ document.getElementById('rulesModal').classList.add('on'); }
+function closeRules(){ document.getElementById('rulesModal').classList.remove('on'); }
+document.getElementById('openRulesMenu').addEventListener('click',openRules);
+document.getElementById('btnRules').addEventListener('click',openRules);
+document.getElementById('closeRules').addEventListener('click',closeRules);
+
+// 通关弹窗按钮
+document.getElementById('winAgain').addEventListener('click',()=>{
+  document.getElementById('winModal').classList.remove('on'); stopConfetti(); restart();
+});
+document.getElementById('winBack').addEventListener('click',()=>{
+  document.getElementById('winModal').classList.remove('on'); stopConfetti();
+  if(STATE.timerId) clearInterval(STATE.timerId);
+  document.getElementById('gameScreen').classList.remove('on');
+  document.getElementById('menuScreen').style.display='flex';
+});
+
+/* =================================================================
+   小动效：抖动 / 星光脉冲 / 选中动画循环
+   ----------------------------------------------------------------- */
+let shakeT=0;
+function shake(){ shakeT=8; }
+function pulseStar(){ /* 计数更新自带视觉反馈，此处预留 */ }
+
+function animLoop(){
+  // 选中脉冲或抖动时持续重绘
+  if(STATE.selected!==null || shakeT>0){
+    draw();
+    if(shakeT>0) shakeT--;
+  }
+  requestAnimationFrame(animLoop);
+}
+requestAnimationFrame(animLoop);
+
+/* =================================================================
+   庆祝彩纸
+   ----------------------------------------------------------------- */
+const conf=document.getElementById('confetti');
+const cctx=conf.getContext('2d');
+let confPieces=[], confRAF=null, confRunning=false;
+function sizeConf(){ conf.width=innerWidth; conf.height=innerHeight; }
+window.addEventListener('resize',sizeConf); sizeConf();
+
+function launchConfetti(){
+  sizeConf();
+  confPieces=[];
+  const palette=['#ff5d8f','#ffd400','#2bcf7e','#1aa2e0','#9b5de5','#ff8a3d','#48dbe8'];
+  for(let i=0;i<160;i++){
+    confPieces.push({
+      x:Math.random()*conf.width,
+      y:-20-Math.random()*conf.height*0.6,
+      w:8+Math.random()*8, h:8+Math.random()*10,
+      vx:-2+Math.random()*4, vy:2+Math.random()*4,
+      rot:Math.random()*Math.PI, vr:-0.2+Math.random()*0.4,
+      col:palette[Math.floor(Math.random()*palette.length)]
+    });
+  }
+  confRunning=true;
+  function loop(){
+    cctx.clearRect(0,0,conf.width,conf.height);
+    confPieces.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.04; p.rot+=p.vr;
+      cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.rot);
+      cctx.fillStyle=p.col; cctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      cctx.restore();
+    });
+    confPieces=confPieces.filter(p=>p.y<conf.height+30);
+    if(confRunning && confPieces.length>0){ confRAF=requestAnimationFrame(loop); }
+    else { cctx.clearRect(0,0,conf.width,conf.height); }
+  }
+  loop();
+}
+function stopConfetti(){ confRunning=false; if(confRAF) cancelAnimationFrame(confRAF); cctx.clearRect(0,0,conf.width,conf.height); }
+
+/* =================================================================
+   初始化：首屏默认主题
+   ----------------------------------------------------------------- */
+applyTheme(THEMES[0]);
+window.addEventListener('load',()=>{ resizeCanvas(); });
+
+// 首次进入显示规则
+window.addEventListener('load',()=>{ setTimeout(openRules,350); });
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a2b/g018", "name": "\u795e\u5947\u7684\u67d3\u8272\u95ee\u9898 \u00b7 \u5f69\u8679\u65b9\u5757\u67d3\u8272\u5b9e\u9a8c\u5ba4", "file": "g018.html", "jiaocan": "\u301018\u3011\u7b2c9\u8bb2 \u795e\u5947\u7684\u67d3\u8272\u95ee\u9898\uff08\u4e0b\uff09", "unit": "\u7b2c9\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b72\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a2b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

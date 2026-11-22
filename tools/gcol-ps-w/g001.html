@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>小小赛事调度官 · 体育比赛中的数学</title>
+<style>
+/* ================= 全局主题变量（每局随机换色板） ================= */
+:root{
+  --bg:#FFF6E9; --panel:#FFFFFF; --primary:#E76F00; --dark:#4A2A00;
+  --accent:#1F9D55; --soft:#FFE3BD; --line:#F2B366;
+}
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ width:100%; min-height:100%; }
+body{
+  background:var(--bg); color:var(--dark);
+  font-family:"PingFang SC","Microsoft YaHei","Heiti SC","Source Han Sans SC",sans-serif;
+  font-size:18px; line-height:1.6; transition:background .5s;
+}
+#app{ max-width:1100px; margin:0 auto; padding:10px 14px 30px; }
+
+/* ================= 顶栏 ================= */
+header{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  padding:10px 4px;
+}
+.brand{ display:flex; align-items:center; gap:10px; }
+.brand h1{ font-size:24px; color:var(--primary); letter-spacing:1px; }
+.brand svg{ flex:none; }
+.hud{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.hud-box{
+  background:var(--panel); border:3px solid var(--dark); border-radius:14px;
+  padding:4px 14px; font-size:18px; font-weight:bold;
+}
+.hud-box b{ color:var(--primary); font-size:20px; }
+.topbtns{ display:flex; gap:8px; }
+
+/* ================= 通用按钮 ================= */
+.btn{
+  font-family:inherit; font-size:18px; font-weight:bold; color:var(--dark);
+  background:var(--panel); border:3px solid var(--dark); border-radius:14px;
+  padding:8px 18px; min-height:44px; cursor:pointer; transition:transform .12s, box-shadow .12s;
+}
+.btn:hover{ transform:translateY(-2px); box-shadow:0 4px 0 var(--dark); }
+.btn:active{ transform:translateY(1px); box-shadow:0 1px 0 var(--dark); }
+.btn.primary{ background:var(--primary); color:#fff; }
+.btn.softbtn{ background:var(--soft); }
+.btn.small{ font-size:16px; padding:5px 12px; min-height:38px; }
+
+/* ================= 首页 ================= */
+#screen-home{ text-align:center; padding-top:12px; }
+.home-title{ font-size:36px; color:var(--primary); font-weight:900; letter-spacing:2px; margin-top:8px; }
+.home-sub{ font-size:20px; margin:8px 0 4px; }
+.home-tip{ font-size:16px; color:var(--dark); opacity:.75; margin-bottom:16px; }
+.palette-tag{
+  display:inline-block; background:var(--panel); border:2px dashed var(--primary);
+  border-radius:12px; padding:3px 14px; font-size:16px; margin:6px 0 14px;
+}
+.diff-row{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin:10px 0 18px; }
+.diff-card{
+  flex:1 1 240px; max-width:320px; background:var(--panel); border:4px solid var(--dark);
+  border-radius:20px; padding:20px 16px; cursor:pointer; transition:transform .15s, box-shadow .15s;
+}
+.diff-card:hover{ transform:translateY(-4px); box-shadow:0 8px 0 var(--dark); }
+.diff-card h2{ font-size:24px; color:var(--primary); margin-bottom:8px; }
+.diff-card p{ font-size:16px; min-height:72px; }
+.diff-card .lv{ display:inline-block; background:var(--soft); border-radius:10px; padding:2px 12px; font-size:16px; margin-top:8px; font-weight:bold; }
+
+/* ================= 游戏页 ================= */
+.stage-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin:6px 0; }
+.stage-progress{ font-size:20px; font-weight:bold; color:var(--primary); }
+.dots{ display:flex; gap:8px; }
+.dot{ width:16px; height:16px; border-radius:50%; background:var(--panel); border:3px solid var(--dark); }
+.dot.now{ background:var(--primary); }
+.dot.done{ background:var(--accent); }
+.task-card{
+  background:var(--panel); border:3px solid var(--dark); border-radius:16px;
+  padding:12px 16px; font-size:19px; margin:8px 0 12px;
+}
+.task-card b{ color:var(--primary); }
+#stage-area{ min-height:120px; }
+.stage-footer{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+
+/* 圆盘画布 */
+.board-wrap{ text-align:center; margin-top:6px; overflow-x:auto; }
+.board-svg{ display:block; margin:0 auto; }
+.node.dimnode{ opacity:.5; }
+.edge-line{ stroke:var(--line); stroke-width:6; stroke-linecap:round; }
+.edge-hit{ stroke:rgba(0,0,0,0); stroke-width:22; stroke-linecap:round; cursor:pointer; }
+.node{ cursor:pointer; }
+.node .badge{ fill:#fff; stroke:var(--dark); stroke-width:2.5; }
+.node.sel .badge{ fill:var(--soft); stroke:var(--primary); stroke-width:5; }
+.node .nlabel{ font-size:20px; font-weight:bold; fill:var(--dark); text-anchor:middle; }
+.node .pillbox{ stroke-width:2; }
+.node .pilltxt{ font-size:17px; font-weight:bold; text-anchor:middle; }
+.pill-todo .pillbox{ fill:#FFE9D2; stroke:#C36B1B; } .pill-todo .pilltxt{ fill:#8A4A0E; }
+.pill-ok .pillbox{ fill:#DDF5E2; stroke:#2E8B4A; }    .pill-ok .pilltxt{ fill:#1D6B34; }
+.pill-myst .pillbox{ fill:var(--soft); stroke:var(--primary); } .pill-myst .pilltxt{ fill:var(--primary); }
+.counter-bar{
+  display:inline-block; background:var(--panel); border:3px solid var(--dark); border-radius:14px;
+  padding:4px 18px; font-size:19px; font-weight:bold; margin:4px auto;
+}
+.counter-bar b{ color:var(--primary); font-size:22px; }
+
+/* 淘汰赛卡片 */
+.arena{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; margin:10px 0; }
+.kcard{
+  width:118px; background:var(--panel); border:3px solid var(--dark); border-radius:16px;
+  padding:10px 6px; text-align:center; cursor:pointer; transition:transform .12s;
+}
+.kcard:hover{ transform:translateY(-3px); }
+.kcard .kname{ font-size:20px; font-weight:bold; }
+.kcard .kstat{ font-size:16px; margin-top:4px; color:var(--accent); font-weight:bold; }
+.kcard.sel{ border-color:var(--primary); border-width:5px; background:var(--soft); }
+.kcard.out{ opacity:.45; filter:grayscale(1); cursor:default; }
+.kcard.champ{ border-color:#F5B301; border-width:6px; background:#FFF3C4; }
+.vs-panel{
+  background:var(--panel); border:4px solid var(--primary); border-radius:18px;
+  padding:12px 16px; margin:8px auto; max-width:560px; text-align:center;
+}
+.vs-title{ font-size:20px; font-weight:bold; margin-bottom:8px; }
+.vs-btns{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.match-log{
+  background:var(--panel); border:3px solid var(--dark); border-radius:14px;
+  padding:8px 14px; margin-top:10px; max-height:170px; overflow:auto; font-size:16px;
+}
+.match-log h4{ font-size:17px; color:var(--primary); margin-bottom:4px; }
+.bench{ margin-top:8px; font-size:16px; }
+.bench .bchip{
+  display:inline-block; background:var(--panel); border:2px solid var(--dark); opacity:.55;
+  border-radius:10px; padding:1px 10px; margin:3px 4px 0 0; text-decoration:line-through;
+}
+
+/* 积分调度 */
+.d-wrap{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+.d-left{ flex:1 1 380px; }
+.d-right{ flex:1 1 300px; }
+.chip-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+.mchip{
+  background:var(--panel); border:3px solid var(--dark); border-radius:14px;
+  padding:8px 10px; text-align:center; cursor:pointer; transition:transform .1s; min-height:76px;
+}
+.mchip:hover{ transform:translateY(-2px); }
+.mchip .mtitle{ font-size:18px; font-weight:bold; }
+.mchip .mres{ font-size:17px; font-weight:bold; margin-top:3px; }
+.mres.none{ color:#9A9A9A; }
+.mres.win{ color:var(--primary); }
+.mres.draw{ color:var(--accent); }
+.score-table{ width:100%; border-collapse:collapse; background:var(--panel); border:3px solid var(--dark); border-radius:14px; overflow:hidden; }
+.score-table th,.score-table td{ border:2px solid var(--dark); padding:5px 6px; text-align:center; font-size:17px; }
+.score-table th{ background:var(--soft); font-size:17px; }
+.score-table .pts{ font-weight:bold; color:var(--primary); font-size:19px; }
+.cond-card{ background:var(--panel); border:3px solid var(--dark); border-radius:14px; padding:10px 14px; margin-top:12px; }
+.cond-card h4{ font-size:18px; color:var(--primary); margin-bottom:6px; }
+.cond{ display:flex; align-items:center; gap:10px; font-size:17px; margin:6px 0; font-weight:bold; }
+.cond .cd{ width:18px; height:18px; border-radius:50%; border:3px solid var(--dark); flex:none; }
+.cond.ok .cd{ background:var(--accent); border-color:var(--accent); }
+.cond.ok{ color:#1D6B34; }
+.d-totalbar{ margin-top:10px; font-size:18px; text-align:center; font-weight:bold; }
+
+/* 小组赛（综合关） */
+.groups{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+.group-box{ flex:1 1 340px; background:var(--panel); border:3px solid var(--dark); border-radius:16px; padding:10px; text-align:center; }
+.group-box h3{ font-size:19px; color:var(--primary); margin-bottom:4px; }
+.group-done{ font-size:17px; color:#1D6B34; font-weight:bold; }
+.phase-note{ text-align:center; font-size:18px; margin:8px 0; font-weight:bold; }
+.center-row{ text-align:center; margin:12px 0; }
+
+/* ================= 结算页 ================= */
+#screen-final{ text-align:center; padding-top:20px; }
+.final-title{ font-size:34px; color:var(--primary); font-weight:900; margin:10px 0; }
+.final-stars{ font-size:40px; color:#F5B301; letter-spacing:8px; margin:8px 0; }
+.final-stats{
+  display:inline-block; background:var(--panel); border:4px solid var(--dark); border-radius:18px;
+  padding:14px 26px; font-size:20px; margin:10px 0 18px; text-align:left;
+}
+.final-stats b{ color:var(--primary); }
+
+/* ================= 弹层 ================= */
+#modal-root{
+  position:fixed; inset:0; background:rgba(30,20,5,.45); display:none;
+  align-items:center; justify-content:center; z-index:60; padding:14px;
+}
+#modal-root.show{ display:flex; }
+.modal-box{
+  background:var(--panel); border:4px solid var(--dark); border-radius:20px;
+  max-width:680px; width:100%; max-height:86vh; overflow:auto; padding:18px 20px;
+}
+.modal-title{ font-size:24px; color:var(--primary); font-weight:900; margin-bottom:10px; text-align:center; }
+.modal-body{ font-size:18px; }
+.modal-body h4{ color:var(--primary); margin:10px 0 4px; font-size:19px; }
+.modal-body .mcard{ background:var(--soft); border-radius:12px; padding:10px 14px; margin:8px 0; }
+.modal-body .mcard p{ margin:4px 0; }
+.modal-body b.big{ font-size:24px; color:var(--primary); }
+.modal-btns{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+.cheer-title{ text-align:center; font-size:30px; color:var(--accent); font-weight:900; margin:6px 0; }
+
+/* 彩带画布 & 提示条 */
+#fx-canvas{ position:fixed; inset:0; pointer-events:none; z-index:80; }
+#toast{
+  position:fixed; left:50%; bottom:34px; transform:translateX(-50%) translateY(20px);
+  background:var(--dark); color:#fff; font-size:18px; padding:10px 22px; border-radius:14px;
+  opacity:0; pointer-events:none; transition:all .25s; z-index:90; max-width:90vw; text-align:center;
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ================= 移动端适配 ================= */
+@media (max-width:760px){
+  .brand h1{ font-size:19px; }
+  .home-title{ font-size:28px; }
+  .hud-box{ font-size:16px; padding:3px 10px; }
+  .hud-box b{ font-size:17px; }
+  .task-card{ font-size:17px; }
+  .kcard{ width:102px; }
+  .d-wrap{ flex-direction:column; }
+  .modal-body{ font-size:17px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <!-- 奖杯图标（内联SVG，无外部依赖） -->
+      <svg width="44" height="44" viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M12 8h24v6c0 8-5.4 14-12 14S12 22 12 14V8z" fill="#F5B301" stroke="#8A5A00" stroke-width="2.5"/>
+        <path d="M12 10H6v4c0 5 3.6 8 8 8M36 10h6v4c0 5-3.6 8-8 8" fill="none" stroke="#8A5A00" stroke-width="2.5"/>
+        <path d="M22 28h4v6h-4z" fill="#8A5A00"/>
+        <path d="M14 38h20v4H14z" fill="#F5B301" stroke="#8A5A00" stroke-width="2.5"/>
+        <path d="M20 30l-6 8M28 30l6 8" stroke="#8A5A00" stroke-width="2.5" fill="none"/>
+      </svg>
+      <h1>小小赛事调度官 · 体育比赛中的数学</h1>
+    </div>
+    <div class="hud">
+      <div class="hud-box">用时 <b id="hud-time">00:00</b></div>
+      <div class="hud-box">步数 <b id="hud-steps">0</b></div>
+      <div class="topbtns">
+        <button class="btn small" id="btn-rules">规则说明</button>
+        <button class="btn small" id="btn-home">返回难度选择</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 首页：难度选择 -->
+  <section id="screen-home">
+    <div class="home-title">小小赛事调度官</div>
+    <div class="home-sub">第15讲 · 体育比赛中的数学 —— 循环赛 · 淘汰赛 · 连线推理 · 积分守恒</div>
+    <div class="palette-tag" id="palette-tag">本局主题色：阳光橙</div>
+    <div class="diff-row">
+      <div class="diff-card" id="diff-easy">
+        <h2>初级 · 热身球场</h2>
+        <p>4 支队伍的循环赛、盘数小侦探（5 人）、4 支队伍的淘汰赛。例题级难度，热身开始！</p>
+        <span class="lv">共 3 关</span>
+      </div>
+      <div class="diff-card" id="diff-medium">
+        <h2>中级 · 进阶联赛</h2>
+        <p>6 队循环赛、积分平衡挑战（1 个条件）、6 人盘数推理、8 队淘汰赛。练习级难度！</p>
+        <span class="lv">共 4 关</span>
+      </div>
+      <div class="diff-card" id="diff-hard">
+        <h2>高级 · 冠军之旅</h2>
+        <p>6 人盘数推理（进阶）、积分平衡挑战（2 个条件）、迷你世界杯：小组赛 + 淘汰赛综合大关！</p>
+        <span class="lv">共 3 关</span>
+      </div>
+    </div>
+    <button class="btn primary" id="btn-rules-home">先看规则说明</button>
+  </section>
+
+  <!-- 游戏页 -->
+  <section id="screen-game" style="display:none;">
+    <div class="stage-head">
+      <div class="stage-progress" id="stage-progress">第 1 / 3 关</div>
+      <div class="dots" id="stage-dots"></div>
+    </div>
+    <div class="task-card" id="stage-task"></div>
+    <div id="stage-area"></div>
+    <div class="stage-footer">
+      <button class="btn primary" id="btn-reveal">揭示答案</button>
+      <button class="btn softbtn" id="btn-restart">重新开始本关</button>
+    </div>
+  </section>
+
+  <!-- 结算页 -->
+  <section id="screen-final" style="display:none;">
+    <div class="final-title">全部通关，你就是金牌调度官！</div>
+    <div class="final-stars">★ ★ ★ ★ ★</div>
+    <div class="final-stats" id="final-stats"></div>
+    <div>
+      <button class="btn primary" id="btn-again">再玩一次（重新随机）</button>
+      <button class="btn" id="btn-home2">返回难度选择</button>
+    </div>
+  </section>
+</div>
+
+<!-- 彩带特效画布 -->
+<canvas id="fx-canvas"></canvas>
+<!-- 弹层容器 -->
+<div id="modal-root"></div>
+<!-- 全局提示条 -->
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   小小赛事调度官 · 体育比赛中的数学（第15讲）
+   核心方法与玩法对应：
+   1. 单循环赛场次 = 1+2+…+(n-1) —— 动手把"完全图"连线连满
+   2. 淘汰赛场次 = n-1（每场告别一队）—— 逐场安排对决、选出胜者
+   3. 比赛盘数推理（画点连线图） —— 带配额的连线配对谜题，答案由操作揭晓
+   4. 每场比赛总分守恒 —— 实时积分表上"构造"满足条件的赛果
+   ===================================================================== */
+
+/* ================= 基础工具 ================= */
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, text){
+  const e = document.createElement(tag);
+  if(cls){ e.className = cls; }
+  if(text){ e.textContent = text; }
+  return e;
+}
+function randInt(a, b){ return a + Math.floor(Math.random() * (b - a + 1)); }
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function fmtTime(sec){
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' + s : '' + s);
+}
+
+/* ================= 色板（每局随机，保证常玩常新） ================= */
+const PALETTES = [
+  { name:'阳光橙', bg:'#FFF6E9', panel:'#FFFFFF', primary:'#E76F00', dark:'#4A2A00', accent:'#1F9D55', soft:'#FFE3BD', line:'#F2B366' },
+  { name:'海天蓝', bg:'#EDF5FF', panel:'#FFFFFF', primary:'#0B6FD6', dark:'#062B52', accent:'#E8710A', soft:'#CFE5FF', line:'#8FC1F2' },
+  { name:'草地绿', bg:'#F0FAEF', panel:'#FFFFFF', primary:'#1E8E3E', dark:'#0B3D1C', accent:'#D6336C', soft:'#CDEECB', line:'#93D6A0' },
+  { name:'葡萄紫', bg:'#F6F0FF', panel:'#FFFFFF', primary:'#7B3FE4', dark:'#2E1454', accent:'#0FA3A3', soft:'#E4D6FF', line:'#BFA3F5' },
+  { name:'樱花粉', bg:'#FFF0F3', panel:'#FFFFFF', primary:'#D6336C', dark:'#521229', accent:'#2F9E44', soft:'#FFD6E0', line:'#F5A8C0' },
+  { name:'柠檬黄', bg:'#FFFBE6', panel:'#FFFFFF', primary:'#C77800', dark:'#4A3300', accent:'#0B7285', soft:'#FFEFB0', line:'#E9C65C' },
+  { name:'星空靛', bg:'#EEF2FF', panel:'#FFFFFF', primary:'#4054D8', dark:'#101B4D', accent:'#D6336C', soft:'#D8DFFF', line:'#A3B2F5' },
+  { name:'蜜瓜青', bg:'#ECFBF6', panel:'#FFFFFF', primary:'#0C8F66', dark:'#04382B', accent:'#E8590C', soft:'#C6F4E2', line:'#8AD9BC' }
+];
+let PAL = null;
+function applyRandomPalette(){
+  PAL = pick(PALETTES);
+  const root = document.documentElement.style;
+  root.setProperty('--bg', PAL.bg);
+  root.setProperty('--panel', PAL.panel);
+  root.setProperty('--primary', PAL.primary);
+  root.setProperty('--dark', PAL.dark);
+  root.setProperty('--accent', PAL.accent);
+  root.setProperty('--soft', PAL.soft);
+  root.setProperty('--line', PAL.line);
+  const tag = $('palette-tag');
+  if(tag){ tag.textContent = '本局主题色：' + PAL.name; }
+}
+
+/* ================= 名字池 ================= */
+const TEAM_POOL = ['雄鹰队','海豚队','彩虹队','星星队','太阳队','月亮队','白云队','清风队','小鹿队','熊猫队','蓝鲸队','橘子队','苹果队','葡萄队','向日葵队','海燕队'];
+const PLAYER_POOL = ['小安','小北','小诚','小迪','小恩','小凡','小格','小海','小晶','小可'];
+
+/* ================= 提示条 ================= */
+let toastTimer = null;
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if(toastTimer){ clearTimeout(toastTimer); }
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+}
+
+/* ================= 弹层 ================= */
+function showModal(title, html, buttons, lock){
+  const root = $('modal-root');
+  root.innerHTML = '';
+  const box = el('div', 'modal-box');
+  box.appendChild(el('div', 'modal-title', title));
+  const body = el('div', 'modal-body');
+  body.innerHTML = html;
+  box.appendChild(body);
+  const row = el('div', 'modal-btns');
+  (buttons || [{ label:'知道啦' }]).forEach(function(b){
+    const bt = el('button', 'btn ' + (b.cls || ''), b.label);
+    bt.onclick = function(){
+      if(b.onClick){ b.onClick(); }
+      closeModal();
+    };
+    row.appendChild(bt);
+  });
+  box.appendChild(row);
+  root.appendChild(box);
+  root.classList.add('show');
+  root.onclick = function(e){ if(e.target === root && !lock){ closeModal(); } };
+}
+function closeModal(){
+  const root = $('modal-root');
+  root.classList.remove('show');
+  root.innerHTML = '';
+}
+
+/* ================= 彩带庆祝特效 =================
+   说明：动画优先用 requestAnimationFrame（真实浏览器 60 帧/秒）。
+   为兼容个别不产生动画帧的环境（如某些内嵌浏览器），
+   加了看门狗：150 毫秒内若一帧都没来，就撤掉 rAF 请求，
+   改用 33 毫秒定时器驱动，保证任何环境下都不卡画面。 */
+const FX = { cvs:null, ctx:null, parts:[], running:false, lastFrame:0, rafId:0, timerId:0 };
+function fxInit(){
+  FX.cvs = $('fx-canvas');
+  FX.ctx = FX.cvs.getContext('2d');
+  fxResize();
+  window.addEventListener('resize', fxResize);
+}
+function fxResize(){
+  FX.cvs.width = window.innerWidth;
+  FX.cvs.height = window.innerHeight;
+}
+function confetti(n){
+  const colors = [PAL.primary, PAL.accent, PAL.soft, PAL.line, '#F5B301', '#FF6B9D'];
+  for(let i = 0; i < n; i++){
+    FX.parts.push({
+      x: Math.random() * FX.cvs.width,
+      y: -20 - Math.random() * FX.cvs.height * 0.3,
+      vx: (Math.random() - 0.5) * 2.4,
+      vy: 2 + Math.random() * 3.2,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.25,
+      size: 7 + Math.random() * 8,
+      color: pick(colors),
+      round: Math.random() < 0.3,
+      life: 240 + Math.random() * 120
+    });
+  }
+  if(!FX.running){
+    FX.running = true;
+    FX.lastFrame = 0;
+    FX.rafId = requestAnimationFrame(fxTick);
+    setTimeout(fxWatchdog, 150);
+  }
+}
+function fxWatchdog(){
+  if(!FX.running){ return; }
+  if(!FX.lastFrame){
+    // 该环境不产生动画帧：撤掉 rAF 请求，改用定时器驱动
+    if(FX.rafId){ cancelAnimationFrame(FX.rafId); FX.rafId = 0; }
+    if(!FX.timerId){ FX.timerId = setInterval(fxTick, 33); }
+  }
+}
+function fxTick(){
+  FX.lastFrame = Date.now();
+  const ctx = FX.ctx;
+  ctx.clearRect(0, 0, FX.cvs.width, FX.cvs.height);
+  for(let i = FX.parts.length - 1; i >= 0; i--){
+    const p = FX.parts[i];
+    p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life -= 1;
+    p.vx += Math.sin(p.y * 0.02) * 0.02;
+    if(p.life <= 0 || p.y > FX.cvs.height + 30){
+      FX.parts.splice(i, 1);
+      continue;
+    }
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = p.color;
+    if(p.round){
+      ctx.beginPath();
+      ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }else{
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.62);
+    }
+    ctx.restore();
+  }
+  if(FX.parts.length > 0){
+    if(!FX.timerId){ FX.rafId = requestAnimationFrame(fxTick); }
+  }else{
+    FX.running = false;
+    if(FX.timerId){ clearInterval(FX.timerId); FX.timerId = 0; }
+    ctx.clearRect(0, 0, FX.cvs.width, FX.cvs.height);
+  }
+}
+
+/* ================= 圆盘连线画布组件（循环赛 / 盘数推理共用） ================= */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function circleBoard(container, cfg){
+  // cfg: teams:[名字], removable:能否点线撤销, onNode(i), onEdge(i,j)
+  function geo(){
+    // 半径下限：保证相邻徽章/胶囊不重叠（胶囊最宽约140像素，留足间距）
+    const n = cfg.teams.length;
+    const rxMin = 150 / (2 * Math.sin(Math.PI / n));
+    const wMin = 2 * (rxMin + 86);
+    const w = Math.round(Math.max(wMin, Math.min(640, container.clientWidth || 640)));
+    const h = Math.round(w * 0.92);
+    return { w:w, h:h, cx:w / 2, cy:h / 2, rx:w / 2 - 86, ry:h / 2 - 82 };
+  }
+  function posOf(i, n, g){
+    const ang = -Math.PI / 2 + i * 2 * Math.PI / n;
+    return [g.cx + g.rx * Math.cos(ang), g.cy + g.ry * Math.sin(ang)];
+  }
+  function render(view){
+    // view: {edges:[[a,b]], sel:下标或-1, pill:(i)=>{text,cls}, dim:(i)=>bool}
+    container.innerHTML = '';
+    const g = geo();
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('width', g.w);
+    svg.setAttribute('height', g.h);
+    svg.setAttribute('class', 'board-svg');
+    const n = cfg.teams.length;
+    const pos = [];
+    for(let i = 0; i < n; i++){ pos.push(posOf(i, n, g)); }
+
+    // 先画比赛连线（在徽章下层）
+    const eg = document.createElementNS(SVG_NS, 'g');
+    view.edges.forEach(function(pr){
+      const a = pr[0], b = pr[1];
+      const p1 = pos[a], p2 = pos[b];
+      const ln = document.createElementNS(SVG_NS, 'line');
+      ln.setAttribute('x1', p1[0]); ln.setAttribute('y1', p1[1]);
+      ln.setAttribute('x2', p2[0]); ln.setAttribute('y2', p2[1]);
+      ln.setAttribute('class', 'edge-line');
+      eg.appendChild(ln);
+      if(cfg.removable){
+        const hit = document.createElementNS(SVG_NS, 'line');
+        hit.setAttribute('x1', p1[0]); hit.setAttribute('y1', p1[1]);
+        hit.setAttribute('x2', p2[0]); hit.setAttribute('y2', p2[1]);
+        hit.setAttribute('class', 'edge-hit');
+        hit.addEventListener('click', function(){ cfg.onEdge(a, b); });
+        eg.appendChild(hit);
+      }
+    });
+    svg.appendChild(eg);
+
+    // 再画队伍/小伙伴徽章（覆盖线头，避免遮挡文字）
+    for(let i = 0; i < n; i++){
+      const p = pos[i];
+      const node = document.createElementNS(SVG_NS, 'g');
+      let cls = 'node';
+      if(view.sel === i){ cls += ' sel'; }
+      if(view.dim && view.dim(i)){ cls += ' dimnode'; }
+      node.setAttribute('class', cls);
+      node.setAttribute('transform', 'translate(' + p[0] + ',' + p[1] + ')');
+
+      const badge = document.createElementNS(SVG_NS, 'rect');
+      badge.setAttribute('x', -47); badge.setAttribute('y', -23);
+      badge.setAttribute('width', 94); badge.setAttribute('height', 46);
+      badge.setAttribute('rx', 13);
+      badge.setAttribute('class', 'badge');
+      node.appendChild(badge);
+
+      const label = document.createElementNS(SVG_NS, 'text');
+      label.setAttribute('y', 7);
+      label.setAttribute('class', 'nlabel');
+      label.textContent = cfg.teams[i];
+      node.appendChild(label);
+
+      // 徽章下方的盘数胶囊（与徽章留足 13px 间距，互不遮挡）
+      const pill = view.pill(i);
+      const pw = pill.text.length * 17 + 20;
+      const pb = document.createElementNS(SVG_NS, 'rect');
+      pb.setAttribute('x', -pw / 2); pb.setAttribute('y', 36);
+      pb.setAttribute('width', pw); pb.setAttribute('height', 30);
+      pb.setAttribute('rx', 15);
+      pb.setAttribute('class', 'pillbox');
+      const pt = document.createElementNS(SVG_NS, 'text');
+      pt.setAttribute('y', 57);
+      pt.setAttribute('class', 'pilltxt');
+      pt.textContent = pill.text;
+      const pg = document.createElementNS(SVG_NS, 'g');
+      pg.setAttribute('class', 'pill ' + pill.cls);
+      pg.appendChild(pb); pg.appendChild(pt);
+      node.appendChild(pg);
+
+      node.addEventListener('click', function(){ cfg.onNode(i); });
+      svg.appendChild(node);
+    }
+    container.appendChild(svg);
+  }
+  return { render:render };
+}
+
+/* =====================================================================
+   关卡 A：循环赛 · 赛程大安排（完全图连线）
+   ===================================================================== */
+function makeStageA(n){
+  const teams = shuffle(TEAM_POOL).slice(0, n);
+  const totalPairs = n * (n - 1) / 2;
+  const st = {
+    title: '循环赛 · 赛程大安排',
+    done: false,
+    edges: [],
+    sel: -1,
+    board: null,
+    taskHTML: '<b>单循环赛规则：每两支队伍之间都要比赛一场，而且只赛一场。</b>本局共有 <b>' + n + ' 支队伍</b>（' + teams.join('、') +
+      '）。请你来当调度官：先点一支队伍，再点另一支队伍，就为她们安排了一场比赛（连上一条彩线）。' +
+      '<b>把所有该赛的比赛全部安排上 —— 数一数，一共安排了多少场比赛？</b>',
+    deg: function(i){
+      let c = 0;
+      st.edges.forEach(function(e){ if(e[0] === i || e[1] === i){ c++; } });
+      return c;
+    },
+    hasEdge: function(a, b){
+      return st.edges.some(function(e){
+        return (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a);
+      });
+    },
+    mount: function(area){
+      const counter = el('div', 'counter-bar');
+      const wrap = el('div', 'board-wrap');
+      area.appendChild(counter);
+      area.appendChild(wrap);
+      st.board = circleBoard(wrap, {
+        teams: teams,
+        removable: false,
+        onNode: function(i){ st.onNode(i); },
+        onEdge: function(){ /* 循环赛关不需要撤销，连线只在盘数推理关开放 */ }
+      });
+      st.redraw = function(){
+        counter.innerHTML = '已安排 <b>' + st.edges.length + '</b> 场比赛（连满自动过关）';
+        st.board.render({
+          edges: st.edges,
+          sel: st.sel,
+          pill: function(i){
+            const k = st.deg(i);
+            if(st.done){ return { text:'完成★', cls:'pill-ok' }; }
+            return k === n - 1
+              ? { text:'赛满★', cls:'pill-ok' }
+              : { text:'已赛' + k + '场', cls:'pill-todo' };
+          },
+          dim: function(){ return false; }
+        });
+      };
+      st.redraw();
+    },
+    onNode: function(i){
+      if(st.done){ return; }
+      if(st.sel === -1){ st.sel = i; st.redraw(); return; }
+      if(st.sel === i){ st.sel = -1; st.redraw(); return; }
+      const a = st.sel, b = i;
+      st.sel = -1;
+      if(st.hasEdge(a, b)){
+        toast(teams[a] + ' 和 ' + teams[b] + ' 已经赛过啦！单循环赛每两队只赛一场哦');
+      }else{
+        st.edges.push([a, b]);
+        bump();
+      }
+      st.redraw();
+      if(st.edges.length === totalPairs){
+        st.done = true;
+        st.redraw();
+        stageClear(
+          '安排完毕，赛程满满！',
+          methodA(n, totalPairs)
+        );
+      }
+    },
+    reveal: function(){
+      return {
+        title: '揭示答案 · 循环赛场次',
+        html: methodA(n, totalPairs)
+      };
+    }
+  };
+  return st;
+}
+function methodA(n, total){
+  let sumText = '';
+  for(let k = n - 1; k >= 1; k--){ sumText += (k === n - 1 ? '' : '+') + k; }
+  return '<div class="mcard"><p><b>单循环赛总场次 = (n−1)+(n−2)+…+1 = n×(n−1)÷2</b></p>' +
+    '<p>本局 n=' + n + ' 支队伍：' + sumText + ' = ' + n + '×' + (n - 1) + '÷2 = <b class="big">' + total + ' 场</b>。</p></div>' +
+    '<div class="mcard"><p><b>换个角度想：</b>每支队伍都要赛 ' + (n - 1) + ' 场，全队共有 ' + n + '×' + (n - 1) + '=' + n * (n - 1) +
+    ' 个"队次"，但每场比赛被两个队各数了一次，所以要再除以 2：' + n * (n - 1) + '÷2=' + total + ' 场。</p></div>' +
+    '<p>这就是"握手问题"：每两人握一次手，共 n×(n−1)÷2 次。</p>';
+}
+
+/* =====================================================================
+   关卡 B：淘汰赛 · 冠军之路（逐场安排对决并选胜者）
+   ===================================================================== */
+function makeStageB(n, opts){
+  const o = opts || {};
+  const teams = (o.teams || shuffle(TEAM_POOL).slice(0, n)).map(function(nm){
+    return { name:nm, tag:(o.tagMap ? o.tagMap[nm] : ''), alive:true, wins:0 };
+  });
+  const st = {
+    title: o.title || '淘汰赛 · 冠军之路',
+    done: false,
+    sel: -1,
+    pending: null,
+    matches: [],
+    champion: null,
+    taskHTML: (o.taskPrefix || '') +
+      '<b>淘汰赛规则：每场比赛都要分出胜负，负的队伍前往观众席为伙伴加油，胜的队伍继续迎接下一场挑战，直到只剩最后的冠军。</b>' +
+      (o.teams ? '' : '本局共有 <b>' + n + ' 支队伍</b>。') +
+      '请先点两支队伍安排一场对决，再点选这一场的胜者。<b>数一数：决出冠军一共需要几场比赛？</b>',
+    mount: function(area){
+      const counter = el('div', 'counter-bar');
+      const arena = el('div', 'arena');
+      const vsPanel = el('div', 'vs-panel');
+      vsPanel.style.display = 'none';
+      const log = el('div', 'match-log');
+      const bench = el('div', 'bench');
+      area.appendChild(counter);
+      area.appendChild(arena);
+      area.appendChild(vsPanel);
+      area.appendChild(bench);
+      area.appendChild(log);
+
+      st.redraw = function(){
+        counter.innerHTML = '已进行 <b>' + st.matches.length + '</b> 场比赛' + (st.done ? '（冠军已诞生！）' : '');
+        arena.innerHTML = '';
+        teams.forEach(function(t, i){
+          const card = el('div', 'kcard');
+          if(st.sel === i){ card.classList.add('sel'); }
+          if(!t.alive){ card.classList.add('out'); }
+          if(st.done && t.alive){ card.classList.add('champ'); }
+          card.appendChild(el('div', 'kname', t.name + (t.tag ? '·' + t.tag : '')));
+          let stat = '待赛';
+          if(!t.alive){ stat = '观众席'; }
+          else if(st.done){ stat = '冠军 ★ 已连胜 ' + t.wins + ' 场'; }
+          else if(t.wins > 0){ stat = '已连胜 ' + t.wins + ' 场'; }
+          card.appendChild(el('div', 'kstat', stat));
+          card.onclick = function(){ st.cardClick(i); };
+          arena.appendChild(card);
+        });
+
+        // 对决选择面板
+        vsPanel.innerHTML = '';
+        vsPanel.style.display = st.pending ? 'block' : 'none';
+        if(st.pending){
+          const a = st.pending.a, b = st.pending.b;
+          vsPanel.appendChild(el('div', 'vs-title', '第 ' + (st.matches.length + 1) + ' 场对决：' + teams[a].name + ' VS ' + teams[b].name + ' —— 点选本场的胜者'));
+          const row = el('div', 'vs-btns');
+          const ba = el('button', 'btn primary', teams[a].name + ' 获胜');
+          ba.onclick = function(){ st.choose(a); };
+          const bb = el('button', 'btn primary', teams[b].name + ' 获胜');
+          bb.onclick = function(){ st.choose(b); };
+          const bc = el('button', 'btn', '先不比');
+          bc.onclick = function(){ st.pending = null; st.redraw(); };
+          row.appendChild(ba); row.appendChild(bb); row.appendChild(bc);
+          vsPanel.appendChild(row);
+        }
+
+        // 观众席
+        bench.innerHTML = '';
+        const outs = teams.filter(function(t){ return !t.alive; });
+        if(outs.length > 0){
+          bench.appendChild(el('b', '', '观众席：'));
+          outs.forEach(function(t){
+            const chip = el('span', 'bchip', t.name);
+            bench.appendChild(chip);
+          });
+        }
+
+        // 赛况播报
+        log.innerHTML = '';
+        log.appendChild(el('h4', '', '赛况播报'));
+        if(st.matches.length === 0){
+          log.appendChild(el('div', '', '还没有安排比赛，点上面两张队伍卡片开始第一场！'));
+        }
+        st.matches.forEach(function(m, idx){
+          log.appendChild(el('div', '', '第' + (idx + 1) + '场：' + teams[m.a].name + ' 对 ' + teams[m.b].name + ' → ' + teams[m.w].name + ' 晋级'));
+        });
+      };
+      st.redraw();
+    },
+    cardClick: function(i){
+      if(st.done){ return; }
+      if(st.pending){ toast('先把这一场的胜者点出来，或点"先不比"'); return; }
+      if(!teams[i].alive){ toast(teams[i].name + ' 已经在观众席为伙伴加油啦'); return; }
+      if(st.sel === -1){ st.sel = i; st.redraw(); return; }
+      if(st.sel === i){ st.sel = -1; st.redraw(); return; }
+      st.pending = { a: st.sel, b: i };
+      st.sel = -1;
+      st.redraw();
+    },
+    choose: function(w){
+      const a = st.pending.a, b = st.pending.b;
+      st.pending = null;
+      const loser = (w === a) ? b : a;
+      teams[loser].alive = false;
+      teams[w].wins++;
+      st.matches.push({ a:a, b:b, w:w });
+      bump();
+      st.redraw();
+      const aliveCount = teams.filter(function(t){ return t.alive; }).length;
+      if(aliveCount === 1){
+        st.done = true;
+        st.champion = teams.filter(function(t){ return t.alive; })[0];
+        st.redraw();
+        const cnt = st.matches.length;
+        if(o.onFinish){
+          o.onFinish(cnt);
+        }else{
+          stageClear(
+            '冠军诞生：' + st.champion.name + '！',
+            methodB(teams.length, cnt)
+          );
+        }
+      }
+    },
+    reveal: function(){
+      return {
+        title: '揭示答案 · 淘汰赛场次',
+        html: methodB(teams.length, teams.length - 1)
+      };
+    }
+  };
+  return st;
+}
+function methodB(n, total){
+  return '<div class="mcard"><p><b>淘汰赛每进行一场比赛，恰好有一支队伍告别赛场。</b></p>' +
+    '<p>要从 ' + n + ' 支队伍中决出 1 支冠军，就要告别 ' + n + '−1=' + (n - 1) + ' 支队伍，所以共赛 <b class="big">' + n + '−1 = ' + total + ' 场</b>。</p></div>' +
+    '<div class="mcard"><p><b>不管你怎么安排对阵、谁输谁赢，场数都不变！</b>这就是淘汰赛的守恒规律：场数 = 队数 − 1。</p></div>' +
+    '<p>想一想：如果要再决出第三名（多加一场季军赛），全场就要 ' + (n - 1) + '+1=' + n + ' 场。</p>';
+}
+
+/* =====================================================================
+   关卡 C：小侦探 · 盘数连线（带配额的连线推理，答案由操作揭晓）
+   生成时穷举所有可能的连线图，确保"问号小伙伴"的盘数在所有
+   合法补全方案中唯一，答案才唯一。
+   ===================================================================== */
+const C_LEVELS = {
+  easy:   { P:5, hMin:1, hMax:3, minDistinct:2, minSum:5 },
+  medium: { P:6, hMin:1, hMax:3, minDistinct:2, minSum:6 },
+  hard:   { P:6, hMin:2, hMax:4, minDistinct:3, minSum:8 }
+};
+function genGraphPuzzle(cfgLv){
+  const P = cfgLv.P;
+  // 枚举所有点对，作为连线的"编号"
+  const pairs = [];
+  for(let i = 0; i < P; i++){
+    for(let j = i + 1; j < P; j++){ pairs.push([i, j]); }
+  }
+  const m = pairs.length;
+  const total = 1 << m;
+  const keySet = {}; // 键（已知盘数序列）-> {set:可能的问号盘数集合, g:一个示例图}
+  // 穷举所有可能的连线图，按"已知 P-1 人的盘数序列"分组
+  for(let g = 0; g < total; g++){
+    const deg = [];
+    for(let i = 0; i < P; i++){ deg.push(0); }
+    for(let k = 0; k < m; k++){
+      if(g & (1 << k)){
+        deg[pairs[k][0]]++;
+        deg[pairs[k][1]]++;
+      }
+    }
+    const known = deg.slice(0, P - 1);
+    const key = known.join(',');
+    const h = deg[P - 1];
+    if(!keySet[key]){
+      keySet[key] = { set:{}, g:g };
+      keySet[key].set[h] = true;
+    }else{
+      keySet[key].set[h] = true;
+    }
+  }
+  const cands = [];
+  Object.keys(keySet).forEach(function(key){
+    const rec = keySet[key];
+    const hs = Object.keys(rec.set);
+    if(hs.length !== 1){ return; }           // 问号盘数必须唯一
+    const h = parseInt(hs[0], 10);
+    const known = key.split(',').map(Number);
+    if(h < cfgLv.hMin || h > cfgLv.hMax){ return; }
+    if(countDistinct(known) < cfgLv.minDistinct){ return; }
+    if(sumArr(known) < cfgLv.minSum){ return; }
+    cands.push({ known:known, h:h, g:rec.g });
+  });
+  const chosen = pick(cands);
+  // 还原示例图的连线，转成"名字对"供揭示答案用
+  const names = shuffle(PLAYER_POOL).slice(0, P);
+  // 随机打乱展示顺序（问号小伙伴不固定在某个方位）
+  const order = shuffle(names.map(function(nm, i){ return i; }));
+  const players = order.map(function(dataIdx){
+    return {
+      name: names[dataIdx],
+      need: dataIdx === P - 1 ? -1 : chosen.known[dataIdx], // -1 表示问号小伙伴
+      isTarget: dataIdx === P - 1
+    };
+  });
+  const refEdges = [];
+  for(let k = 0; k < m; k++){
+    if(chosen.g & (1 << k)){
+      refEdges.push([names[pairs[k][0]], names[pairs[k][1]]]);
+    }
+  }
+  return { players:players, answer:chosen.h, refEdges:refEdges, knownSum:sumArr(chosen.known) };
+}
+function countDistinct(arr){
+  const s = {};
+  arr.forEach(function(v){ s[v] = true; });
+  return Object.keys(s).length;
+}
+function sumArr(arr){
+  let s = 0;
+  arr.forEach(function(v){ s += v; });
+  return s;
+}
+function makeStageC(level){
+  const cfgLv = C_LEVELS[level];
+  const pz = genGraphPuzzle(cfgLv);
+  const P = pz.players.length;
+  const targetIdx = pz.players.findIndex(function(p){ return p.isTarget; });
+  const st = {
+    title: '小侦探 · 盘数连线',
+    done: false,
+    edges: [],
+    sel: -1,
+    board: null,
+    taskHTML: '<b>象棋单循环赛：每两人之间最多只赛一盘。</b>徽章下方的数字表示这位小伙伴"还要再赛的盘数"，' +
+      '<b>问号徽章</b>的小伙伴就是要求的答案。点选两位小伙伴 = 为他们安排一盘（连一条线）；' +
+      '点一下已连的线 = 撤销这一盘。<b>把已知小伙伴的盘数恰好用完，问号小伙伴连出的线数，就是答案！</b>' +
+      '<br>小提示：每安排一盘，两位小伙伴的盘数会同时减 1。',
+    deg: function(i){
+      let c = 0;
+      st.edges.forEach(function(e){ if(e[0] === i || e[1] === i){ c++; } });
+      return c;
+    },
+    hasEdge: function(a, b){
+      return st.edges.some(function(e){
+        return (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a);
+      });
+    },
+    quotaLeft: function(i){
+      const p = pz.players[i];
+      if(p.isTarget){ return 99; } // 问号小伙伴没有上限，答案由已知盘数"推"出来
+      return p.need - st.deg(i);
+    },
+    mount: function(area){
+      const counter = el('div', 'counter-bar');
+      const wrap = el('div', 'board-wrap');
+      area.appendChild(counter);
+      area.appendChild(wrap);
+      st.board = circleBoard(wrap, {
+        teams: pz.players.map(function(p){ return p.name; }),
+        removable: true,
+        onNode: function(i){ st.onNode(i); },
+        onEdge: function(a, b){ st.onEdge(a, b); }
+      });
+      st.redraw = function(){
+        counter.innerHTML = '已安排 <b>' + st.edges.length + '</b> 盘剩余对局（点连线可撤销）';
+        st.board.render({
+          edges: st.edges,
+          sel: st.sel,
+          pill: function(i){
+            const p = pz.players[i];
+            if(p.isTarget){
+              const k = st.deg(i);
+              if(st.done){ return { text:'答案' + k + '盘', cls:'pill-myst' }; }
+              return k === 0 ? { text:'？盘', cls:'pill-myst' } : { text:'已连' + k + '盘', cls:'pill-myst' };
+            }
+            const q = st.quotaLeft(i);
+            if(q === 0){ return { text:'完成★', cls:'pill-ok' }; }
+            return { text:'还要' + q + '盘', cls:'pill-todo' };
+          },
+          dim: function(){ return false; }
+        });
+      };
+      st.redraw();
+    },
+    onNode: function(i){
+      if(st.done){ return; }
+      if(st.sel === -1){ st.sel = i; st.redraw(); return; }
+      if(st.sel === i){ st.sel = -1; st.redraw(); return; }
+      const a = st.sel, b = i;
+      st.sel = -1;
+      if(st.hasEdge(a, b)){
+        toast('他俩已经赛过一盘啦！每两人最多赛一盘');
+      }else if(st.quotaLeft(a) <= 0){
+        toast(pz.players[a].name + ' 的盘数已经满了哦');
+      }else if(st.quotaLeft(b) <= 0){
+        toast(pz.players[b].name + ' 的盘数已经满了哦');
+      }else{
+        st.edges.push([a, b]);
+        bump();
+      }
+      st.redraw();
+      st.checkState();
+    },
+    onEdge: function(a, b){
+      if(st.done){ return; }
+      st.edges = st.edges.filter(function(e){
+        return !((e[0] === a && e[1] === b) || (e[0] === b && e[1] === a));
+      });
+      bump();
+      st.redraw();
+      toast('已撤销 ' + pz.players[a].name + ' 与 ' + pz.players[b].name + ' 的这一盘');
+    },
+    checkState: function(){
+      // 已知小伙伴的配额是否全部用完
+      let allZero = true;
+      for(let i = 0; i < P; i++){
+        if(!pz.players[i].isTarget && st.quotaLeft(i) !== 0){ allZero = false; break; }
+      }
+      if(allZero && st.edges.length > 0){
+        st.done = true;
+        const ans = st.deg(targetIdx);
+        st.redraw();
+        stageClear('答案揭晓！', methodC(pz, ans, targetIdx));
+        return;
+      }
+      // 卡住检测：还有配额但没有任何可连的一对
+      if(!allZero && !st.anyLegalMove()){
+        toast('暂时连不下去啦——点已连的线撤销几盘，换个安排试试！');
+      }
+    },
+    anyLegalMove: function(){
+      for(let a = 0; a < P; a++){
+        for(let b = a + 1; b < P; b++){
+          if(st.hasEdge(a, b)){ continue; }
+          if(st.quotaLeft(a) > 0 && st.quotaLeft(b) > 0){ return true; }
+        }
+      }
+      return false;
+    },
+    reveal: function(){
+      return {
+        title: '揭示答案 · 盘数推理',
+        html: methodC(pz, pz.answer, targetIdx)
+      };
+    }
+  };
+  return st;
+}
+function methodC(pz, ans, targetIdx){
+  const tn = pz.players[targetIdx].name;
+  const refText = pz.refEdges.map(function(e){ return e[0] + '—' + e[1]; }).join('、');
+  return '<div class="mcard"><p><b>答案：问号小伙伴（' + tn + '）还要赛 <b class="big">' + ans + ' 盘</b>。</b></p></div>' +
+    '<div class="mcard"><p><b>核心方法：每安排一盘，两位对手的盘数同时减 1。</b></p>' +
+    '<p>所以所有人的盘数之和 = 2 × 比赛盘数，一定是<b>偶数</b>！</p>' +
+    '<p>本局已知盘数之和 = ' + pz.knownSum + '，加上问号小伙伴的 ' + ans + ' 盘，共 ' + (pz.knownSum + ans) +
+    ' = 2×' + ((pz.knownSum + ans) / 2) + '，恰好能两两配对成盘。</p>' +
+    '<p>再看盘数最多的小伙伴：他要和足够多的不同对手连线，一步步就能把整张连线图"挤"出来。</p></div>' +
+    '<div class="mcard"><p><b>参考连线方案</b>（满足所有已知盘数）：<br>' + refText + '</p></div>';
+}
+
+/* =====================================================================
+   关卡 D：积分台 · 平衡调度（构造赛果满足条件，实时积分守恒）
+   ===================================================================== */
+const D_MATCHES = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]; // 六场对阵
+const D_POOL = [
+  { id:'totalExact', build:function(ts){
+      const t = randInt(13, 17);
+      return { text:'四队积分总和恰好是 ' + t + ' 分', ok:function(c){ return c.total === t; } };
+    } },
+  { id:'drawExact', build:function(ts){
+      const k = randInt(1, 4);
+      return { text:'恰好安排 ' + k + ' 场平局', ok:function(c){ return c.draws === k; } };
+    } },
+  { id:'allDiff', build:function(ts){
+      return { text:'四支队伍的积分互不相同', ok:function(c){ return countDistinct(c.pts) === 4; } };
+    } },
+  { id:'sweep', build:function(ts){
+      const i = randInt(0, 3);
+      return { text:ts[i] + ' 三场比赛全部获胜', ok:function(c){ return c.win[i] === 3; } };
+    } },
+  { id:'unbeaten', build:function(ts){
+      const i = randInt(0, 3);
+      return { text:ts[i] + ' 一场都没有输', ok:function(c){ return c.lose[i] === 0; } };
+    } },
+  { id:'noWinScore', build:function(ts){
+      const i = randInt(0, 3);
+      return { text:ts[i] + ' 没有胜场，但积分大于 0', ok:function(c){ return c.win[i] === 0 && c.pts[i] > 0; } };
+    } },
+  { id:'top9', build:function(ts){
+      return { text:'积分最高的队伍恰好得 9 分', ok:function(c){ return Math.max(c.pts[0], c.pts[1], c.pts[2], c.pts[3]) === 9; } };
+    } },
+  { id:'totalMost', build:function(ts){
+      const t = randInt(14, 17);
+      return { text:'四队积分总和不超过 ' + t + ' 分', ok:function(c){ return c.total <= t; } };
+    } }
+];
+// 根据当前赛果计算积分表（outcome: -1未安排 1左胜 0平局 2右胜）
+function dCalc(teams, outcomes){
+  const pts = [0,0,0,0], win = [0,0,0,0], draw = [0,0,0,0], lose = [0,0,0,0];
+  let draws = 0, arranged = 0;
+  D_MATCHES.forEach(function(pr, k){
+    const o = outcomes[k];
+    const a = pr[0], b = pr[1];
+    if(o === 1){ pts[a] += 3; win[a]++; lose[b]++; arranged++; }
+    else if(o === 2){ pts[b] += 3; win[b]++; lose[a]++; arranged++; }
+    else if(o === 0){ pts[a]++; pts[b]++; draw[a]++; draw[b]++; draws++; arranged++; }
+  });
+  const total = pts[0] + pts[1] + pts[2] + pts[3];
+  return { pts:pts, win:win, draw:draw, lose:lose, draws:draws, total:total, arranged:arranged };
+}
+function makeStageD(kc){
+  const teams = shuffle(TEAM_POOL).slice(0, 4);
+  // 抽取条件并穷举验证（3^6=729 种赛果），确保有足够多的可行解
+  let constraints = null, solution = null;
+  for(let attempt = 0; attempt < 300; attempt++){
+    const picks = shuffle(D_POOL).slice(0, kc).map(function(d){ return d.build(teams); });
+    const sols = [];
+    for(let code = 0; code < 729; code++){
+      const outcomes = [];
+      let c = code;
+      for(let k = 0; k < 6; k++){ outcomes.push(c % 3 === 0 ? 0 : (c % 3 === 1 ? 1 : 2)); c = Math.floor(c / 3); }
+      const calc = dCalc(teams, outcomes);
+      let okAll = true;
+      picks.forEach(function(p){ if(!p.ok(calc)){ okAll = false; } });
+      if(okAll){ sols.push(outcomes); }
+    }
+    if(sols.length >= (kc === 1 ? 4 : 2)){
+      constraints = picks;
+      solution = pick(sols);
+      break;
+    }
+  }
+  if(!constraints){
+    // 兜底：使用一组一定可行的条件（4 场平局 + 2 场分胜负 = 总分 14 分）
+    constraints = [
+      { text:'四队积分总和恰好是 14 分', ok:function(c){ return c.total === 14; } },
+      { text:'恰好安排 4 场平局', ok:function(c){ return c.draws === 4; } }
+    ].slice(0, kc);
+    // 六场依次为：平局、0队胜、平局、2队胜、平局、平局 → 恰好 4 平 2 胜负，总分 4×2+2×3=14
+    solution = [0, 1, 0, 2, 0, 0];
+  }
+  const st = {
+    title: '积分台 · 平衡调度',
+    done: false,
+    outcomes: [-1,-1,-1,-1,-1,-1],
+    taskHTML: '<b>四队单循环赛（共 6 场）</b>：' + teams.join('、') + '。计分规则：<b>胜一场得 3 分，平局两队各得 1 分，负一场得 0 分</b>。' +
+      '点击每张比赛卡片安排结果（可反复调整：未安排 → 左队胜 → 平局 → 右队胜）。' +
+      '<b>让积分表同时满足全部 ' + kc + ' 个挑战条件！</b><br>小提示：每场分出胜负产生 3 分、平局只产生 2 分 —— 总分里藏着一个守恒规律！',
+    mount: function(area){
+      const wrap = el('div', 'd-wrap');
+      const left = el('div', 'd-left');
+      const right = el('div', 'd-right');
+      wrap.appendChild(left); wrap.appendChild(right);
+      area.appendChild(wrap);
+
+      const chipGrid = el('div', 'chip-grid');
+      left.appendChild(chipGrid);
+      const totalBar = el('div', 'd-totalbar');
+      left.appendChild(totalBar);
+
+      const tbl = el('table', 'score-table');
+      right.appendChild(tbl);
+      const condCard = el('div', 'cond-card');
+      condCard.appendChild(el('h4', '', '挑战条件（全部变绿即过关）'));
+      right.appendChild(condCard);
+
+      st.redraw = function(){
+        // 比赛卡片
+        chipGrid.innerHTML = '';
+        D_MATCHES.forEach(function(pr, k){
+          const a = pr[0], b = pr[1];
+          const chip = el('div', 'mchip');
+          chip.appendChild(el('div', 'mtitle', teams[a] + ' 对 ' + teams[b]));
+          const o = st.outcomes[k];
+          let res = '点击安排', cls = 'none';
+          if(o === 1){ res = teams[a] + ' 胜 · 本场共 3 分'; cls = 'win'; }
+          else if(o === 0){ res = '平局 · 本场共 2 分'; cls = 'draw'; }
+          else if(o === 2){ res = teams[b] + ' 胜 · 本场共 3 分'; cls = 'win'; }
+          const resEl = el('div', 'mres ' + cls, res);
+          chip.appendChild(resEl);
+          chip.onclick = function(){ st.cycle(k); };
+          chipGrid.appendChild(chip);
+        });
+
+        const c = dCalc(teams, st.outcomes);
+        totalBar.innerHTML = '已安排 <b>' + c.arranged + '/6</b> 场 · 当前总分 <b>' + c.total +
+          '</b> 分 · 平局 <b>' + c.draws + '</b> 场（若 6 场全分胜负，总分应为 18 分）';
+
+        // 积分表
+        let html = '<tr><th>队伍</th><th>胜</th><th>平</th><th>负</th><th>积分</th></tr>';
+        for(let i = 0; i < 4; i++){
+          html += '<tr><td>' + teams[i] + '</td><td>' + c.win[i] + '</td><td>' + c.draw[i] + '</td><td>' +
+            c.lose[i] + '</td><td class="pts">' + c.pts[i] + '</td></tr>';
+        }
+        tbl.innerHTML = html;
+
+        // 条件状态
+        condCard.querySelectorAll('.cond').forEach(function(node){ node.remove(); });
+        constraints.forEach(function(p){
+          const ok = p.ok(c);
+          const row = el('div', 'cond' + (ok ? ' ok' : ''));
+          row.appendChild(el('span', 'cd'));
+          row.appendChild(el('span', '', p.text));
+          condCard.appendChild(row);
+        });
+      };
+      st.redraw();
+    },
+    cycle: function(k){
+      if(st.done){ return; }
+      const o = st.outcomes[k];
+      // 循环：未安排(-1) → 左胜(1) → 平局(0) → 右胜(2) → 未安排
+      st.outcomes[k] = (o === -1) ? 1 : (o === 1 ? 0 : (o === 0 ? 2 : -1));
+      bump();
+      st.redraw();
+      // 过关检测：六场全安排且条件全满足
+      const c = dCalc(teams, st.outcomes);
+      let allOk = true;
+      constraints.forEach(function(p){ if(!p.ok(c)){ allOk = false; } });
+      if(c.arranged === 6 && allOk){
+        st.done = true;
+        stageClear('条件全部达成！', methodD(teams, constraints, c, solution));
+      }else if(c.arranged === 6){
+        toast('六场都安排好了，但还有条件没达成——点卡片可以改结果哦');
+      }
+    },
+    reveal: function(){
+      return {
+        title: '揭示答案 · 积分调度',
+        html: methodD(teams, constraints, dCalc(teams, st.outcomes), solution)
+      };
+    }
+  };
+  return st;
+}
+function methodD(teams, constraints, curCalc, solution){
+  // 用穷举出的参考解展示一种可行方案
+  const names = D_MATCHES.map(function(pr, k){
+    const a = pr[0], b = pr[1], o = solution[k];
+    const label = teams[a] + ' 对 ' + teams[b] + '：';
+    if(o === 1){ return label + teams[a] + ' 胜'; }
+    if(o === 0){ return label + '平局'; }
+    return label + teams[b] + ' 胜';
+  });
+  const sc = dCalc(teams, solution);
+  const boardText = teams.map(function(nm, i){
+    return nm + ' ' + sc.pts[i] + ' 分（' + sc.win[i] + '胜' + sc.draw[i] + '平' + sc.lose[i] + '负）';
+  }).join('；');
+  const checkText = constraints.map(function(p){
+    return (p.ok(sc) ? '√ ' : '× ') + p.text;
+  }).join('<br>');
+  return '<div class="mcard"><p><b>守恒规律：总分 = 3×分出胜负的场数 + 2×平局数 = 18 − 平局数。</b></p>' +
+    '<p>所以：想要低总分就多安排平局；想要高分差就多分胜负。</p></div>' +
+    '<div class="mcard"><p><b>一种可行的安排：</b><br>' + names.join('<br>') + '</p>' +
+    '<p>此时积分：' + boardText + '，总分 ' + sc.total + ' 分。</p></div>' +
+    '<div class="mcard"><p><b>条件核验：</b><br>' + checkText + '</p></div>';
+}
+
+/* =====================================================================
+   关卡 E：迷你世界杯 · 综合挑战（两组循环赛 + 8 强淘汰赛）
+   ===================================================================== */
+function makeStageE(){
+  const teams = shuffle(TEAM_POOL).slice(0, 8);
+  const groupA = teams.slice(0, 4);
+  const groupB = teams.slice(4, 8);
+  const tagMap = {};
+  groupA.forEach(function(nm){ tagMap[nm] = '一组'; });
+  groupB.forEach(function(nm){ tagMap[nm] = '二组'; });
+  const st = {
+    title: '迷你世界杯 · 综合挑战',
+    done: false,
+    phase: 1,
+    koStage: null,
+    gEdges: [[], []],
+    taskHTML: '<b>迷你世界杯来了！8 支队伍分成两组，先打小组赛，再打淘汰赛。</b><br>' +
+      '<b>第一阶段 · 小组赛：</b>每组 4 支队伍单循环（组内每两队赛一场）。请分别为两个小组安排满全部小组赛！<br>' +
+      '<b>第二阶段 · 淘汰赛：</b>小组赛安排完毕后，8 支队伍全部晋级淘汰赛：8 进 4、4 进 2、决赛，直到冠军诞生。<br>' +
+      '想一想：从小组赛到决赛，全程一共要安排多少场比赛？',
+    mount: function(area){
+      st.area = area;
+      if(st.phase === 2 && st.koStage){
+        st.remountPhase2();
+      }else{
+        st.renderPhase1();
+      }
+    },
+    renderPhase1: function(){
+      const area = st.area;
+      area.innerHTML = '';
+      const note = el('div', 'phase-note', '第一阶段 · 小组赛：把两个小组的连线都连满（每组 6 场）');
+      area.appendChild(note);
+      const groups = el('div', 'groups');
+      area.appendChild(groups);
+      const boards = [];
+      const counters = [];
+      [groupA, groupB].forEach(function(gp, gi){
+        const box = el('div', 'group-box');
+        box.appendChild(el('h4', '', (gi === 0 ? '第一组' : '第二组') + ' · 小组循环赛'));
+        const cnt = el('div', 'counter-bar');
+        const wrap = el('div', 'board-wrap');
+        const doneTag = el('div', 'group-done', '');
+        box.appendChild(cnt);
+        box.appendChild(wrap);
+        box.appendChild(doneTag);
+        groups.appendChild(box);
+        counters.push({ cnt:cnt, doneTag:doneTag });
+        boards.push(circleBoard(wrap, {
+          teams: gp,
+          removable: false,
+          onNode: function(i){ st.phase1Node(gi, i); },
+          onEdge: function(){ /* 小组赛连线不需要撤销 */ }
+        }));
+      });
+      const centerRow = el('div', 'center-row');
+      area.appendChild(centerRow);
+      st.p1 = { boards:boards, counters:counters, centerRow:centerRow };
+      st.redrawP1 = function(){
+        let allDone = true;
+        [0, 1].forEach(function(gi){
+          const need = 6;
+          const got = st.gEdges[gi].length;
+          counters[gi].cnt.innerHTML = '本组已安排 <b>' + got + '</b> 场（单循环共 ' + need + ' 场）';
+          counters[gi].doneTag.textContent = got === need ? '本组赛程已满 ★' : '';
+          if(got !== need){ allDone = false; }
+          boards[gi].render({
+            edges: st.gEdges[gi],
+            sel: st.p1Sel && st.p1Sel.gi === gi ? st.p1Sel.i : -1,
+            pill: function(i){
+              let k = 0;
+              st.gEdges[gi].forEach(function(e){ if(e[0] === i || e[1] === i){ k++; } });
+              return k === 3 ? { text:'赛满★', cls:'pill-ok' } : { text:'已赛' + k + '场', cls:'pill-todo' };
+            },
+            dim: function(){ return false; }
+          });
+        });
+        const total = st.gEdges[0].length + st.gEdges[1].length;
+        centerRow.innerHTML = '';
+        if(allDone && !st.done && st.phase === 1){
+          const btn = el('button', 'btn primary', '小组赛全部安排完毕（共 12 场）→ 进入淘汰赛');
+          btn.onclick = function(){ st.enterPhase2(); };
+          centerRow.appendChild(btn);
+        }else{
+          centerRow.appendChild(el('div', 'counter-bar', '两个小组合计已安排 <b>' + total + '</b> 场'));
+        }
+      };
+      st.p1Sel = null;
+      st.redrawP1();
+    },
+    phase1Node: function(gi, i){
+      if(st.phase !== 1 || st.done){ return; }
+      if(!st.p1Sel){ st.p1Sel = { gi:gi, i:i }; st.redrawP1(); return; }
+      if(st.p1Sel.gi === gi && st.p1Sel.i === i){ st.p1Sel = null; st.redrawP1(); return; }
+      if(st.p1Sel.gi !== gi){
+        toast('小组赛只和同组的对手比赛哦！请点同一组的另一支队伍');
+        st.p1Sel = { gi:gi, i:i };
+        st.redrawP1();
+        return;
+      }
+      const a = st.p1Sel.i, b = i;
+      st.p1Sel = null;
+      const exists = st.gEdges[gi].some(function(e){
+        return (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a);
+      });
+      if(exists){
+        toast('这两队已经赛过啦！单循环每组内每两队只赛一场');
+      }else{
+        st.gEdges[gi].push([a, b]);
+        bump();
+      }
+      st.redrawP1();
+    },
+    enterPhase2: function(){
+      st.phase = 2;
+      st.koStage = makeStageB(8, {
+        teams: teams,
+        tagMap: tagMap,
+        title: '迷你世界杯 · 淘汰赛',
+        taskPrefix: '',
+        onFinish: function(cnt){
+          st.done = true;
+          stageClear('世界杯冠军诞生！', methodE(cnt));
+        }
+      });
+      st.remountPhase2();
+    },
+    remountPhase2: function(){
+      // 渲染淘汰赛阶段（窗口尺寸变化时也可安全重挂，进度不丢失）
+      st.area.innerHTML = '';
+      const note = el('div', 'phase-note', '第二阶段 · 淘汰赛：8 进 4（4 场）→ 4 进 2（2 场）→ 决赛（1 场），冠军诞生！');
+      st.area.appendChild(note);
+      const holder = el('div');
+      st.area.appendChild(holder);
+      st.koStage.mount(holder);
+    },
+    reveal: function(){
+      if(st.phase === 1){
+        return {
+          title: '揭示答案 · 迷你世界杯',
+          html: methodE(19) + '<p>小提示：先把两个小组各 6 场连满，再进入淘汰赛哦。</p>'
+        };
+      }
+      return { title:'揭示答案 · 迷你世界杯', html: methodE(19) };
+    }
+  };
+  return st;
+}
+function methodE(koCnt){
+  const total = 12 + 7;
+  return '<div class="mcard"><p><b>小组赛：</b>每组 4 队单循环 = 3+2+1 = 6 场，两组共 <b>6×2 = 12 场</b>。</p>' +
+    '<p><b>淘汰赛：</b>8 进 4 要 4 场、4 进 2 要 2 场、决赛 1 场，共 <b>4+2+1 = 7 场</b>。</p>' +
+    '<p><b>全程：12 + 7 = ' + total + ' 场！</b></p></div>' +
+    '<div class="mcard"><p>真正的世界杯有 32 支队伍：8 个小组循环赛 6×8=48 场，淘汰赛（16进8、8进4、半决赛、决赛、季军赛）共 16 场，' +
+    '48+16=<b>64 场</b> —— 和这里的迷你世界杯道理完全一样！</p></div>';
+}
+
+/* =====================================================================
+   难度定义与主流程
+   ===================================================================== */
+const DIFF_DEFS = {
+  easy: {
+    name: '初级 · 热身球场',
+    factories: [
+      function(){ return makeStageA(4); },
+      function(){ return makeStageC('easy'); },
+      function(){ return makeStageB(4); }
+    ]
+  },
+  medium: {
+    name: '中级 · 进阶联赛',
+    factories: [
+      function(){ return makeStageA(6); },
+      function(){ return makeStageD(1); },
+      function(){ return makeStageC('medium'); },
+      function(){ return makeStageB(8); }
+    ]
+  },
+  hard: {
+    name: '高级 · 冠军之旅',
+    factories: [
+      function(){ return makeStageC('hard'); },
+      function(){ return makeStageD(2); },
+      function(){ return makeStageE(); }
+    ]
+  }
+};
+
+const RUN = { diff:null, stages:[], idx:0, steps:0, startAt:0, timerId:null };
+let rulesShown = false;
+
+function bump(){
+  RUN.steps++;
+  $('hud-steps').textContent = RUN.steps;
+}
+function startTimer(){
+  RUN.startAt = Date.now();
+  if(RUN.timerId){ clearInterval(RUN.timerId); }
+  RUN.timerId = setInterval(function(){
+    $('hud-time').textContent = fmtTime(Math.floor((Date.now() - RUN.startAt) / 1000));
+  }, 1000);
+}
+function stopTimer(){
+  if(RUN.timerId){ clearInterval(RUN.timerId); RUN.timerId = null; }
+}
+function showScreen(name){
+  ['home', 'game', 'final'].forEach(function(s){
+    $('screen-' + s).style.display = (s === name) ? '' : 'none';
+  });
+}
+function startRun(diff){
+  RUN.diff = diff;
+  RUN.idx = 0;
+  RUN.steps = 0;
+  $('hud-steps').textContent = '0';
+  $('hud-time').textContent = '00:00';
+  applyRandomPalette();
+  RUN.stages = DIFF_DEFS[diff].factories.map(function(f){ return f(); });
+  showScreen('game');
+  startTimer();
+  renderStage();
+  toast(DIFF_DEFS[diff].name + ' 开始！共 ' + RUN.stages.length + ' 关，加油！');
+}
+function renderStage(){
+  const stage = RUN.stages[RUN.idx];
+  $('stage-progress').textContent = '第 ' + (RUN.idx + 1) + ' / ' + RUN.stages.length + ' 关 · ' + stage.title;
+  const dots = $('stage-dots');
+  dots.innerHTML = '';
+  RUN.stages.forEach(function(s, i){
+    const d = el('span', 'dot' + (i < RUN.idx ? ' done' : (i === RUN.idx ? ' now' : '')));
+    dots.appendChild(d);
+  });
+  $('stage-task').innerHTML = stage.taskHTML;
+  const area = $('stage-area');
+  area.innerHTML = '';
+  stage.mount(area);
+}
+function stageClear(headline, methodHTML){
+  confetti(130);
+  const isLast = RUN.idx === RUN.stages.length - 1;
+  setTimeout(function(){
+    showModal(
+      '关卡完成！',
+      '<div class="cheer-title">' + headline + '</div><div class="mcard">' + methodHTML + '</div>',
+      [{ label: isLast ? '查看总成绩' : '下一关', cls:'primary', onClick: isLast ? goFinal : nextStage }],
+      true
+    );
+  }, 350);
+}
+function nextStage(){
+  RUN.idx++;
+  renderStage();
+}
+function goFinal(){
+  stopTimer();
+  const used = fmtTime(Math.floor((Date.now() - RUN.startAt) / 1000));
+  $('final-stats').innerHTML =
+    '难度：<b>' + DIFF_DEFS[RUN.diff].name + '</b><br>' +
+    '通关关卡数：<b>' + RUN.stages.length + ' 关</b><br>' +
+    '总用时：<b>' + used + '</b><br>' +
+    '总操作步数：<b>' + RUN.steps + '</b> 步';
+  showScreen('final');
+  confetti(160);
+  setTimeout(function(){ confetti(120); }, 800);
+  setTimeout(function(){ confetti(120); }, 1600);
+}
+function showRules(){
+  const html =
+    '<h4>你是谁？</h4><p>你是<b>小小赛事调度官</b>，负责为动物运动队安排足球赛、象棋赛，并在安排中自己发现体育比赛的数学规律！</p>' +
+    '<h4>四大玩法</h4>' +
+    '<div class="mcard"><p><b>循环赛 · 赛程大安排：</b>点两支队伍就连一场比赛。单循环 = 每两队恰赛一场，把连线连满即过关，顺便发现总场次公式。</p>' +
+    '<p><b>淘汰赛 · 冠军之路：</b>点两支队伍安排对决，再点选胜者；负者前往观众席。冠军诞生时你会发现：场数 = 队数 − 1。</p>' +
+    '<p><b>小侦探 · 盘数连线：</b>徽章上是"还要再赛的盘数"，问号徽章是答案。连线安排对局（点线撤销），把已知盘数恰好用完，答案自动揭晓！</p>' +
+    '<p><b>积分台 · 平衡调度：</b>点比赛卡片安排胜平负，积分表实时刷新。让积分表同时满足所有条件，体会"每场总分守恒"。</p></div>' +
+    '<h4>老师锦囊（本讲四大方法）</h4>' +
+    '<div class="mcard"><p>1. 单循环赛场次 = 1+2+…+(n−1) = n×(n−1)÷2（握手问题）</p>' +
+    '<p>2. 淘汰赛决出冠军 = n−1 场（每场恰好告别一队）</p>' +
+    '<p>3. 比赛盘数推理：画点连线图，盘数之和一定是偶数（= 2×盘数）</p>' +
+    '<p>4. 积分守恒：胜3平1负0制中，总分 = 18 − 平局数（4队单循环）</p></div>' +
+    '<h4>小提示</h4><p>每局的主题色、队名、谜题都会重新随机；右上角显示用时和步数；卡住了可以点"揭示答案"看方法，或"重新开始本关"换一局新数据！</p>';
+  showModal('规则说明', html, [{ label:'开始挑战', cls:'primary' }]);
+  rulesShown = true;
+}
+
+/* ================= 事件绑定与启动 ================= */
+function init(){
+  fxInit();
+  applyRandomPalette();
+  $('diff-easy').onclick = function(){ startRun('easy'); };
+  $('diff-medium').onclick = function(){ startRun('medium'); };
+  $('diff-hard').onclick = function(){ startRun('hard'); };
+  $('btn-rules').onclick = showRules;
+  $('btn-rules-home').onclick = showRules;
+  $('btn-home').onclick = function(){
+    stopTimer();
+    showScreen('home');
+  };
+  $('btn-home2').onclick = function(){
+    showScreen('home');
+  };
+  $('btn-again').onclick = function(){ startRun(RUN.diff); };
+  $('btn-reveal').onclick = function(){
+    const stage = RUN.stages[RUN.idx];
+    if(!stage){ return; }
+    const info = stage.reveal();
+    showModal(info.title, info.html, [{ label: stage.done ? '知道啦' : '继续挑战', cls:'primary' }]);
+  };
+  $('btn-restart').onclick = function(){
+    RUN.stages[RUN.idx] = DIFF_DEFS[RUN.diff].factories[RUN.idx]();
+    renderStage();
+    toast('本关已重新开局，题目数据已重新随机！');
+  };
+  window.addEventListener('resize', function(){
+    if($('screen-game').style.display !== 'none' && RUN.stages[RUN.idx]){
+      renderStage();
+    }
+  });
+  // 首次进入自动弹出规则说明
+  if(!rulesShown){ showRules(); }
+}
+init();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-w/g001", "name": "\u5c0f\u5c0f\u8d5b\u4e8b\u8c03\u5ea6\u5b98 \u00b7 \u4f53\u80b2\u6bd4\u8d5b\u4e2d\u7684\u6570\u5b66", "file": "g001.html", "jiaocan": "\u7b2c15\u8bb2 \u4f53\u80b2\u6bd4\u8d5b\u4e2d\u7684\u6570\u5b66", "unit": "\u7b2c15\u8bb2", "grade": "4\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "W\uff1a\u5965\u6570\u5927\u767d\u672c", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5965\u6570\u5927\u767d\u672c\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-w"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>数据小画家·统计彩虹乐园</title>
+<style>
+/* ============ 全局主题变量（每局随机换色） ============ */
+:root{
+  --primary:#1976d2; --primary-dark:#0d47a1; --primary-light:#e3f2fd;
+  --accent:#ff9800; --bg:#f4faff; --card:#ffffff;
+  --text:#263238; --sub:#546e7a; --border:#cfd8dc;
+  --ok:#2e7d32; --ok-bg:#e8f5e9; --err:#c62828; --err-bg:#ffebee;
+}
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ width:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",system-ui,sans-serif;
+  background:var(--bg); color:var(--text); font-size:18px; line-height:1.6;
+  min-height:100vh; overflow-x:hidden;
+}
+#app{ max-width:980px; margin:0 auto; padding:14px 12px 40px; }
+
+/* ============ 通用卡片与按钮 ============ */
+.panel{ background:var(--card); border:3px solid var(--primary); border-radius:18px;
+  box-shadow:0 6px 18px rgba(25,118,210,.15); padding:18px 20px; margin-bottom:16px; }
+.btn{
+  display:inline-block; border:none; cursor:pointer; font-family:inherit;
+  font-size:19px; font-weight:bold; padding:12px 26px; border-radius:14px;
+  background:var(--primary); color:#fff; box-shadow:0 4px 0 var(--primary-dark);
+  transition:transform .1s, box-shadow .1s; user-select:none;
+}
+.btn:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--primary-dark); }
+.btn.ghost{ background:#fff; color:var(--primary-dark); box-shadow:0 4px 0 var(--border); border:2px solid var(--primary); }
+.btn.accent{ background:var(--accent); box-shadow:0 4px 0 #e65100; }
+.btn.small{ font-size:17px; padding:9px 18px; border-radius:12px; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+/* ============ 难度选择页 ============ */
+#page-menu{ text-align:center; }
+.menu-title{ font-size:40px; font-weight:900; color:var(--primary-dark); margin:22px 0 6px; letter-spacing:2px; }
+.menu-sub{ font-size:20px; color:var(--sub); margin-bottom:26px; }
+.menu-cards{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; }
+.menu-card{
+  flex:1 1 240px; max-width:290px; background:var(--card); border:4px solid var(--primary);
+  border-radius:20px; padding:26px 18px; cursor:pointer; transition:transform .15s, box-shadow .15s;
+}
+.menu-card:hover{ transform:translateY(-6px); box-shadow:0 12px 24px rgba(25,118,210,.25); }
+.menu-card .lv{ font-size:26px; font-weight:900; color:var(--primary-dark); }
+.menu-card .icon{ font-size:46px; margin:10px 0 6px; font-weight:900; color:var(--accent); }
+.menu-card .desc{ font-size:17px; color:var(--sub); }
+.menu-tip{ margin-top:26px; font-size:17px; color:var(--sub); }
+
+/* ============ 游戏页头部 ============ */
+#game-header{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; }
+#game-header .lvname{ font-size:26px; font-weight:900; color:var(--primary-dark); }
+#game-header .gamename{ font-size:16px; color:var(--sub); }
+#hud{ margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+.hud-box{ background:var(--primary-light); border:2px solid var(--primary); border-radius:12px;
+  padding:6px 14px; font-size:19px; font-weight:bold; color:var(--primary-dark); }
+.task-dots{ display:flex; gap:10px; align-items:center; margin:10px 2px; flex-wrap:wrap; }
+.task-dots .dot{ width:16px; height:16px; border-radius:50%; background:#d7dde2; border:2px solid #9aa7b0; transition:all .3s; }
+.task-dots .dot.now{ background:var(--accent); border-color:#b26a00; transform:scale(1.25); }
+.task-dots .dot.done{ background:var(--ok); border-color:var(--ok); }
+.task-dots .tname{ font-size:16px; color:var(--sub); }
+
+/* ============ 任务区 ============ */
+#task-brief .t-title{ font-size:23px; font-weight:900; color:var(--primary-dark); margin-bottom:8px; }
+#task-brief .t-desc{ font-size:18px; }
+#task-brief .t-cond{ margin-top:10px; background:var(--primary-light); border-left:6px solid var(--primary);
+  border-radius:8px; padding:10px 14px; font-size:17px; }
+#stage{ min-height:340px; }
+.stage-hint{ font-size:19px; font-weight:bold; color:var(--accent); margin:6px 0 10px; }
+
+/* 任务完成横幅 */
+.done-banner{ margin-top:14px; padding:14px 18px; border-radius:14px; background:var(--ok-bg);
+  border:3px solid var(--ok); color:var(--ok); font-size:21px; font-weight:900; text-align:center;
+  animation:pop .4s; }
+@keyframes pop{ 0%{transform:scale(.6);opacity:0;} 70%{transform:scale(1.08);} 100%{transform:scale(1);opacity:1;} }
+
+/* ============ 数“正”字环节 ============ */
+.zheng-row{ display:flex; align-items:center; gap:14px; background:#fafdff; border:2px solid var(--border);
+  border-radius:14px; padding:10px 14px; margin-bottom:12px; flex-wrap:wrap; }
+.zheng-name{ font-size:21px; font-weight:900; min-width:96px; color:var(--primary-dark); }
+.zheng-chars{ display:flex; gap:6px; flex-wrap:wrap; }
+.zchar{ width:46px; height:46px; background:#fff; border:2px solid var(--border); border-radius:8px; cursor:pointer; }
+.zchar polyline{ fill:none; stroke:#90a4ae; stroke-width:9; stroke-linecap:round; transition:stroke .15s; }
+.zchar.lit polyline{ stroke:var(--accent); }
+.zheng-badge{ margin-left:auto; font-size:18px; font-weight:bold; color:var(--sub);
+  background:#fff; border:2px dashed var(--border); border-radius:10px; padding:6px 12px; }
+.zheng-badge.ok{ color:var(--ok); border:2px solid var(--ok); background:var(--ok-bg); }
+
+/* ============ 统计表填数环节 ============ */
+table.stat-table{ border-collapse:collapse; margin:6px auto 18px; background:#fff; }
+.stat-table th,.stat-table td{ border:3px solid var(--primary-dark); padding:12px 14px; font-size:20px;
+  text-align:center; min-width:96px; height:58px; }
+.stat-table th{ background:var(--primary-light); font-weight:900; }
+.stat-table td.cell.drop{ background:#fffde7; cursor:pointer; position:relative; }
+.stat-table td.cell.filled{ background:var(--ok-bg); color:var(--ok); font-weight:900; }
+.stat-table td.cell.wrong{ animation:shake .35s; background:var(--err-bg); }
+@keyframes shake{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-6px);} 75%{transform:translateX(6px);} }
+.card-pool{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; min-height:70px;
+  border:3px dashed var(--border); border-radius:14px; padding:12px; }
+.num-card{
+  width:66px; height:56px; display:flex; align-items:center; justify-content:center;
+  font-size:24px; font-weight:900; color:#fff; background:var(--primary); border-radius:12px;
+  cursor:grab; user-select:none; touch-action:none; box-shadow:0 4px 0 var(--primary-dark);
+  transition:transform .1s;
+}
+.num-card:active{ cursor:grabbing; }
+.num-card.dragging{ position:fixed; z-index:9999; pointer-events:none; transform:scale(1.15); }
+.num-card.used{ opacity:0; pointer-events:none; }
+.cell-hint{ font-size:16px; color:var(--accent); font-weight:bold; }
+
+/* ============ 统计图SVG ============ */
+.chart-wrap{ background:#fff; border:2px solid var(--border); border-radius:12px; padding:6px; margin-top:8px; }
+.chart-wrap svg{ width:100%; height:auto; display:block; touch-action:none; }
+.std-row{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin:10px 0; }
+.std-btn{ font-size:19px; font-weight:900; padding:10px 20px; border-radius:12px; cursor:pointer;
+  border:3px solid var(--primary); background:#fff; color:var(--primary-dark); transition:all .15s; }
+.std-btn:hover{ background:var(--primary-light); }
+.std-btn.active{ background:var(--primary); color:#fff; box-shadow:0 3px 0 var(--primary-dark); }
+.bar-handle{ cursor:grab; }
+.bar-handle:active{ cursor:grabbing; }
+.bar-click{ cursor:pointer; }
+.hint-arrow{ animation:bounceY 1s infinite; }
+@keyframes bounceY{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+.toast{
+  position:fixed; left:50%; bottom:34px; transform:translateX(-50%);
+  background:rgba(38,50,56,.94); color:#fff; font-size:18px; font-weight:bold;
+  padding:12px 22px; border-radius:12px; z-index:10000; max-width:86vw; text-align:center;
+  animation:pop .25s;
+}
+
+/* ============ 线索翻卡 ============ */
+.clue-grid{ display:flex; gap:18px; flex-wrap:wrap; justify-content:center; }
+.clue-card{ width:190px; height:150px; perspective:900px; cursor:pointer; }
+.clue-inner{ position:relative; width:100%; height:100%; transform-style:preserve-3d; transition:transform .55s; }
+.clue-card.flipped .clue-inner{ transform:rotateY(180deg); }
+.clue-face{ position:absolute; inset:0; backface-visibility:hidden; border-radius:16px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:10px; text-align:center; }
+.clue-front{ background:var(--primary); color:#fff; border:4px solid var(--primary-dark); }
+.clue-front .big{ font-size:34px; font-weight:900; }
+.clue-front .tip{ font-size:15px; margin-top:8px; opacity:.9; }
+.clue-back{ background:#fffbe6; border:4px solid var(--accent); transform:rotateY(180deg);
+  color:var(--text); font-size:16px; font-weight:bold; line-height:1.5; }
+
+/* ============ 底部按钮条 ============ */
+#footer-bar{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:18px; }
+
+/* ============ 弹窗（规则 / 通关） ============ */
+.modal-mask{ position:fixed; inset:0; background:rgba(38,50,56,.55); z-index:9000;
+  display:flex; align-items:center; justify-content:center; padding:16px; }
+.modal{ background:#fff; border-radius:20px; max-width:640px; width:100%; padding:26px 26px 20px;
+  box-shadow:0 20px 60px rgba(0,0,0,.3); animation:pop .35s; max-height:88vh; overflow:auto; }
+.modal h2{ font-size:27px; color:var(--primary-dark); margin-bottom:14px; text-align:center; }
+.modal .rule-item{ font-size:18px; margin-bottom:10px; padding-left:14px; }
+.modal .rule-item b{ color:var(--accent); }
+.modal .close-row{ text-align:center; margin-top:16px; }
+#win-modal .stars{ text-align:center; font-size:52px; letter-spacing:8px; color:#ffb300;
+  animation:twinkle 1.2s infinite alternate; margin-bottom:6px; }
+@keyframes twinkle{ from{transform:scale(1);opacity:.85;} to{transform:scale(1.12);opacity:1;} }
+.win-time{ text-align:center; font-size:20px; font-weight:bold; color:var(--sub); margin-bottom:14px; }
+
+/* ============ 彩纸庆祝画布 ============ */
+#confetti-canvas{ position:fixed; inset:0; pointer-events:none; z-index:9500; }
+
+/* ============ 响应式 ============ */
+@media (max-width:640px){
+  body{ font-size:16px; }
+  .menu-title{ font-size:30px; }
+  #game-header .lvname{ font-size:21px; }
+  .hud-box{ font-size:16px; padding:4px 10px; }
+  .stat-table th,.stat-table td{ font-size:16px; min-width:64px; padding:8px 6px; height:48px; }
+  .zheng-name{ min-width:78px; font-size:18px; }
+  .zchar{ width:38px; height:38px; }
+  .clue-card{ width:150px; height:140px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= 难度选择页 ================= -->
+  <section id="page-menu">
+    <div class="menu-title">数据小画家 · 统计彩虹乐园</div>
+    <div class="menu-sub">整理数据 → 填写统计表 → 绘制条形统计图，闯过三关，你就是小小统计师！</div>
+    <div class="menu-cards">
+      <div class="menu-card" data-diff="junior">
+        <div class="lv">初级</div>
+        <div class="icon">☆ 星光调查站</div>
+        <div class="desc">数一数“正”字记录，拖动数字卡填统计表，再亲手画出条形统计图</div>
+      </div>
+      <div class="menu-card" data-diff="mid">
+        <div class="lv">中级</div>
+        <div class="icon">☂ 彩虹车库</div>
+        <div class="desc">把横向条形统计图补充完整，找一找最多和最少的车，发现数据里的小秘密</div>
+      </div>
+      <div class="menu-card" data-diff="senior">
+        <div class="lv">高级</div>
+        <div class="icon">❀ 智慧果园</div>
+        <div class="desc">翻开线索卡算一算，选对“每格代表几人”的标准，画出漂亮的直条</div>
+      </div>
+    </div>
+    <div class="menu-tip">提示：本乐园所有图案用鼠标或手指拖一拖、点一点就能玩，画条形统计图时要拖动直条顶端的小圆点哦！</div>
+  </section>
+
+  <!-- ================= 游戏页 ================= -->
+  <section id="page-game" style="display:none;">
+    <div class="panel">
+      <div id="game-header">
+        <div>
+          <div class="lvname" id="lv-name">初级·星光调查站</div>
+          <div class="gamename">数据小画家·统计彩虹乐园</div>
+        </div>
+        <div id="hud">
+          <div class="hud-box" id="hud-timer">时间 00:00</div>
+          <div class="hud-box" id="hud-steps">步数 0</div>
+        </div>
+      </div>
+      <div class="task-dots" id="task-dots"></div>
+    </div>
+
+    <div class="panel" id="task-brief">
+      <div class="t-title" id="tb-title"></div>
+      <div class="t-desc" id="tb-desc"></div>
+      <div class="t-cond" id="tb-cond" style="display:none;"></div>
+    </div>
+
+    <div class="panel">
+      <div id="stage"></div>
+      <div id="task-done-area"></div>
+    </div>
+
+    <div id="footer-bar">
+      <button class="btn ghost small" id="btn-rules">规则说明</button>
+      <button class="btn accent small" id="btn-reveal">揭示答案</button>
+      <button class="btn ghost small" id="btn-restart">重新开始</button>
+      <button class="btn ghost small" id="btn-back">返回难度选择</button>
+    </div>
+  </section>
+</div>
+
+<!-- 彩纸庆祝画布 -->
+<canvas id="confetti-canvas"></canvas>
+
+<script>
+"use strict";
+/* =====================================================================
+   数据小画家·统计彩虹乐园
+   核心玩法：整理数据（数“正”字）→ 填统计表 → 拖动小圆点亲手绘制条形统计图
+   所有交互都是真实的“操作”：点击笔画数数、拖卡片入表、拖手柄画直条、
+   点选直条比多少——操作的过程就是统计学习的过程。
+   ===================================================================== */
+
+/* ---------- 小工具 ---------- */
+function $(id){ return document.getElementById(id); }
+function el(tag, attrs, parent){ // 创建 SVG / HTML 元素的通用助手
+  var node;
+  if(tag.charAt(0)==='#'){ // html
+    node = document.createElement(tag.slice(1));
+  }else{
+    node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  }
+  if(attrs){ for(var k in attrs){ node.setAttribute(k, attrs[k]); } }
+  if(parent){ parent.appendChild(node); }
+  return node;
+}
+function shuffle(arr){ // 洗牌，用于随机化
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* 把浏览器坐标换算成 SVG 内部坐标（适配任意缩放，触摸可用） */
+function svgPoint(svg, clientX, clientY){
+  var pt = svg.createSVGPoint(); pt.x=clientX; pt.y=clientY;
+  var m = svg.getScreenCTM(); if(!m) return {x:0,y:0};
+  return pt.matrixTransform(m.inverse());
+}
+
+/* 轻提示 */
+var toastTimer=null;
+function toast(msg, ms){
+  var t=document.querySelector('.toast');
+  if(t) t.remove();
+  t=document.createElement('div'); t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t);
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ t.remove(); }, ms||2400);
+}
+
+/* ---------- 随机色板（每局一个主题色，玩不腻） ---------- */
+var PALETTES=[
+  {name:'海洋蓝', primary:'#1976d2', dark:'#0d47a1', light:'#e3f2fd', accent:'#ff9800', bg:'#f4faff'},
+  {name:'森林绿', primary:'#2e7d32', dark:'#1b5e20', light:'#e8f5e9', accent:'#f57c00', bg:'#f4fbf4'},
+  {name:'樱桃红', primary:'#d32f2f', dark:'#8e0000', light:'#ffebee', accent:'#fbc02d', bg:'#fff8f6'},
+  {name:'葡萄紫', primary:'#7b1fa2', dark:'#4a0072', light:'#f3e5f5', accent:'#00897b', bg:'#faf4fc'},
+  {name:'蜜橙黄', primary:'#ef6c00', dark:'#b53d00', light:'#fff3e0', accent:'#1976d2', bg:'#fffaf2'},
+  {name:'青瓷青', primary:'#00838f', dark:'#005662', light:'#e0f7fa', accent:'#e91e63', bg:'#f2fcfd'}
+];
+function applyPalette(){
+  var p=pick(PALETTES);
+  var r=document.documentElement.style;
+  r.setProperty('--primary',p.primary);
+  r.setProperty('--primary-dark',p.dark);
+  r.setProperty('--primary-light',p.light);
+  r.setProperty('--accent',p.accent);
+  r.setProperty('--bg',p.bg);
+}
+/* 直条专用亮色（保证对比度，与主题无关） */
+var BAR_COLORS=['#e53935','#1e88e5','#43a047','#fb8c00'];
+
+/* =====================================================================
+   题库（取自教参 docx 原题 + 同题型自创变式，每局随机抽一套）
+   ===================================================================== */
+
+/* 初级题组：数“正”字 → 填统计表 → 画竖向条形统计图
+   zheng: 每类的“正”字笔画数组（完整字=5笔，未写完的字记前几笔） */
+var TOPICS_JUNIOR=[
+  { /* docx 原例题：张丽华调查本班同学最喜欢的电视节目 */
+    intro:'张丽华调查了本班同学最喜欢的电视节目，调查结果记录如下（用画“正”字的方法记录）。',
+    cats:[
+      {name:'科普类', zheng:[5,1], value:6},
+      {name:'综艺类', zheng:[5,5,5], value:15},
+      {name:'动画类', zheng:[5,5,2], value:12},
+      {name:'体育类', zheng:[5,5,3], value:13}
+    ],
+    total:46, tableName:'某班同学最喜欢的电视节目统计表',
+    tableHeadLabel:'节目类别',
+    chart:{title:'某班同学最喜欢的电视节目统计图', date:'×月×日', unitLabel:'数量/人', axisName:'节目类别',
+      gridCells:9, standards:[1,2], correctPer:2},
+    cardsExtra:[10,25,61] /* 干扰数字卡 */
+  },
+  { /* 自创变式1：最喜欢的运动项目 */
+    intro:'四(1)班同学最喜欢的运动项目调查记录如下（用画“正”字的方法记录）。',
+    cats:[
+      {name:'跳绳', zheng:[5,5,1], value:11},
+      {name:'踢毽子', zheng:[5], value:5},
+      {name:'游泳', zheng:[5,5,2], value:12},
+      {name:'跑步', zheng:[5,2], value:7}
+    ],
+    total:35, tableName:'四(1)班同学最喜欢的运动项目统计表',
+    tableHeadLabel:'运动项目',
+    chart:{title:'四(1)班同学最喜欢的运动项目统计图', date:'×月×日', unitLabel:'数量/人', axisName:'运动项目',
+      gridCells:7, standards:[1,2], correctPer:2},
+    cardsExtra:[23,19]
+  },
+  { /* 自创变式2：图书角一周借出图书 */
+    intro:'图书角一周借出图书情况记录如下（用画“正”字的方法记录）。',
+    cats:[
+      {name:'连环画', zheng:[5,5], value:10},
+      {name:'故事书', zheng:[5,5,5,1], value:16},
+      {name:'科技书', zheng:[5,1], value:6},
+      {name:'漫画书', zheng:[5,2], value:7}
+    ],
+    total:39, tableName:'图书角一周借出图书统计表',
+    tableHeadLabel:'图书种类',
+    chart:{title:'图书角一周借出图书统计图', date:'×月×日', unitLabel:'数量/人', axisName:'图书种类',
+      gridCells:8, standards:[1,2], correctPer:2},
+    cardsExtra:[28,33]
+  }
+];
+
+/* 中级题组：横向条形统计图补全 → 点选最多/最少 → 找相差 N 辆的两种车
+   cats 从上到下排列；pre=true 的直条原图已画好（锁定），pre=false 需要补画 */
+var TOPICS_MID=[
+  { /* docx 原考点例题：幸福小区 */
+    intro:'幸福小区某天下午半小时内进入车辆的情况如图（横向条形统计图：横轴表示车辆的数量，纵轴表示车辆种类，自行车和汽车的直条已经画好）。请把统计图补充完整，再回答问题。',
+    cats:[
+      {name:'汽车',   value:1,  pre:true},
+      {name:'电动车', value:12, pre:false},
+      {name:'自行车', value:6,  pre:true},
+      {name:'三轮车', value:2,  pre:false}
+    ],
+    chart:{title:'幸福小区某天下午半小时内进入车辆统计图', date:'×月×日', unitLabel:'数量/辆',
+      gridCells:12, per:1},
+    diffTarget:11 /* 电动车12 − 汽车1 = 11（答案来自教参：电动车比汽车多11辆） */
+  },
+  { /* 自创变式1：校门口 */
+    intro:'校门口某天放学后半小时内经过车辆的情况如图（横向条形统计图：横轴表示车辆的数量，纵轴表示车辆种类，小汽车和电动车的直条已经画好）。请把统计图补充完整，再回答问题。',
+    cats:[
+      {name:'小汽车', value:12, pre:true},
+      {name:'公交车', value:6,  pre:false},
+      {name:'电动车', value:10, pre:true},
+      {name:'自行车', value:7,  pre:false}
+    ],
+    chart:{title:'校门口半小时经过车辆统计图', date:'×月×日', unitLabel:'数量/辆',
+      gridCells:14, per:1},
+    diffTarget:6 /* 12 − 6 = 6，唯一 */
+  },
+  { /* 自创变式2：公园停车场 */
+    intro:'公园某天上午一小时停放车辆的情况如图（横向条形统计图：横轴表示车辆的数量，纵轴表示车辆种类，轿车和摩托车的直条已经画好）。请把统计图补充完整，再回答问题。',
+    cats:[
+      {name:'轿车',   value:9,  pre:true},
+      {name:'面包车', value:3,  pre:false},
+      {name:'摩托车', value:4,  pre:true},
+      {name:'电动车', value:11, pre:false}
+    ],
+    chart:{title:'公园一小时停放车辆统计图', date:'×月×日', unitLabel:'数量/辆',
+      gridCells:12, per:1},
+    diffTarget:8 /* 11 − 3 = 8，唯一 */
+  }
+];
+
+/* 高级题组：翻线索卡计算 → 选“每格代表几人” → 画竖向直条 */
+var TOPICS_SENIOR=[
+  { /* docx 原对点练习：一班和二班 78 人爱吃水果 */
+    intro:'一班和二班共有 78 人参加“最爱心果”小调查：爱吃葡萄的有 3 人，爱吃香蕉的人数是爱吃葡萄的 5 倍，爱吃橘子的比爱吃香蕉的多 10 人，剩下的爱吃苹果。爱吃香蕉的有（15）人，爱吃苹果的有（35）人。请根据题中信息把统计图补充完整。',
+    clues:[
+      {front:'葡萄', back:'爱吃葡萄的有 3 人（直接条件）'},
+      {front:'香蕉', back:'香蕉 = 葡萄 × 5 = 3 × 5 = 15（人）'},
+      {front:'橘子', back:'橘子 = 香蕉 + 10 = 15 + 10 = 25（人）'},
+      {front:'苹果', back:'苹果 = 78 − 3 − 15 − 25 = 35（人）'}
+    ],
+    cats:[
+      {name:'苹果', value:35},
+      {name:'橘子', value:25},
+      {name:'香蕉', value:15},
+      {name:'葡萄', value:3}
+    ],
+    chart:{title:'一班和二班同学爱吃水果人数统计图', date:'×月×日', unitLabel:'数量/人', axisName:'水果种类',
+      gridCells:8, standards:[1,2,5], correctPer:5}
+  },
+  { /* 自创变式1：两个班 90 人借书 */
+    intro:'两个班共有 90 人参加“最爱图书”小调查：借故事书的有 10 人，借连环画的人数是借故事书的 3 倍，借科技书的比借连环画的多 10 人，其余的借漫画书。借连环画的有（30）人，借科技书的有（40）人。请根据题中信息把统计图补充完整。',
+    clues:[
+      {front:'故事书', back:'借故事书的有 10 人（直接条件）'},
+      {front:'连环画', back:'连环画 = 故事书 × 3 = 10 × 3 = 30（人）'},
+      {front:'科技书', back:'科技书 = 连环画 + 10 = 30 + 10 = 40（人）'},
+      {front:'漫画书', back:'漫画书 = 90 − 10 − 30 − 40 = 10（人）'}
+    ],
+    cats:[
+      {name:'故事书', value:10},
+      {name:'连环画', value:30},
+      {name:'科技书', value:40},
+      {name:'漫画书', value:10}
+    ],
+    chart:{title:'两个班同学最爱图书人数统计图', date:'×月×日', unitLabel:'数量/人', axisName:'图书种类',
+      gridCells:8, standards:[1,2,5], correctPer:5}
+  },
+  { /* 自创变式2：两个中队 65 人植树分工 */
+    intro:'两个中队共有 65 人参加植树活动：负责浇树的有 13 人，负责挖坑的人数是浇树的 2 倍，负责施肥的比挖坑的少 4 人，其余的负责除草。挖坑的有（26）人，除草的有（4）人。请根据题中信息把统计图补充完整。',
+    clues:[
+      {front:'浇树', back:'浇树的有 13 人（直接条件）'},
+      {front:'挖坑', back:'挖坑 = 浇树 × 2 = 13 × 2 = 26（人）'},
+      {front:'施肥', back:'施肥 = 挖坑 − 4 = 26 − 4 = 22（人）'},
+      {front:'除草', back:'除草 = 65 − 13 − 26 − 22 = 4（人）'}
+    ],
+    cats:[
+      {name:'浇树', value:13},
+      {name:'挖坑', value:26},
+      {name:'施肥', value:22},
+      {name:'除草', value:4}
+    ],
+    chart:{title:'两个中队植树分工人数统计图', date:'×月×日', unitLabel:'数量/人', axisName:'植树分工',
+      gridCells:8, standards:[1,2,5], correctPer:5}
+  }
+];
+
+/* =====================================================================
+   全局对局状态
+   ===================================================================== */
+var game=null;          /* {diff, topic, tasks:[任务对象], idx, steps, t0, timer, finished} */
+var revealLock=false;   /* 揭示答案过程中的动画锁 */
+
+var DIFF_NAMES={junior:'初级·星光调查站', mid:'中级·彩虹车库', senior:'高级·智慧果园'};
+
+/* ---------- 计时器与步数 ---------- */
+function fmtTime(ms){
+  var s=Math.floor(ms/1000), m=Math.floor(s/60); s=s%60;
+  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+}
+function startTimer(){
+  stopTimer();
+  game.timer=setInterval(function(){
+    $('hud-timer').textContent='时间 '+fmtTime(Date.now()-game.t0);
+  },500);
+}
+function stopTimer(){ if(game && game.timer){ clearInterval(game.timer); game.timer=null; } }
+function addStep(){
+  game.steps++;
+  $('hud-steps').textContent='步数 '+game.steps;
+}
+
+/* =====================================================================
+   页面切换与对局流程
+   ===================================================================== */
+function showMenu(){
+  if(game) stopTimer();
+  $('page-game').style.display='none';
+  $('page-menu').style.display='block';
+}
+function startGame(diff){
+  applyPalette(); /* 每局随机主题色 */
+  var pool = diff==='junior'?TOPICS_JUNIOR : diff==='mid'?TOPICS_MID : TOPICS_SENIOR;
+  game={ diff:diff, topic:pick(pool), idx:0, steps:0, t0:Date.now(), timer:null, finished:false };
+  /* 任务序列（每个难度三关） */
+  if(diff==='junior'){
+    game.tasks=[
+      {name:'数一数“正”字', build:buildZhengTask,  reveal:revealZheng},
+      {name:'填统计表',      build:buildTableTask,  reveal:revealTable},
+      {name:'画条形统计图',  build:buildJuniorChart,reveal:revealJuniorChart}
+    ];
+  }else if(diff==='mid'){
+    game.tasks=[
+      {name:'补全统计图',    build:buildMidChart,   reveal:revealMidChart},
+      {name:'最多与最少',    build:buildPickTask,   reveal:revealPick},
+      {name:'数据小发现',    build:buildDiffTask,   reveal:revealDiff}
+    ];
+  }else{
+    game.tasks=[
+      {name:'翻线索卡',      build:buildClueTask,   reveal:revealClue},
+      {name:'选刻度标准',    build:buildStdTask,    reveal:revealStd},
+      {name:'画条形统计图',  build:buildSeniorChart,reveal:revealSeniorChart}
+    ];
+  }
+  $('page-menu').style.display='none';
+  $('page-game').style.display='block';
+  $('lv-name').textContent=DIFF_NAMES[diff];
+  $('hud-steps').textContent='步数 0';
+  $('hud-timer').textContent='时间 00:00';
+  startTimer();
+  renderTaskDots();
+  renderTask();
+  openRules(true); /* 进入时弹出规则面板 */
+}
+function renderTaskDots(){
+  var box=$('task-dots'); box.innerHTML='';
+  game.tasks.forEach(function(t,i){
+    var dot=el('#div',{class:'dot'+(i<game.idx?' done':i===game.idx?' now':'')},box);
+    var name=el('#span',{class:'tname'},box);
+    name.textContent=(i+1)+'.'+t.name;
+  });
+}
+function renderTask(){
+  renderTaskDots();
+  var t=game.tasks[game.idx];
+  $('tb-title').textContent='第 '+(game.idx+1)+' 关：'+t.name;
+  $('task-done-area').innerHTML='';
+  var stage=$('stage'); stage.innerHTML='';
+  revealLock=false;
+  t.build(stage);
+}
+/* 当前任务完成：显示横幅与“下一关”按钮 */
+function completeTask(starMsg){
+  var area=$('task-done-area'); area.innerHTML='';
+  var b=el('#div',{class:'done-banner'},area);
+  b.textContent='★ '+starMsg+' ★';
+  var row=el('#div',{style:'text-align:center;margin-top:12px;'},area);
+  if(game.idx < game.tasks.length-1){
+    var btn=el('#button',{class:'btn accent'},row);
+    btn.textContent='进入下一关';
+    btn.onclick=function(){ game.idx++; renderTask(); };
+  }else{
+    var btn2=el('#button',{class:'btn accent'},row);
+    btn2.textContent='领取通关勋章';
+    btn2.onclick=winGame;
+  }
+}
+/* 全部通关 */
+function winGame(){
+  if(game.finished) return;
+  game.finished=true;
+  stopTimer();
+  launchConfetti();
+  var mask=el('#div',{class:'modal-mask'},document.body);
+  var m=el('#div',{class:'modal', id:'win-modal'},mask);
+  var stars=el('#div',{class:'stars'},m); stars.textContent='★ ★ ★';
+  var h=el('#h2',{},m); h.textContent='恭喜通关 '+DIFF_NAMES[game.diff]+'！';
+  var info=el('#div',{class:'win-time'},m);
+  info.textContent='用时 '+fmtTime(Date.now()-game.t0)+' · 共 '+game.steps+' 步';
+  var p=el('#div',{class:'rule-item'},m);
+  p.innerHTML='<b>统计小达人徽章已点亮！</b>你已经掌握：整理数据、填写统计表、绘制条形统计图、读懂横向统计图，还会选“每格代表几”的统一标准。';
+  var row=el('#div',{class:'close-row'},m);
+  var again=el('#button',{class:'btn'},row); again.textContent='再来一局';
+  again.style.marginRight='14px';
+  again.onclick=function(){ mask.remove(); startGame(game.diff); };
+  var back=el('#button',{class:'btn ghost'},row); back.textContent='返回难度选择';
+  back.onclick=function(){ mask.remove(); showMenu(); };
+}
+
+/* =====================================================================
+   任务一（初级）：数“正”字——点击笔画，点亮计数
+   “正”字五笔：顶横、中竖、左横、左竖、底横
+   ===================================================================== */
+var ZHENG_STROKES=[
+  '12,18 88,18',  /* 第1笔 顶横 */
+  '50,18 50,84',  /* 第2笔 中竖 */
+  '50,50 14,50',  /* 第3笔 左横 */
+  '14,50 14,84',  /* 第4笔 左竖 */
+  '14,84 88,84'   /* 第5笔 底横 */
+];
+var ztask=null; /* 数正字任务的内部状态 */
+function buildZhengTask(stage){
+  var topic=game.topic;
+  $('tb-desc').textContent='调查记录用画“正”字的方法整理数据（一个“正”字=5人，写几笔就多几人）。请把每个“正”字的笔画一笔一笔点亮，数出每类的人数！';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent=topic.intro+'（提示：不重复、不遗漏，笔画点亮后不能再点，全部点亮就会亮出人数徽章。）';
+  var hint=el('#div',{class:'stage-hint'},stage);
+  hint.textContent='点一点：把每类记录的每一笔都点亮，数出人数！';
+  ztask={rows:[], done:false};
+  topic.cats.forEach(function(cat,ci){
+    var row=el('#div',{class:'zheng-row'},stage);
+    var name=el('#div',{class:'zheng-name'},row); name.textContent=cat.name;
+    var chars=el('#div',{class:'zheng-chars'},row);
+    var lit=0, totalStrokes=0;
+    cat.zheng.forEach(function(strokes){
+      totalStrokes+=strokes;
+      var svg=el('svg',{class:'zchar', viewBox:'0 0 100 100'},chars);
+      for(var s=0;s<strokes;s++){
+        var poly=el('polyline',{points:ZHENG_STROKES[s]},svg);
+        poly.style.cursor='pointer';
+        poly.addEventListener('pointerdown',function(ev){
+          ev.preventDefault();
+          var me=ev.target;
+          if(me.classList.contains('lit')) return; /* 已点亮，防止重复计数 */
+          me.classList.add('lit');
+          lit++; addStep();
+          badge.textContent='已点亮 '+lit+' 画';
+          if(lit===totalStrokes){ /* 该类数完 */
+            badge.textContent='共 '+cat.value+' 人'; badge.classList.add('ok');
+            rowOK();
+          }
+        });
+      }
+    });
+    var badge=el('#div',{class:'zheng-badge'},row);
+    badge.textContent='已点亮 0 画';
+    ztask.rows.push({cat:cat, isDone:function(){ return lit===totalStrokes; }, badge:badge});
+    function rowOK(){ checkZhengDone(); }
+  });
+  function checkZhengDone(){
+    if(ztask.done) return;
+    var all=ztask.rows.every(function(r){ return r.isDone(); });
+    if(all){
+      ztask.done=true;
+      var tip=el('#div',{class:'stage-hint'},stage);
+      tip.style.color='var(--ok)';
+      tip.textContent='四类人数都数出来了！合计 '+game.topic.total+' 人。';
+      completeTask('数据整理完成！每类人数都数对了');
+    }
+  }
+  ztask.check=checkZhengDone;
+}
+function revealZheng(){
+  if(ztask.done) return;
+  /* 自动点亮所有笔画（演示正确结果） */
+  var delay=0;
+  document.querySelectorAll('#stage .zchar polyline').forEach(function(p){
+    if(!p.classList.contains('lit')){
+      delay+=70;
+      setTimeout(function(){ p.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); },delay);
+    }
+  });
+}
+
+/* =====================================================================
+   任务二（初级）：拖动数字卡，填写统计表
+   ===================================================================== */
+var ttask=null;
+function buildTableTask(stage){
+  var topic=game.topic;
+  $('tb-desc').textContent='下面是刚才数出的统计表，可是数字卡片全掉出来啦！请把数字卡片拖回正确的格子（合计也要填哦）。放错的卡片会弹回来再试一次。';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent='表格名称：'+topic.tableName+'（×月×日）。每张卡片只能放进与它对应的那一格里。';
+  var hint=el('#div',{class:'stage-hint'},stage);
+  hint.textContent='拖一拖：把数字卡片拖进对应的格子！';
+  ttask={filled:0, need:topic.cats.length+1, done:false};
+
+  /* 生成统计表 */
+  var wrap=el('#div',{},stage); wrap.style.overflowX='auto';
+  var tb=el('#table',{class:'stat-table'},wrap);
+  var headRow=el('#tr',{},tb);
+  el('#th',{},headRow).textContent=topic.tableHeadLabel;
+  var th0=el('#th',{},headRow); th0.textContent='合计';
+  topic.cats.forEach(function(c){ var h=el('#th',{},headRow); h.textContent=c.name; });
+  var dataRow=el('#tr',{},tb);
+  el('#td',{},dataRow).textContent='数量/人';
+  var cells=[
+    {key:'__total__', val:topic.total, td:el('#td',{class:'cell drop'},dataRow)},
+  ];
+  topic.cats.forEach(function(c){
+    cells.push({key:c.name, val:c.value, td:el('#td',{class:'cell drop'},dataRow)});
+  });
+  cells.forEach(function(c){
+    var sp=el('#span',{class:'cell-hint'},c.td); sp.textContent='?';
+    c.td.dataset.val=c.val;
+    c.td.addEventListener('pointerover',function(){ if(!c.td.classList.contains('filled')) c.td.style.background='#fff9c4'; });
+    c.td.addEventListener('pointerout',function(){ if(!c.td.classList.contains('filled')) c.td.style.background=''; });
+  });
+
+  /* 数字卡片池（含干扰卡，顺序打乱） */
+  var poolEl=el('#div',{class:'card-pool'},stage);
+  var cards=shuffle([{v:topic.total}].concat(topic.cats.map(function(c){return {v:c.value};}))
+    .concat(topic.cardsExtra.map(function(v){return {v:v,extra:true};})));
+  cards.forEach(function(cinfo){
+    var card=el('#div',{class:'num-card'},poolEl);
+    card.textContent=cinfo.v;
+    card.dataset.v=cinfo.v;
+    makeDraggableCard(card,cells,poolEl);
+  });
+  ttask.cards=cards; ttask.cells=cells;
+}
+/* 通用卡片拖拽（pointer 事件，鼠标/触摸通用） */
+function makeDraggableCard(card, cells, poolEl){
+  card.addEventListener('pointerdown', function(e){
+    if(card.classList.contains('used')) return;
+    e.preventDefault();
+    try{ card.setPointerCapture(e.pointerId); }catch(err){} /* 某些环境无活动指针时忽略 */
+    /* 拖动时用克隆的“幽灵卡片”跟随手指 */
+    var ghost=card.cloneNode(true);
+    ghost.classList.add('dragging');
+    ghost.style.width=card.offsetWidth+'px'; ghost.style.height=card.offsetHeight+'px';
+    document.body.appendChild(ghost);
+    card.style.opacity='0.25';
+    function moveGhost(x,y){ ghost.style.left=(x-ghost.offsetWidth/2)+'px'; ghost.style.top=(y-ghost.offsetHeight/2)+'px'; }
+    moveGhost(e.clientX,e.clientY);
+    var hoverTd=null;
+    function onMove(ev){
+      moveGhost(ev.clientX,ev.clientY);
+      var under=document.elementFromPoint(ev.clientX,ev.clientY);
+      var td=under?under.closest('td.cell.drop'):null;
+      if(hoverTd && hoverTd!==td) hoverTd.style.background= hoverTd.classList.contains('filled')?'':'';
+      hoverTd=td;
+      if(td && !td.classList.contains('filled')) td.style.background='#ffe082';
+    }
+    function onUp(ev){
+      card.removeEventListener('pointermove',onMove);
+      card.removeEventListener('pointerup',onUp);
+      card.removeEventListener('pointercancel',onUp);
+      var under=document.elementFromPoint(ev.clientX,ev.clientY);
+      var td=under?under.closest('td.cell.drop'):null;
+      ghost.remove();
+      card.style.opacity='';
+      if(hoverTd) hoverTd.style.background='';
+      if(td && !td.classList.contains('filled')){
+        addStep();
+        var v=parseInt(card.dataset.v,10);
+        if(v===parseInt(td.dataset.val,10)){ /* 放对 */
+          td.classList.add('filled'); td.textContent=v;
+          card.classList.add('used');
+          ttask.filled++;
+          if(ttask.filled>=ttask.need && !ttask.done){
+            ttask.done=true;
+            completeTask('统计表填写完成！数据一格不差');
+          }
+        }else{ /* 放错：抖动提示并退回 */
+          td.classList.add('wrong');
+          setTimeout(function(){ td.classList.remove('wrong'); },400);
+          toast('再想一想：这个数字应该放哪一格呢？');
+        }
+      }
+    }
+    card.addEventListener('pointermove',onMove);
+    card.addEventListener('pointerup',onUp);
+    card.addEventListener('pointercancel',onUp);
+  });
+}
+function revealTable(){
+  if(ttask.done) return;
+  /* 自动演示：正确数字直接填进格子，卡片收起 */
+  ttask.cells.forEach(function(c){
+    if(!c.td.classList.contains('filled')){
+      c.td.classList.add('filled'); c.td.textContent=c.val;
+      ttask.filled++;
+    }
+  });
+  document.querySelectorAll('#stage .num-card').forEach(function(card){ card.classList.add('used'); });
+  ttask.done=true; addStep();
+  completeTask('统计表填写完成！（揭示答案）');
+}
+
+/* =====================================================================
+   竖向条形统计图组件（可拖手柄画直条，可先选“每格代表几人”）
+   返回 chart 对象：{svg, setPer(n), bars, complete()} 等
+   ===================================================================== */
+function createVChart(stage, cfg){
+  /* cfg: {title,date,unitLabel,axisName,gridCells,cats:[{name,value}],standards|null,
+          needPick:bool, onAllCorrect(), barUnit:'人'} */
+  var W=760,H=480;
+  var x0=100,x1=730,yTop=104,yBase=400;      /* 绘图区边界 */
+  var cells=cfg.gridCells;
+  var cellH=(yBase-yTop)/cells;
+  var chart={per:cfg.needPick?null:cfg.perDefault, done:false};
+
+  var wrap=el('#div',{class:'chart-wrap'},stage);
+  var svg=el('svg',{viewBox:'0 0 '+W+' '+H, role:'img'},wrap);
+  chart.svg=svg;
+
+  /* 标题、日期、单位（条形统计图组成部分：一个都不能少） */
+  var t=el('text',{x:W/2,y:32,'text-anchor':'middle','font-size':22,'font-weight':'900',fill:'#263238'},svg);
+  t.textContent=cfg.title;
+  var d=el('text',{x:W-14,y:58,'text-anchor':'end','font-size':17,fill:'#546e7a'},svg);
+  d.textContent=cfg.date;
+  var u=el('text',{x:x0-8,y:92,'text-anchor':'end','font-size':18,'font-weight':'bold',fill:'#263238'},svg);
+  u.textContent=cfg.unitLabel;
+
+  /* 网格线 + 刻度（选标准前刻度显示为“？”） */
+  var scaleTexts=[];
+  for(var i=0;i<=cells;i++){
+    var y=yBase-i*cellH;
+    el('line',{x1:x0,y1:y,x2:x1,y2:y,stroke:'#b0bec5','stroke-width':i===0?3:1.5},svg);
+    var lab=el('text',{x:x0-10,y:y+6,'text-anchor':'end','font-size':17,fill:'#37474f'},svg);
+    lab.textContent='?';
+    scaleTexts.push({node:lab,i:i});
+  }
+  function refreshScale(){
+    scaleTexts.forEach(function(s){
+      s.node.textContent = chart.per ? String(s.i*chart.per) : '?';
+    });
+  }
+  chart.refreshScale=refreshScale;
+
+  /* 横轴名称与类别标签 */
+  var ax=el('text',{x:x1,y:yBase+56,'text-anchor':'end','font-size':17,fill:'#546e7a'},svg);
+  ax.textContent=cfg.axisName||'类别';
+  var slotW=(x1-x0)/cfg.cats.length;
+  var barW=Math.min(92,slotW*0.56);
+
+  var bars=[];
+  cfg.cats.forEach(function(cat,i){
+    var cx=x0+slotW*(i+0.5);
+    var lab=el('text',{x:cx,y:yBase+30,'text-anchor':'middle','font-size':19,'font-weight':'bold',fill:'#263238'},svg);
+    lab.textContent=cat.name;
+    var bar={
+      cat:cat, cx:cx, value:0, node:el('rect',{x:cx-barW/2,y:yBase,width:barW,height:0,rx:4,
+        fill:BAR_COLORS[i%4], opacity:0},svg),
+      bubble:null, handle:null, hit:null
+    };
+    /* 数值气泡（直条顶端数据标注） */
+    var bg=el('g',{opacity:0},svg);
+    var br=el('rect',{x:cx-30,y:yTop-34,width:60,height:28,rx:8,fill:'#263238'},bg);
+    var bt=el('text',{x:cx,y:yTop-14,'text-anchor':'middle','font-size':18,'font-weight':'900',fill:'#fff'},bg);
+    bt.textContent='0';
+    bar.bubble={g:bg,rect:br,text:bt};
+    /* 拖拽手柄（小圆点）+ 更大的隐形触控区 */
+    bar.hit=el('circle',{cx:cx,cy:yBase,r:24,fill:'transparent',class:'bar-handle'},svg);
+    bar.handle=el('circle',{cx:cx,cy:yBase,r:11,fill:'#fff',stroke:BAR_COLORS[i%4],'stroke-width':5,class:'bar-handle'},svg);
+    bars.push(bar);
+    if(chart.per) showBar(bar,true);
+  });
+  /* 选标准前隐藏直条，只显示提示语 */
+  function showBar(bar,hidden){
+    bar.node.setAttribute('opacity',hidden?0:1);
+    bar.handle.setAttribute('opacity',hidden?0:1);
+    bar.bubble.g.setAttribute('opacity',hidden?0:1);
+  }
+  chart.setBar=function(bar,v){
+    bar.value=v;
+    var h=v/chart.per*cellH;
+    bar.node.setAttribute('y',yBase-h); bar.node.setAttribute('height',Math.max(h,0.01));
+    var topY=yBase-h;
+    bar.handle.setAttribute('cy',topY); bar.hit.setAttribute('cy',topY);
+    bar.bubble.g.setAttribute('y',0);
+    bar.bubble.rect.setAttribute('y',topY-36); bar.bubble.text.setAttribute('y',topY-16);
+    bar.bubble.text.textContent=String(v);
+    /* 气泡不出界 */
+    var by=topY-38; if(by<60){ bar.bubble.g.setAttribute('transform','translate(0,'+(60-by)+')'); }
+    else bar.bubble.g.setAttribute('transform','');
+  };
+  chart.setPer=function(p){
+    chart.per=p;
+    refreshScale();
+    bars.forEach(function(b){ chart.setBar(b,0); showBar(b,false); });
+    stdBtns.forEach(function(b){ b.classList.toggle('active', parseInt(b.dataset.p,10)===p); });
+    if(pickTip) pickTip.style.display='none';
+  };
+  /* 标准选择按钮（“每格代表几人”标准要统一） */
+  var stdBtns=[];
+  var pickTip;
+  if(cfg.needPick){
+    var row=el('#div',{class:'std-row'},stage);
+    cfg.standards.forEach(function(p){
+      var b=el('#button',{class:'std-btn'},row);
+      b.textContent='每格代表 '+p+' 人'; b.dataset.p=p;
+      stdBtns.push(b);
+      b.onclick=function(){
+        if(chart.done) return;
+        var maxV=Math.max.apply(null,cfg.cats.map(function(c){return c.value;}));
+        var cap=cells*p;
+        if(cap<maxV){ /* 格子装不下最大数据 → 标准不合适 */
+          addStep();
+          b.classList.remove('active');
+          toast('每格代表 '+p+' 人时，整张图最多只能画到 '+cap+' 人，可是最多的数据有 '+maxV+' 人，格子不够啦！再想想。',3200);
+          return;
+        }
+        addStep();
+        chart.setPer(p);
+        toast('标准统一：每格代表 '+p+' 人。现在拖动直条顶端的小圆点，把直条画到正确的高度吧！',3200);
+      };
+    });
+    pickTip=el('#div',{class:'stage-hint'},stage);
+    pickTip.textContent='先选一选：这张图每格代表几人合适？（选对了刻度才会出现哦）';
+    /* 把提示插到图表上方 */
+    stage.insertBefore(pickTip,wrap);
+    stage.insertBefore(row,wrap);
+  }
+  /* 拖拽手柄：拖到哪，直条画到哪（吸附到 1 人） */
+  bars.forEach(function(bar){
+    if(bar.cat.locked) return;
+    var dragging=false;
+    bar.hit.addEventListener('pointerdown',function(e){
+      if(!chart.per){ toast('先选一选“每格代表几人”，再画直条哦！'); return; }
+      dragging=true;
+      try{ bar.hit.setPointerCapture(e.pointerId); }catch(err){}
+      e.preventDefault();
+    });
+    bar.hit.addEventListener('pointermove',function(e){
+      if(!dragging||!chart.per) return;
+      var pt=svgPoint(svg,e.clientX,e.clientY);
+      var v=Math.round((yBase-pt.y)/cellH*chart.per);
+      v=Math.max(0,Math.min(cells*chart.per,v));
+      chart.setBar(bar,v);
+    });
+    function endDrag(){
+      if(!dragging) return;
+      dragging=false;
+      addStep();
+      checkAll();
+    }
+    bar.hit.addEventListener('pointerup',endDrag);
+    bar.hit.addEventListener('pointercancel',endDrag);
+  });
+  /* 判定：所有目标直条数值正确 */
+  function checkAll(){
+    if(chart.done) return;
+    var ok=bars.every(function(b){ return b.value===b.cat.value; });
+    if(ok){
+      chart.done=true;
+      /* 成功闪烁动画 */
+      bars.forEach(function(b,i){
+        b.node.animate([{opacity:.35},{opacity:1},{opacity:.35},{opacity:1}],{duration:600,delay:i*120});
+        var star=el('text',{x:b.cx,y:parseFloat(b.node.getAttribute('y'))-44,'text-anchor':'middle','font-size':26,fill:'#ffb300'},svg);
+        star.textContent='★';
+      });
+      if(cfg.onAllCorrect) cfg.onAllCorrect();
+    }
+  }
+  chart.checkAll=checkAll;
+  chart.bars=bars;
+  chart.animateToTargets=function(){
+    /* 揭示答案：直条平滑长到目标高度 */
+    return new Promise(function(res){
+      var step=0, steps=34;
+      var timer=setInterval(function(){
+        step++;
+        var k=step/steps;
+        bars.forEach(function(b){
+          var v=Math.round(b.cat.value*k);
+          chart.setBar(b,v);
+        });
+        if(step>=steps){
+          clearInterval(timer);
+          bars.forEach(function(b){ chart.setBar(b,b.cat.value); });
+          checkAll();
+          res();
+        }
+      },28);
+    });
+  };
+  return chart;
+}
+
+/* =====================================================================
+   任务三（初级）：先选标准，再画竖向直条
+   ===================================================================== */
+var jchart=null;
+function buildJuniorChart(stage){
+  var topic=game.topic, c=topic.chart;
+  $('tb-desc').textContent='最后一步：亲手画出条形统计图！先选“每格代表几人”的标准（注意：每格代表的数据一定要相同，标准要统一），然后拖动每根直条顶端的小圆点，把直条画到正确的高度。直条顶端的数字就是人数，四根全画对就过关！';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent='数据来自刚才的统计表：'+topic.cats.map(function(x){return x.name+' '+x.value+' 人';}).join('，')+'，合计 '+topic.total+' 人。画图时别忘了看：标题、制图时间、单位、刻度、直条和直条上的数据，组成部分一个都不能少！';
+  jchart=createVChart(stage,{
+    title:c.title,date:c.date,unitLabel:c.unitLabel,axisName:c.axisName,
+    gridCells:c.gridCells,cats:topic.cats,standards:c.standards,needPick:true,
+    onAllCorrect:function(){ completeTask('条形统计图绘制完成！你真是数据小画家'); }
+  });
+}
+function revealJuniorChart(){
+  if(jchart.done) return;
+  var c=game.topic.chart;
+  if(!jchart.per) jchart.setPer(c.correctPer);
+  jchart.animateToTargets().then(function(){ if(!jchart.done) completeTask('条形统计图绘制完成！（揭示答案）'); });
+}
+
+/* =====================================================================
+   横向条形统计图组件（中级：横轴表示数量，纵轴表示类别）
+   ===================================================================== */
+function createHChart(stage, cfg, opts){
+  /* cfg:{title,date,unitLabel,gridCells,per,cats:[{name,value,pre}]}
+     opts:{onAllCorrect()} */
+  var W=780,H=380;
+  var x0=150,x1=730,yTop=86,rowH=60,barH=36;
+  var cells=cfg.gridCells, cellW=(x1-x0)/cells;
+  var chart={per:cfg.per, done:opts&&opts.doneFixed?true:false};
+
+  var wrap=el('#div',{class:'chart-wrap'},stage);
+  var svg=el('svg',{viewBox:'0 0 '+W+' '+H, role:'img'},wrap);
+  chart.svg=svg;
+
+  var t=el('text',{x:W/2,y:30,'text-anchor':'middle','font-size':21,'font-weight':'900',fill:'#263238'},svg);
+  t.textContent=cfg.title;
+  var d=el('text',{x:W-14,y:56,'text-anchor':'end','font-size':16,fill:'#546e7a'},svg);
+  d.textContent=cfg.date;
+  var u=el('text',{x:x0+4,y:yTop-14,'font-size':16,'font-weight':'bold',fill:'#263238'},svg);
+  u.textContent=cfg.unitLabel+' →';
+
+  var yBase=yTop+rowH*cfg.cats.length;
+  /* 横轴刻度线与数字 */
+  for(var i=0;i<=cells;i++){
+    var x=x0+i*cellW;
+    el('line',{x1:x,y1:yTop-6,x2:x,y2:yBase,stroke:'#cfd8dc','stroke-width':1.2},svg);
+    var lab=el('text',{x:x,y:yBase+26,'text-anchor':'middle','font-size':16,fill:'#37474f'},svg);
+    lab.textContent=String(i*chart.per);
+  }
+  el('line',{x1:x0,y1:yBase,x2:x1,y2:yBase,stroke:'#37474f','stroke-width':3},svg);
+
+  var bars=[];
+  cfg.cats.forEach(function(cat,i){
+    var cy=yTop+rowH*(i+0.5);
+    var lab=el('text',{x:x0-12,y:cy+7,'text-anchor':'end','font-size':19,'font-weight':'bold',fill:'#263238'},svg);
+    lab.textContent=cat.name;
+    var bar={
+      cat:cat, cy:cy, value:cat.pre?cat.value:0,
+      node:el('rect',{x:x0,y:cy-barH/2,width:Math.max(cat.pre?cat.value/chart.per*cellW:0,0.01),
+        height:barH,rx:5,fill:BAR_COLORS[i%4],opacity:cat.pre?1:0},svg)
+    };
+    /* 数值气泡 */
+    var bg=el('g',{},svg);
+    var bxBase=x0+(cat.pre?cat.value:0)/chart.per*cellW;
+    var br=el('rect',{x:bxBase+6,y:cy-15,width:52,height:30,rx:8,fill:'#263238'},bg);
+    var bt=el('text',{x:bxBase+32,y:cy+7,'text-anchor':'middle','font-size':18,'font-weight':'900',fill:'#fff'},bg);
+    bt.textContent=String(cat.pre?cat.value:0);
+    bar.bubble={g:bg,rect:br,text:bt};
+    bar.glow=el('rect',{x:x0-3,y:cy-barH/2-3,width:0,height:barH+6,rx:7,fill:'none',stroke:'#ffb300','stroke-width':4,opacity:0},svg);
+    if(cat.pre){ bar.bubble.g.setAttribute('opacity',1); }
+    else{
+      /* 需要学生补画的直条：数值为 0 时先隐藏气泡，并显示手柄与“拖我”提示 */
+      bar.bubble.g.setAttribute('opacity',0);
+      bar.hit=el('circle',{cx:x0,cy:cy,r:24,fill:'transparent',class:'bar-handle'},svg);
+      bar.handle=el('circle',{cx:x0,cy:cy,r:11,fill:'#fff',stroke:BAR_COLORS[i%4],'stroke-width':5,class:'bar-handle'},svg);
+      bar.node.setAttribute('opacity',1);
+      bar.node.setAttribute('fill-opacity','0.35');
+      var tip=el('text',{x:x0+58,y:cy+7,'font-size':16,'font-weight':'bold',fill:'#fb8c00'},svg);
+      tip.textContent='← 拖我补画';
+      tip.setAttribute('class','hint-arrow');
+      bar.tip=tip;
+    }
+    bars.push(bar);
+  });
+  chart.setBar=function(bar,v){
+    bar.value=v;
+    var w=v/chart.per*cellW;
+    bar.node.setAttribute('width',Math.max(w,0.01));
+    var endX=x0+w;
+    if(bar.handle){
+      bar.handle.setAttribute('cx',endX); bar.hit.setAttribute('cx',endX);
+      /* 可补画的直条：数值为 0 时先隐藏气泡，拖动后出现 */
+      bar.bubble.g.setAttribute('opacity', v>0?1:0);
+    }
+    /* 气泡默认放在直条右端外侧；靠右边缘放不下时挪进直条内部 */
+    var inside = endX+68 > 770;
+    bar.bubble.rect.setAttribute('x', inside? endX-60 : endX+6);
+    bar.bubble.text.setAttribute('x', inside? endX-34 : endX+32);
+    bar.bubble.text.textContent=String(v);
+    if(v>0&&bar.tip){ bar.tip.setAttribute('opacity',0); }
+  };
+  /* 拖拽补画（只读模式跳过，直条仅供点选读图） */
+  var readOnly = !!(opts&&opts.readOnly);
+  if(!readOnly){
+    bars.forEach(function(bar){
+      if(bar.cat.pre) return;
+      var dragging=false;
+      bar.hit.addEventListener('pointerdown',function(e){
+        dragging=true; try{ bar.hit.setPointerCapture(e.pointerId); }catch(err){} e.preventDefault();
+      });
+      bar.hit.addEventListener('pointermove',function(e){
+        if(!dragging) return;
+        var pt=svgPoint(svg,e.clientX,e.clientY);
+        var v=Math.round((pt.x-x0)/cellW*chart.per);
+        v=Math.max(0,Math.min(cells*chart.per,v));
+        chart.setBar(bar,v);
+      });
+      function endDrag(){ if(!dragging) return; dragging=false; addStep(); if(opts&&opts.onDragEnd) opts.onDragEnd(chart); chart.checkComplete(); }
+      bar.hit.addEventListener('pointerup',endDrag);
+      bar.hit.addEventListener('pointercancel',endDrag);
+    });
+  }
+  /* 高亮某条直条（点选任务用） */
+  chart.highlight=function(bar,on){
+    bar.glow.setAttribute('opacity',on?1:0);
+    if(on){ bar.glow.setAttribute('width',(bar.value/chart.per*cellW)+6); }
+  };
+  chart.bars=bars;
+  /* 只读模式：直条全部画好并锁定，仅供点选读图（最多/最少/比差值任务用） */
+  if(readOnly){
+    bars.forEach(function(b){
+      chart.setBar(b,b.cat.value);
+      b.node.setAttribute('fill-opacity','1');
+      if(b.handle){ b.handle.setAttribute('opacity',0); b.hit.setAttribute('opacity',0); }
+    });
+  }
+  chart.checkComplete=function(){
+    if(chart.done) return false;
+    var ok=bars.every(function(b){ return b.value===b.cat.value; });
+    if(ok){
+      chart.done=true;
+      bars.forEach(function(b,i){
+        b.node.animate([{fillOpacity:.4},{fillOpacity:1}],{duration:500,delay:i*100});
+        b.node.setAttribute('fill-opacity','1');
+      });
+      if(opts&&opts.onAllCorrect) opts.onAllCorrect();
+    }
+    return ok;
+  };
+  chart.animateToTargets=function(){
+    return new Promise(function(res){
+      var step=0,steps=30;
+      var starts=bars.map(function(b){return b.value;});
+      var timer=setInterval(function(){
+        step++;
+        bars.forEach(function(b,i){
+          var v=Math.round(starts[i]+(b.cat.value-starts[i])*step/steps);
+          chart.setBar(b,v);
+        });
+        if(step>=steps){
+          clearInterval(timer);
+          bars.forEach(function(b){ chart.setBar(b,b.cat.value); });
+          chart.checkComplete();
+          res();
+        }
+      },30);
+    });
+  };
+  return chart;
+}
+
+/* =====================================================================
+   中级三关
+   ===================================================================== */
+var mchart=null;
+function buildMidChart(stage){
+  var topic=game.topic, c=topic.chart;
+  $('tb-desc').textContent='横向条形统计图：横轴表示数量，纵轴表示车辆种类。图中有的直条已经画好，还有的空着。请拖动“拖我补画”的小圆点，把空着的直条补画到正确的长度！';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent=topic.intro;
+  var hint=el('#div',{class:'stage-hint'},stage);
+  hint.textContent='拖一拖：抓住小圆点向右拖，补全统计图！（图中已画好的直条上标有数据）';
+  /* 把车辆类别并进图表配置（createHChart 需要 cfg.cats） */
+  var cfg2=Object.assign({},c,{cats:topic.cats});
+  mchart=createHChart(stage,cfg2,{onAllCorrect:function(){ completeTask('统计图补全成功！观察小达人就是你'); }});
+}
+function revealMidChart(){
+  if(mchart.done) return;
+  mchart.animateToTargets().then(function(){ if(!mchart.done) completeTask('统计图补全成功！（揭示答案）'); });
+}
+
+/* 第二关：点选最多 / 最少（点直条本身作答，不是选选项） */
+var ptask=null;
+function buildPickTask(stage){
+  var topic=game.topic;
+  var maxV=Math.max.apply(null,topic.cats.map(function(c){return c.value;}));
+  var minV=Math.min.apply(null,topic.cats.map(function(c){return c.value;}));
+  var maxName=topic.cats.filter(function(c){return c.value===maxV;})[0].name;
+  var minName=topic.cats.filter(function(c){return c.value===minV;})[0].name;
+  $('tb-desc').textContent='统计图补全了，现在用观察法读图：点击直条本身来回答——先点“进入数量最多的车”的直条，再点“最少的”直条。点对了直条会亮起金边！';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent='读图小提示：直条越长，数量越多；直条越短，数量越少。';
+  ptask={phase:0, maxV:maxV, minV:minV, done:false, maxName:maxName, minName:minName};
+  var hint=el('#div',{class:'stage-hint'},stage);
+  hint.id='pick-hint';
+  hint.textContent='点一点：数量最多的车是哪一条直条？';
+  mchart=createHChart(stage,Object.assign({},topic.chart,{cats:topic.cats}),{readOnly:true});
+  mchart.bars.forEach(function(bar){
+    bar.node.classList.add('bar-click');
+    bar.node.addEventListener('pointerdown',function(){
+      if(ptask.done) return;
+      addStep();
+      if(ptask.phase===0){
+        if(bar.value===ptask.maxV){
+          mchart.highlight(bar,true);
+          mark(bar,'最多');
+          ptask.phase=1;
+          $('pick-hint').textContent='真棒！再点一点：数量最少的车是哪一条直条？';
+        }else{
+          toast('这条直条有 '+bar.value+' 辆，还有更长的直条哦，找找最长的！');
+        }
+      }else{
+        if(bar.value===ptask.minV){
+          mchart.highlight(bar,true);
+          mark(bar,'最少');
+          ptask.done=true;
+          completeTask('观察成功！'+ptask.maxName+'最多（'+ptask.maxV+'辆），'+ptask.minName+'最少（'+ptask.minV+'辆）');
+        }else{
+          toast('这条直条有 '+bar.value+' 辆，还有更短的直条哦，找找最短的！');
+        }
+      }
+    });
+  });
+  function mark(bar,label){
+    /* 在直条上方加文字标签（固定横向位置，避免超出画布） */
+    var tag=el('text',{x:150+130,y:bar.cy-24,'text-anchor':'middle','font-size':18,'font-weight':'900',fill:'#e65100'},mchart.svg);
+    tag.textContent='▲ '+label+' ★';
+  }
+}
+function revealPick(){
+  if(ptask.done) return;
+  mchart.bars.forEach(function(b){
+    if(b.value===ptask.maxV){ mchart.highlight(b,true); }
+    if(b.value===ptask.minV){ mchart.highlight(b,true); }
+  });
+  ptask.done=true; addStep();
+  completeTask('观察成功！（揭示答案）最多：'+ptask.maxName+' '+ptask.maxV+'辆，最少：'+ptask.minName+' '+ptask.minV+'辆');
+}
+
+/* 第三关：数据小发现——找出相差 N 辆的两种车（点两条直条作答） */
+var dtask=null;
+function buildDiffTask(stage){
+  var topic=game.topic;
+  $('tb-desc').textContent='统计图里藏着数学信息！请找出“相差 '+topic.diffTarget+' 辆”的两种车：先点一条直条，再点另一条直条，两条都点亮时就会亮出相差多少。';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent='教参里的小发现示例：该段时间进入小区的电动车比汽车多 '+topic.diffTarget+' 辆。你也来点一点，把这对直条找出来！';
+  dtask={sel:[], done:false};
+  var hint=el('#div',{class:'stage-hint'},stage);
+  hint.textContent='点两条直条，比一比：它们相差 '+topic.diffTarget+' 辆吗？';
+  var result=el('#div',{},stage);
+  result.id='diff-result';
+  result.style.cssText='text-align:center;font-size:21px;font-weight:900;margin-top:8px;min-height:34px;';
+  mchart=createHChart(stage,Object.assign({},topic.chart,{cats:topic.cats}),{readOnly:true});
+  mchart.bars.forEach(function(bar){
+    bar.node.classList.add('bar-click');
+    bar.node.addEventListener('pointerdown',function(){
+      if(dtask.done) return;
+      addStep();
+      if(dtask.sel.indexOf(bar)>=0){ /* 再点一次取消选择 */
+        mchart.highlight(bar,false);
+        dtask.sel=dtask.sel.filter(function(x){return x!==bar;});
+        return;
+      }
+      if(dtask.sel.length>=2){ toast('一次只能选两条直条，再点一下可以取消选择哦。'); return; }
+      mchart.highlight(bar,true);
+      dtask.sel.push(bar);
+      if(dtask.sel.length===2){
+        var a=dtask.sel[0], b=dtask.sel[1];
+        var diff=Math.abs(a.value-b.value);
+        var r=$('diff-result');
+        r.style.color= diff===topic.diffTarget ? 'var(--ok)' : 'var(--err)';
+        r.textContent=a.cat.name+' '+a.value+' 辆 − '+b.cat.name+' '+b.value+' 辆，相差 '+diff+' 辆'
+          +(diff===topic.diffTarget?'，找到啦！':'，不是 '+topic.diffTarget+' 辆，再找找。');
+        if(diff===topic.diffTarget){
+          dtask.done=true;
+          completeTask('数据小发现：'+a.cat.name+'比'+b.cat.name+'多 '+topic.diffTarget+' 辆！');
+        }
+      }else{
+        $('diff-result').textContent='';
+      }
+    });
+  });
+}
+function revealDiff(){
+  if(dtask.done) return;
+  var topic=game.topic;
+  var pair=[];
+  topic.cats.forEach(function(c){
+    topic.cats.forEach(function(c2){
+      if(c.value-c2.value===topic.diffTarget){ pair=[c,c2]; }
+    });
+  });
+  mchart.bars.forEach(function(b){
+    if(b.cat.name===pair[0].name||b.cat.name===pair[1].name) mchart.highlight(b,true);
+  });
+  dtask.done=true; addStep();
+  completeTask('数据小发现！（揭示答案）'+pair[0].name+' '+pair[0].value+' 辆 − '+pair[1].name+' '+pair[1].value+' 辆 = '+topic.diffTarget+' 辆');
+}
+
+/* =====================================================================
+   高级三关：翻线索卡 → 选标准 → 画直条
+   ===================================================================== */
+var ctask=null, schart=null;
+function buildClueTask(stage){
+  var topic=game.topic;
+  $('tb-desc').textContent='画图之前先破案：点一点翻开四张线索卡，把每种人数算出来！（卡片正面是名称，背面是计算过程）';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent=topic.intro;
+  ctask={flipped:0, need:topic.clues.length, done:false};
+  var hint=el('#div',{class:'stage-hint'},stage);
+  hint.textContent='翻一翻：把四张线索卡全部翻开！';
+  var grid=el('#div',{class:'clue-grid'},stage);
+  topic.clues.forEach(function(cl){
+    var card=el('#div',{class:'clue-card'},grid);
+    var inner=el('#div',{class:'clue-inner'},card);
+    var front=el('#div',{class:'clue-face clue-front'},inner);
+    var big=el('#div',{class:'big'},front); big.textContent=cl.front;
+    var tip=el('#div',{class:'tip'},front); tip.textContent='点我翻开线索';
+    var back=el('#div',{class:'clue-face clue-back'},inner);
+    back.textContent=cl.back;
+    card.addEventListener('pointerdown',function(){
+      if(card.classList.contains('flipped')) return;
+      card.classList.add('flipped');
+      addStep();
+      ctask.flipped++;
+      if(ctask.flipped>=ctask.need&&!ctask.done){
+        ctask.done=true;
+        completeTask('线索全部找到！人数都算出来了');
+      }
+    });
+  });
+}
+function revealClue(){
+  if(ctask.done) return;
+  document.querySelectorAll('#stage .clue-card').forEach(function(c){
+    if(!c.classList.contains('flipped')){ c.classList.add('flipped'); ctask.flipped++; }
+  });
+  ctask.done=true; addStep();
+  completeTask('线索全部找到！（揭示答案）');
+}
+/* 高级第二关：单选刻度标准（选对即过，选错有容量提示） */
+var stdTaskDone=false;
+function buildStdTask(stage){
+  var topic=game.topic, c=topic.chart;
+  $('tb-desc').textContent='画图纸只有 '+c.gridCells+' 格高，可是数据很大！“每格代表 1 人”肯定画不下——那每格代表几人合适呢？点一点下面的标准按钮，选对了刻度才会亮出来！';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent='知识加油站：绘制条形统计图时，1 格可以代表 1 个或多个单位，但每格代表的数据一定要相同，标准要统一。';
+  var maxV=Math.max.apply(null,topic.cats.map(function(x){return x.value;}));
+  var hint=el('#div',{class:'stage-hint'},stage);
+  hint.textContent='选一选：最多的人数是 '+maxV+' 人，每格代表几人才能画得下？';
+  stdTaskDone=false;
+  var row=el('#div',{class:'std-row'},stage);
+  c.standards.forEach(function(p){
+    var b=el('#button',{class:'std-btn'},row);
+    b.textContent='每格代表 '+p+' 人';
+    b.addEventListener('click',function(){
+      if(stdTaskDone) return;
+      addStep();
+      var cap=c.gridCells*p;
+      if(cap<maxV){
+        toast('每格代表 '+p+' 人时最多画到 '+cap+' 人，装不下最大的 '+maxV+' 人，格子不够啦！',3000);
+        return;
+      }
+      stdTaskDone=true;
+      row.querySelectorAll('.std-btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      completeTask('标准选定：每格代表 '+p+' 人，容量 '+cap+' 人，装得下所有数据！');
+    });
+  });
+}
+function revealStd(){
+  if(stdTaskDone) return;
+  stdTaskDone=true; addStep();
+  var c=game.topic.chart;
+  var maxV=Math.max.apply(null,game.topic.cats.map(function(x){return x.value;}));
+  var row=document.querySelector('#stage .std-row');
+  row.querySelectorAll('.std-btn').forEach(function(x){
+    if(parseInt(x.textContent.replace(/[^0-9]/g,''),10)===c.correctPer) x.classList.add('active');
+  });
+  completeTask('标准选定：每格代表 '+c.correctPer+' 人（揭示答案：'+c.gridCells+' 格 × '+c.correctPer+' 人 = '+c.gridCells*c.correctPer+' 人 ≥ 最大数据 '+maxV+' 人）');
+}
+/* 高级第三关：画直条 */
+function buildSeniorChart(stage){
+  var topic=game.topic, c=topic.chart;
+  $('tb-desc').textContent='标准已经统一：每格代表 '+c.correctPer+' 人。现在拖动每根直条顶端的小圆点，把四种数量画到正确高度！不满一格的直条也能画——拖到准确的数字就行。';
+  $('tb-cond').style.display='block';
+  $('tb-cond').textContent='目标数据（来自线索卡）：'+topic.cats.map(function(x){return x.name+' '+x.value+' 人';}).join('，')+'。拖动时直条顶端会实时显示人数，四根全对自动过关！';
+  schart=createVChart(stage,{
+    title:c.title,date:c.date,unitLabel:c.unitLabel,axisName:c.axisName,
+    gridCells:c.gridCells,cats:topic.cats,needPick:false,perDefault:c.correctPer,
+    onAllCorrect:function(){ completeTask('条形统计图绘制完成！智慧果园大丰收'); }
+  });
+  /* 直接设置标准并显示刻度 */
+  schart.setPer(c.correctPer);
+}
+function revealSeniorChart(){
+  if(schart.done) return;
+  schart.animateToTargets().then(function(){ if(!schart.done) completeTask('条形统计图绘制完成！（揭示答案）'); });
+}
+
+/* =====================================================================
+   规则说明面板
+   ===================================================================== */
+function openRules(auto){
+  var mask=el('#div',{class:'modal-mask'},document.body);
+  var m=el('#div',{class:'modal'},mask);
+  var h=el('#h2',{},m); h.textContent='游戏规则说明';
+  var items=[
+    '<b>目标：</b>像统计师一样工作——整理数据、填写统计表、亲手绘制条形统计图！',
+    '<b>初级·星光调查站：</b>点击“正”字笔画数出人数 → 拖数字卡填统计表 → 选好“每格代表几人”再拖小圆点画直条。',
+    '<b>中级·彩虹车库：</b>拖小圆点把横向条形统计图补全 → 点击直条找出最多和最少 → 点两条直条发现相差数量。',
+    '<b>高级·智慧果园：</b>翻线索卡算人数 → 选对统一标准 → 拖小圆点画出四根直条。',
+    '<b>小圆点怎么拖：</b>按住直条顶端的白色小圆点，向上（或向右）拖到想要的高度再松手，直条顶端的数字会实时变化。',
+    '<b>右上角</b>是计时器和步数；遇到困难可以点“<b>揭示答案</b>”看演示；每局主题色和题目都会随机换，多玩几局都不重样！'
+  ];
+  items.forEach(function(s){
+    var d=el('#div',{class:'rule-item'},m); d.innerHTML=s;
+  });
+  var row=el('#div',{class:'close-row'},m);
+  var ok=el('#button',{class:'btn'},row);
+  ok.textContent=auto?'开始挑战':'知道了';
+  ok.onclick=function(){ mask.remove(); };
+  mask.addEventListener('pointerdown',function(e){ if(e.target===mask&&!auto) mask.remove(); });
+}
+
+/* =====================================================================
+   彩纸庆祝动画（Canvas 实现）
+   ===================================================================== */
+function launchConfetti(){
+  var cv=$('confetti-canvas');
+  cv.width=innerWidth; cv.height=innerHeight;
+  cv.style.display='block';
+  var ctx=cv.getContext('2d');
+  var colors=['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#00acc1','#fdd835'];
+  var parts=[];
+  for(var i=0;i<160;i++){
+    parts.push({
+      x:Math.random()*cv.width, y:-30-Math.random()*cv.height*0.5,
+      w:8+Math.random()*8, h:10+Math.random()*10,
+      vx:(Math.random()-0.5)*3, vy:2+Math.random()*3.5,
+      rot:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.25,
+      color:colors[Math.floor(Math.random()*colors.length)]
+    });
+  }
+  var t0=Date.now();
+  (function frame(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    parts.forEach(function(p){
+      p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.color; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    });
+    if(Date.now()-t0<4200){ requestAnimationFrame(frame); }
+    else{ ctx.clearRect(0,0,cv.width,cv.height); cv.style.display='none'; }
+  })();
+}
+
+/* =====================================================================
+   全局按钮绑定
+   ===================================================================== */
+document.querySelectorAll('.menu-card').forEach(function(c){
+  c.addEventListener('click',function(){ startGame(c.dataset.diff); });
+});
+$('btn-rules').onclick=function(){ openRules(false); };
+$('btn-restart').onclick=function(){
+  if(game) startGame(game.diff);
+};
+$('btn-back').onclick=function(){ showMenu(); };
+$('btn-reveal').onclick=function(){
+  if(!game||game.finished) return;
+  var t=game.tasks[game.idx];
+  if(revealLock) return;
+  revealLock=true;
+  toast('看仔细：正确答案演示开始啦！');
+  try{ t.reveal(); }catch(err){ revealLock=false; }
+  /* 揭示动画通常自带完成回调；保险起见解锁 */
+  setTimeout(function(){ revealLock=false; },1500);
+};
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-n/g011", "name": "\u6570\u636e\u5c0f\u753b\u5bb6\u00b7\u7edf\u8ba1\u5f69\u8679\u4e50\u56ed", "file": "g011.html", "jiaocan": "\u301030\u3011\u56db\u3001\u7edf\u8ba1\u8868\u548c\u6761\u5f62\u7edf\u8ba1\u56fe\uff08\u4e00\uff09\uff1a\u5355\u5143\u77e5\u8bc6\u68b3\u7406&\u6838\u5fc3\u8003\u70b9\u7a81\u7834", "unit": "", "grade": "3\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "N\uff1a\u6559\u6750\u89e3\u8bfb3", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u6559\u6750\u89e3\u8bfb3\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-n"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

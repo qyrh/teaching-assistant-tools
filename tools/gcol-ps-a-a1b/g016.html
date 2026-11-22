@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>彩虹点数工坊——分层计数大闯关</title>
+<style>
+/* ============ 全局与色板变量（每局随机换色，G8） ============ */
+:root{
+  --main:#1976d2; --dark:#0d47a1; --bg:#e3f2fd; --accent:#ffca28;
+  --good:#2e7d32; --bad:#c62828; --warn:#ef6c00; --ink:#263238;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;font-size:18px}
+#app{max-width:1120px;margin:0 auto;padding:10px 12px 90px}
+.screen.hidden{display:none !important}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:12px;font-size:18px;padding:10px 18px;background:var(--main);color:#fff;box-shadow:0 3px 0 var(--dark);transition:transform .1s}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--dark)}
+button.ghost{background:#fff;color:var(--main);border:2px solid var(--main);box-shadow:0 3px 0 #cfd8dc}
+button.big{font-size:22px;padding:14px 26px}
+
+/* ============ 首页 ============ */
+#screen-home{padding-top:20px;text-align:center}
+.logo{font-size:44px;font-weight:900;color:var(--dark);letter-spacing:4px;text-shadow:2px 2px 0 var(--accent)}
+.sub{font-size:20px;color:var(--dark);margin:8px 0 26px}
+.diffs{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.diff-card{width:250px;background:#fff;border-radius:18px;padding:22px 16px;border:3px solid var(--main);box-shadow:0 6px 0 rgba(0,0,0,.12)}
+.diff-card h3{font-size:26px;color:var(--dark);margin-bottom:8px}
+.diff-card p{font-size:16px;color:#546e7a;line-height:1.6;min-height:100px}
+.diff-card button{width:100%;margin-top:12px}
+.home-tip{margin-top:26px;font-size:16px;color:#546e7a;max-width:760px;margin-left:auto;margin-right:auto;line-height:1.7}
+
+/* ============ HUD ============ */
+#hud{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:8px 14px;box-shadow:0 3px 8px rgba(0,0,0,.08);margin-bottom:10px}
+#hud .title{font-weight:900;color:var(--dark);font-size:20px;margin-right:auto}
+.hud-chip{background:var(--bg);border-radius:10px;padding:6px 12px;font-size:17px;color:var(--dark);font-weight:bold}
+#story-bar{background:#fff;border-left:8px solid var(--main);border-radius:12px;padding:12px 16px;margin-bottom:10px;line-height:1.7;font-size:19px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+#story-bar b{color:var(--dark)}
+
+/* ============ 舞台 ============ */
+#stage{position:relative;background:#fff;border-radius:16px;padding:14px;box-shadow:0 3px 10px rgba(0,0,0,.08);min-height:300px}
+.phase-bar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.phase-pill{background:#eceff1;color:#78909c;border-radius:20px;padding:5px 14px;font-size:16px}
+.phase-pill.now{background:var(--main);color:#fff;font-weight:bold}
+.hint-line{font-size:16px;color:var(--warn);margin:8px 0 10px;font-weight:bold;line-height:1.7}
+
+/* 图案板（所有点/格间距均不小于12px，杜绝重叠） */
+.board{display:flex;flex-direction:column;align-items:center;gap:14px;overflow:auto;max-height:40vh;padding:12px;background:repeating-linear-gradient(45deg,#fafafa,#fafafa 12px,#f2f4f5 12px,#f2f4f5 24px);border-radius:12px;border:2px dashed #cfd8dc}
+.grp{display:flex;flex-direction:column;gap:12px;align-items:center;position:relative;transition:opacity .4s}
+.grp-row{display:flex;gap:12px;justify-content:center}
+.grp.done{opacity:.28}
+.grp .grp-tag{position:absolute;right:-52px;top:50%;transform:translateY(-50%);background:var(--good);color:#fff;border-radius:8px;padding:2px 8px;font-size:16px;font-weight:bold;white-space:nowrap}
+.pt{width:30px;height:30px;border-radius:50%;background:#cfd8dc;display:flex;align-items:center;justify-content:center;font-size:19px;line-height:1;color:transparent;cursor:pointer;transition:transform .15s,background .15s;user-select:none;touch-action:manipulation}
+.pt.on{background:var(--main);color:#fff;box-shadow:0 0 0 3px rgba(0,0,0,.18)}
+.pt.hole{background:transparent;border:2.5px dashed #90a4ae}
+.pt.filled{background:repeating-linear-gradient(45deg,var(--warn),var(--warn) 4px,#ffb74d 4px,#ffb74d 8px);border:2.5px solid var(--warn)}
+.pt.towerblock{border-radius:5px}
+.ingot .pt{border-radius:7px}
+.pear .pt{border-radius:42% 42% 42% 42%/52% 52% 46% 46%}
+.small .pt{width:24px;height:24px;font-size:16px}
+
+/* 卡池与算式槽 */
+.bar{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.bar .bar-label{font-size:17px;font-weight:bold;color:var(--dark);white-space:nowrap}
+.cards{display:flex;gap:12px;flex-wrap:wrap;min-height:58px;background:#f5f7f8;border-radius:12px;padding:8px 10px;flex:1;border:2px solid #e0e5e8;align-items:center}
+#slots{border:2px dashed var(--main);background:#eef4fb}
+.card{min-width:58px;height:48px;border-radius:10px;background:var(--accent);color:#4e342e;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;touch-action:none;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.card.neg{background:#ffcdd2;color:var(--bad)}
+.card.pop{animation:cardpop .4s}
+@keyframes cardpop{0%{transform:scale(.2) rotate(-12deg)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+.card.flash{animation:cardflash .5s}
+@keyframes cardflash{50%{transform:scale(1.25);box-shadow:0 0 14px var(--main)}}
+.drag-ghost{position:fixed;z-index:999;pointer-events:none;opacity:.9;transform:rotate(-4deg)}
+.sum-out{font-size:24px;font-weight:900;color:var(--dark)}
+.target-bar{display:flex;align-items:center;gap:14px;margin-top:12px;flex-wrap:wrap}
+.target-val{font-size:30px;font-weight:900;color:var(--warn)}
+.minus-note{font-size:15px;color:#78909c}
+
+/* 分配关（搭塔） */
+.alloc-top{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:19px;font-weight:bold;color:var(--dark);margin-bottom:10px}
+.alloc-board{display:flex;gap:16px;justify-content:center;align-items:flex-end;overflow-x:auto;padding:14px 6px;border-radius:12px;background:repeating-linear-gradient(45deg,#fafafa,#fafafa 12px,#f2f4f5 12px,#f2f4f5 24px);border:2px dashed #cfd8dc}
+.person{display:flex;flex-direction:column;align-items:center;gap:6px}
+.person .face{font-size:32px}
+.person .cells{display:flex;flex-direction:column-reverse;gap:12px}
+.cell{width:42px;height:24px;border-radius:6px;background:#cfd8dc;cursor:pointer;transition:background .15s}
+.cell.on{background:var(--main)}
+.person .num{font-size:19px;font-weight:900;color:var(--dark)}
+.person.dup .cells .cell.on{background:var(--bad)}
+.person.dup .face{filter:drop-shadow(0 0 6px var(--bad))}
+
+/* 序列关 */
+.seq-slots{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.seq-slot{display:flex;flex-direction:column;align-items:center;gap:6px}
+.seq-slot .lbl{font-size:16px;color:#78909c}
+.seq-slot .box{width:58px;height:52px;border-radius:10px;border:2.5px dashed #90a4ae;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:var(--dark);background:#fff;cursor:pointer}
+.seq-slot .box.ok{border-style:solid;border-color:var(--main);background:#e3f2fd}
+.seq-sum{font-size:20px;font-weight:900;color:var(--dark);text-align:center;margin:8px 0;line-height:1.8}
+
+/* 过关条 */
+#pass-bar{position:fixed;left:0;right:0;bottom:0;background:var(--good);color:#fff;padding:16px 20px;display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;z-index:60;transform:translateY(110%);transition:transform .4s;font-size:19px;font-weight:bold;line-height:1.6}
+#pass-bar.show{transform:translateY(0)}
+#pass-bar button{background:#fff;color:var(--good)}
+
+/* 底部操作 */
+#action-bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:2px solid #e0e5e8;display:flex;gap:12px;padding:10px 12px;z-index:50;justify-content:center;flex-wrap:wrap;box-shadow:0 -3px 10px rgba(0,0,0,.08)}
+#action-bar button{font-size:16px;padding:8px 14px}
+body{padding-bottom:72px}
+
+/* 模态框 */
+.modal{position:fixed;inset:0;background:rgba(38,50,56,.55);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal.show{display:flex}
+.mbox{background:#fff;border-radius:18px;max-width:660px;width:100%;max-height:82vh;overflow:auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.mbox h2{color:var(--dark);font-size:26px;margin-bottom:14px;text-align:center}
+.mbox .mtext{font-size:18px;line-height:1.9;white-space:pre-wrap}
+.mbox .mcenter{text-align:center;margin-top:18px}
+.formula{background:var(--bg);border-radius:10px;padding:10px 14px;font-size:20px;font-weight:900;color:var(--dark);margin:8px 0;line-height:1.8}
+
+/* 提示 toast */
+#toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-100px);background:var(--dark);color:#fff;padding:12px 22px;border-radius:12px;font-size:18px;z-index:200;transition:transform .3s;max-width:90vw;text-align:center}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* 通关屏 */
+#screen-win{text-align:center;padding-top:40px}
+#screen-win h1{font-size:40px;color:var(--good)}
+#screen-win .win-sub{font-size:20px;color:var(--dark);margin:12px 0 24px;font-weight:bold;line-height:1.8}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:90}
+
+@media (max-width:640px){
+  .logo{font-size:32px}
+  .pt{width:24px;height:24px;font-size:16px}
+  .small .pt{width:22px;height:22px;font-size:16px}
+  .grp .grp-tag{right:-46px;font-size:14px}
+  .grp-row{gap:12px}
+  .cell{width:34px;height:20px}
+  .seq-slot .box{width:46px;height:44px;font-size:20px}
+  #story-bar{font-size:17px}
+  .card{min-width:48px;height:44px;font-size:21px}
+  .board{max-height:40vh}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 首页：难度选择（G3） ============ -->
+  <div id="screen-home" class="screen">
+    <div class="logo">🌈 彩虹点数工坊</div>
+    <div class="sub">分层数一数 · 补空巧算 · 搭塔分糖 —— 立体图形计数（下）</div>
+    <div class="diffs">
+      <div class="diff-card">
+        <h3>🌱 初级</h3>
+        <p>规则图形分层数：排豆子、数梨、圆点小山、星星方阵……点亮每一层，收集数字卡拼出算式！</p>
+        <button data-diff="easy" class="big">开始挑战</button>
+      </div>
+      <div class="diff-card">
+        <h3>🌟 中级</h3>
+        <p>有空缺的图案来啦！可以先补上空缺再减去（补空法），也可以直接分层数，两种方法都能过关！</p>
+        <button data-diff="mid" class="big">开始挑战</button>
+      </div>
+      <div class="diff-card">
+        <h3>🚀 高级</h3>
+        <p>分糖搭塔找"最省方案"，还要补全倒三角队形和时钟敲响的规律，敢来试试吗？</p>
+        <button data-diff="hard" class="big">开始挑战</button>
+      </div>
+    </div>
+    <div class="home-tip">小贴士：点击层里的图案把它们点亮，整层点亮后会变成数字卡；把数字卡拖进算式槽，按"算一算"就能过关！有空缺的图还可以点虚线圈放补块，先补后减！</div>
+    <div style="margin-top:14px"><button class="ghost" id="btn-rules-home">📋 玩法说明</button></div>
+  </div>
+
+  <!-- ============ 游戏主屏 ============ -->
+  <div id="screen-game" class="screen hidden">
+    <div id="hud">
+      <span class="title">🌈 彩虹点数工坊</span>
+      <span class="hud-chip" id="hud-level">第1关/共3关</span>
+      <span class="hud-chip" id="hud-diff">初级</span>
+      <span class="hud-chip">⏱ <span id="hud-time">00:00</span></span>
+      <span class="hud-chip">👣 步数 <span id="hud-steps">0</span></span>
+    </div>
+    <div id="story-bar"></div>
+    <div id="stage"></div>
+  </div>
+
+  <!-- ============ 通关屏（G5 庆祝） ============ -->
+  <div id="screen-win" class="screen hidden">
+    <h1>🎉 全部通关，太棒啦！</h1>
+    <div class="win-sub" id="win-stats"></div>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <button class="big" id="btn-again">🔁 再玩一局</button>
+      <button class="ghost big" id="btn-home-win">🏠 返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- 底部操作条（G4：揭示答案/重新开始/返回难度选择） -->
+<div id="action-bar" class="hidden">
+  <button class="ghost" id="btn-reveal">💡 揭示答案</button>
+  <button class="ghost" id="btn-restart">🔄 重新开始</button>
+  <button class="ghost" id="btn-home">🏠 返回难度选择</button>
+  <button class="ghost" id="btn-rules">📋 玩法说明</button>
+</div>
+
+<!-- 过关条 -->
+<div id="pass-bar"><span id="pass-text"></span><button id="btn-next">下一关 ➜</button></div>
+
+<!-- 玩法说明模态框（G6：进入弹出+随时再看） -->
+<div class="modal" id="modal-rules">
+  <div class="mbox">
+    <h2>📋 玩法说明</h2>
+    <div class="mtext">🎯 <b>分层数关卡</b>：点击图案里的每一颗，把它们点亮！当一层的图案全部点亮，这一层就会"聚成"一张数字卡。
+把数字卡<b>拖进（或点一下）算式槽</b>，排好后按【算一算】逐个累加，总和正好等于目标总数就过关！
+
+🕳 <b>有空缺的图案</b>：虚线圈是空缺处。点一下虚线圈可以放一块"补块"，把残缺的层补整齐（<b>补空法</b>：先补满、再减去补上的部分，会自动生成红色减卡）；也可以不放补块，直接点亮这一层现有的图案（<b>分层数</b>）。两种方法都能过关！
+
+🍬 <b>分糖搭塔关卡</b>：点击格子给每位小朋友"搭"糖果塔。要求：每人至少 1 颗，且每人的数量<b>互不相同</b>。搭出<b>最省糖</b>的方案，就能发现"至少需要多少颗"！
+
+🚩 <b>补全规律关卡</b>：把数字卡拖进空槽，让队形／时钟的规律接下去，下方的累计和会实时更新！
+
+右上角有⏱计时和👣步数；卡住的时候可以点【💡揭示答案】看思路。祝你闯关成功！</div>
+    <div class="mcenter"><button class="big" id="btn-rules-close">明白啦，出发！</button></div>
+  </div>
+</div>
+
+<!-- 揭示答案模态框 -->
+<div class="modal" id="modal-reveal">
+  <div class="mbox">
+    <h2>💡 揭示答案</h2>
+    <div class="mtext" id="reveal-text"></div>
+    <div class="mcenter"><button class="big" id="btn-reveal-close">我再来试试</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<canvas id="fx"></canvas>
+
+<script>
+"use strict";
+/* ================================================================
+   彩虹点数工坊 —— 立体图形计数（下）互动游戏（单文件，零外部依赖）
+   游戏机制与数学方法深度绑定：
+   1) 分层数：点亮整层 → 聚合整数值数字卡 → 拖入算式槽 → 求和验证
+      （卡片直接携带整数值，不存在"拼数字"输入，两位数天然可表示）
+   2) 补空法：向空缺处放补块 → 层值变大并自动生成红色减卡（先补后减）
+   3) 拆数法：搭糖果塔构造 1+2+…+n，亲手发现"至少要多少"
+   4) 规律续排：拖数字卡补全序列，实时累计求和
+   判定全部使用数字类型严格比较，杜绝字符串比较类死题。
+   ================================================================ */
+
+/* ---------- 小工具 ---------- */
+function shuffle(a){const r=a.slice();for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
+function pick(arr,n){return shuffle(arr).slice(0,n);}
+const $=s=>document.querySelector(s);
+function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;return e;}
+
+/* ---------- 预设色板（每局随机选一个，G8） ---------- */
+const PALETTES=[
+ {main:'#1976d2',dark:'#0d47a1',bg:'#e3f2fd'},
+ {main:'#f57c00',dark:'#e65100',bg:'#fff3e0'},
+ {main:'#388e3c',dark:'#1b5e20',bg:'#e8f5e9'},
+ {main:'#7b1fa2',dark:'#4a148c',bg:'#f3e5f5'},
+ {main:'#d81b60',dark:'#880e4f',bg:'#fce4ec'},
+ {main:'#009688',dark:'#004d40',bg:'#e0f2f1'}
+];
+function applyPalette(){
+  const p=PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  const rs=document.documentElement.style;
+  rs.setProperty('--main',p.main);rs.setProperty('--dark',p.dark);rs.setProperty('--bg',p.bg);
+}
+
+/* ---------- 图案行生成帮助：R(n)=n个实体；H(a,b,c)=a实+b空+c实 ---------- */
+const R=n=>Array(n).fill(1);
+const H=(a,b,c)=>[...R(a),...Array(b).fill(0),...R(c)];
+
+/* ================================================================
+   关卡数据池（题目、数值、解析均取自本讲 docx；另含同题型自创变式）
+   数值核对：
+   爱心 1+3+5+7+9+6+10+14+17=72（空缺5+3+1=9，补满81）
+   金元宝 10+10+8+6+4+2+10+10=60（空缺2+4+6+8=20，补满80）
+   方阵85：10*10-15；星星方阵58：8*8-6；宝塔 1+9+25=35
+   阿普64=1+3+…+15；乐乐72=2+4+…+16；差8
+   分糖：10人最少55>54；8人最少36=36；6人最少21>20
+   队形：1+…+10=55；时钟：1+…+12=78，第80下=2时
+   ================================================================ */
+const POOLS={
+easy:[ /* 初级：规则图形分层数 */
+ {type:'count',name:'排豆子',shape:'dot',symbol:'●',target:36,
+  story:'牛牛拿来了很多豆子在桌上摆图形：他第一排摆了<b>1颗</b>豆子，以后每排依次<b>增加2颗</b>豆子，一共摆了<b>6排</b>。他一共用了多少颗豆子摆图形？',
+  groups:[[[1]],[[1,1,1]],[R(5)],[R(7)],[R(9)],[R(11)]],
+  reveal:'从上往下分层数，每排依次是 1、3、5、7、9、11 颗：\n1+3+5+7+9+11=36（颗）。'},
+ {type:'count',name:'数梨',shape:'pear',symbol:'🍐',target:45,
+  story:'图画中，最下面一排有<b>9个</b>梨，以上每排逐次<b>少一个</b>梨。算一算，图画中一共有多少个梨？',
+  groups:[[[1]],[[1,1]],[R(3)],[R(4)],[R(5)],[R(6)],[R(7)],[R(8)],[R(9)]],
+  reveal:'从下往上每排依次是 9、8、7、6、5、4、3、2、1 个：\n9+8+7+6+5+4+3+2+1=45（个）。'},
+ {type:'count',name:'圆点小山',shape:'dot',symbol:'●',target:25,
+  story:'图中的圆点从上往下每层<b>多2个</b>，一共<b>5层</b>。请你数一数，共有多少个圆点？',
+  groups:[[[1]],[[1,1,1]],[R(5)],[R(7)],[R(9)]],
+  reveal:'从上往下每层是 1、3、5、7、9 个：\n1+3+5+7+9=25（个）。'},
+ {type:'count',name:'演出队形',shape:'dot',symbol:'🙂',target:55,
+  story:'一年级同学参加演出，第一排站<b>1名</b>同学，以后每排都<b>多站1名</b>同学，一共站了<b>10排</b>。算一算参加演出的一共有多少名同学。',
+  groups:[[[1]],[[1,1]],[R(3)],[R(4)],[R(5)],[R(6)],[R(7)],[R(8)],[R(9)],[R(10)]],
+  reveal:'从第一排到第十排依次是 1、2、3、4、5、6、7、8、9、10 名：\n1+2+3+4+5+6+7+8+9+10=55（名）。'},
+ {type:'count',name:'圆点方阵',shape:'dot',symbol:'●',target:100,small:true,
+  story:'方阵中的圆点，横着看<b>每行10个</b>，一共<b>10行</b>。请你数一数，共有多少个圆点？',
+  groups:[R(10),R(10),R(10),R(10),R(10),R(10),R(10),R(10),R(10),R(10)].map(r=>[r]),
+  reveal:'每行都是10个，共10行：\n10+10+10+10+10+10+10+10+10+10=100（个）。'},
+ {type:'count',name:'星星小山',shape:'dot',symbol:'★',target:49,
+  story:'星星图案共<b>7层</b>，从上往下每层<b>多2颗</b>。请你数一数，一共有多少颗星星？',
+  groups:[[[1]],[[1,1,1]],[R(5)],[R(7)],[R(9)],[R(11)],[R(13)]],
+  reveal:'从上往下每层是 1、3、5、7、9、11、13 颗：\n1+3+5+7+9+11+13=49（颗）。'}
+],
+mid:[ /* 中级：空缺补空 / 分层宝塔 / 双队比较 */
+ {type:'count',name:'数爱心',shape:'heart',symbol:'♥',target:72,small:true,
+  story:'请你数一数，下图中共有多少颗爱心？<br><span style="color:#78909c;font-size:16px">（小提示：这个图从上往下每层多2颗，但是有几层中间空出来了一部分哦。）</span>',
+  groups:[[[1]],[[1,1,1]],[R(5)],[R(7)],[R(9)],[H(3,5,3)],[H(5,3,5)],[H(7,1,7)],[R(17)]],
+  reveal:'方法一（分层数）：从上往下每层颗数为 1、3、5、7、9、6、10、14、17：\n1+3+5+7+9+6+10+14+17=72（颗）。\n\n方法二（补空法）：先把空缺补上当作实心图形：(1+3+5+…+17)−(5+3+1)=81−9=72（颗）。\n\n方法三（分三角形）：把整个图形分成3个一样的三角形，每个三角形有 1+3+5+7+9=25（颗），三个共 25×3=75（颗），三个三角形共用了3颗会多数3颗，所以 75−3=72（颗）。'},
+ {type:'count',name:'数金元宝',shape:'ingot',symbol:'🧧',target:60,small:true,
+  story:'请你数一数，下图中共有多少个金元宝？<br><span style="color:#78909c;font-size:16px">（小提示：上下两段每行都是10个，中间空出来了一部分。）</span>',
+  groups:[R(10),R(10),H(4,2,4),H(3,4,3),H(2,6,2),H(1,8,1),R(10),R(10)].map(r=>[r]),
+  reveal:'方法一（分层数）：10+10+8+6+4+2+10+10=60（个）。\n\n方法二（补空法）：先补成每行10个的长方形：8个10相加=80，再减去补上的 2+4+6+8=20：\n80−20=60（个）。'},
+ {type:'count',name:'圆点方阵（有空缺）',shape:'dot',symbol:'●',target:85,small:true,
+  story:'方阵每行<b>10个</b>、共<b>10行</b>，可是中间空缺了一块。请你数一数，一共有多少个圆点？',
+  groups:[R(10),R(10),R(10),R(10),H(4,1,5),H(4,2,4),H(3,3,4),H(3,4,3),H(2,5,3),R(10)].map(r=>[r]),
+  reveal:'补空法：先补满整个方阵 10×10=100（个），再减去空缺的 1+2+3+4+5=15（个）：\n100−15=85（个）。'},
+ {type:'count',name:'方块宝塔',shape:'tower',symbol:'■',target:35,tower:true,
+  story:'下图是由小方块构成的"宝塔"。从上往下看共有<b>3层</b>：<b>第一层1块</b>；<b>第二层有3行、每行3块</b>；<b>第三层有5行、每行5块</b>。请你数一数，宝塔共有多少块？<br><span style="color:#78909c;font-size:16px">（下方是宝塔从上往下看到的形状，点亮整层即可收卡：第一层点亮1块，第二层点亮9块，第三层点亮25块。）</span>',
+  groups:[{rows:[[1]]},{rows:[R(3),R(3),R(3)]},{rows:[R(5),R(5),R(5),R(5),R(5)]}],
+  reveal:'分层数：第一层 1 块；第二层 3+3+3=9（块）；第三层 5+5+5+5+5=25（块）。\n1+9+25=35（块）。'},
+ {type:'compare',name:'弹珠大比拼',shape:'dot',symbol:'🔵',target:0,
+  story:'乐乐老师和阿普一起玩拿弹珠的游戏：阿普拿1颗，乐乐老师拿2颗；阿普拿3颗，乐乐老师拿4颗；接着阿普依次拿了5、7、9、11、13、15颗，乐乐老师依次拿了6、8、10、12、14、16颗。最后谁得到的弹珠多？多几颗？',
+  patterns:[
+   {name:'阿普的弹珠',symbol:'🔵',target:64,groups:[[[1]],[[1,1,1]],[R(5)],[R(7)],[R(9)],[R(11)],[R(13)],[R(15)]]},
+   {name:'乐乐老师的弹珠',symbol:'🔴',target:72,groups:[[[1,1]],[R(4)],[R(6)],[R(8)],[R(10)],[R(12)],[R(14)],[R(16)]]}
+  ],
+  diffPool:[5,6,7,8,9],diffAnswer:8,
+  reveal:'方法一：阿普共拿 1+3+5+7+9+11+13+15=64（颗）；乐乐老师共拿 2+4+6+8+10+12+14+16=72（颗）；72−64=8（颗），乐乐老师多，多8颗。\n\n方法二：每一次乐乐老师都比阿普多拿1颗，一共分别拿了8次，所以一共多拿 8 颗。'},
+ {type:'count',name:'星星方阵（有空缺）',shape:'dot',symbol:'★',target:58,small:true,
+  story:'星星方阵每行<b>8颗</b>、共<b>8行</b>，中间空缺了一小块。请你数一数，一共有多少颗星星？',
+  groups:[R(8),R(8),R(8),R(8),R(8),H(3,1,4),H(3,2,3),H(2,3,3)].map(r=>[r]),
+  reveal:'补空法：先补满 8×8=64（颗），再减去空缺的 1+2+3=6（颗）：\n64−6=58（颗）。'}
+],
+hard:[ /* 高级：拆数法分糖 / 规律续排 */
+ {type:'alloc',name:'分糖果',item:'糖',unit:'颗',people:10,target:54,
+  story:'田田、丁丁、牛牛、阿普和6个同学一起分<b>54颗糖</b>（一共10人）。要求<b>每个人都要分到糖</b>，但分到的糖<b>又不能一样多</b>。请你动手搭一搭最省糖的分法：54颗够分吗？',
+  reveal:'一共 4+6=10（个）人分糖，每人分到且各不相同，最省的方案是从1开始依次多1：\n1+2+3+4+5+6+7+8+9+10=55（颗）。\n所以至少需要55颗糖。现在只有54颗，不能按题目要求分；至少要有55颗糖才能够分。'},
+ {type:'alloc',name:'分苹果',item:'苹果',unit:'个',people:8,target:36,
+  story:'将<b>36个苹果</b>分给<b>8个小朋友</b>，每人都要分到苹果，而且每个小朋友分到的苹果个数<b>各不相同</b>。请你搭一搭最省苹果的分法：36个苹果够分吗？',
+  reveal:'8个小朋友各不相同，最省的方案：\n1+2+3+4+5+6+7+8=36（个）。\n至少需要36个苹果，现在正好有36个——正好够分！'},
+ {type:'alloc',name:'分橘子',item:'橘子',unit:'个',people:6,target:20,
+  story:'将<b>20个橘子</b>分给<b>6个小朋友</b>，每人都要分到橘子，而且每个小朋友分到的橘子个数<b>不一样多</b>。请你搭一搭最省橘子的分法：20个橘子够分吗？',
+  reveal:'6个小朋友各不相同，最省的方案：\n1+2+3+4+5+6=21（个）。\n至少需要21个橘子，现在只有20个——不够分！至少要有21个才够。'},
+ {type:'seq',name:'倒三角队形',slots:10,prefill:5,mode:'team',
+  story:'有<b>55个人</b>站成倒三角的队形跳舞：最前面一排站<b>1个人</b>，以后每排都比前一排<b>多站1个人</b>。想一想：最后面一排站几个人？<br><span style="color:#78909c;font-size:16px">（把数字卡拖进空槽，让每排依次多1人，看累计人数什么时候正好是55。）</span>',
+  pool:[6,7,8,9,10,11,12,13],
+  reveal:'从第1排开始依次是 1、2、3、4、5、6、7、8、9、10 人：\n1+2+3+4+5+6+7+8+9+10=55（人），一共10排。\n所以最后面一排站 10 人。'},
+ {type:'seq',name:'时钟敲响',slots:12,prefill:0,mode:'clock',
+  story:'时钟<b>1时敲1下，2时敲2下，3时敲3下</b>……照这样敲下去，当共敲<b>80下</b>的时候是几时呢？<br><span style="color:#78909c;font-size:16px">（先把1时~12时各敲几下按顺序填进槽里，再看看敲到第80下时是几时。）</span>',
+  pool:[1,2,3,4,5,6,7,8,9,10,11,12],
+  reveal:'从1时到12时一共敲：1+2+3+4+5+6+7+8+9+10+11+12=78（下）。\n过了12时之后是1时，敲1下（第79下）；到2时要敲2下，第80下正是2时敲的第1下。\n所以敲第80下的时候是 2 时。'}
+]};
+
+/* ---------- 全局状态 ---------- */
+const G={diff:null,levels:[],idx:0,steps:0,time:0,timer:null,cur:null,playing:false};
+const DIFF_NAME={easy:'初级',mid:'中级',hard:'高级'};
+
+/* ---------- HUD：计时与步数（G7） ---------- */
+function fmtTime(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+function tick(){G.time++;$('#hud-time').textContent=fmtTime(G.time);}
+function startTimer(){stopTimer();G.timer=setInterval(tick,1000);}
+function stopTimer(){if(G.timer){clearInterval(G.timer);G.timer=null;}}
+function step(n){G.steps+=(n===undefined?1:0);$('#hud-steps').textContent=G.steps;}
+function updateHUD(){
+  $('#hud-level').textContent=`第${G.idx+1}关/共${G.levels.length}关`;
+  $('#hud-diff').textContent=DIFF_NAME[G.diff];
+  $('#hud-time').textContent=fmtTime(G.time);
+  $('#hud-steps').textContent=G.steps;
+}
+
+/* ---------- 轻提示 ---------- */
+let toastTimer=null;
+function toast(msg){
+  const t=$('#toast');t.innerHTML=msg;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ---------- 模态框 ---------- */
+function openModal(id){$(id).classList.add('show');}
+function closeModal(id){$(id).classList.remove('show');}
+
+/* ================================================================
+   开始游戏：随机换色 + 随机抽3关（反重复机制）
+   ================================================================ */
+function startGame(diff){
+  applyPalette();
+  G.diff=diff;
+  G.levels=pick(POOLS[diff],3);   /* 每局随机抽样，关卡不固定 */
+  G.idx=0;G.steps=0;G.time=0;G.playing=true;
+  $('#screen-home').classList.add('hidden');
+  $('#screen-win').classList.add('hidden');
+  $('#screen-game').classList.remove('hidden');
+  $('#action-bar').classList.remove('hidden');
+  startTimer();updateHUD();renderLevel();
+}
+function goHome(){
+  stopTimer();G.playing=false;G.cur=null;
+  $('#pass-bar').classList.remove('show');
+  $('#screen-game').classList.add('hidden');
+  $('#screen-win').classList.add('hidden');
+  $('#screen-home').classList.remove('hidden');
+  $('#action-bar').classList.add('hidden');
+}
+function renderLevel(){
+  $('#pass-bar').classList.remove('show');
+  updateHUD();
+  const lv=G.levels[G.idx];
+  $('#story-bar').innerHTML=`【${DIFF_NAME[G.diff]} · 第${G.idx+1}关】<b>${lv.name}</b><br>${lv.story}`;
+  const stage=$('#stage');stage.innerHTML='';
+  if(lv.type==='count')renderCount(stage,lv);
+  else if(lv.type==='compare')renderCompare(stage,lv);
+  else if(lv.type==='alloc')renderAlloc(stage,lv);
+  else if(lv.type==='seq')renderSeq(stage,lv);
+}
+
+/* ================================================================
+   点数关卡（count）：点亮层 → 聚合整数数字卡 → 拖入算式槽 → 求和
+   ================================================================ */
+function renderCount(stage,lv,patOverride,storyLine){
+  const pat=patOverride||{groups:lv.groups,shape:lv.shape,symbol:lv.symbol,target:lv.target,small:lv.small,tower:lv.tower};
+  if(storyLine){
+    const info=el('div','hint-line',storyLine);
+    stage.appendChild(info);
+  }
+  const cur=G.cur={type:'count',lv,pat,groups:[],cards:[],target:pat.target,sumLock:false,onStagePass:null};
+
+  const wrap=el('div','count-wrap');
+  /* --- 图案板（每层一个分组，点击点亮） --- */
+  const board=el('div','board'+(pat.small?' small':'')+(pat.shape==='ingot'?' ingot':'')+(pat.shape==='pear'?' pear':''));
+  pat.groups.forEach((g,gi)=>{
+    const rows=(g&&g.rows)?g.rows:g;          /* g 本身就是行数组；宝塔层用 {rows:[...]} 表示多行 */
+    const grpEl=el('div','grp');
+    const rec={el:grpEl,pts:[],holes:[],done:false};
+    rows.forEach(row=>{
+      const rowEl=el('div','grp-row');
+      row.forEach(v=>{
+        const p=el('div','pt'+(v===0?' hole':'')+(pat.tower?' towerblock':''));
+        p.textContent=pat.symbol;
+        if(v===1){
+          p.addEventListener('click',()=>{       /* 点击点亮实体 */
+            if(rec.done)return;
+            if(!p.classList.contains('on')){p.classList.add('on');step();}
+            checkGroup(rec);
+          });
+          rec.pts.push(p);
+        }else{
+          p.addEventListener('click',()=>{       /* 点击空位：放/收补块（补空法） */
+            if(rec.done)return;
+            p.classList.toggle('filled');step();
+            toast(p.classList.contains('filled')?'放了一块补块，记得后面要减掉它哦！':'收回了补块');
+          });
+          rec.holes.push(p);
+        }
+        rowEl.appendChild(p);
+      });
+      grpEl.appendChild(rowEl);
+    });
+    board.appendChild(grpEl);
+    cur.groups.push(rec);
+  });
+  wrap.appendChild(board);
+
+  /* --- 操作提示 --- */
+  const hasHole=cur.groups.some(g=>g.holes.length>0);
+  wrap.appendChild(el('div','hint-line',hasHole
+    ?'🕳 图中的虚线圈是空缺处：点一下放"补块"（补空法：整层会按补齐后的数收卡，并自动附一张红色减卡）；也可以不放补块直接点亮这一层（分层数）。两种方法都行！'
+    :'👆 点亮一整层的所有图案，这一层就会聚成一张数字卡！'));
+
+  /* --- 数字卡池 --- */
+  const poolBar=el('div','bar');
+  poolBar.appendChild(el('span','bar-label','🎴 数字卡池'));
+  const pool=el('div','cards');pool.id='pool';
+  poolBar.appendChild(pool);wrap.appendChild(poolBar);
+
+  /* --- 算式槽 --- */
+  const slotBar=el('div','bar');
+  slotBar.appendChild(el('span','bar-label','➕ 我的算式'));
+  const slots=el('div','cards');slots.id='slots';
+  const sumOut=el('span','sum-out','');
+  slotBar.appendChild(slots);slotBar.appendChild(sumOut);
+  wrap.appendChild(slotBar);
+
+  /* --- 目标与算一算 --- */
+  const tbar=el('div','target-bar');
+  tbar.appendChild(el('span','','🎯 目标总数：'));
+  tbar.appendChild(el('span','target-val',String(cur.target)));
+  const btnSum=el('button','big','🧮 算一算');
+  btnSum.addEventListener('click',()=>doSum());
+  tbar.appendChild(btnSum);
+  tbar.appendChild(el('span','minus-note','（把卡片拖进或点进算式槽；槽里的卡点一下可拿回）'));
+  wrap.appendChild(tbar);
+
+  stage.appendChild(wrap);
+  cur.poolEl=pool;cur.slotsEl=slots;cur.sumOut=sumOut;
+}
+
+/* 检查某层是否全部点亮 → 聚合生成数字卡（含补块则附带红色减卡） */
+function checkGroup(rec){
+  if(rec.done)return;
+  if(!rec.pts.every(p=>p.classList.contains('on')))return;
+  rec.done=true;
+  const filled=rec.holes.filter(p=>p.classList.contains('filled')).length;
+  const val=rec.pts.length+filled;           /* 层值 = 实体数 + 已放补块数（整数） */
+  rec.el.classList.add('done');
+  rec.el.appendChild(el('div','grp-tag','✓'+val));
+  addCard(val,false);
+  if(filled>0){
+    addCard(filled,true);                    /* 补空法：附红色减卡 */
+    toast(`这一层补齐后是 <b>${val}</b>，补上了 ${filled} 块，减卡已生成！`);
+  }else{
+    toast(`收到一张数字卡：<b>${val}</b>`);
+  }
+}
+/* 向卡池添加整数数字卡 */
+function addCard(v,neg){
+  const cur=G.cur;if(!cur||cur.type!=='count')return;
+  const c=el('div','card pop'+(neg?' neg':''),(neg?'−':'')+v);
+  setTimeout(()=>c.classList.remove('pop'),450);
+  const info={v:parseInt(v,10),neg:!!neg,el:c,loc:'pool'};
+  bindCardDrag(info);
+  cur.poolEl.appendChild(c);
+  cur.cards.push(info);
+}
+/* 数字卡：拖拽（Pointer Events，触屏可用）+ 点击快捷移动 */
+function bindCardDrag(info){
+  const c=info.el;
+  c.addEventListener('pointerdown',ev=>{
+    ev.preventDefault();
+    const sx=ev.clientX,sy=ev.clientY;
+    let ghost=null,moved=false;
+    const mv=e=>{
+      if(!moved&&Math.hypot(e.clientX-sx,e.clientY-sy)<8)return;
+      if(!moved){moved=true;ghost=c.cloneNode(true);ghost.classList.add('drag-ghost');ghost.classList.remove('pop');document.body.appendChild(ghost);c.style.opacity='.25';}
+      ghost.style.left=(e.clientX-29)+'px';ghost.style.top=(e.clientY-24)+'px';
+    };
+    const up=e=>{
+      document.removeEventListener('pointermove',mv);
+      document.removeEventListener('pointerup',up);
+      if(ghost){ghost.remove();c.style.opacity='';}
+      const cur=G.cur;if(!cur||cur.type!=='count'||cur.sumLock)return;
+      if(!moved){                              /* 点击：池→槽 / 槽→池 */
+        if(info.loc==='pool')moveToSlot(info);
+        else moveToPool(info);
+        return;
+      }
+      /* 拖拽释放：按槽/池的矩形区域判定（带容差），不受遮挡元素影响 */
+      const inRect=(elm,pad)=>{const r=elm.getBoundingClientRect();return e.clientX>=r.x-pad&&e.clientX<=r.x+r.width+pad&&e.clientY>=r.y-pad&&e.clientY<=r.y+r.height+pad;};
+      if(cur.slotsEl&&inRect(cur.slotsEl,26)&&info.loc==='pool')moveToSlot(info);
+      else if(cur.poolEl&&inRect(cur.poolEl,12)&&info.loc==='slot')moveToPool(info);
+    };
+    document.addEventListener('pointermove',mv);
+    document.addEventListener('pointerup',up);
+  });
+}
+function moveToSlot(info){
+  const cur=G.cur;
+  info.loc='slot';cur.slotsEl.appendChild(info.el);
+  step();refreshSum();
+}
+function moveToPool(info){
+  const cur=G.cur;
+  info.loc='pool';cur.poolEl.appendChild(info.el);
+  step();refreshSum();
+}
+/* 刷新算式与和（槽内卡片按放入顺序累加，减卡计负值） */
+function refreshSum(){
+  const cur=G.cur;
+  const inSlot=cur.cards.filter(c=>c.loc==='slot');
+  let s=0,expr='';
+  inSlot.forEach(c=>{
+    expr+=(expr?' + ':'')+(c.neg?'(-'+c.v+')':c.v);
+    s+=c.neg?-c.v:c.v;
+  });
+  cur.sumOut.textContent=inSlot.length?(' = '+s):'';
+  cur._expr=expr;cur._sum=s;
+}
+/* 算一算：逐卡累加动画 + 数字严格比较判定 */
+async function doSum(){
+  const cur=G.cur;
+  if(cur.sumLock)return;
+  const inSlot=cur.cards.filter(c=>c.loc==='slot');
+  if(!inSlot.length){toast('先把数字卡拖进算式槽哦！');return;}
+  cur.sumLock=true;step();
+  let s=0;
+  for(const c of inSlot){
+    c.el.classList.add('flash');setTimeout(()=>c.el.classList.remove('flash'),500);
+    s+=c.neg?-c.v:c.v;
+    cur.sumOut.textContent=' = '+s;
+    await new Promise(r=>setTimeout(r,420));
+  }
+  refreshSum();
+  cur.sumLock=false;
+  if(s===cur.target){                          /* 数字===数字，正常游玩可通关 */
+    if(cur.onStagePass)cur.onStagePass();
+    else levelPass(`${cur._expr} = ${s} ✔`);
+  }else{
+    toast(`算出来是 ${s}，和目标 ${cur.target} 不一样，再检查每一层吧！`);
+    cur.slotsEl.animate([{transform:'translateX(0)'},{transform:'translateX(-8px)'},{transform:'translateX(8px)'},{transform:'translateX(0)'}],{duration:260});
+  }
+}
+
+/* ================================================================
+   比较关卡（compare）：第一阶段数阿普 → 第二阶段数乐乐 → 拖差值卡
+   ================================================================ */
+function renderCompare(stage,lv){
+  const st={phase:0};
+  const names=['第一步·数阿普','第二步·数乐乐老师','第三步·比一比'];
+  const draw=()=>{
+    stage.innerHTML='';
+    const pbar=el('div','phase-bar');
+    names.forEach((n,i)=>pbar.appendChild(el('span','phase-pill'+(i===st.phase?' now':''),n)));
+    stage.appendChild(pbar);
+    if(st.phase<2){
+      const pat=lv.patterns[st.phase];
+      const line=st.phase===0
+        ?'第一步：先数一数<b>阿普</b>的弹珠（他依次拿了1、3、5、7、9、11、13、15颗，摆成了下面的图案），一共多少颗？目标总数见下方。'
+        :'第二步：再数一数<b>乐乐老师</b>的弹珠（依次是2、4、6、8、10、12、14、16颗），一共多少颗？目标总数见下方。';
+      /* 复用点数渲染：当前阶段作为独立 count 子关卡 */
+      renderCount(stage,lv,pat,line);
+      const cur=G.cur;
+      cur.onStagePass=()=>{
+        toast(`${pat.name}数好啦：${pat.target} 颗！`);
+        st.phase++;draw();
+      };
+    }else{
+      /* 第三阶段：拖差值卡（复用 count 卡片交互，目标=差值） */
+      const wrap=el('div','count-wrap');
+      wrap.appendChild(el('div','hint-line','阿普 <b>64</b> 颗，乐乐老师 <b>72</b> 颗。最后一步：<b>乐乐老师比阿普多几颗？</b>把答案卡拖进差值槽，按【检查答案】！'));
+      const bar=el('div','bar');
+      bar.appendChild(el('span','bar-label','🎴 候选卡'));
+      const pool=el('div','cards');pool.id='pool';
+      bar.appendChild(pool);wrap.appendChild(bar);
+      const bar2=el('div','bar');
+      bar2.appendChild(el('span','bar-label','🎯 差值槽（放一张）'));
+      const slot=el('div','cards');slot.id='slots';
+      const so=el('span','sum-out','');
+      bar2.appendChild(slot);bar2.appendChild(so);wrap.appendChild(bar2);
+      const tbar=el('div','target-bar');
+      tbar.appendChild(el('span','','✅ 检查'));
+      const btn=el('button','big','✅ 检查答案');
+      btn.addEventListener('click',()=>{
+        const cur=G.cur;
+        const inSlot=cur.cards.filter(c=>c.loc==='slot');
+        if(inSlot.length!==1){toast('拖<b>一张</b>卡进差值槽就好啦！');return;}
+        step();
+        const v=inSlot[0].v;                   /* 数字比较 */
+        if(v===lv.diffAnswer)levelPass('乐乐老师 72 颗，阿普 64 颗，72−64=8（颗）✔ 乐乐老师多，多 8 颗！');
+        else toast('再想一想：72 比 64 多几呢？');
+      });
+      tbar.appendChild(btn);wrap.appendChild(tbar);
+      stage.appendChild(wrap);
+      /* 构造与 count 兼容的运行时（池/槽/卡） */
+      const cur=G.cur={type:'count',lv,cards:[],target:lv.diffAnswer,sumLock:false,onStagePass:null,poolEl:pool,slotsEl:slot,sumOut:so};
+      shuffle(lv.diffPool.slice()).forEach(v=>addCard(v,false));
+    }
+  };
+  draw();
+}
+
+/* ================================================================
+   分配关卡（alloc）：搭糖果塔，构造"每人不同且最省"的方案（拆数法）
+   ================================================================ */
+function renderAlloc(stage,lv){
+  const n=lv.people;
+  const cur=G.cur={type:'alloc',lv,vals:Array(n).fill(0)};
+  const wrap=el('div','count-wrap');
+
+  const top=el('div','alloc-top');
+  const usedEl=el('span','');
+  top.appendChild(usedEl);
+  top.appendChild(el('span','',`（共 ${n} 位小朋友，每人至少1${lv.unit}，且互不相同）`));
+  wrap.appendChild(top);
+
+  const board=el('div','alloc-board');
+  const faces=['😊','🧒','👧','👦','👶','🧑','🙂','😃','😄','😍'];
+  for(let i=0;i<n;i++){
+    const person=el('div','person');
+    person.appendChild(el('div','face',faces[i%faces.length]));
+    const cells=el('div','cells');
+    for(let j=1;j<=n;j++){
+      const cell=el('div','cell');
+      cell.title=String(j);
+      cell.addEventListener('click',()=>{       /* 点击第j格：塔高设为j；再点当前顶格则收回1颗 */
+        cur.vals[i]=(cur.vals[i]===j)?(j-1):j;
+        step();refreshAlloc();
+      });
+      cells.appendChild(cell);
+    }
+    person.appendChild(cells);
+    person.appendChild(el('div','num','0'));
+    board.appendChild(person);
+  }
+  wrap.appendChild(board);
+  wrap.appendChild(el('div','hint-line','👆 点一格，这位小朋友的塔就搭到那么高（再点塔顶一格可收回一颗）。搭出"人人都不同、又最省"的方案后按【检查分配】！'));
+
+  const tbar=el('div','target-bar');
+  const btn=el('button','big','✅ 检查分配');
+  btn.addEventListener('click',checkAlloc);
+  tbar.appendChild(btn);
+  wrap.appendChild(tbar);
+  stage.appendChild(wrap);
+
+  cur.boardEl=board;cur.usedEl=usedEl;
+  refreshAlloc();
+}
+function refreshAlloc(){
+  const cur=G.cur,lv=cur.lv,n=lv.people;
+  let used=0;const cnt={};
+  cur.vals.forEach(v=>{used+=v;cnt[v]=(cnt[v]||0)+1;});
+  [...cur.boardEl.children].forEach((person,i)=>{
+    const v=cur.vals[i];
+    const cells=person.querySelector('.cells').children;
+    for(let j=0;j<n;j++)cells[j].classList.toggle('on',j<v);
+    person.querySelector('.num').textContent=v;
+    person.classList.toggle('dup',v>0&&cnt[v]>1);
+  });
+  cur.usedEl.innerHTML=`🍬 手头：<b>${lv.target}${lv.unit}${lv.item}</b> ｜ 已搭：<b style="color:${used>lv.target?'#c62828':'inherit'}">${used}${lv.unit}</b>`;
+}
+function checkAlloc(){
+  const cur=G.cur,lv=cur.lv,n=lv.people;
+  const vals=cur.vals;step();
+  if(vals.some(v=>v===0)){toast(`每位小朋友都要分到${lv.item}哦！`);return;}
+  if(new Set(vals).size<n){toast('有小朋友分得一样多啦——要求人人不同！');return;}
+  const sorted=vals.slice().sort((a,b)=>a-b);
+  const isMin=sorted.every((v,i)=>v===i+1);   /* 最省方案 = 1,2,…,n */
+  const total=vals.reduce((a,b)=>a+b,0);
+  const minSum=n*(n+1)/2;
+  if(isMin){
+    const expr=sorted.join('+');
+    let concl;
+    if(lv.target<minSum)concl=`最少需要 ${expr}=${minSum}（${lv.unit}），手头只有 ${lv.target}${lv.unit}——<b>不够分！至少要 ${minSum}${lv.unit}才够。</b>`;
+    else if(lv.target===minSum)concl=`最少需要 ${expr}=${minSum}（${lv.unit}），手头正好 ${lv.target}${lv.unit}——<b>正好够分！</b>`;
+    else concl=`最少需要 ${expr}=${minSum}（${lv.unit}），手头 ${lv.target}${lv.unit}够分，还能剩下 ${lv.target-minSum}${lv.unit}。`;
+    levelPass(concl);
+  }else{
+    if(total>lv.target)toast(`这个方案要 ${total}${lv.unit}，超过手头的 ${lv.target}${lv.unit}啦！试试更省的排法～`);
+    else toast('能分！但不是最省的方案，试试让每人只比前一位多1～');
+  }
+}
+
+/* ================================================================
+   序列关卡（seq）：拖数字卡补全规律，实时累计求和
+   ================================================================ */
+function renderSeq(stage,lv){
+  const N=lv.slots;
+  const cur=G.cur={type:'seq',lv,slots:[]};
+  const wrap=el('div','count-wrap');
+  const isClock=lv.mode==='clock';
+  const slotWrap=el('div','seq-slots');
+  for(let i=0;i<N;i++){
+    const s=el('div','seq-slot');
+    s.appendChild(el('div','lbl',isClock?((i+1)+'时'):('第'+(i+1)+'排')));
+    const box=el('div','box','');
+    const rec={fixed:i<lv.prefill,v:(i<lv.prefill?i+1:0),box,card:null};
+    if(rec.fixed){box.textContent=rec.v;box.classList.add('ok');}
+    box.addEventListener('click',()=>{         /* 点击已填槽：取回卡片 */
+      if(rec.fixed||!rec.v)return;
+      rec.card.el.style.display='';            /* 卡片回到卡池 */
+      rec.card=null;rec.v=0;
+      box.textContent='';box.classList.remove('ok');
+      step();refreshSeqSum();
+    });
+    s.appendChild(box);slotWrap.appendChild(s);
+    cur.slots.push(rec);
+  }
+  wrap.appendChild(slotWrap);
+  const sumLine=el('div','seq-sum','');
+  wrap.appendChild(sumLine);
+  wrap.appendChild(el('div','hint-line','👆 把数字卡拖进（或点进）空槽；点槽里的卡可取回。'+(isClock?'按时钟顺序填：1时敲1下、2时敲2下……':'每排都要比前一排多1人！')));
+
+  const bar=el('div','bar');
+  bar.appendChild(el('span','bar-label','🎴 数字卡池'));
+  const pool=el('div','cards');pool.id='pool';
+  shuffle(lv.pool.slice()).forEach(v=>{
+    const c=el('div','card pop',String(v));
+    pool.appendChild(c);
+    bindSeqCard(c,v,pool,cur);
+  });
+  bar.appendChild(pool);wrap.appendChild(bar);
+  const tbar=el('div','target-bar');
+  const btn=el('button','big',isClock?'✅ 检查时钟':'✅ 检查队形');
+  btn.addEventListener('click',checkSeq);
+  tbar.appendChild(btn);
+  tbar.appendChild(el('span','minus-note',isClock?'填对后看累计敲击数，再想想第80下是几时！':'看累计人数什么时候正好是55！'));
+  wrap.appendChild(tbar);
+  stage.appendChild(wrap);
+  cur.poolEl=pool;cur.sumLine=sumLine;
+  refreshSeqSum();
+}
+/* 序列数字卡：点击进第一个空槽 / 拖拽进指定槽 */
+function bindSeqCard(c,v,pool,cur){
+  c.addEventListener('pointerdown',ev=>{
+    ev.preventDefault();
+    const sx=ev.clientX,sy=ev.clientY;let ghost=null,moved=false;
+    const mv=e=>{
+      if(!moved&&Math.hypot(e.clientX-sx,e.clientY-sy)<8)return;
+      if(!moved){moved=true;ghost=c.cloneNode(true);ghost.classList.add('drag-ghost');ghost.classList.remove('pop');document.body.appendChild(ghost);c.style.visibility='hidden';}
+      ghost.style.left=(e.clientX-29)+'px';ghost.style.top=(e.clientY-24)+'px';
+    };
+    const up=e=>{
+      document.removeEventListener('pointermove',mv);
+      document.removeEventListener('pointerup',up);
+      if(ghost){ghost.remove();c.style.visibility='';}
+      if(c.style.display==='none')return;     /* 已放进槽的卡不可再拖 */
+      if(!moved){placeSeq(c,v,cur);return;}
+      /* 拖拽释放：按各槽矩形区域判定（带容差） */
+      const slotEls=[...document.querySelectorAll('.seq-slot')];
+      let hit=-1;
+      slotEls.forEach((s,i)=>{
+        const r=s.getBoundingClientRect();
+        if(e.clientX>=r.x-8&&e.clientX<=r.x+r.width+8&&e.clientY>=r.y-8&&e.clientY<=r.y+r.height+8)hit=i;
+      });
+      if(hit>=0)placeSeq(c,v,cur,hit);
+    };
+    document.addEventListener('pointermove',mv);
+    document.addEventListener('pointerup',up);
+  });
+}
+function placeSeq(c,v,cur,idx){
+  if(c.style.display==='none')return;
+  let rec=null;
+  if(idx!==undefined){
+    const s=cur.slots[idx];
+    if(s&&!s.fixed&&!s.v)rec=s;
+  }
+  if(!rec)rec=cur.slots.find(s=>!s.fixed&&!s.v);
+  if(!rec){toast('没有空槽啦，先点槽里的卡取回一些！');return;}
+  rec.v=v;rec.card={el:c,v};
+  rec.box.textContent=v;rec.box.classList.add('ok');
+  c.style.display='none';                      /* 池中隐藏（放槽） */
+  step();refreshSeqSum();
+}
+function refreshSeqSum(){
+  const cur=G.cur,lv=cur.lv;
+  const filled=cur.slots.filter(s=>s.v>0);
+  const sum=filled.reduce((a,s)=>a+s.v,0);
+  const expr=filled.map(s=>s.v).join('+');
+  if(lv.mode==='clock'){
+    cur.sumLine.innerHTML=filled.length?`累计敲击：${expr} = <b>${sum}</b> 下`:'把1时~12时敲的下数填进去吧！';
+  }else{
+    cur.sumLine.innerHTML=filled.length?`累计人数：${expr} = <b>${sum}</b> 人（队伍一共要有55人）`:'从第6排开始填人数吧！';
+  }
+}
+function checkSeq(){
+  const cur=G.cur,lv=cur.lv;step();
+  const vs=cur.slots.map(s=>s.v);
+  if(vs.some(v=>!v)){toast(lv.mode==='clock'?'还有时间没填哦！':'还有排没填人数哦！');return;}
+  const ok=vs.every((v,i)=>v===i+1);           /* 数字严格比较 */
+  if(!ok){toast(lv.mode==='clock'?'提示：1时敲1下，2时敲2下，按顺序填哦！':'每排都要比前一排多站1人，从第1排的1人开始！');return;}
+  if(lv.mode==='clock'){
+    const expr=vs.join('+'),s=vs.reduce((a,b)=>a+b,0);
+    levelPass(`${expr}=${s}（下）✔ 从1时敲到12时共78下；过了12时是1时（+1下=79下），到2时敲2下，第80下正是2时敲的第1下——<b>答案是 2 时！</b>`);
+  }else{
+    const expr=vs.join('+');
+    levelPass(`${expr}=55（人）✔ 一共10排，所以最后面一排站 <b>10 人</b>！`);
+  }
+}
+
+/* ================================================================
+   过关与通关流程（G5 庆祝动画）
+   ================================================================ */
+function levelPass(html){
+  $('#pass-text').innerHTML='🎉 '+html;
+  $('#pass-bar').classList.add('show');
+  burstStars();
+}
+$('#btn-next').addEventListener('click',()=>{
+  $('#pass-bar').classList.remove('show');
+  G.idx++;
+  if(G.idx>=G.levels.length)finishGame();
+  else renderLevel();
+});
+function finishGame(){
+  stopTimer();G.playing=false;G.cur=null;
+  $('#screen-game').classList.add('hidden');
+  $('#action-bar').classList.add('hidden');
+  $('#screen-win').classList.remove('hidden');
+  $('#win-stats').innerHTML=`难度：${DIFF_NAME[G.diff]} ｜ 用时 ${fmtTime(G.time)} ｜ 总步数 ${G.steps}<br>你已经掌握了分层数、补空法、拆数法和找规律的本领，太厉害啦！`;
+  confetti();
+}
+
+/* ---------- 揭示答案 / 重新开始 / 返回难度选择（G4） ---------- */
+$('#btn-reveal').addEventListener('click',()=>{
+  const lv=G.levels[G.idx];if(!lv)return;step();
+  $('#reveal-text').innerHTML=`<div class="formula">${lv.name}</div>${(lv.reveal||'').replace(/\n/g,'<br>')}`;
+  openModal('#modal-reveal');
+});
+$('#btn-reveal-close').addEventListener('click',()=>closeModal('#modal-reveal'));
+$('#btn-restart').addEventListener('click',()=>{renderLevel();toast('本关已重新开始！');});
+$('#btn-home').addEventListener('click',goHome);
+$('#btn-home-win').addEventListener('click',goHome);
+$('#btn-again').addEventListener('click',()=>startGame(G.diff));
+$('#btn-rules').addEventListener('click',()=>openModal('#modal-rules'));
+$('#btn-rules-home').addEventListener('click',()=>openModal('#modal-rules'));
+$('#btn-rules-close').addEventListener('click',()=>closeModal('#modal-rules'));
+
+/* ---------- 难度按钮 ---------- */
+document.querySelectorAll('#screen-home .diff-card button').forEach(b=>{
+  b.addEventListener('click',()=>startGame(b.dataset.diff));
+});
+
+/* ---------- Canvas 粒子：过关星星 + 通关彩纸（G5） ---------- */
+const fx=$('#fx'),fctx=fx.getContext('2d');
+let fxParts=[],fxRun=false;
+function sizeFx(){fx.width=innerWidth;fx.height=innerHeight;}
+addEventListener('resize',sizeFx);sizeFx();
+const FX_COLORS=['#ffca28','#ef5350','#42a5f5','#66bb6a','#ab47bc','#ff7043'];
+function burstStars(){
+  for(let i=0;i<40;i++){
+    fxParts.push({x:innerWidth/2,y:innerHeight*0.75,vx:(Math.random()-0.5)*8,vy:-Math.random()*7-3,g:0.18,life:70,color:FX_COLORS[i%6],r:Math.random()*5+3,star:true});
+  }
+  runFx();
+}
+function confetti(){
+  for(let i=0;i<170;i++){
+    fxParts.push({x:Math.random()*innerWidth,y:-20-Math.random()*innerHeight*0.5,vx:(Math.random()-0.5)*3,vy:Math.random()*3+2,g:0.05,life:220,color:FX_COLORS[i%6],r:Math.random()*6+3,star:Math.random()>0.4});
+  }
+  runFx();
+}
+function runFx(){
+  if(fxRun)return;fxRun=true;
+  (function loop(){
+    fctx.clearRect(0,0,fx.width,fx.height);
+    fxParts=fxParts.filter(p=>p.life>0&&p.y<fx.height+30);
+    fxParts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.life--;
+      fctx.globalAlpha=Math.min(1,p.life/40);
+      fctx.fillStyle=p.color;
+      if(p.star){
+        fctx.beginPath();
+        for(let k=0;k<5;k++){
+          const a=k*2*Math.PI/5-Math.PI/2;
+          fctx.lineTo(p.x+Math.cos(a)*p.r,p.y+Math.sin(a)*p.r);
+          const a2=a+Math.PI/5;
+          fctx.lineTo(p.x+Math.cos(a2)*p.r*0.45,p.y+Math.sin(a2)*p.r*0.45);
+        }
+        fctx.closePath();fctx.fill();
+      }else{
+        fctx.beginPath();fctx.arc(p.x,p.y,p.r*0.7,0,7);fctx.fill();
+      }
+    });
+    fctx.globalAlpha=1;
+    if(fxParts.length)requestAnimationFrame(loop);
+    else{fxRun=false;fctx.clearRect(0,0,fx.width,fx.height);}
+  })();
+}
+
+/* ---------- 阻止浏览器原生拖拽接管指针流（保证自定义拖放顺畅） ---------- */
+document.addEventListener('dragstart',e=>e.preventDefault());
+
+/* ---------- 进入页面先弹出玩法说明（G6），可随时再看 ---------- */
+openModal('#modal-rules');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1b/g016", "name": "\u5f69\u8679\u70b9\u6570\u5de5\u574a\u2014\u2014\u5206\u5c42\u8ba1\u6570\u5927\u95ef\u5173", "file": "g016.html", "jiaocan": "\u301016\u3011\u7b2c8\u8bb2 \u7acb\u4f53\u56fe\u5f62\u8ba1\u6570\uff08\u4e0b\uff09", "unit": "\u7b2c8\u8bb2", "grade": "1\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

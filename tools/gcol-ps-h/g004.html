@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>s-t图解行程 · 赛道大闯关</title>
+<style>
+/* ========== 全局样式（高对比度、大字号，适合课堂投影与触屏） ========== */
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ width:100%; min-height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+  font-size:18px; color:#222; line-height:1.6;
+  background:var(--bg,#f4f7fb);
+}
+#app{ max-width:960px; margin:0 auto; padding:10px 14px 40px; }
+
+/* ---------- 顶栏 ---------- */
+header{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  padding:10px 14px; margin-bottom:12px;
+  background:var(--main,#1976d2); border-radius:16px; color:#fff;
+  box-shadow:0 4px 14px rgba(0,0,0,.15);
+}
+header h1{ font-size:24px; flex:1 1 auto; min-width:200px; }
+.hud{ display:flex; gap:10px; flex-wrap:wrap; }
+.hud .chip{
+  background:rgba(255,255,255,.22); border-radius:12px; padding:4px 12px;
+  font-size:18px; font-weight:bold; white-space:nowrap;
+}
+.btn{
+  border:none; cursor:pointer; border-radius:12px; padding:8px 16px;
+  font-size:18px; font-weight:bold; color:#fff; background:var(--deep,#0d47a1);
+  transition:transform .08s;
+}
+.btn:active{ transform:scale(.95); }
+.btn.light{ background:rgba(255,255,255,.3); }
+.btn.ghost{ background:#8a97a8; }
+.btn.big{ font-size:22px; padding:12px 26px; }
+.btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* ---------- 难度选择 ---------- */
+.home{ text-align:center; padding:10px 0 30px; }
+.home .logo{ font-size:44px; margin:14px 0 4px; }
+.home h2{ font-size:30px; margin-bottom:6px; color:var(--deep,#0d47a1); }
+.home p.sub{ color:#5a6b7d; margin-bottom:22px; }
+.doors{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+.door{
+  flex:1 1 240px; max-width:280px; cursor:pointer; border-radius:20px;
+  padding:22px 16px; color:#fff; box-shadow:0 6px 18px rgba(0,0,0,.18);
+  border:none; font-family:inherit; transition:transform .12s;
+}
+.door:hover{ transform:translateY(-4px); }
+.door .ic{ font-size:46px; display:block; }
+.door .nm{ font-size:24px; font-weight:bold; display:block; margin-top:6px; }
+.door .ds{ font-size:16px; opacity:.92; display:block; margin-top:4px; }
+.tip-card{
+  margin:26px auto 0; max-width:640px; background:#fff; border-radius:16px;
+  padding:14px 18px; box-shadow:0 3px 10px rgba(0,0,0,.08); text-align:left;
+}
+.tip-card h3{ color:var(--deep,#0d47a1); font-size:20px; margin-bottom:6px; }
+
+/* ---------- 关卡 ---------- */
+.lvl-head{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:10px; }
+.lvl-badge{
+  background:var(--main,#1976d2); color:#fff; font-weight:bold;
+  border-radius:12px; padding:4px 14px; font-size:18px;
+}
+.lvl-title{ font-size:24px; font-weight:bold; color:var(--deep,#0d47a1); flex:1; }
+.story{
+  background:#fff; border-radius:16px; padding:14px 18px; margin-bottom:12px;
+  box-shadow:0 3px 10px rgba(0,0,0,.08); font-size:19px;
+}
+.story b{ color:#c0501a; }
+.panel{
+  background:#fff; border-radius:16px; padding:16px; margin-bottom:12px;
+  box-shadow:0 3px 10px rgba(0,0,0,.08);
+}
+.panel h3{ font-size:20px; color:var(--deep,#0d47a1); margin-bottom:10px; }
+.hint-line{ min-height:30px; font-size:19px; font-weight:bold; margin-top:8px; }
+.hint-line.ok{ color:#1d8a3e; }
+.hint-line.no{ color:#c0501a; }
+.foot-btns{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:16px 0 4px; }
+
+/* ---------- 拖拽通用 ---------- */
+.draggy{ cursor:grab; touch-action:none; user-select:none; }
+.draggy:active{ cursor:grabbing; }
+.tray{
+  display:flex; gap:12px; flex-wrap:wrap; justify-content:center;
+  padding:10px; min-height:70px; border-radius:14px;
+  background:var(--soft,#e3eefb); border:2px dashed var(--main,#1976d2);
+}
+.magnet{
+  background:var(--main,#1976d2); color:#fff; font-weight:bold; border-radius:12px;
+  padding:10px 14px; font-size:18px; box-shadow:0 3px 8px rgba(0,0,0,.25);
+  border:none; text-align:center;
+}
+.magnet.fixed{
+  position:absolute; z-index:6; transform:translate(-50%,-50%);
+  padding:6px 10px; font-size:16px;
+}
+.magnet.good{ background:#1d8a3e; }
+.magnet.bad{ background:#c0501a; }
+.tile{
+  background:var(--main,#1976d2); color:#fff; font-weight:bold; border-radius:10px;
+  padding:8px 14px; font-size:20px; box-shadow:0 3px 8px rgba(0,0,0,.22);
+  border:none; min-width:64px; text-align:center;
+}
+.tile.dragging{ opacity:.9; z-index:99; position:fixed; pointer-events:none; }
+.tile .ph{
+  display:inline-block; min-width:64px; min-height:40px; border-radius:10px;
+  border:2px dashed var(--main,#1976d2); background:var(--soft,#e3eefb);
+}
+.eq-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0; font-size:20px; font-weight:bold; }
+.slot{
+  min-width:76px; min-height:48px; border-radius:10px; border:3px dashed var(--main,#1976d2);
+  background:var(--soft,#e3eefb); display:inline-flex; align-items:center; justify-content:center;
+}
+.slot.ok{ border-color:#1d8a3e; background:#e2f5e8; }
+.slot.no{ border-color:#c0501a; background:#fde8e8; }
+
+/* ---------- 坐标面板 ---------- */
+.board-wrap{ position:relative; width:100%; max-width:680px; margin:0 auto; }
+.board-wrap svg{ width:100%; height:auto; display:block; touch-action:none; }
+.coord-tip{
+  display:block; text-align:center; margin:8px auto 0; background:var(--soft,#e3eefb);
+  border-radius:10px; padding:6px 10px; font-size:17px; font-weight:bold;
+  color:var(--deep,#0d47a1); border:2px solid var(--main,#1976d2);
+}
+
+/* ---------- 跑道 ---------- */
+.track-wrap{ position:relative; width:100%; max-width:760px; margin:0 auto; padding:6px 0; }
+.track{
+  position:relative; height:64px; border-radius:32px; background:var(--soft,#e3eefb);
+  border:3px solid var(--main,#1976d2); margin:30px 8px 10px;
+}
+.runner{
+  position:absolute; top:50%; transform:translate(-50%,-58%); font-size:38px;
+  z-index:5; pointer-events:none; transition:none;
+}
+.track .startline{ position:absolute; left:0; top:-10px; bottom:-10px; width:4px; background:var(--deep,#0d47a1); border-radius:2px; }
+.flagpole{
+  position:absolute; top:-34px; transform:translateX(-50%); z-index:6; cursor:ew-resize; touch-action:none;
+  font-size:30px; user-select:none; line-height:1;
+}
+.flagpole .pole{ display:block; width:5px; height:44px; background:#8a5a2b; margin:0 auto; border-radius:3px; }
+.track .finline{ position:absolute; top:-14px; bottom:-14px; width:5px; background:#c0501a; border-radius:3px; z-index:4; }
+.meters{ display:flex; justify-content:space-between; margin:0 8px; color:#5a6b7d; font-size:16px; font-weight:bold; }
+.timebig{ text-align:center; font-size:30px; font-weight:bold; color:var(--deep,#0d47a1); margin:6px 0; min-height:42px; }
+.speedbox{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center; margin:8px 0; }
+.speedbox .sp{ background:var(--soft,#e3eefb); border-radius:12px; padding:8px 16px; font-size:18px; font-weight:bold; }
+input[type=range]{ width:260px; max-width:80vw; height:38px; accent-color:var(--main,#1976d2); }
+
+/* ---------- 配对 ---------- */
+.match-grid{ display:flex; flex-direction:column; gap:14px; }
+.match-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.match-row .lbl{ font-size:18px; font-weight:bold; color:#5a6b7d; min-width:110px; }
+.dropzone{
+  min-width:170px; min-height:120px; border-radius:14px; border:3px dashed var(--main,#1976d2);
+  background:var(--soft,#e3eefb); display:flex; align-items:center; justify-content:center; padding:6px;
+}
+.dropzone.ok{ border-color:#1d8a3e; background:#e2f5e8; }
+.storycard{
+  background:var(--main,#1976d2); color:#fff; border:none; font-weight:bold; font-size:18px;
+  border-radius:12px; padding:10px 14px; box-shadow:0 3px 8px rgba(0,0,0,.22); max-width:330px;
+}
+
+/* ---------- 弹窗 ---------- */
+.modal-mask{
+  position:fixed; inset:0; background:rgba(20,40,60,.55); z-index:200;
+  display:flex; align-items:center; justify-content:center; padding:16px;
+}
+.modal{
+  background:#fff; border-radius:20px; padding:22px 24px; max-width:620px; width:100%;
+  max-height:82vh; overflow:auto; box-shadow:0 10px 40px rgba(0,0,0,.3);
+}
+.modal h2{ color:var(--deep,#0d47a1); margin-bottom:10px; font-size:26px; }
+.modal .body{ font-size:19px; white-space:pre-wrap; }
+.modal .foot{ text-align:center; margin-top:16px; }
+
+/* ---------- 庆祝 ---------- */
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:300; }
+.winbox{ text-align:center; padding:20px 0; }
+.winbox .stars{ font-size:56px; letter-spacing:8px; }
+.winbox h2{ font-size:34px; color:var(--deep,#0d47a1); margin:8px 0; }
+.winbox .stat{ font-size:22px; margin:6px 0; }
+.passbox{
+  text-align:center; background:#e2f5e8; border:3px solid #1d8a3e; border-radius:16px;
+  padding:14px; margin-top:10px; font-size:22px; font-weight:bold; color:#1d8a3e;
+}
+.stepdot{ display:inline-block; width:12px; height:12px; border-radius:50%; background:#c9d6e4; margin:0 3px; }
+.stepdot.done{ background:var(--main,#1976d2); }
+@media (max-width:620px){
+  header h1{ font-size:20px; }
+  .home h2{ font-size:24px; }
+  body{ font-size:17px; }
+  .story{ font-size:18px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🏁 s-t图解行程 · 赛道大闯关</h1>
+    <div class="hud">
+      <span class="chip" id="hud-level">未开始</span>
+      <span class="chip" id="hud-timer">⏱ 00:00</span>
+      <span class="chip" id="hud-steps">👟 步数 0</span>
+      <button class="btn light" id="btn-rules">规则</button>
+    </div>
+  </header>
+  <main id="stage"></main>
+</div>
+
+<!-- 规则/答案 弹窗容器 -->
+<div id="modal-root"></div>
+<!-- 彩纸庆祝画布 -->
+<canvas id="fx"></canvas>
+
+<script>
+/* =====================================================================
+   s-t图解行程 · 赛道大闯关
+   核心玩法（全部为真实拖拽/调度交互，深度绑定"读s-t图"这一数学方法）：
+   1. 图象搭建师：把"睡着/醒来/停车"等旅程磁贴拖到坐标网格上，拼出 s-t 图
+   2. 终点策略家：在跑道上拖动终点旗，播放龟兔赛跑动画，让兔子恰好在终点追上乌龟
+   3. 读图窗口：拖动时间窗口/高亮带框住图象区段，再把数字瓦片拖进算式
+   4. 图象配对：把故事卡拖到对应形状的 s-t 图上
+   5. 速度实验台：拖动滑块让速度表与图象斜率一致
+   ===================================================================== */
+(function(){
+"use strict";
+
+/* ---------------- 小工具 ---------------- */
+const $ = (s,p)=> (p||document).querySelector(s);
+const $$ = (s,p)=> Array.from((p||document).querySelectorAll(s));
+const clamp=(v,a,b)=> Math.max(a,Math.min(b,v));
+const fmt1=v=> (Math.round(v*10)/10).toString();
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function el(tag,cls,html){ const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; }
+
+/* ---------------- 配色随机化（每局从色板随机选主色） ---------------- */
+const PALETTES=[
+  {name:'珊瑚橙', main:'#f4632e', deep:'#b03c0f', bg:'#fdf3ec', soft:'#ffe2d2'},
+  {name:'海洋蓝', main:'#1f78c9', deep:'#0e4d8f', bg:'#edf6fd', soft:'#d3e7f8'},
+  {name:'森林绿', main:'#2c9a4d', deep:'#186633', bg:'#effaf1', soft:'#d4f1dd'},
+  {name:'葡萄紫', main:'#8c4fd0', deep:'#5c2f95', bg:'#f7f0fc', soft:'#e8d8f7'},
+  {name:'日落金', main:'#df9a00', deep:'#9c6a00', bg:'#fff8e7', soft:'#ffedbd'},
+  {name:'玫瑰红', main:'#d95573', deep:'#a13250', bg:'#fdf0f3', soft:'#f9d7e0'}
+];
+function applyPalette(){
+  const p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  const r=document.documentElement.style;
+  r.setProperty('--main',p.main); r.setProperty('--deep',p.deep);
+  r.setProperty('--bg',p.bg);     r.setProperty('--soft',p.soft);
+}
+
+/* ---------------- 全局状态 ---------------- */
+const S = {
+  difficulty:null,   // 当前难度键
+  queue:[],          // 本轮关卡工厂队列
+  idx:0,             // 当前关索引
+  steps:0,           // 操作步数
+  t0:0,              // 计时起点
+  timerInt:null,     // 计时器句柄
+  running:false,
+  cleanup:null       // 当前关卡的清理函数（取消动画等）
+};
+function addStep(){ S.steps++; $('#hud-steps').textContent='👟 步数 '+S.steps; }
+function startTimer(){
+  S.t0=Date.now(); stopTimer();
+  S.timerInt=setInterval(()=>{
+    const s=Math.floor((Date.now()-S.t0)/1000);
+    $('#hud-timer').textContent='⏱ '+String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  },1000);
+}
+function stopTimer(){ if(S.timerInt){clearInterval(S.timerInt); S.timerInt=null;} }
+
+/* ---------------- 彩纸庆祝（Canvas 粒子） ---------------- */
+const fxCanvas=$('#fx'), fxCtx=fxCanvas.getContext('2d');
+let fxParts=[], fxRaf=null;
+function sizeFx(){ fxCanvas.width=innerWidth; fxCanvas.height=innerHeight; }
+addEventListener('resize',sizeFx); sizeFx();
+function celebrate(big){
+  const n= big? 220: 120;
+  const colors=['#f4632e','#1f78c9','#2c9a4d','#f2b705','#d95573','#8c4fd0'];
+  for(let i=0;i<n;i++){
+    fxParts.push({
+      x:Math.random()*innerWidth, y:-20-Math.random()*innerHeight*0.3,
+      vx:(Math.random()-0.5)*(big?7:4), vy:2+Math.random()*(big?6:4),
+      w:6+Math.random()*8, h:8+Math.random()*10,
+      rot:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.3,
+      c:colors[Math.floor(Math.random()*colors.length)]
+    });
+  }
+  if(!fxRaf) fxLoop();
+}
+function fxLoop(){
+  fxCtx.clearRect(0,0,fxCanvas.width,fxCanvas.height);
+  fxParts=fxParts.filter(p=>p.y<innerHeight+30);
+  for(const p of fxParts){
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.rot+=p.vr;
+    fxCtx.save(); fxCtx.translate(p.x,p.y); fxCtx.rotate(p.rot);
+    fxCtx.fillStyle=p.c; fxCtx.fillRect(-p.w/2,-p.h/2,p.w,p.h); fxCtx.restore();
+  }
+  if(fxParts.length){ fxRaf=requestAnimationFrame(fxLoop); }
+  else { fxRaf=null; fxCtx.clearRect(0,0,fxCanvas.width,fxCanvas.height); }
+}
+
+/* ---------------- 弹窗 ---------------- */
+function showModal(title, bodyHtml, btnText, onClose){
+  const mask=el('div','modal-mask');
+  const box=el('div','modal');
+  box.appendChild(el('h2',null,title));
+  box.appendChild(el('div','body',bodyHtml));
+  const foot=el('div','foot');
+  const b=el('button','btn big',btnText||'我知道了');
+  b.onclick=()=>{ mask.remove(); if(onClose)onClose(); };
+  foot.appendChild(b); box.appendChild(foot); mask.appendChild(box);
+  $('#modal-root').appendChild(mask);
+}
+function showRules(){
+  showModal('📜 闯关规则',
+    '<b>你是"图解行程小达人"，要用双手把 s-t 图玩明白！</b>\n\n'+
+    '📈 <b>读图口诀</b>：s-t 图中，横轴是时间 t，纵轴是路程 s；线越陡＝走得越快；水平线＝原地休息；平均速度＝路程差÷时间差。\n\n'+
+    '🧲 <b>图象搭建</b>：把旅程磁贴拖到网格上正确的格点（有磁力吸附），全部放对即通关。\n'+
+    '🚩 <b>终点策略</b>：拖动终点旗，再点"出发！"播放赛跑动画——让兔子<b>恰好在这面终点旗</b>追上乌龟才算通关。\n'+
+    '🔍 <b>读图窗口</b>：拖动时间窗的两个把手，框住题目问的时间段，再把数字瓦片拖进算式空格。\n'+
+    '🃏 <b>图象配对</b>：把故事卡拖到形状相符的 s-t 图框里。\n'+
+    '🎚 <b>速度实验台</b>：拖动滑块，让速度表读数与图象斜率一致。\n\n'+
+    '💡 右上角随时看计时和步数；每关都有"揭示答案"和"重新开始"按钮。祝你好运！',
+    '开始闯关！');
+}
+
+/* ---------------- 拖拽引擎（指针事件，鼠标+触屏通用） ---------------- */
+function dragify(node, hooks){
+  node.classList.add('draggy');
+  node.addEventListener('pointerdown', function(ev){
+    if(node.disabled) return;
+    ev.preventDefault();
+    try{ node.setPointerCapture(ev.pointerId); }catch(e){}
+    if(hooks.start) hooks.start(ev,node);
+    const mv=function(e2){ if(hooks.move) hooks.move(e2,node); };
+    const up=function(e2){
+      node.removeEventListener('pointermove',mv);
+      node.removeEventListener('pointerup',up);
+      node.removeEventListener('pointercancel',up);
+      if(hooks.end) hooks.end(e2,node);
+    };
+    node.addEventListener('pointermove',mv);
+    node.addEventListener('pointerup',up);
+    node.addEventListener('pointercancel',up);
+  });
+}
+/* 客户端坐标 → SVG 内部坐标 */
+function svgPt(svg,cx,cy){
+  const p=svg.createSVGPoint(); p.x=cx; p.y=cy;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+/* SVG 快速建元素 */
+function svgEl(tag,attrs){
+  const e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+  for(const k in attrs) e.setAttribute(k,attrs[k]);
+  return e;
+}
+
+/* ---------------- 坐标网格底板 ---------------- */
+/* cfg: {w,h, pad:{l,r,t,b}, xMax,yMax,xStep,yStep,xTick,yTick,xLabel,yLabel} */
+function buildGrid(cfg){
+  const w=cfg.w||640, h=cfg.h||440, pad=cfg.pad||{l:56,r:20,t:34,b:72};
+  const svg=svgEl('svg',{viewBox:`0 0 ${w} ${h}`});
+  const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
+  const X=v=> pad.l + v/cfg.xMax*iw;      // 时间 → 画布x
+  const Y=v=> h-pad.b - v/cfg.yMax*ih;    // 路程 → 画布y
+  // 网格细线
+  for(let gx=0; gx<=cfg.xMax+1e-9; gx+=cfg.xStep){
+    svg.appendChild(svgEl('line',{x1:X(gx),y1:Y(0),x2:X(gx),y2:Y(cfg.yMax),stroke:'#dfe8f2','stroke-width':1}));
+  }
+  for(let gy=0; gy<=cfg.yMax+1e-9; gy+=cfg.yStep){
+    svg.appendChild(svgEl('line',{x1:X(0),y1:Y(gy),x2:X(cfg.xMax),y2:Y(gy),stroke:'#dfe8f2','stroke-width':1}));
+  }
+  // 坐标轴
+  svg.appendChild(svgEl('line',{x1:X(0),y1:Y(0),x2:X(cfg.xMax),y2:Y(0),stroke:'#345', 'stroke-width':3, 'marker-end':'url(#arrowX)'}));
+  svg.appendChild(svgEl('line',{x1:X(0),y1:Y(0),x2:X(0),y2:Y(cfg.yMax),stroke:'#345', 'stroke-width':3}));
+  // 箭头
+  const defs=svgEl('defs',{});
+  defs.innerHTML='<marker id="arrowX" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 z" fill="#345"/></marker>';
+  svg.appendChild(defs);
+  // 刻度文字
+  const tickStepX=cfg.xTick||cfg.xStep, tickStepY=cfg.yTick||cfg.yStep;
+  for(let gx=0; gx<=cfg.xMax+1e-9; gx+=tickStepX){
+    const t=svgEl('text',{x:X(gx),y:Y(0)+22,'text-anchor':'middle','font-size':16,fill:'#345'});
+    t.textContent=(gx===0?'O':String(gx)); svg.appendChild(t);
+  }
+  for(let gy=tickStepY; gy<=cfg.yMax+1e-9; gy+=tickStepY){
+    const t=svgEl('text',{x:X(0)-8,y:Y(gy)+6,'text-anchor':'end','font-size':16,fill:'#345'});
+    t.textContent=String(gy); svg.appendChild(t);
+  }
+  // 轴标签（横轴标签在轴右下方；纵轴标签放图内左上角，避开最顶刻度）
+  const lx=svgEl('text',{x:X(cfg.xMax),y:Y(0)+50,'text-anchor':'end','font-size':18,fill:'#345','font-weight':'bold'});
+  lx.textContent=cfg.xLabel; svg.appendChild(lx);
+  const ly=svgEl('text',{x:X(0)+10,y:24,'text-anchor':'start','font-size':18,fill:'#345','font-weight':'bold'});
+  ly.textContent=cfg.yLabel; svg.appendChild(ly);
+  return {svg,X,Y,w,h,pad};
+}
+
+/* ================= 关卡类型一：图象搭建（拖磁贴上网格） ================= */
+/* cfg:{ grid, refLines:[{pts,dash,color,label}], story, magnets:[{key,label,tx,ty}],
+        snapX,snapY, extSlope, extMinX, reveal, passNote } */
+function levelChartBuilder(cfg){
+  const root=el('div');
+  root.appendChild(el('div','story',cfg.story));
+  const panel=el('div','panel');
+  panel.appendChild(el('h3',null,'🧲 把旅程磁贴拖到网格上（会自动吸附到格点），拼出旅程 s-t 图'));
+  const wrap=el('div','board-wrap');
+  const g=buildGrid(cfg.grid);
+  wrap.appendChild(g.svg);
+  const tip=el('div','coord-tip','拖动磁贴试试 →');
+  wrap.appendChild(tip);
+  panel.appendChild(wrap);
+  // 参考线（乌龟/已有图象）——标签放在线长55%处的下方，避开图缘与提示条
+  for(const rl of cfg.refLines||[]){
+    if(rl.pts.length<2) continue;
+    const d=rl.pts.map((p,i)=>(i?'L':'M')+g.X(p[0])+','+g.Y(p[1])).join(' ');
+    svgAppendPath(g.svg,d,rl.color||'#8a97a8',rl.dash,3.5);
+    const pA=rl.pts[0], pB=rl.pts[rl.pts.length-1];
+    const mx=pA[0]+(pB[0]-pA[0])*0.55, my=pA[1]+(pB[1]-pA[1])*0.55;
+    const t=svgEl('text',{x:g.X(mx)-8,y:g.Y(my)+28,'text-anchor':'end','font-size':17,fill:rl.color||'#8a97a8','font-weight':'bold'});
+    t.textContent=rl.label||''; g.svg.appendChild(t);
+  }
+  // 预览折线（磁贴就位后实时重画）
+  const preview=svgEl('path',{fill:'none','stroke-width':5,'stroke-linejoin':'round'});
+  g.svg.appendChild(preview);
+  // 磁贴托盘
+  const tray=el('div','tray');
+  const mags=cfg.magnets.map(m=>({ ...m, placed:false, cx:0, cy:0, ok:false }));
+  const nodes={};
+  for(const m of shuffle(mags)){
+    const b=el('button','magnet',m.label);
+    b.type='button';
+    nodes[m.key]=b;
+    tray.appendChild(b);
+    dragify(b,{
+      start:(ev)=>{ b.style.position=''; b.classList.remove('fixed'); },
+      move:(ev)=>{
+        // 拖动期间：磁贴跟随指针移动（吸附与坐标换算在松手时进行）
+        const r=wrap.getBoundingClientRect();
+        let px=ev.clientX-r.left, py=ev.clientY-r.top-18;
+        px=clamp(px,0,r.width); py=clamp(py,0,r.height);
+        b.classList.add('fixed'); wrap.appendChild(b);
+        b.style.left=(px/r.width*100)+'%'; b.style.top=(py/r.height*100)+'%';
+      },
+      end:(ev)=>{
+        const sp=svgPt(g.svg,ev.clientX,ev.clientY);
+        // 换算成数据坐标并吸附
+        let dv=(sp.x-g.pad.l)/(g.w-g.pad.l-g.pad.r)*cfg.grid.xMax;
+        let ds=(g.h-g.pad.b-sp.y)/(g.h-g.pad.t-g.pad.b)*cfg.grid.yMax;
+        dv=clamp(Math.round(dv/cfg.snapX)*cfg.snapX,0,cfg.grid.xMax);
+        ds=clamp(Math.round(ds/cfg.snapY)*cfg.snapY,0,cfg.grid.yMax);
+        m.cx=dv; m.cy=ds; m.placed=true; addStep();
+        b.classList.add('fixed'); wrap.appendChild(b);
+        b.style.left=(g.X(dv)/g.w*100)+'%'; b.style.top=(g.Y(ds)/g.h*100)+'%';
+        tip.textContent=m.label+'：'+dv+' 分，'+ds+' '+cfg.unitName;
+        check();
+      }
+    });
+  }
+  // 磁贴托盘加入面板
+  panel.appendChild(el('div',null,'')).appendChild(tray);
+  const hint=el('div','hint-line','提示：先想清楚"什么时候停下？停的时候路程是多少？"再放手。');
+  panel.appendChild(hint);
+  root.appendChild(panel);
+  // 重画预览折线：原点 → 各磁贴按时间排序 → 延伸冲刺段
+  function redraw(){
+    const placed=mags.filter(m=>m.placed).sort((a,b)=>a.cx-b.cx);
+    const pts=[[0,0],...placed.map(m=>[m.cx,m.cy])];
+    let d=pts.map((p,i)=>(i?'L':'M')+g.X(p[0])+','+g.Y(p[1])).join(' ');
+    if(cfg.extSlope && placed.length===mags.length){
+      const lastP=pts[pts.length-1];
+      const ex=lastP[0]+cfg.extMinX, ey=lastP[1]+cfg.extSlope*cfg.extMinX;
+      d+=' L'+g.X(ex)+','+g.Y(ey);
+    }
+    preview.setAttribute('d',d);
+    preview.setAttribute('stroke',getComputedStyle(document.documentElement).getPropertyValue('--main').trim()||'#1976d2');
+  }
+  function check(){
+    redraw();
+    let allOk=true, anyBad=false;
+    for(const m of mags){
+      const node=nodes[m.key];
+      const good=m.placed && Math.abs(m.cx-m.tx)<1e-6 && Math.abs(m.cy-m.ty)<1e-6;
+      m.ok=good;
+      node.classList.toggle('good',good);
+      node.classList.toggle('bad', m.placed && !good);
+      if(!good) allOk=false;
+      if(m.placed && !good) anyBad=true;
+    }
+    if(allOk && mags.every(m=>m.placed)){
+      hint.className='hint-line ok';
+      hint.textContent=cfg.passNote||'太棒了！图象完全正确！';
+      setTimeout(()=>game.pass(cfg.reveal, cfg.afterNote),650);
+    }else if(anyBad){
+      hint.className='hint-line no';
+      hint.textContent='有磁贴位置不对哦：对比一下虚线参考图——水平线代表路程不变，睡觉时兔子的高度应该一直是 150。';
+    }else{
+      hint.className='hint-line';
+      hint.textContent='还有磁贴没放好，继续拖！';
+    }
+  }
+  return { root, revealText:cfg.reveal, cleanup(){} };
+}
+function svgAppendPath(svg,d,color,dash,w){
+  svg.appendChild(svgEl('path',{d:d,fill:'none',stroke:color,'stroke-width':w||3,
+    'stroke-dasharray':dash||'none','stroke-linecap':'round','stroke-linejoin':'round'}));
+}
+
+/* ================= 关卡类型二：终点策略（拖终点旗+龟兔动画） ================= */
+/* cfg:{ trackMax, flagMin, flagMax, flagInit, snap,
+        rabbit:{t1,s1,sleepT,v2}, turtleV, target, unitName:'米',
+        story, reveal, chartPts, grid } */
+function levelRace(cfg){
+  const root=el('div');
+  root.appendChild(el('div','story',cfg.story));
+  const panel=el('div','panel');
+  panel.appendChild(el('h3',null,'🚩 拖动终点旗设置比赛路程，然后点"出发！"看谁能先到终点'));
+  // ---- 跑道 ----
+  const tw=el('div','track-wrap');
+  const track=el('div','track');
+  const finline=el('div','finline'); track.appendChild(finline);
+  const sl=el('div','startline'); track.appendChild(sl);
+  const startLbl=el('div',null,'起点'); startLbl.style.cssText='position:absolute;left:-6px;top:64px;font-size:15px;color:#5a6b7d;font-weight:bold;';
+  track.appendChild(startLbl);
+  const rabbit=el('div','runner','🐇'); const turtle=el('div','runner','🐢');
+  track.appendChild(rabbit); track.appendChild(turtle);
+  const flag=el('div','flagpole','🚩<span class="pole"></span>');
+  track.appendChild(flag);
+  tw.appendChild(track);
+  const meters=el('div','meters');
+  meters.appendChild(el('span',null,'0 '+cfg.unitName));
+  meters.appendChild(el('span',null,cfg.trackMax+' '+cfg.unitName));
+  tw.appendChild(meters);
+  const timeBig=el('div','timebig','终点旗在 '+cfg.flagInit+' '+cfg.unitName+'，点"出发！"开始比赛');
+  tw.appendChild(timeBig);
+  panel.appendChild(tw);
+  // ---- 控制按钮 ----
+  const ctr=el('div','foot-btns');
+  const goBtn=el('button','btn big','▶ 出发！');
+  const spBtn=el('button','btn','⏩ 2倍速');
+  ctr.appendChild(goBtn); ctr.appendChild(spBtn);
+  panel.appendChild(ctr);
+  const hint=el('div','hint-line','目标：让兔子"恰好在这面终点旗"追上乌龟（同时到达）。');
+  panel.appendChild(hint);
+  root.appendChild(panel);
+  // ---- s-t 图（只读展示，帮助读图） ----
+  if(cfg.grid){
+    const wrap2=el('div','board-wrap');
+    const g=buildGrid(cfg.grid);
+    wrap2.appendChild(g.svg);
+    cfg.chartPts.forEach(function(rl,ri){
+      const d=rl.pts.map((p,i)=>(i?'L':'M')+g.X(p[0])+','+g.Y(p[1])).join(' ');
+      svgAppendPath(g.svg,d,rl.color,rl.dash,4);
+      let tx,ty,anchor='end';
+      if(ri===0){
+        // 第一条（乌龟直线）：标签放线长55%处下方，远离图缘
+        const pA=rl.pts[0], pB=rl.pts[rl.pts.length-1];
+        const mx=pA[0]+(pB[0]-pA[0])*0.55, my=pA[1]+(pB[1]-pA[1])*0.55;
+        tx=g.X(mx)-8; ty=g.Y(my)+28;
+      }else{
+        // 其余折线：标签放末端上方
+        const last=rl.pts[rl.pts.length-1];
+        tx=g.X(last[0])-6; ty=g.Y(last[1])-12;
+      }
+      const t=svgEl('text',{x:tx,y:ty,'text-anchor':anchor,'font-size':17,fill:rl.color,'font-weight':'bold'});
+      t.textContent=rl.label; g.svg.appendChild(t);
+    });
+    const pnl2=el('div','panel');
+    pnl2.appendChild(el('h3',null,'📈 龟兔 s-t 图（虚线是乌龟，实线是兔子：先冲、再睡、最后狂追）'));
+    pnl2.appendChild(wrap2);
+    root.appendChild(pnl2);
+  }
+  // ---- 跑道逻辑 ----
+  let flagV=cfg.flagInit, raf=null, speed=1, playing=false;
+  function flagPx(){ const r=track.getBoundingClientRect(); return clamp(flagV/cfg.trackMax,0,1)*(r.width-8)+4; }
+  function placeFlag(anim){
+    finline.style.left=(flagPx()-2.5)+'px';
+    flag.style.left=flagPx()+'px';
+  }
+  function runnerPos(elx,s){
+    const r=track.getBoundingClientRect();
+    elx.style.left=(clamp(s/cfg.trackMax,0,1)*(r.width-8)+4)+'px';
+  }
+  flag.addEventListener('pointerdown',function(ev){
+    if(playing) return;
+    ev.preventDefault();
+    const move=function(e2){
+      const r=track.getBoundingClientRect();
+      const v=clamp((e2.clientX-r.left-4)/(r.width-8),0,1)*cfg.trackMax;
+      flagV=clamp(Math.round(v/cfg.snap)*cfg.snap,cfg.flagMin,cfg.flagMax);
+      placeFlag(); timeBig.textContent='终点旗在 '+flagV+' '+cfg.unitName+'，点"出发！"开始比赛';
+    };
+    const up=function(){ document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); addStep(); };
+    document.addEventListener('pointermove',move);
+    document.addEventListener('pointerup',up);
+  });
+  spBtn.onclick=()=>{ speed = speed===1?2:1; spBtn.textContent = speed===1?'⏩ 2倍速':'🐢 常速'; };
+  goBtn.onclick=()=>{ if(!playing) play(); };
+  placeFlag();
+  runnerPos(rabbit,0); runnerPos(turtle,0);
+  addEventListener('resize',()=>{ placeFlag(); if(!playing){runnerPos(rabbit,0);runnerPos(turtle,0);} });
+  // ---- 动画播放 ----
+  function rabbitS(t){
+    const R=cfg.rabbit;
+    if(t<=R.t1) return R.v1*t;
+    if(t<=R.sleepT) return R.s1;
+    return R.s1 + R.v2*(t-R.sleepT);
+  }
+  function play(){
+    playing=true; goBtn.disabled=true;
+    const tEnd=Math.max(cfg.target/cfg.turtleV, rabbitArrive(flagV));
+    const durPerMin=0.06/speed*1000;      // 每分钟对应毫秒
+    const t0=performance.now();
+    function frame(now){
+      const t=Math.min((now-t0)/durPerMin, tEnd);
+      timeBig.textContent='⏱ t = '+fmt1(t)+' 分';
+      runnerPos(rabbit,Math.min(rabbitS(t),flagV));
+      runnerPos(turtle,Math.min(cfg.turtleV*t,flagV));
+      if(t<tEnd){ raf=requestAnimationFrame(frame); }
+      else{
+        playing=false; goBtn.disabled=false;
+        verdict(tEnd);
+      }
+    }
+    raf=requestAnimationFrame(frame);
+  }
+  function rabbitArrive(f){ const R=cfg.rabbit; return R.sleepT + Math.max(0,(f-R.s1))/R.v2; }
+  function turtleArrive(f){ return f/cfg.turtleV; }
+  function verdict(){
+    const f=flagV;
+    const tr=turtleArrive(f), rb=rabbitArrive(f);
+    if(Math.abs(f-cfg.target)<1e-6){
+      timeBig.textContent='🏁 双方 '+fmt1(tr)+' 分 同时冲线！';
+      hint.className='hint-line ok';
+      hint.innerHTML='完美！兔子恰好在终点追上乌龟！比赛路程<b>'+f+' '+cfg.unitName+'</b>就是最小值！🎉';
+      celebrate(false);
+      setTimeout(()=>game.pass(cfg.reveal,cfg.afterNote),700);
+    }else if(f<cfg.target){
+      timeBig.textContent='🐢 '+fmt1(tr)+' 分 ｜ 🐇 '+fmt1(rb)+' 分还没到';
+      hint.className='hint-line no';
+      hint.innerHTML='乌龟先冲线了，兔子还在后面 '+Math.round(cfg.target-f)+' '+cfg.unitName+' 左右才追得上。终点太近啦，把旗拖<b>更远</b>些再试！';
+    }else{
+      timeBig.textContent='🐇 '+fmt1(rb)+' 分 ｜ 🐢 '+fmt1(tr)+' 分才到';
+      hint.className='hint-line no';
+      hint.innerHTML='兔子中途追上乌龟后<b>先到终点</b>，等了 '+fmt1(tr-rb)+' 分钟——这不叫"恰好追上"。路程还能更短，把旗拖<b>近</b>一点！';
+    }
+  }
+  return { root, revealText:cfg.reveal, cleanup(){ if(raf) cancelAnimationFrame(raf); playing=false; } };
+}
+
+/* ================= 关卡类型三：读图窗口（拖把手框时段+拖瓦片填算式） ================= */
+/* cfg:{ grid, linePts:[...], unitS:'千米', unitT:'分',
+        windows:[{key,label,color,t1,t2,type:'frame'|'band'}],
+        eqs:[{label, dividendTxt, divisorTxt, unitTxt, answer:[a,b,c]}],
+        tiles:[...字符串池...], eqSlots:每式3槽,
+        extra:{questionHtml}, reveal, passNote } */
+function levelWindowLab(cfg){
+  const root=el('div');
+  root.appendChild(el('div','story',cfg.story));
+  const panel=el('div','panel');
+  panel.appendChild(el('h3',null,'🔍 拖动彩色把手框住题目问的时间段（图下方会显示你框住的路程差和时间差），再把数字瓦片拖进算式'));
+  const wrap=el('div','board-wrap');
+  const g=buildGrid(cfg.grid);
+  wrap.appendChild(g.svg);
+  // 折线图象
+  const d=cfg.linePts.map((p,i)=>(i?'L':'M')+g.X(p[0])+','+g.Y(p[1])).join(' ');
+  svgAppendPath(g.svg,d,'#1f3b57',null,5);
+  // 各窗口
+  const winEls={};
+  const readS=makeSTReader(cfg.linePts);   // 根据 t 插值求 s(t)
+  for(const wd of cfg.windows){
+    const grp={ handleL:null, handleR:null, rect:null, texts:[] };
+    if(wd.type==='band'){
+      grp.rect=svgEl('rect',{y:g.Y(cfg.grid.yMax),height:g.Y(0)-g.Y(cfg.grid.yMax),fill:wd.color,opacity:.28});
+      g.svg.insertBefore(grp.rect,g.svg.children[1]);
+    }else{
+      grp.rect=svgEl('rect',{y:g.Y(cfg.grid.yMax),height:g.Y(0)-g.Y(cfg.grid.yMax),fill:wd.color,opacity:.18});
+      g.svg.insertBefore(grp.rect,g.svg.children[1]);
+      grp.lnL=svgEl('line',{y1:g.Y(0),y2:g.Y(cfg.grid.yMax),stroke:wd.color,'stroke-width':3,'stroke-dasharray':'7 5'});
+      grp.lnR=svgEl('line',{y1:g.Y(0),y2:g.Y(cfg.grid.yMax),stroke:wd.color,'stroke-width':3,'stroke-dasharray':'7 5'});
+      g.svg.appendChild(grp.lnL); g.svg.appendChild(grp.lnR);
+    }
+    // 把手（拖动圆块）
+    const mk=(isL)=>{
+      const h=svgEl('g',{cursor:'ew-resize'});
+      h.appendChild(svgEl('rect',{x:-13,y:-11,width:26,height:26,rx:6,fill:wd.color,stroke:'#fff','stroke-width':2}));
+      const tt=svgEl('text',{y:8,'text-anchor':'middle','font-size':17,fill:'#fff','font-weight':'bold','pointer-events':'none'});
+      tt.textContent=isL?'◀':'▶'; h.appendChild(tt);
+      g.svg.appendChild(h);
+      return h;
+    };
+    grp.handleL=mk(true); grp.handleR=mk(false);
+    winEls[wd.key]=grp;
+    const cur=()=>wd;
+    dragify(grp.handleL,{ move:(ev)=>{
+        const sp=svgPt(g.svg,ev.clientX,ev.clientY);
+        let dv=(sp.x-g.pad.l)/(g.w-g.pad.l-g.pad.r)*cfg.grid.xMax;
+        dv=clamp(Math.round(dv*2)/2, 0, wd.t2-0.5);
+        wd.t1=dv; layout(); refreshPanel();
+      }, end:()=>{ addStep(); refreshPanel(); checkAll(); } });
+    dragify(grp.handleR,{ move:(ev)=>{
+        const sp=svgPt(g.svg,ev.clientX,ev.clientY);
+        let dv=(sp.x-g.pad.l)/(g.w-g.pad.l-g.pad.r)*cfg.grid.xMax;
+        dv=clamp(Math.round(dv*2)/2, wd.t1+0.5, cfg.grid.xMax);
+        wd.t2=dv; layout(); refreshPanel();
+      }, end:()=>{ addStep(); refreshPanel(); checkAll(); } });
+    function layout(){
+      if(wd.type!=='band'){
+        grp.lnL.setAttribute('x1',g.X(wd.t1)); grp.lnL.setAttribute('x2',g.X(wd.t1));
+        grp.lnR.setAttribute('x1',g.X(wd.t2)); grp.lnR.setAttribute('x2',g.X(wd.t2));
+      }
+      grp.rect.setAttribute('x',g.X(wd.t1));
+      grp.rect.setAttribute('width',Math.max(0,g.X(wd.t2)-g.X(wd.t1)));
+      grp.handleL.setAttribute('transform','translate('+g.X(wd.t1)+','+ (g.Y(0)-16) +')');
+      grp.handleR.setAttribute('transform','translate('+g.X(wd.t2)+','+ (g.Y(0)-16) +')');
+    }
+    grp.handleL._layout=layout; grp.handleR._layout=layout;
+    layout();
+  }
+  addEventListener('resize',()=>{ for(const k in winEls){ winEls[k].handleL._layout(); } });
+  const tip=el('div','coord-tip','');
+  wrap.appendChild(tip);
+  panel.appendChild(wrap);
+  // 读数面板
+  const readPanel=el('div','speedbox');
+  panel.appendChild(readPanel);
+  root.appendChild(panel);
+  // ---- 算式区 ----
+  const eqPanel=el('div','panel');
+  eqPanel.appendChild(el('h3',null,'🧮 把数字瓦片拖进算式空格（可随时拖回上面换）'));
+  if(cfg.extra) eqPanel.appendChild(el('div','story',cfg.extra));
+  const slotNodes=[]; // {nodes:[s0,s1,s2], eq}
+  cfg.eqs.forEach((eq,ei)=>{
+    const row=el('div','eq-row');
+    row.appendChild(el('span',null,eq.label+'：'));
+    const s0=el('div','slot'), s1=el('div','slot'), s2=el('div','slot');
+    row.appendChild(s0); row.appendChild(el('span',null,'÷'));
+    row.appendChild(s1); row.appendChild(el('span',null,'＝'));
+    row.appendChild(s2); row.appendChild(el('span',null,eq.unitTxt));
+    eqPanel.appendChild(row);
+    slotNodes.push({nodes:[s0,s1,s2],eq,ei});
+  });
+  const tray=el('div','tray');
+  const tiles=shuffle(cfg.tiles.map(t=>String(t)));
+  const tileNodes=tiles.map(txt=>{
+    const b=el('button','tile',txt); b.type='button';
+    tray.appendChild(b);
+    return { txt, node:b };
+  });
+  eqPanel.appendChild(tray);
+  const hint=el('div','hint-line','小提示：先框对时间段，看看图下方显示的"路程差÷时间差"是多少。');
+  eqPanel.appendChild(hint);
+  root.appendChild(eqPanel);
+  // ---- 瓦片拖放逻辑（可拖进槽、可拖回托盘） ----
+  tileNodes.forEach(t=>{
+    dragify(t.node,{
+      start:(ev)=>{
+        t.node.classList.add('dragging');
+        document.body.appendChild(t.node);
+        t.node.style.left=(ev.clientX-t.node.offsetWidth/2)+'px';
+        t.node.style.top=(ev.clientY-t.node.offsetHeight/2)+'px';
+      },
+      move:(ev)=>{
+        t.node.style.left=(ev.clientX-t.node.offsetWidth/2)+'px';
+        t.node.style.top=(ev.clientY-t.node.offsetHeight/2)+'px';
+      },
+      end:(ev)=>{
+        t.node.classList.remove('dragging');
+        t.node.style.left=''; t.node.style.top='';
+        // 查找落点下的槽
+        const under=document.elementFromPoint(ev.clientX,ev.clientY);
+        const slot=under && under.closest ? under.closest('.slot') : null;
+        if(slot && !slot._tile){
+          slot._tile=t; slot.textContent='';
+          slot.appendChild(t.node);
+          slot.classList.remove('ok','no');
+        }else{
+          tray.appendChild(t.node);
+        }
+        addStep(); checkAll();
+      }
+    });
+  });
+  // ---- 读数刷新 ----
+  function refreshPanel(){
+    readPanel.innerHTML='';
+    let tipTxt=[];
+    for(const wd of cfg.windows){
+      const s1=readS(wd.t1), s2=readS(wd.t2);
+      const dt=Math.round((wd.t2-wd.t1)*10)/10, ds=Math.round((s2-s1)*10)/10;
+      const box=el('div','sp');
+      box.innerHTML='<span style="color:'+wd.color+'">■</span> '+wd.label+'：t 从 '+fmt1(wd.t1)+' 到 '+fmt1(wd.t2)+' 分，路程从 '+fmt1(s1)+' 到 '+fmt1(s2)+' '+cfg.unitS+'（<b>Δt＝'+fmt1(dt)+' 分，Δs＝'+fmt1(ds)+' '+cfg.unitS+'</b>）';
+      readPanel.appendChild(box);
+      tipTxt.push(wd.label+' Δt='+fmt1(dt));
+    }
+    tip.textContent=tipTxt.join(' ｜ ');
+  }
+  function near(a,b){ return Math.abs(a-b)<=0.6; }
+  function checkAll(){
+    // 1) 窗口判断
+    const winOk={}, winAns={};
+    for(const wd of cfg.windows){
+      winOk[wd.key]=near(wd.t1,wd.ansT1)&&near(wd.t2,wd.ansT2);
+    }
+    // 2) 算式槽判断
+    let eqAllOk=true;
+    for(const sn of slotNodes){
+      const vals=sn.nodes.map(n=> n._tile ? n._tile.txt : null);
+      const a=sn.eq.answer;
+      const ok = vals[0]===String(a[0]) && vals[1]===String(a[1]) && vals[2]===String(a[2]);
+      sn.ok=ok && (!sn.eq.winKey || winOk[sn.eq.winKey]);
+      sn.nodes.forEach((n,i)=>{
+        n.classList.toggle('ok', !!sn.ok);
+        n.classList.toggle('no', !sn.ok && !!n._tile);
+      });
+      if(!sn.ok) eqAllOk=false;
+    }
+    // 3) 附加槽（如停留时长）
+    let extraOk=true;
+    if(cfg.extraSlot){
+      extraOk = cfg.extraSlot.node._tile && cfg.extraSlot.node._tile.txt===String(cfg.extraSlot.answer)
+                && winOk[cfg.extraSlot.winKey];
+      cfg.extraSlot.node.classList.toggle('ok',extraOk);
+      cfg.extraSlot.node.classList.toggle('no', !extraOk && !!cfg.extraSlot.node._tile);
+    }
+    const winsOk=cfg.eqs.every(e=> !e.winKey || winOk[e.winKey]) && (!cfg.extraSlot || winOk[cfg.extraSlot.winKey]);
+    if(eqAllOk && extraOk && winsOk && cfg.eqs.length){
+      hint.className='hint-line ok';
+      hint.textContent=cfg.passNote||'全部正确！读图小达人就是你！';
+      setTimeout(()=>game.pass(cfg.reveal,cfg.afterNote),650);
+    }else{
+      hint.className='hint-line';
+      hint.textContent='还没全对：先检查彩色窗口有没有框准（对照题目问的时间段），再检查算式里的数字。';
+    }
+  }
+  // 附加槽（停留时长等）
+  if(cfg.extraRow){
+    const row=el('div','eq-row');
+    row.appendChild(el('span',null,cfg.extraRow.label+'：'));
+    const s=el('div','slot'); row.appendChild(s);
+    row.appendChild(el('span',null,cfg.extraRow.unitTxt));
+    eqPanel.insertBefore(row,tray);
+    cfg.extraSlot={node:s,answer:cfg.extraRow.answer,winKey:cfg.extraRow.winKey};
+    // 复用 tileNodes 拖放（为槽加监听）
+    s._accepts=true;
+  }
+  refreshPanel();
+  return { root, revealText:cfg.reveal, cleanup(){} };
+}
+/* 根据 s-t 折线做线性插值求 s(t) */
+function makeSTReader(pts){
+  return function(t){
+    t=clamp(t,pts[0][0],pts[pts.length-1][0]);
+    for(let i=0;i<pts.length-1;i++){
+      const [x1,y1]=pts[i],[x2,y2]=pts[i+1];
+      if(t>=x1&&t<=x2){ if(x2===x1) return y1; return y1+(y2-y1)*(t-x1)/(x2-x1); }
+    }
+    return pts[pts.length-1][1];
+  };
+}
+
+/* ================= 关卡类型四：图象配对（拖故事卡到图框） ================= */
+/* cfg:{ story, pairs:[{storyTxt, chart:{type, color}}], reveal } chart.type: 'run_sleep_run'|'speedup'|'go_return'|'steady' */
+function levelMatcher(cfg){
+  const root=el('div');
+  root.appendChild(el('div','story',cfg.story));
+  const panel=el('div','panel');
+  panel.appendChild(el('h3',null,'🃏 把每张"旅程故事卡"拖到形状相符的 s-t 图框里（放错会弹回）'));
+  const grid=el('div','match-grid');
+  // 打乱的图框
+  const zones=shuffle(cfg.pairs.map((p,i)=>({...p,idx:i})));
+  const cards=shuffle(cfg.pairs.map((p,i)=>({...p,idx:i})));
+  let okCount=0;
+  for(const z of zones){
+    const row=el('div','match-row');
+    row.appendChild(el('div','lbl','图 '+(z.idx+1)));
+    const dz=el('div','dropzone');
+    dz._want=z.idx;
+    dz._chartKey=z.chart.type;
+    // 画小图
+    const svg=svgEl('svg',{viewBox:'0 0 170 120'});
+    svg.appendChild(svgEl('line',{x1:20,y1:100,x2:160,y2:100,stroke:'#345','stroke-width':2.5}));
+    svg.appendChild(svgEl('line',{x1:20,y1:100,x2:20,y2:12,stroke:'#345','stroke-width':2.5}));
+    const tx=svgEl('text',{x:158,y:116,'font-size':16,fill:'#345','text-anchor':'end'}); tx.textContent='t';
+    const ty=svgEl('text',{x:6,y:14,'font-size':16,fill:'#345'}); ty.textContent='s';
+    svg.appendChild(tx); svg.appendChild(ty);
+    const pts=chartPath(z.chart.type);
+    svgAppendPath(svg,pts,'#'+(z.chart.color||'1f3b57'),null,4);
+    dz.appendChild(svg);
+    grid.appendChild(row); row.appendChild(dz);
+  }
+  panel.appendChild(grid);
+  const tray=el('div','tray'); tray.style.marginTop='14px';
+  panel.appendChild(tray);
+  const hint=el('div','hint-line','想一想：睡觉/停车时，路程还会变吗？返回家时路程怎么变？');
+  panel.appendChild(hint);
+  root.appendChild(panel);
+  // 卡片拖放
+  cards.forEach(c=>{
+    const card=el('button','storycard',c.storyTxt); card.type='button';
+    tray.appendChild(card);
+    dragify(card,{
+      start:(ev)=>{
+        card.style.position='fixed'; card.style.zIndex=99; card.style.pointerEvents='none';
+        card.style.width=Math.min(320,card.offsetWidth)+'px';
+        document.body.appendChild(card);
+        card.style.left=(ev.clientX-card.offsetWidth/2)+'px';
+        card.style.top=(ev.clientY-card.offsetHeight/2)+'px';
+      },
+      move:(ev)=>{
+        card.style.left=(ev.clientX-card.offsetWidth/2)+'px';
+        card.style.top=(ev.clientY-card.offsetHeight/2)+'px';
+      },
+      end:(ev)=>{
+        card.style.position=''; card.style.zIndex=''; card.style.pointerEvents=''; card.style.width='';
+        const under=document.elementFromPoint(ev.clientX,ev.clientY);
+        const dz=under&&under.closest?under.closest('.dropzone'):null;
+        if(dz && !dz._filled){
+          if(dz._want===c.idx){
+            dz._filled=true; dz.classList.add('ok');
+            dz.appendChild(el('div',null,'')).appendChild(card);
+            card.disabled=true;
+            okCount++; addStep();
+            if(okCount===cfg.pairs.length){
+              hint.className='hint-line ok';
+              hint.textContent='四张卡全部配对成功！你已经会"看图讲故事"了！';
+              setTimeout(()=>game.pass(cfg.reveal,cfg.afterNote),650);
+            }
+          }else{
+            tray.appendChild(card); addStep();
+            hint.className='hint-line no';
+            hint.textContent='这张卡和这个图的形状不匹配，卡片弹回来了。注意"水平段"和"下降段"的区别！';
+          }
+        }else{
+          tray.appendChild(card);
+        }
+      }
+    });
+  });
+  return { root, revealText:cfg.reveal, cleanup(){} };
+  function chartPath(type){
+    // 170x120 视窗，绘图区 20~160 x 12~100
+    switch(type){
+      case 'run_sleep_run': return 'M20,100 L60,45 L110,45 L150,0';
+      case 'speedup':       return 'M20,100 L52,60 L98,60 L160,12';
+      case 'go_return':     return 'M20,100 L88,16 L156,100';
+      default:              return 'M20,100 L156,20'; // steady
+    }
+  }
+}
+
+/* ================= 关卡类型五：速度实验台（滑块+高亮带+瓦片） ================= */
+/* cfg:{ grid, linePts, story, sliders:[{key,label,min,max,step,ans,unit}], band:{t1,t2,ansT1,ansT2,label},
+        diffRow:{label,unitTxt,answer}, tiles:[...], reveal } */
+function levelSliderLab(cfg){
+  const root=el('div');
+  root.appendChild(el('div','story',cfg.story));
+  const panel=el('div','panel');
+  panel.appendChild(el('h3',null,'🎚 三步实验：① 调滑块对准两段速度 ② 拖高亮带框住休息段 ③ 拖瓦片回答"快多少"'));
+  const wrap=el('div','board-wrap');
+  const g=buildGrid(cfg.grid);
+  wrap.appendChild(g.svg);
+  const d=cfg.linePts.map((p,i)=>(i?'L':'M')+g.X(p[0])+','+g.Y(p[1])).join(' ');
+  svgAppendPath(g.svg,d,'#1f3b57',null,5);
+  // 高亮带（矩形+两个圆把手，沿时间轴拖）
+  const band=cfg.band;
+  const rect=svgEl('rect',{y:g.Y(cfg.grid.yMax),height:g.Y(0)-g.Y(cfg.grid.yMax),fill:'#f2b705',opacity:.35});
+  g.svg.insertBefore(rect,g.svg.children[1]);
+  function mkHandle(){
+    const h=svgEl('g',{cursor:'ew-resize'});
+    h.appendChild(svgEl('circle',{r:14,fill:'#f2b705',stroke:'#fff','stroke-width':3}));
+    g.svg.appendChild(h); return h;
+  }
+  const hL=mkHandle(), hR=mkHandle();
+  function layoutBand(){
+    rect.setAttribute('x',g.X(band.t1));
+    rect.setAttribute('width',Math.max(0,g.X(band.t2)-g.X(band.t1)));
+    hL.setAttribute('transform','translate('+g.X(band.t1)+','+(g.Y(0)-16)+')');
+    hR.setAttribute('transform','translate('+g.X(band.t2)+','+(g.Y(0)-16)+')');
+  }
+  dragify(hL,{ move:(ev)=>{ const sp=svgPt(g.svg,ev.clientX,ev.clientY);
+      let dv=(sp.x-g.pad.l)/(g.w-g.pad.l-g.pad.r)*cfg.grid.xMax;
+      band.t1=clamp(Math.round(dv*2)/2,0,band.t2-0.5); layoutBand(); bandTip();
+    }, end:()=>{ addStep(); checkAll(); } });
+  dragify(hR,{ move:(ev)=>{ const sp=svgPt(g.svg,ev.clientX,ev.clientY);
+      let dv=(sp.x-g.pad.l)/(g.w-g.pad.l-g.pad.r)*cfg.grid.xMax;
+      band.t2=clamp(Math.round(dv*2)/2,band.t1+0.5,cfg.grid.xMax); layoutBand(); bandTip();
+    }, end:()=>{ addStep(); checkAll(); } });
+  layoutBand();
+  const bandLbl=el('div','coord-tip','');
+  function bandTip(){ bandLbl.textContent='高亮带：'+fmt1(band.t1)+' 分 ~ '+fmt1(band.t2)+' 分'; }
+  wrap.appendChild(bandLbl);
+  panel.appendChild(wrap);
+  addEventListener('resize',layoutBand);
+  root.appendChild(panel);
+  // 滑块区
+  const slPanel=el('div','panel');
+  slPanel.appendChild(el('h3',null,'🎚 速度表（拖滑块调到图象两段的平均速度）'));
+  const slOk={};
+  cfg.sliders.forEach(sl=>{
+    const row=el('div','match-row');
+    row.style.margin='8px 0';
+    row.appendChild(el('span','lbl',sl.label));
+    const inp=document.createElement('input');
+    inp.type='range'; inp.min=sl.min; inp.max=sl.max; inp.step=sl.step; inp.value=sl.min;
+    inp.style.touchAction='none';
+    const val=el('span','sp',sl.min.toFixed(1)+' '+sl.unit);
+    row.appendChild(inp); row.appendChild(val);
+    slPanel.appendChild(row);
+    inp.addEventListener('input',()=>{ val.textContent=(+inp.value).toFixed(1)+' '+sl.unit; });
+    inp.addEventListener('change',()=>{ addStep(); checkAll(); });
+    slOk[sl.key]={inp,val,sl};
+  });
+  root.appendChild(slPanel);
+  // 差值瓦片
+  const eqPanel=el('div','panel');
+  const row=el('div','eq-row');
+  row.appendChild(el('span',null,cfg.diffRow.label+'：'));
+  const slot=el('div','slot'); row.appendChild(slot);
+  row.appendChild(el('span',null,cfg.diffRow.unitTxt));
+  eqPanel.appendChild(row);
+  const tray=el('div','tray');
+  const hint=el('div','hint-line','都调好后就会自动通关，动手吧！');
+  const tiles=shuffle(cfg.tiles.map(String)).map(t=>{
+    const b=el('button','tile',t); b.type='button'; tray.appendChild(b); return {txt:t,node:b};
+  });
+  eqPanel.appendChild(tray); eqPanel.appendChild(hint);
+  root.appendChild(eqPanel);
+  tiles.forEach(t=>{
+    dragify(t.node,{
+      start:(ev)=>{ t.node.classList.add('dragging'); document.body.appendChild(t.node); moveAt(ev); },
+      move:(ev)=>moveAt(ev),
+      end:(ev)=>{
+        t.node.classList.remove('dragging'); t.node.style.left=''; t.node.style.top='';
+        const under=document.elementFromPoint(ev.clientX,ev.clientY);
+        const sl2=under&&under.closest?under.closest('.slot'):null;
+        if(sl2 && !sl2._tile){ sl2._tile=t; sl2.textContent=''; sl2.appendChild(t.node); }
+        else tray.appendChild(t.node);
+        addStep(); checkAll();
+      }
+    });
+    function moveAt(ev){ t.node.style.left=(ev.clientX-t.node.offsetWidth/2)+'px'; t.node.style.top=(ev.clientY-t.node.offsetHeight/2)+'px'; }
+  });
+  function near(a,b){ return Math.abs(a-b)<=0.6; }
+  function checkAll(){
+    let ok=true;
+    // 滑块
+    for(const k in slOk){
+      const o=slOk[k], good=Math.abs(+o.inp.value-o.sl.ans)<1e-9;
+      o.val.style.color= good?'#1d8a3e':'#c0501a';
+      if(!good) ok=false;
+    }
+    // 高亮带
+    const bandGood=near(band.t1,band.ansT1)&&near(band.t2,band.ansT2);
+    rect.setAttribute('stroke',bandGood?'#1d8a3e':'none'); rect.setAttribute('stroke-width',3);
+    if(!bandGood) ok=false;
+    // 瓦片
+    const tileGood= slot._tile && slot._tile.txt===String(cfg.diffRow.answer);
+    slot.classList.toggle('ok',!!tileGood); slot.classList.toggle('no',!tileGood&&!!slot._tile);
+    if(!tileGood) ok=false;
+    if(ok){
+      hint.className='hint-line ok';
+      hint.textContent='实验成功！速度、休息、差值全部正确！';
+      setTimeout(()=>game.pass(cfg.reveal,cfg.afterNote),650);
+    }else{
+      hint.className='hint-line';
+      hint.textContent='还差一点：速度表读数＝该段"路程差÷时间差"；高亮带要正好盖住水平段。';
+    }
+  }
+  return { root, revealText:cfg.reveal, cleanup(){} };
+}
+
+/* ================= 关卡类型六：终极合成（先搭图象再定终点） ================= */
+function levelUltimate(cfg){
+  const root=el('div');
+  const stageBox=el('div');
+  root.appendChild(stageBox);
+  let part2=null;
+  // ---- 第一阶段：搭图象 ----
+  const part1=levelChartBuilder({
+    grid:cfg.grid,
+    refLines:cfg.refLines,
+    story:cfg.story1,
+    magnets:cfg.magnets,
+    snapX:cfg.snapX, snapY:cfg.snapY, unitName:cfg.unitName,
+    extSlope:cfg.extSlope, extMinX:cfg.extMinX,
+    passNote:'图象搭好了！点击进入第二阶段——设置终点！',
+    reveal:cfg.reveal,
+    afterNote:cfg.afterNote,
+    /* 拦截通关：先进入第二阶段 */
+    _hook:true
+  });
+  // 覆盖 game.pass：第一关完成时先显示"进入第二阶段"按钮
+  const gate=el('div','passbox','第一阶段完成！图象正确 🎉');
+  const nextBtn=el('button','btn big','进入第二阶段：设置终点 🚩');
+  gate.appendChild(document.createElement('br'));
+  gate.appendChild(nextBtn);
+  nextBtn.style.marginTop='10px';
+  stageBox.appendChild(part1.root);
+  // 临时替换 pass 行为
+  const oldPass=game.pass;
+  game.pass=function(revealTxt, afterNote){
+    stageBox.appendChild(gate);
+    nextBtn.onclick=()=>{
+      game.pass=oldPass;
+      stageBox.innerHTML='';
+      part2=levelRace(cfg.race);
+      stageBox.appendChild(part2.root);
+      S.cleanupFns=[part2.cleanup];
+    };
+  };
+  return { root, revealText:cfg.reveal, cleanup(){ if(part2)part2.cleanup(); game.pass=oldPass; } };
+}
+
+/* ================= 游戏关卡数据（源自教参 + 随机变式） ================= */
+/* —— 初级 —— */
+function lvChartTortoise(){
+  return levelChartBuilder({
+    grid:{w:640,h:440,xMax:45,yMax:240,xStep:5,yStep:25,xTick:5,yTick:50,xLabel:'时间/分',yLabel:'路程/米'},
+    refLines:[{pts:[[0,0],[40,200],[44,220]],dash:'9 6',color:'#8a97a8',label:'乌龟'}],
+    story:'🐢🐇 <b>龟兔赛跑</b>：快的兔子 <b>5 分钟</b>冲出 <b>150 米</b>后在树下睡着；乌龟每分钟爬 5 米（30 分钟爬 150 米）一直不停。<b>第 40 分钟</b>，乌龟恰好越过兔子 <b>50 米</b>，兔子立刻起身，仍按原来的速度向前跑。请把"睡着"和"醒来"两块磁贴拖到网格上，拼出兔子的旅程 s-t 图！',
+    magnets:[
+      {key:'sleep',label:'💤 睡着 (5分,150米)',tx:5,ty:150},
+      {key:'wake', label:'🔔 醒来 (40分,150米)',tx:40,ty:150}
+    ],
+    snapX:5,snapY:25,unitName:'米',
+    extSlope:30,extMinX:5,
+    passNote:'完美！兔子的"冲—睡—追"三段图象搭好了！',
+    afterNote:'看图发现：水平线＝路程不变＝睡觉；斜线越陡＝速度越快。',
+    reveal:'【教参·例3 解析】\n兔子5分钟行150米，速度＝150÷5＝30米/分；乌龟30分钟行150米，速度＝150÷30＝5米/分。\n兔子睡着的段是水平线：从(5分,150米)到(40分,150米)。\n第40分钟乌龟走到40×5＝200米，恰好超过兔子50米。\n答案：睡着(5分,150米)，醒来(40分,150米)。'
+  });
+}
+function lvChartCar(){
+  return levelChartBuilder({
+    grid:{w:640,h:440,xMax:32,yMax:44,xStep:2,yStep:4,xTick:2,yTick:4,xLabel:'时间/分',yLabel:'路程/千米'},
+    refLines:[],
+    story:'🚗 一辆汽车出发了：前 <b>9 分钟</b>行驶 <b>12 千米</b>；随后停稳休息 <b>7 分钟</b>；接着继续行驶，到第 <b>30 分钟</b>时距离起点正好 <b>40 千米</b>。请把"停车""再出发""到达"三块磁贴拖到网格上，拼出这辆汽车的 s-t 图！',
+    magnets:[
+      {key:'stop',label:'🅿 停车 (9分,12千米)',tx:9,ty:12},
+      {key:'go',  label:'🚗 再出发 (16分,12千米)',tx:16,ty:12},
+      {key:'arr', label:'📍 到达 (30分,40千米)',tx:30,ty:40}
+    ],
+    snapX:1,snapY:4,unitName:'千米',
+    extSlope:0,extMinX:0,
+    passNote:'太棒了！"行驶—休息—行驶"的图象拼好了！',
+    afterNote:'观察：水平段(9~16分)就是停车休息；后一段更陡，说明后来开得更快。',
+    reveal:'【教参·例4 图象】\n前9分钟行驶12千米 → 拐点(9,12)；\n停7分钟：9＋7＝16，路程不变 → 拐点(16,12)；\n第30分钟到达40千米 → 终点(30,40)。\n答案：停车(9分,12千米)、再出发(16分,12千米)、到达(30分,40千米)。'
+  });
+}
+function lvMatch(){
+  return levelMatcher({
+    story:'🃏 下面每个小图都是 s-t 图（横轴 t 时间、纵轴 s 路程）。请把四张"旅程故事卡"分别拖到形状相符的图框里！',
+    pairs:[
+      {storyTxt:'🐇 小兔先飞奔一段，在树下睡了一觉，醒来后按原速继续飞奔。',chart:{type:'run_sleep_run',color:'2c9a4d'}},
+      {storyTxt:'🚗 汽车先正常行驶，在服务区停了一会儿，之后提速赶路。',chart:{type:'speedup',color:'1f78c9'}},
+      {storyTxt:'🚶 小明从家走到图书馆，歇了歇又原路返回家中。',chart:{type:'go_return',color:'d95573'}},
+      {storyTxt:'🛵 小摩托从起步到结束一直保持同样的速度前进。',chart:{type:'steady',color:'df9a00'}}
+    ],
+    afterNote:'配对口诀：水平＝停；下降＝往回走；一条直線＝匀速。',
+    reveal:'【教参·练习3 解析】\n兔子"跑—睡—跑"：s-t图象先倾斜上升，再水平（睡觉路程不变），再倾斜上升，所以选A；\n若看 v-t（速度-时间）图：睡觉时速度为0，图线应与时间轴重合，题目给出的 v-t 图都不符合。\n故答案为A。'
+  });
+}
+/* —— 中级 —— */
+function lvRace210(){
+  return levelRace({
+    trackMax:350,flagMin:150,flagMax:330,flagInit:180,snap:5,unitName:'米',
+    rabbit:{t1:5,v1:30,s1:150,sleepT:40,v2:30},
+    turtleV:5,target:210,
+    story:'🐢🐇 <b>终点策略挑战（教参·例3）</b>：兔子 5 分钟跑 150 米（每分钟 30 米）后睡到第 40 分钟；乌龟每分钟爬 5 米从不休息。<b>比赛规则：兔子必须恰好在这面终点旗处追上乌龟（同时到达终点）。</b>请拖动终点旗设置比赛路程，再点"出发！"验证——找到能让它们同时冲线的终点位置！',
+    grid:{w:640,h:400,xMax:45,yMax:240,xStep:5,yStep:25,xTick:5,yTick:50,xLabel:'时间/分',yLabel:'路程/米'},
+    chartPts:[
+      {pts:[[0,0],[40,200],[44,220]],dash:'9 6',color:'#8a97a8',label:'乌龟(每分5米)'},
+      {pts:[[0,0],[5,150],[40,150],[45,240]],dash:null,color:'#2c9a4d',label:'兔子(先冲再睡再追)'}
+    ],
+    afterNote:'追及问题：路程差÷速度差＝追上所需时间。50÷(30−5)＝2分钟。',
+    reveal:'【教参·例3 解析】\n兔子速度150÷5＝30米/分；乌龟速度150÷30＝5米/分。\n第40分钟乌龟走了40×5＝200米，领先兔子200−150＝50米。\n兔子追上需要50÷(30−5)＝2分钟，再跑2×30＝60米。\n所以比赛行程至少为150＋60＝210米（第42分钟双方同时到达）。'
+  });
+}
+function lvWindowCar(){
+  return levelWindowLab({
+    grid:{w:660,h:440,xMax:32,yMax:44,xStep:2,yStep:4,xTick:2,yTick:4,xLabel:'时间/分',yLabel:'路程/千米'},
+    linePts:[[0,0],[9,12],[16,12],[30,40]],
+    unitS:'千米',unitT:'分',
+    story:'🚗 <b>读图窗口挑战（教参·例4）</b>：图中是某汽车的路程 s（千米）与时间 t（分）的关系图：前 9 分钟行驶 12 千米，中途稍作停留，第 16 到 30 分钟又行驶到共 40 千米。请：<br>① 拖<b>橙色窗口</b>框住前 9 分钟，求平均速度一；<br>② 拖<b>蓝色窗口</b>框住 16～30 分钟，求平均速度二；<br>③ 把数字瓦片拖进两个算式。',
+    windows:[
+      {key:'w1',label:'橙色窗口',color:'#f4632e',t1:2,t2:12,type:'frame',ansT1:0,ansT2:9},
+      {key:'w2',label:'蓝色窗口',color:'#1f78c9',t1:20,t2:28,type:'frame',ansT1:16,ansT2:30}
+    ],
+    eqs:[
+      {label:'平均速度一（前9分钟）',unitTxt:'千米/分',answer:[12,9,'4/3'],winKey:'w1'},
+      {label:'平均速度二（16~30分钟）',unitTxt:'千米/分',answer:[28,14,2],winKey:'w2'}
+    ],
+    tiles:[12,28,40,9,14,30,'4/3',2,'2/3','5/6'],
+    passNote:'两组窗口和算式全部正确！平均速度＝路程差÷时间差！',
+    afterNote:'前9分钟平均速度4/3千米/分，比后段的2千米/分慢2/3千米/分。',
+    reveal:'【教参·例4 解析】\n前9分钟行驶12千米，平均速度＝12÷9＝4/3（千米/分）；\n16到30分钟行驶了40−12＝28千米，平均速度＝28÷14＝2（千米/分）。\n答：前9分钟比16~30分钟慢2/3千米/分。'
+  });
+}
+function lvWindowStop(){
+  return levelWindowLab({
+    grid:{w:660,h:440,xMax:34,yMax:34,xStep:2,yStep:2,xTick:4,yTick:4,xLabel:'时间/分',yLabel:'路程/千米'},
+    linePts:[[0,0],[12,10],[18,10],[32,31]],
+    unitS:'千米',unitT:'分',
+    story:'🚗 <b>停留侦探（教参·练习4）</b>：图中是某汽车的路程 s（千米）与时间 t（分）关系图：前 12 分钟行驶 10 千米，中途停下休息，第 32 分钟时共行驶 31 千米。请：<br>① 拖<b>橙色窗口</b>框住前 12 分钟，求平均速度；<br>② 拖<b>绿色高亮带</b>盖住中途"停车休息"的那一段；<br>③ 把数字瓦片拖进算式和停留时长。',
+    windows:[
+      {key:'w1',label:'橙色窗口',color:'#f4632e',t1:4,t2:18,type:'frame',ansT1:0,ansT2:12},
+      {key:'w2',label:'绿色高亮带',color:'#2c9a4d',t1:6,t2:14,type:'band',ansT1:12,ansT2:18}
+    ],
+    eqs:[
+      {label:'平均速度（前12分钟）',unitTxt:'千米/分',answer:[10,12,'5/6'],winKey:'w1'}
+    ],
+    extraRow:{label:'中途停留时长',unitTxt:'分钟',answer:6,winKey:'w2'},
+    tiles:[10,31,21,12,18,32,'5/6',6,5,7],
+    passNote:'侦探结案：平均速度5/6千米/分，停留6分钟！',
+    afterNote:'水平段从12分到18分，停留18−12＝6分钟。',
+    reveal:'【教参·练习4 解析】\n(1) 前12分钟行驶10千米，平均速度＝10÷12＝5/6（千米/分）；\n(2) 汽车中途停的时间为18−12＝6（分钟）。'
+  });
+}
+/* —— 高级 —— */
+function lvRaceVar(){
+  const A=Math.random()<0.5;
+  if(A){
+    return levelRace({
+      trackMax:500,flagMin:120,flagMax:420,flagInit:150,snap:5,unitName:'米',
+      rabbit:{t1:5,v1:20,s1:100,sleepT:35,v2:20},
+      turtleV:5,target:200,
+      story:'🐢🐇 <b>变式赛道（高级）</b>：兔子 5 分钟跑 100 米（每分钟 20 米）后睡到第 35 分钟；乌龟每分钟爬 5 米从不休息。比赛规则不变：<b>兔子必须恰好在这面终点旗处追上乌龟</b>。拖动终点旗，再点"出发！"验证！',
+      grid:{w:640,h:400,xMax:48,yMax:240,xStep:4,yStep:20,xTick:4,yTick:40,xLabel:'时间/分',yLabel:'路程/米'},
+      chartPts:[
+        {pts:[[0,0],[35,175],[44,220]],dash:'9 6',color:'#8a97a8',label:'乌龟(每分5米)'},
+        {pts:[[0,0],[5,100],[35,100],[42,240]],dash:null,color:'#2c9a4d',label:'兔子(先冲再睡再追)'}
+      ],
+      afterNote:'路程差75÷速度差15＝5分钟追上。',
+      reveal:'【变式解析】\n兔子速度100÷5＝20米/分；乌龟5米/分。\n第35分钟乌龟走了35×5＝175米，领先兔子175−100＝75米。\n追上需要75÷(20−5)＝5分钟，再跑5×20＝100米。\n比赛行程至少100＋100＝200米（第40分钟双方同时到达）。'
+    });
+  }
+  return levelRace({
+    trackMax:500,flagMin:200,flagMax:460,flagInit:250,snap:5,unitName:'米',
+    rabbit:{t1:10,v1:30,s1:300,sleepT:70,v2:30},
+    turtleV:5,target:360,
+    story:'🐢🐇 <b>变式赛道（高级）</b>：兔子 10 分钟跑 300 米（每分钟 30 米）后睡到第 70 分钟；乌龟每分钟爬 5 米从不休息。比赛规则不变：<b>兔子必须恰好在这面终点旗处追上乌龟</b>。拖动终点旗，再点"出发！"验证！',
+    grid:{w:640,h:400,xMax:76,yMax:400,xStep:4,yStep:20,xTick:8,yTick:50,xLabel:'时间/分',yLabel:'路程/米'},
+      chartPts:[
+        {pts:[[0,0],[70,350],[76,380]],dash:'9 6',color:'#8a97a8',label:'乌龟(每分5米)'},
+        {pts:[[0,0],[10,300],[70,300],[73,390]],dash:null,color:'#2c9a4d',label:'兔子(先冲再睡再追)'}
+      ],
+    afterNote:'路程差50÷速度差25＝2分钟追上。',
+    reveal:'【变式解析】\n兔子速度300÷10＝30米/分；乌龟5米/分。\n第70分钟乌龟走了70×5＝350米，领先兔子350−300＝50米。\n追上需要50÷(30−5)＝2分钟，再跑2×30＝60米。\n比赛行程至少300＋60＝360米（第72分钟双方同时到达）。'
+  });
+}
+function lvSliderLab(){
+  const useD1=Math.random()<0.5;
+  if(useD1){
+    return levelSliderLab({
+      grid:{w:660,h:440,xMax:28,yMax:44,xStep:1,yStep:4,xTick:2,yTick:4,xLabel:'时间/分',yLabel:'路程/千米'},
+      linePts:[[0,0],[8,16],[15,16],[25,40]],
+      story:'🎚 <b>速度实验台（高级）</b>：一辆汽车先出发，前 8 分钟行驶 16 千米；停一会儿；从第 15 分钟到第 25 分钟又行驶 24 千米（此时离起点 40 千米）。三步实验：① 拖两个滑块，把速度表调到图象两段的平均速度；② 拖黄色高亮带盖住休息段；③ 拖瓦片回答"后一段每分钟快多少千米"。',
+      sliders:[
+        {key:'s1',label:'第一段速度',min:0.5,max:3,step:0.1,ans:2.0,unit:'千米/分'},
+        {key:'s2',label:'第二段速度',min:0.5,max:3,step:0.1,ans:2.4,unit:'千米/分'}
+      ],
+      band:{t1:4,t2:11,ansT1:8,ansT2:15},
+      diffRow:{label:'后一段每分钟快',unitTxt:'千米/分',answer:'0.4'},
+      tiles:['0.4','0.5','1.4','2.4'],
+      afterNote:'第一段16÷8＝2，第二段24÷10＝2.4，差0.4。',
+      reveal:'【综合解析】\n第一段速度＝16÷8＝2（千米/分）；\n休息段：8分到15分，共7分钟；\n第二段速度＝(40−16)÷(25−15)＝24÷10＝2.4（千米/分）；\n每分钟快2.4−2＝0.4千米。'
+    });
+  }
+  return levelSliderLab({
+    grid:{w:660,h:440,xMax:34,yMax:54,xStep:1,yStep:4,xTick:2,yTick:6,xLabel:'时间/分',yLabel:'路程/千米'},
+    linePts:[[0,0],[10,20],[18,20],[30,50]],
+    story:'🎚 <b>速度实验台（高级）</b>：一辆汽车先出发，前 10 分钟行驶 20 千米；停一会儿；从第 18 分钟到第 30 分钟又行驶 30 千米（此时离起点 50 千米）。三步实验：① 拖两个滑块，把速度表调到图象两段的平均速度；② 拖黄色高亮带盖住休息段；③ 拖瓦片回答"后一段每分钟快多少千米"。',
+    sliders:[
+      {key:'s1',label:'第一段速度',min:0.5,max:3,step:0.1,ans:2.0,unit:'千米/分'},
+      {key:'s2',label:'第二段速度',min:0.5,max:3,step:0.1,ans:2.5,unit:'千米/分'}
+    ],
+    band:{t1:6,t2:14,ansT1:10,ansT2:18},
+    diffRow:{label:'后一段每分钟快',unitTxt:'千米/分',answer:'0.5'},
+    tiles:['0.5','1.5','2.5','0.4'],
+    afterNote:'第一段20÷10＝2，第二段30÷12＝2.5，差0.5。',
+    reveal:'【综合解析】\n第一段速度＝20÷10＝2（千米/分）；\n休息段：10分到18分，共8分钟；\n第二段速度＝(50−20)÷(30−18)＝30÷12＝2.5（千米/分）；\n每分钟快2.5−2＝0.5千米。'
+  });
+}
+function lvUltimate(){
+  return levelUltimate({
+    grid:{w:640,h:440,xMax:52,yMax:240,xStep:2,yStep:20,xTick:4,yTick:40,xLabel:'时间/分',yLabel:'路程/米'},
+    refLines:[{pts:[[0,0],[50,200],[52,208]],dash:'9 6',color:'#8a97a8',label:'乌龟(每分4米)'}],
+    story1:'🏰 <b>终极合成·第一阶段（搭图象）</b>：新的龟兔赛跑！兔子 4 分钟跑 80 米（每分钟 20 米）后睡着；乌龟每分钟爬 4 米。<b>第 44 分钟</b>乌龟恰好越过兔子 96 米，兔子立刻起身按原速追赶。请拖"睡着""醒来"磁贴完成兔子的 s-t 图！',
+    magnets:[
+      {key:'sleep',label:'💤 睡着 (4分,80米)',tx:4,ty:80},
+      {key:'wake',label:'🔔 醒来 (44分,80米)',tx:44,ty:80}
+    ],
+    snapX:2,snapY:20,unitName:'米',
+    extSlope:20,extMinX:6,
+    race:{
+      trackMax:300,flagMin:100,flagMax:280,flagInit:130,snap:5,unitName:'米',
+      rabbit:{t1:4,v1:20,s1:80,sleepT:44,v2:20},
+      turtleV:4,target:200,
+      story:'🏰 <b>终极合成·第二阶段（定终点）</b>：图象搭好了！现在请拖动终点旗，让兔子<b>恰好在这面终点旗处追上乌龟</b>，再点"出发！"验证！',
+      afterNote:'路程差96÷速度差16＝6分钟追上，第50分钟同时到达200米处。',
+      reveal:'【终极解析】\n兔子速度80÷4＝20米/分；乌龟4米/分。\n第44分钟乌龟走了44×4＝176米，领先兔子176−80＝96米。\n追上需要96÷(20−4)＝6分钟，再跑6×20＝120米。\n比赛行程至少80＋120＝200米（第50分钟双方同时到达）。'
+    },
+    afterNote:'搭图象＋定终点，读图与追及全拿下！',
+    reveal:'【终极解析】\n兔子速度80÷4＝20米/分；乌龟4米/分。\n第44分钟乌龟走了176米，领先96米；追上需要96÷16＝6分钟。\n比赛行程至少80＋120＝200米。'
+  });
+}
+
+/* ================= 难度配置（每局随机排序，颜色随机） ================= */
+const DIFFS={
+  easy:  { name:'初级 · 草地操场', factories:[lvChartTortoise, lvChartCar, lvMatch] },
+  mid:   { name:'中级 · 峡谷赛道', factories:[lvRace210, lvWindowCar, lvWindowStop] },
+  hard:  { name:'高级 · 巅峰冲刺', factories:[lvRaceVar, lvSliderLab, lvUltimate] }
+};
+
+/* ================= 游戏流程控制 ================= */
+const game={
+  /* 通关回调：显示答案与下一关按钮 */
+  pass(revealTxt, afterNote){
+    const stage=$('#stage');
+    let box=$('#passbox-main');
+    if(!box){
+      box=el('div','passbox','🎉 本关通过！'); box.id='passbox-main';
+      stage.appendChild(box);
+    }
+    box.innerHTML='🎉 本关通过！'+(afterNote||'')+'<br>';
+    const row=el('div','foot-btns');
+    if(revealTxt){
+      const rb=el('button','btn','📖 看完整解析');
+      rb.onclick=()=>showModal('完整解析',revealTxt.replace(/</g,'&lt;'),'关闭');
+      row.appendChild(rb);
+    }
+    if(S.idx<S.queue.length-1){
+      const nb=el('button','btn big','下一关 ➜');
+      nb.onclick=()=>{ game.nextLevel(); };
+      row.appendChild(nb);
+    }else{
+      const fb=el('button','btn big','🏁 查看战绩');
+      fb.onclick=()=>{ game.finish(); };
+      row.appendChild(fb);
+    }
+    box.appendChild(row);
+    celebrate(false);
+    box.scrollIntoView({behavior:'smooth',block:'center'});
+  },
+  nextLevel(){
+    if(S.cleanup){ S.cleanup(); S.cleanup=null; }
+    S.idx++;
+    renderLevel();
+  },
+  finish(){
+    if(S.cleanup){ S.cleanup(); S.cleanup=null; }
+    stopTimer();
+    const sec=Math.floor((Date.now()-S.t0)/1000);
+    const mm=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+    const stars = S.steps<=18?'⭐⭐⭐':(S.steps<=30?'⭐⭐':'⭐');
+    $('#stage').innerHTML='';
+    const box=el('div','winbox',
+      '<div class="stars">'+stars+'</div>'+
+      '<h2>🏆 图解行程 · 全线通关！</h2>'+
+      '<div class="stat">难度：'+DIFFS[S.difficulty].name+'</div>'+
+      '<div class="stat">用时 '+mm+' ｜ 操作步数 '+S.steps+' 步</div>'+
+      '<div class="stat">你已掌握：读 s-t 图 · 平均速度 · 追及问题 🐢🐇</div>');
+    const row=el('div','foot-btns');
+    const hb=el('button','btn big','🏠 再来一局');
+    hb.onclick=()=>{ showHome(); };
+    row.appendChild(hb);
+    box.appendChild(row);
+    $('#stage').appendChild(box);
+    $('#hud-level').textContent='已通关';
+    celebrate(true); setTimeout(()=>celebrate(true),900);
+  }
+};
+
+/* ---------------- 关卡渲染 ---------------- */
+function renderLevel(){
+  const stage=$('#stage');
+  stage.innerHTML='';
+  $('#passbox-main') && $('#passbox-main').remove();
+  if(S.cleanup){ S.cleanup(); S.cleanup=null; }
+  const fac=S.queue[S.idx];
+  const inst=fac();
+  // 关卡头部
+  const head=el('div','lvl-head');
+  head.appendChild(el('span','lvl-badge','第 '+(S.idx+1)+' / '+S.queue.length+' 关'));
+  head.appendChild(el('span','lvl-title',DIFFS[S.difficulty].name));
+  // 步骤圆点
+  const dots=el('div');
+  for(let i=0;i<S.queue.length;i++){
+    const dt=el('span','stepdot'+(i<=S.idx?' done':''));
+    dots.appendChild(dt);
+  }
+  head.appendChild(dots);
+  stage.appendChild(head);
+  stage.appendChild(inst.root);
+  // 底部按钮：揭示答案 / 重新开始 / 返回难度选择
+  const foot=el('div','foot-btns');
+  const bReveal=el('button','btn ghost','💡 揭示答案');
+  const bRetry=el('button','btn ghost','🔄 重新开始');
+  const bHome=el('button','btn ghost','🏠 返回难度选择');
+  bReveal.onclick=()=>{ showModal('本关答案与解析',inst.revealText||'按提示操作即可通关：先读懂题意，再动手拖动。','继续挑战'); };
+  bRetry.onclick=()=>{ addStep(); renderLevel(); };
+  bHome.onclick=()=>{ showHome(); };
+  foot.appendChild(bReveal); foot.appendChild(bRetry); foot.appendChild(bHome);
+  stage.appendChild(foot);
+  S.cleanup=inst.cleanup||null;
+  S.levelInst=inst;
+  $('#hud-level').textContent=DIFFS[S.difficulty].name.split(' ')[0]+' 第'+(S.idx+1)+'关';
+}
+
+/* ---------------- 难度选择页 ---------------- */
+function showHome(){
+  if(S.cleanup){ S.cleanup(); S.cleanup=null; }
+  stopTimer(); S.running=false;
+  applyPalette();      // 每局随机配色
+  $('#hud-level').textContent='未开始';
+  $('#hud-timer').textContent='⏱ 00:00';
+  $('#hud-steps').textContent='👟 步数 0';
+  const stage=$('#stage');
+  stage.innerHTML='';
+  const home=el('div','home');
+  home.appendChild(el('div','logo','🐢📈🐇'));
+  home.appendChild(el('h2',null,'s-t 图解行程 · 赛道大闯关'));
+  home.appendChild(el('p','sub','拖一拖、跑一跑，把"路程-时间图"玩明白！'));
+  const doors=el('div','doors');
+  const mk=(key,ic,nm,ds,bg)=>{
+    const b=el('button','door');
+    b.style.background=bg;
+    b.innerHTML='<span class="ic">'+ic+'</span><span class="nm">'+nm+'</span><span class="ds">'+ds+'</span>';
+    b.onclick=()=>startRun(key);
+    doors.appendChild(b);
+  };
+  mk('easy','🧩','初级 · 草地操场','拼图象·配故事（例题级）','#3aa76d');
+  mk('mid','🚩','中级 · 峡谷赛道','定终点·读窗口（练习级）','#2f7ec2');
+  mk('hard','🏔','高级 · 巅峰冲刺','变式赛道·终极合成','#c25a8f');
+  home.appendChild(doors);
+  const tip=el('div','tip-card',
+    '<h3>📈 读图三句诀</h3>① 线越<b>陡</b>，走得越<b>快</b>；② <b>水平线</b>＝原地休息；③ 平均速度＝<b>路程差 ÷ 时间差</b>。<br>🐢 追及问题：路程差 ÷ 速度差 ＝ 追上所用时间。');
+  home.appendChild(tip);
+  stage.appendChild(home);
+  if(!S.rulesShown){
+    S.rulesShown=true;
+    setTimeout(showRules,300);
+  }
+}
+function startRun(key){
+  S.difficulty=key;
+  S.queue=shuffle(DIFFS[key].factories.slice());   // 每局关卡随机排序
+  S.idx=0; S.steps=0;
+  $('#hud-steps').textContent='👟 步数 0';
+  startTimer();
+  renderLevel();
+}
+
+/* ---------------- 启动 ---------------- */
+$('#btn-rules').onclick=showRules;
+showHome();
+})();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-h/g004", "name": "s-t\u56fe\u89e3\u884c\u7a0b \u00b7 \u8d5b\u9053\u5927\u95ef\u5173", "file": "g004.html", "jiaocan": "\u301014\u3011\u7b2c4\u8bb2\u56fe\u793a\u6cd5\u89e3\u884c\u7a0b\u79d8\u7c4d2s-t\u56fe\u89e3\u884c\u7a0b", "unit": "\u7b2c4\u8bb2\u56fe\u793a\u6cd5\u89e3\u884c\u7a0b\u79d8\u7c4d2s-t\u56fe\u89e3\u884c\u7a0b", "grade": "\u516d\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "H\uff1a\u884c\u7a0b\u95ee\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u884c\u7a0b\u95ee\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-h"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

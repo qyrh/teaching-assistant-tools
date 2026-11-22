@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>加与减（一）· 欢乐果园大闯关</title>
+<style>
+/* ============================================================
+   加与减（一）· 欢乐果园大闯关
+   学段：小学一年级（上） 应用题大通关 第4关
+   核心玩法：拖一拖（分与合）、连一连（一一对齐）、涂一涂、
+             搬一搬（移多补少）+ 数轴点击定位作答
+   单文件自包含，零外部依赖，纯内联 CSS + JS
+   ============================================================ */
+
+/* ---------- 全局变量（每局随机换主题色板） ---------- */
+:root{
+  --bg:#e8f4fd;        /* 页面背景 */
+  --main:#1565c0;      /* 主色 */
+  --dark:#0d47a1;      /* 深色（白字底） */
+  --soft:#bbdefb;      /* 浅色衬底 */
+  --accent:#4fc3f7;    /* 点缀色 */
+  --ink:#102a43;       /* 正文墨色 */
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; }
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Microsoft YaHei","Heiti SC","PingFang SC",sans-serif;
+  user-select:none; -webkit-user-select:none;
+}
+.hidden{ display:none !important; }
+
+/* ---------- 顶部 HUD：计时器 + 步数 + 星星 ---------- */
+#hud{
+  position:sticky; top:0; z-index:50;
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;
+  background:var(--dark); color:#fff; padding:8px 16px;
+  box-shadow:0 3px 10px rgba(0,0,0,.18);
+}
+#gameLogo{ font-size:20px; font-weight:900; letter-spacing:1px; }
+.hudL,.hudR{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.tag{ background:var(--accent); color:#08243a; border-radius:999px; padding:3px 12px; font-size:15px; font-weight:bold; }
+.hbadge{ background:rgba(255,255,255,.16); border-radius:999px; padding:4px 14px; font-size:17px; }
+.hbadge b{ font-size:19px; letter-spacing:1px; }
+
+/* ---------- 屏幕通用 ---------- */
+main{ max-width:1080px; margin:0 auto; padding:14px 12px 40px; }
+.screen{ animation:fadein .35s ease; }
+@keyframes fadein{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+.bigtitle{ text-align:center; font-size:34px; margin:26px 0 8px; color:var(--dark); }
+.subtitle{ text-align:center; font-size:19px; margin:0 0 24px; color:var(--ink); }
+
+/* ---------- 难度选择卡片 ---------- */
+.difcards{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin:0 auto 18px; max-width:960px; }
+.difcard{
+  border:4px solid var(--main); border-radius:18px; background:#fff;
+  padding:18px 16px; cursor:pointer; text-align:left;
+  box-shadow:0 6px 16px rgba(0,0,0,.10); transition:transform .15s, box-shadow .15s;
+  font-family:inherit; color:var(--ink);
+}
+.difcard:hover{ transform:translateY(-5px) scale(1.02); box-shadow:0 12px 24px rgba(0,0,0,.16); }
+.diftag{ display:inline-block; background:var(--main); color:#fff; border-radius:999px; padding:4px 16px; font-size:18px; font-weight:900; margin-bottom:10px; }
+.difname{ font-size:23px; font-weight:900; margin-bottom:8px; color:var(--dark); }
+.difdesc{ font-size:16.5px; line-height:1.55; }
+.difmeta{ margin-top:10px; font-size:15px; color:#78909c; font-weight:bold; }
+.palname{ text-align:center; font-size:16px; color:#607d8b; margin:6px 0 14px; }
+
+/* ---------- 按钮 ---------- */
+.btn{
+  font-family:inherit; cursor:pointer; border-radius:14px; font-size:17.5px; font-weight:bold;
+  padding:11px 20px; border:3px solid var(--main); background:#fff; color:var(--dark);
+  transition:transform .12s, background .12s;
+}
+.btn:hover{ transform:scale(1.05); }
+.btn:active{ transform:scale(.97); }
+.btn.main{ background:var(--main); color:#fff; }
+.btn.warm{ background:var(--accent); color:#08243a; border-color:var(--dark); }
+.btn.ghost{ background:transparent; }
+
+/* ---------- 题目卡 ---------- */
+.lvlcard{
+  background:#fff; border:4px solid var(--main); border-radius:18px;
+  padding:14px 18px; margin-bottom:14px; box-shadow:0 5px 14px rgba(0,0,0,.08);
+}
+.lvlhead{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+#lvlNo{ background:var(--soft); color:var(--dark); border-radius:999px; padding:4px 14px; font-size:16.5px; font-weight:bold; }
+#lvlTitle{ font-size:22px; font-weight:900; color:var(--dark); }
+.qtext{ font-size:21.5px; line-height:1.65; font-weight:bold; }
+
+/* ---------- 场景（区域 + 小物件） ---------- */
+.scene{
+  position:relative; background:#fff; border:4px solid var(--main); border-radius:18px;
+  padding:16px; min-height:300px; box-shadow:0 5px 14px rgba(0,0,0,.08); margin-bottom:10px;
+}
+.zoneRow{ display:flex; flex-wrap:wrap; gap:16px; margin-bottom:14px; }
+.zoneRow:last-child{ margin-bottom:0; }
+.zone{
+  flex:1 1 200px; min-width:180px;
+  border:3px dashed var(--main); border-radius:14px; background:#fdfefe;
+  padding:8px 10px; transition:border-color .12s, background .12s, transform .12s;
+}
+.zone.hover{ border-style:solid; background:var(--soft); transform:scale(1.015); }
+.zoneRow.target .zone{ border-style:solid; border-width:4px; background:linear-gradient(180deg,#ffffff, var(--soft)); }
+.zoneHead{ display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+.zicon{ font-size:24px; }
+.ztitle{ font-size:17px; font-weight:900; color:var(--dark); flex:1; }
+.badge{ background:var(--dark); color:#fff; border-radius:999px; padding:2px 12px; font-size:15px; font-weight:bold; white-space:nowrap; }
+.chips{ min-height:56px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:flex-start; padding:4px 2px; }
+.chip{
+  position:relative; width:48px; height:48px; display:flex; align-items:center; justify-content:center;
+  font-size:31px; background:#fff; border:2px solid #e3e8ee; border-radius:10px; cursor:grab;
+  touch-action:none; animation:pop .25s ease; line-height:1;
+}
+.chip.dragging{ position:fixed; z-index:1200; cursor:grabbing; transform:scale(1.22) rotate(-5deg);
+  box-shadow:0 14px 26px rgba(0,0,0,.28); border-color:var(--main); }
+.chip.pop{ animation:pop .3s ease; }
+@keyframes pop{ 0%{transform:scale(.35);} 65%{transform:scale(1.18);} 100%{transform:scale(1);} }
+.chip.dim{ filter:grayscale(.75) opacity(.85); }
+.chip.pairable{ cursor:pointer; }
+.chip.sel{ outline:4px solid var(--accent); outline-offset:1px; }
+.chip.paired{ outline:4px solid var(--main); outline-offset:1px; border-radius:50%; }
+.chip.glow{ animation:glowp 1.1s ease-in-out infinite; }
+@keyframes glowp{ 0%,100%{ box-shadow:0 0 0 0 rgba(0,0,0,0);} 50%{ box-shadow:0 0 0 7px var(--accent);} }
+.chip.painted{ border-color:var(--dark); }
+.chip.got{ border-color:var(--accent); border-width:3px; }
+.chip.newcar{ box-shadow:0 0 0 3px var(--accent); }
+.rb{ position:absolute; top:-9px; right:-9px; font-size:19px; }
+.secret{ width:56px; height:56px; font-size:32px; color:#9aa6b2; background:#f2f4f7; cursor:default; font-weight:900; }
+.qmark{ font-size:32px; font-weight:900; color:#9aa6b2; border:3px dashed #ccd4dc; border-radius:10px; padding:4px 16px; }
+.platechip{ width:auto; max-width:230px; height:auto; flex-direction:column; gap:2px; padding:6px 10px; cursor:grab; }
+.platechip .papps{ font-size:19px; letter-spacing:1px; }
+.platechip .plabel{ font-size:14.5px; color:var(--dark); font-weight:bold; }
+.status{
+  background:var(--soft); color:var(--ink); border-radius:10px; padding:9px 14px;
+  font-size:18px; font-weight:bold; margin-top:4px;
+}
+.banner{
+  background:#e8f5e9; border:3px solid #43a047; color:#1b5e20; border-radius:12px;
+  padding:10px 14px; font-size:18.5px; font-weight:900; margin-top:10px;
+}
+.carton{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; padding:8px; }
+.ophint{ font-size:18px; font-weight:bold; color:var(--dark); margin:0 4px 12px; }
+
+/* ---------- 连线 SVG 覆盖层 ---------- */
+.pairsvg{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:6; }
+
+/* ---------- 数轴 ---------- */
+#numWrap{ background:#fff; border:4px solid var(--main); border-radius:18px; padding:12px 10px 14px; box-shadow:0 5px 14px rgba(0,0,0,.08); }
+#numWrap.shake{ animation:shakeX .5s ease; }
+@keyframes shakeX{ 0%,100%{transform:translateX(0);} 20%{transform:translateX(-9px);} 40%{transform:translateX(9px);} 60%{transform:translateX(-6px);} 80%{transform:translateX(6px);} }
+.nlcap{ text-align:center; font-size:18px; font-weight:900; color:var(--dark); margin-bottom:8px; }
+#numline{ display:flex; flex-wrap:wrap; justify-content:center; gap:7px; }
+.ncell{
+  width:54px; height:72px; border:3px solid var(--main); border-radius:10px; background:#fff;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer;
+  transition:background .12s, transform .12s;
+}
+.ncell:hover{ background:var(--soft); transform:translateY(-3px); }
+.ncell .nstar{ height:26px; font-size:24px; }
+.ncell .nnum{ font-size:26px; font-weight:900; color:var(--ink); }
+.ncell.stared{ background:var(--soft); border-color:var(--dark); }
+.ncell.yes{ background:#c8e6c9; border-color:#2e7d32; }
+.ncell.no{ background:#ffcdd2; border-color:#c62828; }
+
+/* ---------- 结果面板 ---------- */
+.result{
+  margin-top:14px; background:#fffef7; border:4px solid var(--main); border-radius:18px;
+  padding:16px 18px; text-align:center; animation:fadein .3s ease;
+}
+#rTitle{ font-size:26px; font-weight:900; color:var(--dark); }
+#rStars{ font-size:24px; margin:6px 0; letter-spacing:3px; }
+#rFormula{ font-size:31px; font-weight:900; color:var(--dark); margin:8px 0; }
+#rExplain{ font-size:17.5px; line-height:1.7; text-align:left; background:var(--soft); border-radius:12px; padding:12px 16px; margin:10px 0 14px; }
+.ctrlrow{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:14px; }
+.ctrlrow.center{ justify-content:center; }
+
+/* ---------- 通关结算 ---------- */
+.donebox{ background:#fff; border:5px solid var(--main); border-radius:22px; padding:30px 24px; text-align:center; max-width:640px; margin:40px auto; box-shadow:0 10px 26px rgba(0,0,0,.14); }
+.donetitle{ font-size:40px; font-weight:900; color:var(--dark); margin-bottom:16px; }
+.dstats{ font-size:24px; font-weight:900; margin:8px 0; }
+.dmsg{ font-size:19px; margin:16px 0 4px; color:var(--ink); }
+
+/* ---------- 弹窗 / 提示条 / 特效层 ---------- */
+.modal{ position:fixed; inset:0; background:rgba(20,40,60,.5); z-index:1100; display:flex; align-items:center; justify-content:center; padding:16px; }
+.modalbox{ background:#fff; border-radius:20px; border:4px solid var(--main); max-width:660px; width:100%; max-height:86vh; overflow:auto; padding:22px 26px; }
+.modalbox h2{ margin:0 0 6px; font-size:27px; color:var(--dark); text-align:center; }
+.modalbox ol{ font-size:17.5px; line-height:1.85; padding-left:24px; margin:12px 0 18px; }
+.modalbox .svgrow{ text-align:center; margin:10px 0 2px; }
+.toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  background:#263238; color:#fff; padding:13px 22px; border-radius:14px; font-size:19px; font-weight:bold;
+  opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; z-index:1300; max-width:88vw; text-align:center;
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:900; }
+.flystar{ position:fixed; z-index:950; font-size:27px; pointer-events:none; transform:translate(-50%,-50%); }
+
+/* ---------- 响应式（移动端 / 窄屏投影） ---------- */
+@media (max-width:760px){
+  .difcards{ grid-template-columns:1fr; }
+  .bigtitle{ font-size:26px; }
+  .qtext{ font-size:19px; }
+  .zone{ min-width:150px; }
+  .chip{ width:42px; height:42px; font-size:26px; }
+  .ncell{ width:44px; height:64px; }
+  .ncell .nnum{ font-size:22px; }
+  #gameLogo{ font-size:17px; }
+  .hbadge{ font-size:15px; padding:3px 10px; }
+  #rFormula{ font-size:26px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ======================= 顶部 HUD（计时器 / 步数 / 星星） ======================= -->
+<header id="hud">
+  <div class="hudL">
+    <span id="gameLogo">🌳 加与减（一）· 欢乐果园大闯关 🐦</span>
+    <span id="hudDiff" class="tag">—</span>
+  </div>
+  <div class="hudR">
+    <span class="hbadge">⏱ <b id="hudTime">00:00</b></span>
+    <span class="hbadge">👣 步数 <b id="hudSteps">0</b></span>
+    <span class="hbadge">⭐ <b id="hudStars">0/0</b></span>
+  </div>
+</header>
+
+<main>
+<!-- ======================= 难度选择屏 ======================= -->
+<section id="screenSelect" class="screen">
+  <h1 class="bigtitle">🌳 加与减（一）· 欢乐果园大闯关 🍎</h1>
+  <p class="subtitle">拖一拖、连一连、涂一涂、搬一搬——动手玩着玩着，加法和减法就明白啦！</p>
+  <div class="difcards">
+    <button class="difcard" data-diff="easy">
+      <div class="diftag">初级</div>
+      <div class="difname">果园小帮手</div>
+      <div class="difdesc">图画分与合：飞走几只？还剩几个？原来有多少？把小物件拖一拖、涂一涂就懂了。</div>
+      <div class="difmeta">每次随机抽 5 关</div>
+    </button>
+    <button class="difcard" data-diff="mid">
+      <div class="diftag">中级</div>
+      <div class="difname">比一比小行家</div>
+      <div class="difdesc">比多少、挑最多、连环小问题：把两行物品一一对齐连线，一眼看出多几个。</div>
+      <div class="difmeta">每次随机抽 4 关</div>
+    </button>
+    <button class="difcard" data-diff="hard">
+      <div class="diftag">高级</div>
+      <div class="difname">移多补少小达人</div>
+      <div class="difdesc">送铅笔、搬书、摆汽车：动手搬运让两边一样多，倒推出"原来有多少"。</div>
+      <div class="difmeta">共 4 关</div>
+    </button>
+  </div>
+  <p id="palName" class="palname"></p>
+  <div class="ctrlrow center"><button id="btnRulesOpen" class="btn ghost">📖 再看看玩法说明</button></div>
+</section>
+
+<!-- ======================= 游戏屏 ======================= -->
+<section id="screenGame" class="screen hidden">
+  <div class="lvlcard">
+    <div class="lvlhead">
+      <span id="lvlNo"></span>
+      <span id="lvlTitle"></span>
+      <span id="diffTag" class="tag"></span>
+    </div>
+    <div id="qtext" class="qtext"></div>
+  </div>
+  <div id="scene" class="scene"></div>
+  <div id="opHint" class="ophint"></div>
+  <div id="numWrap">
+    <div class="nlcap">👇 在数轴上点出你的答案</div>
+    <div id="numline"></div>
+  </div>
+  <div id="result" class="result hidden">
+    <div id="rTitle"></div>
+    <div id="rStars"></div>
+    <div id="rFormula"></div>
+    <div id="rExplain"></div>
+    <button id="btnNext" class="btn main">下一关 ➜</button>
+  </div>
+  <div class="ctrlrow">
+    <button id="btnReveal" class="btn warm">🔎 揭示答案</button>
+    <button id="btnRestart" class="btn ghost">🔁 重新开始</button>
+    <button id="btnBack" class="btn ghost">🏠 返回难度选择</button>
+    <button id="btnRulesOpen2" class="btn ghost">📖 玩法说明</button>
+  </div>
+</section>
+
+<!-- ======================= 通关结算屏 ======================= -->
+<section id="screenDone" class="screen hidden">
+  <div class="donebox">
+    <div class="donetitle">🏆 闯关成功！</div>
+    <div id="dStars" class="dstats"></div>
+    <div id="dTime" class="dstats"></div>
+    <div id="dSteps" class="dstats"></div>
+    <div id="dMsg" class="dmsg"></div>
+    <div class="ctrlrow center">
+      <button id="btnAgain" class="btn main">🔁 再玩一次</button>
+      <button id="btnChange" class="btn ghost">🎯 换个难度</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ======================= 玩法规则弹窗（进入时弹出，可随时再看） ======================= -->
+<div id="rulesModal" class="modal">
+  <div class="modalbox">
+    <h2>📖 玩法说明 · 游戏规则</h2>
+    <div class="svgrow">
+      <svg width="150" height="48" viewBox="0 0 150 48" aria-hidden="true">
+        <rect x="4" y="13" width="36" height="24" rx="7" fill="#ffe0b2" stroke="#f57c00" stroke-width="3"/>
+        <text x="22" y="31" text-anchor="middle" font-size="15" fill="#e65100" font-weight="bold">🐦🐦</text>
+        <path d="M52 25 H88 M78 15 L90 25 L78 35" fill="none" stroke="#1565c0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="100" y="13" width="42" height="24" rx="7" fill="#c8e6c9" stroke="#2e7d32" stroke-width="3" stroke-dasharray="7 5"/>
+        <text x="121" y="31" text-anchor="middle" font-size="14" fill="#1b5e20" font-weight="bold">☁️</text>
+      </svg>
+    </div>
+    <ol>
+      <li><b>看题目</b>：把题目里的条件和问题读清楚。</li>
+      <li><b>做操作</b>：<b>拖一拖</b>（把小物件拖进目标区，做"分与合"）、<b>连一连</b>（两行物品一一对齐配对）、<b>涂一涂</b>（给彩蛋上色）、<b>搬一搬</b>（把物品搬给小伙伴，让两边一样多）。</li>
+      <li><b>点数轴</b>：想好答案后，在下方数轴上点出对应的数。</li>
+      <li><b>集星星</b>：第一次就点对得 ⭐⭐⭐，第二次点对得 ⭐⭐，再多次点对也有 ⭐；点「揭示答案」可以看完整做法，但这一关收集不到星星哦。</li>
+      <li>右上角有<b>计时器</b>和<b>步数</b>统计，挑战一下又快又准吧！</li>
+      <li>有三种难度：<b>初级</b>练分与合，<b>中级</b>练比多少，<b>高级</b>练移多补少。每一局的题目都会重新抽选，多玩几遍也不重样。</li>
+    </ol>
+    <div class="ctrlrow center"><button id="btnRulesClose" class="btn main">🚀 开始闯关</button></div>
+  </div>
+</div>
+
+<canvas id="fx"></canvas>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   第一部分：基础工具
+   ============================================================ */
+function $(s, root){ return (root || document).querySelector(s); }
+function $all(s, root){ return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
+function h(tag, cls, html){
+  var e = document.createElement(tag);
+  if(cls){ e.className = cls; }
+  if(html != null){ e.innerHTML = html; } /* 宽松判空：同时排除漏传参数的情况 */
+  return e;
+}
+/* 洗牌（返回新数组，不改动原数组） */
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+/* 提示条 */
+var toastTimer = null;
+function toast(msg, ms){
+  var t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if(toastTimer){ clearTimeout(toastTimer); }
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, ms || 2400);
+}
+
+/* ============================================================
+   第二部分：色板（每局随机换主题色，G8）
+   ============================================================ */
+var PALETTES = [
+  { name:'阳光橙', bg:'#fff6e5', main:'#f57c00', dark:'#e65100', soft:'#ffe0b2', accent:'#ffca28', ink:'#3e2723' },
+  { name:'苹果绿', bg:'#f0f9e9', main:'#2e7d32', dark:'#1b5e20', soft:'#c8e6c9', accent:'#8bc34a', ink:'#1b2e1b' },
+  { name:'湖水蓝', bg:'#e8f4fd', main:'#1565c0', dark:'#0d47a1', soft:'#bbdefb', accent:'#4fc3f7', ink:'#102a43' },
+  { name:'葡萄紫', bg:'#f6effb', main:'#6a1b9a', dark:'#4a148c', soft:'#e1bee7', accent:'#ba68c8', ink:'#2d1b3d' },
+  { name:'蜜桃粉', bg:'#fdeef2', main:'#c2185b', dark:'#880e4f', soft:'#f8bbd0', accent:'#ff80ab', ink:'#3b1c2b' },
+  { name:'柠檬黄', bg:'#fffde6', main:'#f9a825', dark:'#e65100', soft:'#fff59d', accent:'#ffd54f', ink:'#4e342e' }
+];
+function applyPalette(p){
+  S.palette = p;
+  var r = document.documentElement.style;
+  r.setProperty('--bg', p.bg);   r.setProperty('--main', p.main);
+  r.setProperty('--dark', p.dark); r.setProperty('--soft', p.soft);
+  r.setProperty('--accent', p.accent); r.setProperty('--ink', p.ink);
+  var pn = $('#palName');
+  if(pn){ pn.textContent = '🎨 本局主题色：' + p.name + '（每局都会随机换色哦）'; }
+}
+
+/* ============================================================
+   第三部分：全局状态
+   ============================================================ */
+var S = {
+  palette:null, diff:null, levels:[], idx:0,
+  stars:0, steps:0, wrong:0, sub:0,
+  revealed:false, locked:false,
+  t0:0, timerId:null, onDrop:null
+};
+var DIFFS = {
+  easy:{ tag:'初级 · 果园小帮手' },
+  mid:{ tag:'中级 · 比一比小行家' },
+  hard:{ tag:'高级 · 移多补少小达人' }
+};
+
+/* ============================================================
+   第四部分：区域（zone）与小物件（chip）
+   —— 核心操作交互：自由拖拽物体（pointer 事件，鼠标/触摸通用）
+   ============================================================ */
+function makeZone(o){
+  var z = h('div', 'zone');
+  z.id = o.id;
+  var head = h('div', 'zoneHead');
+  var ic = h('span', 'zicon', o.icon || '');
+  var tt = h('span', 'ztitle', o.title || '');
+  var bd = h('span', 'badge', '0');
+  head.appendChild(ic); head.appendChild(tt); head.appendChild(bd);
+  var chips = h('div', 'chips');
+  z.appendChild(head); z.appendChild(chips);
+  return { root:z, chips:chips, badge:bd, spec:o };
+}
+/* 统计一个区域里物件数量（盘子等复合物件用 data-n 记个数） */
+function zoneCount(z){
+  var n = 0;
+  $all('.chip', z.chips).forEach(function(c){
+    if(c.classList.contains('secret')){ return; } /* "？"占位牌不计入 */
+    n += parseInt(c.dataset.n || '1', 10);
+  });
+  return n;
+}
+function refreshZone(z, prefix){
+  var n = zoneCount(z);
+  z.badge.textContent = (prefix || '') + n;
+  return n;
+}
+/* 创建小物件（不绑定事件，拖拽/点击由外部按需添加） */
+function makeChip(emoji, opts){
+  opts = opts || {};
+  var c = h('div', 'chip' + (opts.cls ? ' ' + opts.cls : ''), emoji);
+  if(opts.n){ c.dataset.n = String(opts.n); }
+  if(opts.fixed){ c.dataset.fixed = '1'; }
+  return c;
+}
+
+/* ---------- 拖拽系统（鼠标 + 触摸统一用 pointer 事件） ---------- */
+function enableDrag(chip, dropFilter){
+  chip.classList.add('draggable');
+  chip.addEventListener('pointerdown', function(ev){
+    if(S.locked){ return; }
+    if(chip.dataset.fixed === '1'){ return; }
+    ev.preventDefault();
+    var rect = chip.getBoundingClientRect();
+    var offX = ev.clientX - rect.left;
+    var offY = ev.clientY - rect.top;
+    var fromContainer = chip.parentElement; /* 松手时若无处可放则回到这里 */
+    chip.classList.add('dragging');
+    chip.style.pointerEvents = 'none'; /* 让 elementFromPoint 穿过自己 */
+    chip.style.width = rect.width + 'px';
+    chip.style.height = rect.height + 'px';
+    document.body.appendChild(chip);
+
+    function zoneUnder(e){
+      var el = document.elementFromPoint(e.clientX, e.clientY);
+      return el ? el.closest('.zone') : null;
+    }
+    function onMove(e){
+      chip.style.left = (e.clientX - offX) + 'px';
+      chip.style.top = (e.clientY - offY) + 'px';
+      /* 高亮可以放置的区域 */
+      $all('#scene .zone').forEach(function(z){ z.classList.remove('hover'); });
+      var z = zoneUnder(e);
+      if(z && (!dropFilter || dropFilter(z, false))){ z.classList.add('hover'); }
+    }
+    function finish(e, cancelled){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      chip.classList.remove('dragging');
+      chip.style.pointerEvents = '';
+      chip.style.left = ''; chip.style.top = '';
+      chip.style.width = ''; chip.style.height = '';
+      $all('#scene .zone').forEach(function(z){ z.classList.remove('hover'); });
+      var target = null;
+      if(!cancelled){
+        var z = zoneUnder(e);
+        if(z && (!dropFilter || dropFilter(z, true))){ target = z; }
+      }
+      var dest = target ? target.querySelector('.chips') : fromContainer;
+      if(dest){ dest.appendChild(chip); }
+      chip.classList.add('pop');
+      setTimeout(function(){ chip.classList.remove('pop'); }, 320);
+      S.steps++; updateHUD();
+      var tid = target ? target.id : (fromContainer && fromContainer.closest('.zone') ? fromContainer.closest('.zone').id : '');
+      if(S.onDrop){ S.onDrop(tid, chip); }
+    }
+    function onUp(e){ finish(e, false); }
+    function onCancel(e){ finish(e, true); }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    onMove(ev);
+  });
+}
+
+/* 自动搬运（揭示答案时用：把一组物件逐个飞进目标区域） */
+function autoMove(chipsArr, dstZone, done){
+  var i = 0;
+  (function step(){
+    if(i >= chipsArr.length){ if(done){ done(); } return; }
+    var c = chipsArr[i++];
+    dstZone.chips.appendChild(c);
+    c.classList.add('pop');
+    setTimeout(function(){ c.classList.remove('pop'); }, 320);
+    if(S.onDrop){ S.onDrop(dstZone.root.id, c); }
+    setTimeout(step, 240);
+  })();
+}
+/* 从若干来源区域收集"个数为 need"的物件（揭示答案用） */
+function collectChips(zoneList, need){
+  var out = [], n = 0;
+  zoneList.forEach(function(z){
+    $all('.chip', z.chips).forEach(function(c){
+      if(n < need){
+        out.push(c);
+        n += parseInt(c.dataset.n || '1', 10);
+      }
+    });
+  });
+  return out;
+}
+
+/* ============================================================
+   第五部分：连线配对系统（比多少：一一对齐）
+   ============================================================ */
+var PAIR_UID = 0;
+function makePairSystem(container, onChange){
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'pairsvg');
+  container.appendChild(svg);
+  var pairs = [];
+  var sel = null; /* 当前选中的上一行物件 */
+
+  function center(el){
+    var r = el.getBoundingClientRect();
+    var c = container.getBoundingClientRect();
+    return { x: r.left + r.width / 2 - c.left, y: r.top + r.height / 2 - c.top };
+  }
+  function redraw(){
+    svg.innerHTML = '';
+    var w = container.clientWidth, hh = container.clientHeight;
+    svg.setAttribute('width', w); svg.setAttribute('height', hh);
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
+    var mainColor = getComputedStyle(document.documentElement).getPropertyValue('--main') || '#1565c0';
+    var accColor = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#4fc3f7';
+    pairs.forEach(function(p){
+      var a = center(p.a), b = center(p.b);
+      var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+      line.setAttribute('stroke', mainColor);
+      line.setAttribute('stroke-width', '5');
+      line.setAttribute('stroke-linecap', 'round');
+      line.setAttribute('stroke-dasharray', '10 8');
+      var ca = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      ca.setAttribute('cx', a.x); ca.setAttribute('cy', a.y); ca.setAttribute('r', '7'); ca.setAttribute('fill', accColor);
+      var cb = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      cb.setAttribute('cx', b.x); cb.setAttribute('cy', b.y); cb.setAttribute('r', '7'); cb.setAttribute('fill', accColor);
+      svg.appendChild(line); svg.appendChild(ca); svg.appendChild(cb);
+    });
+  }
+  function addPair(a, b){
+    PAIR_UID++;
+    a.dataset.pairId = String(PAIR_UID);
+    b.dataset.pairId = String(PAIR_UID);
+    a.classList.add('paired'); b.classList.add('paired');
+    pairs.push({ id:PAIR_UID, a:a, b:b });
+  }
+  function removePairByChip(chip){
+    var id = chip.dataset.pairId;
+    pairs = pairs.filter(function(p){ return String(p.id) !== String(id); });
+    $all('.chip[data-pair-id="' + id + '"]', container).forEach(function(c){
+      c.removeAttribute('data-pair-id');
+      c.classList.remove('paired');
+    });
+  }
+  function state(){
+    var st = { pairedB:0, unA:0, totalA:0, totalB:0 };
+    $all('.chip', container).forEach(function(c){
+      if(c.dataset.group === 'A'){ st.totalA++; if(!c.dataset.pairId){ st.unA++; } }
+      if(c.dataset.group === 'B'){ st.totalB++; if(c.dataset.pairId){ st.pairedB++; } }
+    });
+    return st;
+  }
+  function chipClick(chip){
+    if(S.locked){ return; }
+    if(chip.dataset.pairId){ /* 点击已配对的：取消配对 */
+      removePairByChip(chip);
+      redraw(); onChange(state());
+      return;
+    }
+    if(chip.dataset.group === 'A'){
+      if(sel){ sel.classList.remove('sel'); }
+      sel = chip;
+      chip.classList.add('sel');
+      toast('再点下面一行的一个，和它配成一对吧');
+    } else {
+      if(sel){
+        var a = sel;
+        sel = null;
+        a.classList.remove('sel');
+        addPair(a, chip);
+        S.steps++; updateHUD();
+        redraw(); onChange(state());
+      } else {
+        toast('先点上面一行的一个，再来点它配对哦');
+      }
+    }
+  }
+  function autoPair(cb){ /* 揭示答案：自动把下一行全部配对 */
+    var bs = $all('.chip[data-group="B"]', container).filter(function(c){ return !c.dataset.pairId; });
+    var i = 0;
+    (function step(){
+      if(i >= bs.length){ redraw(); if(cb){ cb(); } return; }
+      var as = $all('.chip[data-group="A"]', container).filter(function(c){ return !c.dataset.pairId; });
+      if(as.length){ addPair(as[0], bs[i]); }
+      i++;
+      redraw(); onChange(state());
+      setTimeout(step, 260);
+    })();
+  }
+  /* 窗口尺寸变化时重画连线 */
+  window.addEventListener('resize', function(){
+    if(document.body.contains(svg)){ redraw(); }
+  });
+  return { chipClick:chipClick, state:state, autoPair:autoPair, redraw:redraw };
+}
+
+/* ============================================================
+   第六部分：特效（彩纸 + 烟花 canvas，星星飞舞）
+   ============================================================ */
+var FX = {
+  cv:null, ctx:null, parts:[], raf:0, running:false, final:false,
+  colors:['#ffd700','#ff6b6b','#4ecdc4','#a06cd5','#ffa502','#7bed9f','#74b9ff'],
+  init:function(){
+    if(this.ctx){ return; }
+    this.cv = document.getElementById('fx');
+    this.ctx = this.cv.getContext('2d');
+    var self = this;
+    var rs = function(){ self.cv.width = window.innerWidth; self.cv.height = window.innerHeight; };
+    rs();
+    window.addEventListener('resize', rs);
+  },
+  start:function(){ /* 通关庆祝：持续彩纸 + 烟花 */
+    this.init();
+    this.running = true;
+    this.rain(90);
+    if(!this.raf){ this.loop(); }
+  },
+  celebrate:function(ms){ /* 答对时的小庆祝 */
+    this.init();
+    this.running = true;
+    this.rain(46);
+    this.burst(window.innerWidth / 2, window.innerHeight * 0.32, 42);
+    if(!this.raf){ this.loop(); }
+    var self = this;
+    setTimeout(function(){ if(!self.final){ self.stop(); } }, ms || 1600);
+  },
+  stop:function(){ this.running = false; },
+  rain:function(n){
+    for(var i = 0; i < n; i++){
+      this.parts.push({
+        x:Math.random() * window.innerWidth, y:-20 - Math.random() * window.innerHeight * 0.5,
+        vx:(Math.random() - 0.5) * 1.2, vy:1 + Math.random() * 2.2, g:0.015,
+        life:170 + Math.random() * 80, t:0, size:6 + Math.random() * 7,
+        color:pick(this.colors), confetti:true, rot:Math.random() * Math.PI, vr:(Math.random() - 0.5) * 0.2
+      });
+    }
+  },
+  burst:function(x, y, n){
+    for(var i = 0; i < n; i++){
+      var a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 4;
+      this.parts.push({
+        x:x, y:y, vx:Math.cos(a) * sp, vy:Math.sin(a) * sp - 1, g:0.06,
+        life:52 + Math.random() * 30, t:0, size:3 + Math.random() * 4,
+        color:pick(this.colors), confetti:false, rot:0, vr:0
+      });
+    }
+  },
+  loop:function(){
+    var self = this;
+    function frame(){
+      if(!self.running){
+        self.parts = [];
+        self.ctx.clearRect(0, 0, self.cv.width, self.cv.height);
+        self.raf = 0;
+        return;
+      }
+      self.raf = requestAnimationFrame(frame);
+      if(Math.random() < 0.06){ self.burst(80 + Math.random() * (window.innerWidth - 160), 70 + Math.random() * window.innerHeight * 0.45, 36); }
+      if(Math.random() < 0.16){ self.rain(6); }
+      var ctx = self.ctx;
+      ctx.clearRect(0, 0, self.cv.width, self.cv.height);
+      self.parts = self.parts.filter(function(p){
+        p.t++;
+        if(p.t > p.life){ return false; }
+        p.x += p.vx; p.y += p.vy; p.vy += p.g; p.rot += p.vr;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
+        if(p.confetti){ ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * 0.66); }
+        else { ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+        return true;
+      });
+    }
+    this.raf = requestAnimationFrame(frame);
+  }
+};
+/* 星星飞舞（答对时在数轴格子上迸发） */
+function starBurst(el){
+  if(!el){ return; }
+  var r = el.getBoundingClientRect();
+  var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  var em = ['⭐', '✨', '🌟', '💫'];
+  for(var i = 0; i < 10; i++){
+    /* 用闭包包住每一颗星星，保证清理函数引用正确的元素 */
+    (function(){
+      var s = document.createElement('div');
+      s.className = 'flystar';
+      s.textContent = pick(em);
+      s.style.left = cx + 'px';
+      s.style.top = cy + 'px';
+      document.body.appendChild(s);
+      var ang = Math.random() * Math.PI * 2, d = 60 + Math.random() * 100;
+      var dx = Math.cos(ang) * d, dy = Math.sin(ang) * d - 40;
+      var an = s.animate([
+        { transform:'translate(-50%,-50%) scale(1.2)', opacity:1 },
+        { transform:'translate(-50%,-50%) translate(' + dx + 'px,' + dy + 'px) scale(0.3)', opacity:0 }
+      ], { duration:650 + Math.random() * 350, easing:'cubic-bezier(.2,.6,.3,1)' });
+      an.onfinish = function(){ if(s.parentNode){ s.remove(); } };
+      setTimeout(function(){ if(s.parentNode){ s.remove(); } }, 1200);
+    })();
+  }
+}
+
+/* ============================================================
+   第七部分：数轴（0~10 点击定位作答）
+   ============================================================ */
+function buildNumberLine(){
+  var nl = $('#numline');
+  nl.innerHTML = '';
+  for(var n = 0; n <= 10; n++){
+    (function(k){
+      var c = h('div', 'ncell', '<span class="nstar"></span><span class="nnum">' + k + '</span>');
+      c.addEventListener('click', function(){ onNumCell(k); });
+      nl.appendChild(c);
+    })(n);
+  }
+}
+function cells(){ return $all('.ncell'); }
+function setStar(n){
+  clearStar();
+  var c = cells()[n];
+  c.classList.add('stared');
+  c.querySelector('.nstar').textContent = '🌟';
+}
+function clearStar(){
+  cells().forEach(function(c){
+    c.classList.remove('stared', 'no', 'yes');
+    c.querySelector('.nstar').textContent = '';
+  });
+}
+function shakeNum(){
+  var w = $('#numWrap');
+  w.classList.remove('shake');
+  void w.offsetWidth; /* 重置动画 */
+  w.classList.add('shake');
+}
+
+/* ============================================================
+   第八部分：关卡工厂
+   —— 通用模板 1：搬运分合（拖物件做"分与合"）
+   ============================================================ */
+function moveLevel(cfg){
+  var srcZones = [], tgt = null, refresh = null;
+  return {
+    title:cfg.title,
+    text:function(){ return cfg.text; },
+    opHint:cfg.opHint,
+    hint:function(){ return cfg.hint; },
+    answer:function(){ return cfg.answer; },
+    formula:function(){ return cfg.formula; },
+    explain:function(){ return cfg.explain; },
+    precheck:function(){
+      var n = zoneCount(tgt);
+      if(n === cfg.need){ return { ok:true }; }
+      if(n > cfg.need){
+        return { ok:false, msg:'数量不对哦：这里正好要 ' + cfg.need + ' 个（现在有 ' + n + ' 个），把多搬的送回去吧' };
+      }
+      return { ok:false, msg:cfg.preMsg(n) };
+    },
+    build:function(scene){
+      var ids = [];
+      var r1 = h('div', 'zoneRow');
+      cfg.sources.forEach(function(s){
+        var z = makeZone({ id:s.id, icon:s.icon, title:s.title });
+        ids.push(s.id);
+        var em = shuffle(s.emojis);
+        for(var i = 0; i < s.count; i++){
+          z.chips.appendChild(makeChip(em[i % em.length], { cls:s.cls }));
+        }
+        srcZones.push(z);
+        r1.appendChild(z.root);
+      });
+      scene.appendChild(r1);
+      tgt = makeZone({ id:cfg.target.id, icon:cfg.target.icon, title:cfg.target.title });
+      ids.push(cfg.target.id);
+      var r2 = h('div', 'zoneRow target');
+      r2.appendChild(tgt.root);
+      scene.appendChild(r2);
+      /* 所有物件都能在相关区域之间自由拖动 */
+      $all('.chip', scene).forEach(function(c){
+        enableDrag(c, function(z){ return ids.indexOf(z.id) >= 0; });
+      });
+      refresh = function(){
+        srcZones.forEach(function(z, i){ refreshZone(z, cfg.sources[i].badge || ''); });
+        refreshZone(tgt, cfg.target.badge || '');
+      };
+      S.onDrop = function(){ refresh(); };
+      refresh();
+    },
+    reveal:function(cb){
+      autoMove(collectChips(srcZones, cfg.need), tgt, function(){ refresh(); cb(); });
+    }
+  };
+}
+
+/* ---------- 通用模板 2：连线配对（比多少，一一对齐） ---------- */
+function pairLevel(cfg){
+  var zA = null, zB = null, P = null, status = null;
+  return {
+    title:cfg.title,
+    text:function(){ return cfg.text; },
+    opHint:cfg.opHint,
+    hint:function(){ return cfg.hint; },
+    answer:function(){ return cfg.answer; },
+    formula:function(){ return cfg.formula; },
+    explain:function(){ return cfg.explain; },
+    precheck:function(){
+      var st = P.state();
+      if(st.pairedB === st.totalB && st.totalB > 0){ return { ok:true }; }
+      return { ok:false, msg:cfg.preMsg };
+    },
+    build:function(scene){
+      zA = makeZone({ id:'zRowA', icon:cfg.rowA.icon, title:cfg.rowA.title });
+      zB = makeZone({ id:'zRowB', icon:cfg.rowB.icon, title:cfg.rowB.title });
+      var r = h('div', 'zoneRow');
+      r.appendChild(zA.root); r.appendChild(zB.root);
+      scene.appendChild(r);
+      status = h('div', 'status');
+      scene.appendChild(status);
+      function mk(z, grp, n, em){
+        for(var i = 0; i < n; i++){
+          var c = makeChip(em, { cls:'pairable', fixed:true });
+          c.dataset.group = grp;
+          z.chips.appendChild(c);
+        }
+      }
+      mk(zA, 'A', cfg.rowA.count, cfg.rowA.emoji);
+      mk(zB, 'B', cfg.rowB.count, cfg.rowB.emoji);
+      function upd(st){
+        zA.badge.textContent = cfg.aBadge + st.unA + ' 个';
+        zB.badge.textContent = '已配对 ' + st.pairedB + ' 个';
+        status.innerHTML = cfg.statusHtml(st.unA);
+        /* 高亮上一行没配上对的物件（它们就是"多出的部分"） */
+        $all('.chip', zA.chips).forEach(function(c){ c.classList.toggle('glow', !c.dataset.pairId); });
+      }
+      P = makePairSystem(scene, upd);
+      $all('.chip.pairable', scene).forEach(function(c){
+        c.addEventListener('click', function(){ P.chipClick(c); });
+      });
+      upd(P.state());
+    },
+    reveal:function(cb){ P.autoPair(cb); }
+  };
+}
+
+/* ---------- 通用模板 3：传递搬运（送给小伙伴后两边一样多 → 倒推原来） ---------- */
+function transferLevel(cfg){
+  var zG = null, zR = null, status = null, banner = null, refresh = null, recvCount = null;
+  return {
+    title:cfg.title,
+    text:function(){ return cfg.text; },
+    opHint:cfg.opHint,
+    hint:function(){ return cfg.hint; },
+    answer:function(){ return cfg.answer; },
+    formula:function(){ return cfg.formula; },
+    explain:function(){ return cfg.explain; },
+    precheck:function(){
+      var r = recvCount();
+      if(r === cfg.given){ return { ok:true }; }
+      return { ok:false, msg:cfg.preMsg(r) };
+    },
+    build:function(scene){
+      zG = makeZone({ id:cfg.giver.id, icon:cfg.giver.icon, title:cfg.giver.title });
+      zR = makeZone({ id:cfg.receiver.id, icon:cfg.receiver.icon, title:cfg.receiver.title });
+      var r1 = h('div', 'zoneRow');
+      r1.appendChild(zG.root); r1.appendChild(zR.root);
+      scene.appendChild(r1);
+      status = h('div', 'status');
+      scene.appendChild(status);
+      banner = h('div', 'banner hidden');
+      scene.appendChild(banner);
+      for(var i = 0; i < cfg.giver.count; i++){
+        zG.chips.appendChild(makeChip(cfg.giver.emoji));
+      }
+      /* 接收区放一张"？"占位牌：原来的数量是秘密，逼着孩子用数学算 */
+      var secret = makeChip('？', { cls:'secret', fixed:true });
+      secret.dataset.n = '0';
+      zR.chips.appendChild(secret);
+      recvCount = function(){
+        var n = 0;
+        $all('.chip', zR.chips).forEach(function(c){ if(!c.classList.contains('secret')){ n++; } });
+        return n;
+      };
+      var allow = function(z){ return z.id === cfg.giver.id || z.id === cfg.receiver.id; };
+      $all('.chip', zG.chips).forEach(function(c){ enableDrag(c, allow); });
+      refresh = function(){
+        refreshZone(zG, cfg.giver.badge || '');
+        var r = recvCount();
+        status.innerHTML = cfg.statusHtml(zoneCount(zG), r);
+        if(r === cfg.given && zoneCount(zG) === cfg.equalNum){
+          banner.textContent = cfg.bannerOk;
+          banner.classList.remove('hidden');
+        } else if(r > cfg.given){
+          banner.textContent = cfg.bannerWarn;
+          banner.classList.remove('hidden');
+        } else {
+          banner.classList.add('hidden');
+        }
+      };
+      S.onDrop = function(tid, chip){
+        if(tid === cfg.receiver.id){
+          if(!chip.querySelector('.rb')){
+            chip.appendChild(h('span', 'rb', '🎀'));
+            chip.classList.add('got');
+          }
+        } else {
+          var rb = chip.querySelector('.rb');
+          if(rb){ rb.remove(); }
+          chip.classList.remove('got');
+        }
+        refresh();
+      };
+      refresh();
+    },
+    reveal:function(cb){
+      var list = $all('.chip', zG.chips).slice(0, cfg.given);
+      autoMove(list, zR, cb);
+    }
+  };
+}
+
+/* ---------- 通用模板 4：摆汽车（移多补少：补齐 / 撤走） ---------- */
+function carLevel(cfg){
+  var zR1 = null, zR2 = null, zGar = null, status = null, banner = null, refresh = null;
+  return {
+    title:cfg.title,
+    text:function(){ return cfg.text; },
+    opHint:cfg.opHint,
+    hint:function(){ return cfg.hint; },
+    answer:function(){ return cfg.answer; },
+    formula:function(){ return cfg.formula; },
+    explain:function(){ return cfg.explain; },
+    precheck:function(){
+      var a = zoneCount(zR1), b = zoneCount(zR2);
+      if(a === b){ return { ok:true }; }
+      return { ok:false, msg:'第一行 ' + a + ' 辆、第二行 ' + b + ' 辆，还没有一样多，继续搬运吧' };
+    },
+    build:function(scene){
+      zR1 = makeZone({ id:'zRow1', icon:'🚗', title:'第一行' });
+      zR2 = makeZone({ id:'zRow2', icon:'🚙', title:'第二行' });
+      zGar = makeZone({ id:'zGar', icon:'🏠', title:(cfg.mode === 'add' ? '车库（备用汽车）' : '车库（回收汽车）') });
+      var r1 = h('div', 'zoneRow');
+      r1.appendChild(zR1.root); r1.appendChild(zR2.root);
+      scene.appendChild(r1);
+      var r2 = h('div', 'zoneRow target');
+      r2.appendChild(zGar.root);
+      scene.appendChild(r2);
+      status = h('div', 'status');
+      scene.appendChild(status);
+      banner = h('div', 'banner hidden');
+      scene.appendChild(banner);
+      var i, c;
+      for(i = 0; i < 3; i++){ zR1.chips.appendChild(makeChip('🚗', { fixed:true })); }
+      for(i = 0; i < 9; i++){
+        c = makeChip('🚙');
+        if(cfg.mode === 'add'){ c.dataset.fixed = '1'; }
+        else { enableDrag(c, function(z){ return z.id === 'zGar' || z.id === 'zRow2'; }); }
+        zR2.chips.appendChild(c);
+      }
+      if(cfg.mode === 'add'){
+        for(i = 0; i < 8; i++){
+          c = makeChip('🚕', { cls:'newcar' });
+          enableDrag(c, function(z){ return z.id === 'zRow1' || z.id === 'zGar'; });
+          zGar.chips.appendChild(c);
+        }
+      }
+      refresh = function(){
+        var a = refreshZone(zR1, '第一行 '), b = refreshZone(zR2, '第二行 ');
+        refreshZone(zGar, '车库 ');
+        status.textContent = '第一行 ' + a + ' 辆 · 第二行 ' + b + ' 辆';
+        if(a === b){
+          banner.textContent = '🎉 两行一样多啦！数一数你搬动了几辆车，点数轴作答。';
+          banner.classList.remove('hidden');
+        } else {
+          banner.classList.add('hidden');
+        }
+      };
+      S.onDrop = function(){ refresh(); };
+      refresh();
+    },
+    reveal:function(cb){
+      if(cfg.mode === 'add'){
+        autoMove($all('.chip', zGar.chips).slice(0, 6), zR1, cb);
+      } else {
+        autoMove($all('.chip', zR2.chips).slice(0, 6), zGar, cb);
+      }
+    }
+  };
+}
+
+/* ============================================================
+   第九部分：具体关卡数据（题干、答案、算式、解析均取自教参）
+   ============================================================ */
+var BIRDS = ['🐦', '🐤', '🐥'];
+var PEOPLE = ['🧒', '👦', '👧', '🧑'];
+
+/* ---- 初级：类型1 图画式应用题 + 类型3 简单逆向 ---- */
+
+/* 例1：树上原来一共有 9 只鸟，飞走 5 只，还剩几只 */
+function lvBirdFly(){
+  return moveLevel({
+    title:'飞走的小鸟',
+    text:'树上原来一共有 9 只小鸟，飞走了 5 只，还剩几只？',
+    opHint:'拖一拖：把飞走的 5 只小鸟拖到天空的云朵里，再点下方数轴作答。',
+    hint:'数一数：大树上现在还停着几只小鸟？',
+    answer:4,
+    formula:'9 − 5 = 4（只）',
+    explain:'求"还剩几只"要用减法：从一共的 9 只里去掉飞走的 5 只，9−5=4（只）。检验：剩下的 4 只加飞走的 5 只等于 9 只，和题目条件相符。',
+    sources:[
+      { id:'zTree', icon:'🌳', title:'大树上的小鸟', count:9, emojis:BIRDS, badge:'树上 ' }
+    ],
+    target:{ id:'zSky', icon:'☁️', title:'天空（飞走的小鸟）', badge:'已飞走 ' },
+    need:5,
+    preMsg:function(n){ return '先让 5 只小鸟飞到天空去（已经飞走了 ' + n + ' 只）'; }
+  });
+}
+
+/* 例2：草地 3 只 + 树上 4 只 + 天上 3 只，一共多少只 */
+function lvBirdHome(){
+  return moveLevel({
+    title:'回家的小鸟',
+    text:'草地上有 3 只小鸟，树上有 4 只，天上还有 3 只。一共有多少只小鸟？',
+    opHint:'拖一拖：把三处的小鸟都请进大鸟巢，再点下方数轴作答。',
+    hint:'把三处的小鸟合起来数一数：3 + 4 + 3。',
+    answer:10,
+    formula:'3 + 4 + 3 = 10（只）',
+    explain:'求"一共有多少"要用加法，把三处的小鸟合起来：3+4+3=10（只）。',
+    sources:[
+      { id:'zGrass', icon:'🌱', title:'草地上', count:3, emojis:BIRDS, badge:'草地 ' },
+      { id:'zTree', icon:'🌳', title:'大树上', count:4, emojis:BIRDS, badge:'树上 ' },
+      { id:'zAir', icon:'☁️', title:'天空中', count:3, emojis:BIRDS, badge:'天上 ' }
+    ],
+    target:{ id:'zNest', icon:'🏡', title:'大鸟巢（合起来数一数）', badge:'鸟巢共 ' },
+    need:10,
+    preMsg:function(n){ return '把三处的小鸟都请回大鸟巢（鸟巢里现在有 ' + n + ' 只）'; }
+  });
+}
+
+/* 类型2 练习1：9 个汉堡卖出 7 个 */
+function lvBurger(){
+  return moveLevel({
+    title:'香喷喷的汉堡',
+    text:'汉堡店里一共有 9 个汉堡，卖出了 7 个，还剩几个汉堡？',
+    opHint:'拖一拖：把卖出的 7 个汉堡装进顾客的袋子，再点下方数轴作答。',
+    hint:'从 9 个里去掉卖出的 7 个，数数柜台上还剩几个。',
+    answer:2,
+    formula:'9 − 7 = 2（个）',
+    explain:'求"还剩几个"用减法：从一共的 9 个里去掉卖出的 7 个，9−7=2（个）。',
+    sources:[
+      { id:'zShop', icon:'🏬', title:'柜台上的汉堡', count:9, emojis:['🍔'], badge:'柜台 ' }
+    ],
+    target:{ id:'zBag', icon:'👜', title:'顾客的袋子（卖出的）', badge:'已卖出 ' },
+    need:7,
+    preMsg:function(n){ return '把卖出的 7 个汉堡装进袋子（袋子里现在有 ' + n + ' 个）'; }
+  });
+}
+
+/* 综合测评1：箱子里原来 8 个球，拿出 5 个 */
+function lvBallBox(){
+  return moveLevel({
+    title:'箱子里的球',
+    text:'箱子里原来有 8 个球，拿出了 5 个，箱子里还有几个球？',
+    opHint:'拖一拖：把拿出的 5 个球搬到旁边的篮子里，再点下方数轴作答。',
+    hint:'从 8 个球里去掉拿出的 5 个，数一数箱子里还剩几个。',
+    answer:3,
+    formula:'8 − 5 = 3（个）',
+    explain:'求"还有几个"用减法：8−5=3（个）。拿出的 5 个和剩下的 3 个合起来正好是 8 个。',
+    sources:[
+      { id:'zBox', icon:'📦', title:'箱子里的球', count:8, emojis:['🏀', '⚽', '🏐', '🥎'], badge:'箱内 ' }
+    ],
+    target:{ id:'zOut', icon:'🧺', title:'拿出的球', badge:'已拿出 ' },
+    need:5,
+    preMsg:function(n){ return '把拿出的 5 个球搬进篮子（篮子里现在有 ' + n + ' 个）'; }
+  });
+}
+
+/* 综合测评2：9 个彩蛋涂了 5 个（涂色交互） */
+function lvEggs(){
+  var PASTELS = ['#ff8a80', '#ffd54f', '#a5d6a7', '#90caf9', '#ce93d8', '#ffab91', '#b0bec5', '#f48fb1', '#aed581'];
+  var carton = null, refresh = null;
+  function paintedCount(){
+    return carton ? $all('.chip.painted', carton).length : 0;
+  }
+  return {
+    title:'涂彩蛋',
+    text:'一共有 9 个彩蛋，已经给其中 5 个涂上了颜色，还有几个没有涂色？',
+    opHint:'涂一涂：点击彩蛋给它上色，涂好 5 个后，点下方数轴作答。',
+    hint:'数一数：还有几个彩蛋是白色的（没涂颜色）？',
+    answer:4,
+    formula:'9 − 5 = 4（个）',
+    explain:'求"还有几个没涂色"用减法：从 9 个彩蛋里去掉已涂色的 5 个，9−5=4（个）。',
+    precheck:function(){
+      var p = paintedCount();
+      if(p === 5){ return { ok:true }; }
+      return { ok:false, msg:'先涂好 5 个彩蛋（已经涂了 ' + p + ' 个，再点白色彩蛋上色）' };
+    },
+    build:function(scene){
+      carton = h('div', 'carton');
+      for(var i = 0; i < 9; i++){
+        (function(c){
+          c.addEventListener('click', function(){
+            if(S.locked){ return; }
+            c.classList.toggle('painted');
+            if(c.classList.contains('painted')){ c.style.background = pick(PASTELS); }
+            else { c.style.background = ''; }
+            S.steps++; updateHUD();
+            refresh();
+          });
+          carton.appendChild(c);
+        })(makeChip('🥚', { cls:'paintable', fixed:true }));
+      }
+      scene.appendChild(carton);
+      var counter = h('div', 'status');
+      scene.appendChild(counter);
+      refresh = function(){
+        counter.textContent = '已经涂色：' + paintedCount() + ' 个 / 共 9 个（再点一下彩蛋可以擦掉重涂）';
+      };
+      refresh();
+    },
+    reveal:function(cb){
+      var list = $all('.chip.paintable', carton).filter(function(c){ return !c.classList.contains('painted'); }).slice(0, 5);
+      var i = 0;
+      (function step(){
+        if(i >= list.length){ cb(); return; }
+        var c = list[i++];
+        c.classList.add('painted');
+        c.style.background = PASTELS[i % PASTELS.length];
+        refresh();
+        setTimeout(step, 240);
+      })();
+    }
+  };
+}
+
+/* 类型3 例：吃掉 5 个 + 还剩 4 个 → 原来有多少个桃子 */
+function lvPeach(){
+  return moveLevel({
+    title:'原来有多少个桃子',
+    text:'小猴子吃掉了 5 个桃子（剩下 5 个桃核），果盘里还剩 4 个桃子。原来一共有多少个桃子？',
+    opHint:'拖一拖：把剩下的桃子和吃掉的桃核都放回"原来的大果盘"，再点下方数轴作答。',
+    hint:'把"剩下的"和"吃掉的"合起来，才是原来的数量。',
+    answer:9,
+    formula:'4 + 5 = 9（个）',
+    explain:'求"原来一共有多少"要用逆向加法：把剩下的 4 个和吃掉的 5 个合起来，4+5=9（个）。检验：9−5=4，正好还剩 4 个，和题目相符。',
+    sources:[
+      { id:'zLeft', icon:'🍽️', title:'果盘里还剩的桃子', count:4, emojis:['🍑'], badge:'还剩 ' },
+      { id:'zAte', icon:'🌰', title:'吃掉的桃子（桃核）', count:5, emojis:['🌰'], badge:'吃掉 ', cls:'dim' }
+    ],
+    target:{ id:'zOrigP', icon:'🍽️', title:'原来的大果盘（合起来数一数）', badge:'原来共 ' },
+    need:9,
+    preMsg:function(n){ return '把剩下的桃子和吃掉的桃核都放回大果盘（现在放回了 ' + n + ' 个）'; }
+  });
+}
+
+/* 类型3 练习1：飞走 6 只 + 还停着 3 只 → 原来有多少只蝴蝶 */
+function lvButterfly(){
+  return moveLevel({
+    title:'原来有多少只蝴蝶',
+    text:'花丛里飞走了 6 只蝴蝶，还有 3 只停在花朵上。原来有多少只蝴蝶？',
+    opHint:'拖一拖：把飞走的蝴蝶和停着的蝴蝶都请回大花丛，再点下方数轴作答。',
+    hint:'飞走的 6 只加上还停着的 3 只，就是原来的只数。',
+    answer:9,
+    formula:'6 + 3 = 9（只）',
+    explain:'求"原来有多少只"用逆向加法：飞走的 6 只 + 还停着的 3 只 = 原来的 9 只。检验：9−6=3，正好还停着 3 只。',
+    sources:[
+      { id:'zFlow', icon:'🌸', title:'花朵上还停着的', count:3, emojis:['🦋'], badge:'停着 ' },
+      { id:'zFlew', icon:'💨', title:'已经飞走的', count:6, emojis:['🦋'], badge:'飞走 ' }
+    ],
+    target:{ id:'zGarden', icon:'🌷', title:'大花丛（合起来数一数）', badge:'原来共 ' },
+    need:9,
+    preMsg:function(n){ return '把飞走的和停着的蝴蝶都请回大花丛（现在回来了 ' + n + ' 只）'; }
+  });
+}
+
+/* 类型3 练习2：吃掉 4 块 + 还剩 4 块 → 原来有几块饼干 */
+function lvCookie(){
+  return moveLevel({
+    title:'原来有几块饼干',
+    text:'妹妹吃掉了 4 块饼干，盒子里还剩 4 块。原来有几块饼干？',
+    opHint:'拖一拖：把吃掉的饼干和剩下的饼干都放回原来的饼干盒，再点下方数轴作答。',
+    hint:'吃掉的 4 块加上剩下的 4 块，就是原来的块数。',
+    answer:8,
+    formula:'4 + 4 = 8（块）',
+    explain:'求"原来有几块"用逆向加法：吃掉的 4 块 + 还剩的 4 块 = 原来的 8 块。检验：8−4=4，正好还剩 4 块。',
+    sources:[
+      { id:'zInBox', icon:'🍪', title:'盒子里还剩的', count:4, emojis:['🍪'], badge:'还剩 ' },
+      { id:'zEaten', icon:'🍽️', title:'吃掉的饼干', count:4, emojis:['🍪'], badge:'吃掉 ', cls:'dim' }
+    ],
+    target:{ id:'zOrigB', icon:'📦', title:'原来的饼干盒（合起来数一数）', badge:'原来共 ' },
+    need:8,
+    preMsg:function(n){ return '把吃掉的饼干也放回原来的盒子（现在放回了 ' + n + ' 块）'; }
+  });
+}
+
+/* 类型1 练习3：操场 4+2+2 */
+function lvPlayground(){
+  return moveLevel({
+    title:'操场上一共有多少人',
+    text:'操场上有 4 人跳绳，2 人踢球，2 人拍球。操场上一共有多少人？',
+    opHint:'拖一拖：把三个小组的小朋友都请进操场集合区，再点下方数轴作答。',
+    hint:'把三个小组的人数合起来：4 + 2 + 2。',
+    answer:8,
+    formula:'4 + 2 + 2 = 8（人）',
+    explain:'求"一共多少人"用加法，把三个小组合起来：4+2+2=8（人）。',
+    sources:[
+      { id:'zSkip', icon:'🤸', title:'跳绳的小朋友', count:4, emojis:PEOPLE, badge:'跳绳 ' },
+      { id:'zKick', icon:'⚽', title:'踢球的小朋友', count:2, emojis:PEOPLE, badge:'踢球 ' },
+      { id:'zPat', icon:'🏀', title:'拍球的小朋友', count:2, emojis:PEOPLE, badge:'拍球 ' }
+    ],
+    target:{ id:'zField', icon:'🏫', title:'操场集合区（合起来数一数）', badge:'共 ' },
+    need:8,
+    preMsg:function(n){ return '把三个小组都请进集合区（现在集合了 ' + n + ' 人）'; }
+  });
+}
+
+/* ---- 中级：类型2 求和求差 / 挑最多 ---- */
+
+/* 类型2 例(1)：四盘苹果 5/2/1/3，只能拿两盘，最多拿几个 */
+function lvAppleBest(){
+  var zTable = null, zBag = null, status = null, refresh = null;
+  var plates = [
+    { label:'第 1 盘', n:5 },
+    { label:'第 2 盘', n:2 },
+    { label:'第 3 盘', n:1 },
+    { label:'第 4 盘', n:3 }
+  ];
+  function bagPlates(){ return $all('.platechip', zBag.chips).length; }
+  function bagApples(){ return zoneCount(zBag); }
+  return {
+    title:'装苹果大赛',
+    text:'桌上放着 4 盘苹果：从左数第 1 盘有 5 个，第 2 盘有 2 个，第 3 盘有 1 个，第 4 盘有 3 个。袋子只能装下两盘，最多能装走几个苹果？',
+    opHint:'想一想：哪两盘苹果最多？把这两盘拖进袋子（只能装两盘），再点下方数轴作答。',
+    hint:'四盘按从多到少排是 5、3、2、1，想拿最多就挑最多的两盘。',
+    answer:8,
+    formula:'5 + 3 = 8（个）',
+    explain:'四盘苹果从多到少排是 5>3>2>1。想装走最多，就要挑最多的两盘：5 个的一盘和 3 个的一盘，5+3=8（个）。',
+    precheck:function(){
+      var p = bagPlates();
+      if(p < 2){ return { ok:false, msg:'袋子要装满两盘苹果（现在装了 ' + p + ' 盘）' }; }
+      var a = bagApples();
+      if(a < 8){ return { ok:false, msg:'你这两盘一共 ' + a + ' 个，还能装更多！把小盘换成一盘更多的试试' }; }
+      return { ok:true };
+    },
+    build:function(scene){
+      zTable = makeZone({ id:'zTable', icon:'🍽️', title:'桌上的四盘苹果（从左数）' });
+      zBag = makeZone({ id:'zBag', icon:'👜', title:'袋子（只能装两盘）' });
+      var r1 = h('div', 'zoneRow');
+      r1.appendChild(zTable.root);
+      scene.appendChild(r1);
+      var r2 = h('div', 'zoneRow target');
+      r2.appendChild(zBag.root);
+      scene.appendChild(r2);
+      status = h('div', 'status');
+      scene.appendChild(status);
+      plates.forEach(function(p){
+        var c = h('div', 'chip platechip');
+        c.dataset.n = String(p.n);
+        c.innerHTML = '<span class="papps">' + '🍎'.repeat(p.n) + '</span><span class="plabel">' + p.label + ' · ' + p.n + ' 个</span>';
+        zTable.chips.appendChild(c);
+      });
+      var allow = function(z, isDrop){
+        if(z.id === 'zBag'){
+          if(bagPlates() >= 2){
+            if(isDrop){ toast('袋子只能装两盘苹果哦，先拿出一盘吧'); }
+            return false;
+          }
+          return true;
+        }
+        return z.id === 'zTable';
+      };
+      $all('.platechip', zTable.chips).forEach(function(c){ enableDrag(c, allow); });
+      refresh = function(){
+        refreshZone(zTable, '桌上 ');
+        refreshZone(zBag, '袋中 ');
+        status.textContent = '袋子：' + bagPlates() + ' 盘 · 共 ' + bagApples() + ' 个苹果';
+      };
+      S.onDrop = function(){ refresh(); };
+      refresh();
+    },
+    reveal:function(cb){
+      /* 挑 5 个盘和 3 个盘装进袋子 */
+      var list = $all('.platechip', zTable.chips).filter(function(c){ return parseInt(c.dataset.n, 10) >= 3; });
+      autoMove(list, zBag, cb);
+    }
+  };
+}
+
+/* 类型2 例(2)：第1盘 5 个 vs 第3盘 1 个，多多少（连线配对） */
+function lvAppleCompare(){
+  return pairLevel({
+    title:'比一比苹果',
+    text:'从左数，第 1 盘有 5 个苹果，第 3 盘有 1 个苹果。第 1 盘比第 3 盘多多少个苹果？',
+    opHint:'连一连：先点第 1 盘的一个苹果，再点第 3 盘的一个苹果，把它们一一对齐，再点下方数轴作答。',
+    hint:'配对完成后，第 1 盘里没配上对的苹果，就是多出来的数量。',
+    answer:4,
+    formula:'5 − 1 = 4（个）',
+    explain:'把两盘苹果一一对齐配对：第 3 盘的 1 个只能和第 1 盘的 1 个配成一对，第 1 盘还剩 4 个没配上对。求一个数比另一个数多几，用减法：5−1=4（个）。',
+    rowA:{ icon:'🍎', title:'第 1 盘（5 个苹果）', count:5, emoji:'🍎' },
+    rowB:{ icon:'🍏', title:'第 3 盘（1 个苹果）', count:1, emoji:'🍎' },
+    aBadge:'没配上对 ',
+    statusHtml:function(unA){ return '第 1 盘没配上对的苹果：<b>' + unA + '</b> 个（发亮的就是多出来的）'; },
+    preMsg:'先连线配对：点第 1 盘的一个苹果，再点第 3 盘的一个苹果'
+  });
+}
+
+/* 类型2 练习2(1)：小华 3 本 + 小丽 6 本 */
+function lvBooksHL(){
+  return moveLevel({
+    title:'故事书（一）',
+    text:'小华有 3 本故事书，小丽有 6 本故事书。小华和小丽一共有多少本故事书？',
+    opHint:'拖一拖：把两人的故事书都搬上小书架，再点下方数轴作答。',
+    hint:'把两个人的书合起来：3 + 6。',
+    answer:9,
+    formula:'3 + 6 = 9（本）',
+    explain:'求"一共有多少本"用加法：3+6=9（本）。',
+    sources:[
+      { id:'zHua', icon:'🧒', title:'小华的故事书', count:3, emojis:['📗'], badge:'小华 ' },
+      { id:'zLi', icon:'👧', title:'小丽的故事书', count:6, emojis:['📘'], badge:'小丽 ' }
+    ],
+    target:{ id:'zShelf1', icon:'🧺', title:'小书架（合起来数一数）', badge:'共 ' },
+    need:9,
+    preMsg:function(n){ return '把两人的书都搬上书架（书架上现在有 ' + n + ' 本）'; }
+  });
+}
+
+/* 类型2 练习2(2)：小华 3 本 + 小明 7 本 */
+function lvBooksHM(){
+  return moveLevel({
+    title:'故事书（二）',
+    text:'小华有 3 本故事书，小明有 7 本故事书。小华和小明一共有多少本故事书？',
+    opHint:'拖一拖：把两人的故事书都搬上小书架，再点下方数轴作答。',
+    hint:'把两个人的书合起来：3 + 7。',
+    answer:10,
+    formula:'3 + 7 = 10（本）',
+    explain:'求"一共有多少本"用加法：3+7=10（本）。',
+    sources:[
+      { id:'zHua2', icon:'🧒', title:'小华的故事书', count:3, emojis:['📗'], badge:'小华 ' },
+      { id:'zMing', icon:'🧑', title:'小明的故事书', count:7, emojis:['📙'], badge:'小明 ' }
+    ],
+    target:{ id:'zShelf2', icon:'🧺', title:'小书架（合起来数一数）', badge:'共 ' },
+    need:10,
+    preMsg:function(n){ return '把两人的书都搬上书架（书架上现在有 ' + n + ' 本）'; }
+  });
+}
+
+/* 类型2 练习2(3)：小明 7 本 vs 小丽 6 本，多几本（连线配对） */
+function lvBooksCompare(){
+  return pairLevel({
+    title:'比一比故事书',
+    text:'小明有 7 本故事书，小丽有 6 本故事书。小明比小丽多几本故事书？',
+    opHint:'连一连：先点小明的一本书，再点小丽的一本书，一一对齐配对，再点下方数轴作答。',
+    hint:'配对完成后，小明没配上对的那几本，就是多出来的。',
+    answer:1,
+    formula:'7 − 6 = 1（本）',
+    explain:'把两人的书一一对齐配对：小丽的 6 本和小明的 6 本配成 6 对，小明还剩 1 本没配上对。求多几本用减法：7−6=1（本）。',
+    rowA:{ icon:'📙', title:'小明的故事书（7 本）', count:7, emoji:'📙' },
+    rowB:{ icon:'📘', title:'小丽的故事书（6 本）', count:6, emoji:'📘' },
+    aBadge:'没配上对 ',
+    statusHtml:function(unA){ return '小明没配上对的故事书：<b>' + unA + '</b> 本（发亮的就是多出来的）'; },
+    preMsg:'先连线配对：点小明的一本书，再点小丽的一本书'
+  });
+}
+
+/* 综合测评3：小猫钓鱼（三连问，逐步解锁信息） */
+function lvFishing(){
+  var base = '池塘边三只小猫在钓鱼：小黄钓了 4 条鱼，小黑比小黄少钓 1 条，小白比小黑多钓 2 条。';
+  var subs = [
+    { q:'第 1 问：小黑钓了几条鱼？', ans:3, formula:'4 − 1 = 3（条）',
+      explain:'小黑比小黄少钓 1 条：4−1=3（条）。', hint:'比 4 少 1 是多少？' },
+    { q:'第 2 问：小白钓了几条鱼？', ans:5, formula:'3 + 2 = 5（条）',
+      explain:'小白比小黑多钓 2 条：3+2=5（条）。', hint:'比 3 多 2 是多少？' },
+    { q:'第 3 问：小黄和小白一共钓了几条鱼？', ans:9, formula:'4 + 5 = 9（条）',
+      explain:'把小黄的 4 条和小白的 5 条合起来：4+5=9（条）。', hint:'把两个人的鱼合起来：4 + 5。' }
+  ];
+  var opHints = [
+    '算一算小黑钓的条数，点下方数轴作答。',
+    '算一算小白钓的条数，点下方数轴作答。',
+    '拖一拖：把小黄和小白的鱼都搬进大鱼桶，再点下方数轴作答。'
+  ];
+  var FISH = ['🐟', '🐠', '🐡'];
+  var zY = null, zH = null, zB = null, zBucket = null, refresh = null;
+  function mkFish(n){
+    var arr = [];
+    for(var i = 0; i < n; i++){ arr.push(makeChip(FISH[i % FISH.length])); }
+    return arr;
+  }
+  function fillPond(z, n){
+    var q = z.chips.querySelector('.qmark');
+    if(q){ q.remove(); }
+    mkFish(n).forEach(function(c, i){
+      c.dataset.fixed = '1';
+      setTimeout(function(){
+        z.chips.appendChild(c);
+        c.classList.add('pop');
+        setTimeout(function(){ c.classList.remove('pop'); }, 320);
+        refresh();
+      }, i * 170);
+    });
+  }
+  function enableFishing(){
+    [zY, zB].forEach(function(z){
+      var homeId = z.root.id;
+      $all('.chip', z.chips).forEach(function(c){
+        c.dataset.fixed = '';
+        enableDrag(c, function(t){ return t.id === 'zBucket' || t.id === homeId; });
+      });
+    });
+  }
+  return {
+    title:'小猫钓鱼（三连问）',
+    text:function(){ return base + '<br><b>' + subs[S.sub].q + '</b>'; },
+    opHint:function(){ return opHints[S.sub]; },
+    hint:function(){ return subs[S.sub].hint; },
+    answer:function(){ return subs[S.sub].ans; },
+    formula:function(){ return subs[S.sub].formula; },
+    explain:function(){ return subs[S.sub].explain; },
+    precheck:function(){
+      if(S.sub < 2){ return { ok:true }; }
+      var b = zoneCount(zBucket);
+      if(b === 9){ return { ok:true }; }
+      return { ok:false, msg:'先把小黄和小白的鱼都搬进大鱼桶（桶里现在有 ' + b + ' 条）' };
+    },
+    build:function(scene){
+      zY = makeZone({ id:'zY', icon:'🐱', title:'小黄钓的鱼' });
+      zH = makeZone({ id:'zH', icon:'🐈', title:'小黑钓的鱼（先算一算）' });
+      zB = makeZone({ id:'zB', icon:'😺', title:'小白钓的鱼（先算一算）' });
+      zH.chips.appendChild(h('div', 'qmark', '？'));
+      zB.chips.appendChild(h('div', 'qmark', '？'));
+      var r1 = h('div', 'zoneRow');
+      r1.appendChild(zY.root); r1.appendChild(zH.root); r1.appendChild(zB.root);
+      scene.appendChild(r1);
+      zBucket = makeZone({ id:'zBucket', icon:'🧺', title:'大鱼桶（合起来数一数）' });
+      var r2 = h('div', 'zoneRow target');
+      r2.appendChild(zBucket.root);
+      scene.appendChild(r2);
+      zBucket.root.style.display = 'none'; /* 前两问先不出现大鱼桶 */
+      mkFish(4).forEach(function(c){
+        c.dataset.fixed = '1';
+        zY.chips.appendChild(c);
+      });
+      var st = h('div', 'status');
+      st.textContent = '答对一问，就会点亮一位小猫的鱼哦！';
+      scene.appendChild(st);
+      refresh = function(){
+        refreshZone(zY, '小黄 ');
+        refreshZone(zH, '小黑 ');
+        refreshZone(zB, '小白 ');
+        refreshZone(zBucket, '桶里 ');
+      };
+      S.onDrop = function(){ refresh(); };
+      refresh();
+    },
+    afterCorrect:function(){
+      if(S.sub >= 2){ return true; }
+      S.sub++;
+      if(S.sub === 1){ fillPond(zH, 3); }
+      if(S.sub === 2){
+        fillPond(zB, 5);
+        zBucket.root.style.display = '';
+        zBucket.root.classList.add('pop');
+        setTimeout(function(){ zBucket.root.classList.remove('pop'); }, 320);
+        enableFishing();
+      }
+      return false;
+    },
+    reveal:function(cb){
+      if(S.sub < 2){ setTimeout(cb, 350); return; }
+      var list = $all('.chip', zY.chips).concat($all('.chip', zB.chips));
+      autoMove(list, zBucket, cb);
+    }
+  };
+}
+
+/* ---- 高级：移多补少 / 倒推原来 ---- */
+
+/* 类型3 练习3：小红 10 支，给小芳 3 支后两人一样多 */
+function lvPencil(){
+  return transferLevel({
+    title:'送铅笔的小秘密',
+    text:'小红有 10 支铅笔。她给了小芳 3 支后，两人铅笔的支数就同样多了。小芳原来有几支铅笔？',
+    opHint:'搬一搬：把 3 支铅笔从小红处拖给小芳，让两人一样多，再想一想小芳原来有几支，点下方数轴作答。',
+    hint:'小红给出后剩 10−3=7 支；两人一样多，小芳现在也是 7 支，去掉刚收到的 3 支就是原来的。',
+    answer:4,
+    formula:'10 − 3 = 7，7 − 3 = 4（支）',
+    explain:'小红给出 3 支后还剩 10−3=7（支）；这时两人一样多，说明小芳现在也是 7 支；去掉刚收到的 3 支，小芳原来有 7−3=4（支）。检验：4+3=7，正好和小红一样多。',
+    giver:{ id:'zHX', icon:'✏️', title:'小红的铅笔（10 支）', count:10, emoji:'✏️', badge:'小红现有 ' },
+    receiver:{ id:'zLF', icon:'🎀', title:'小芳的铅笔（原来有几支是秘密哦）' },
+    given:3,
+    equalNum:7,
+    statusHtml:function(g, r){ return '小红现在 ' + g + ' 支 · 小芳收到 ' + r + ' 支（题目说收到 3 支后两人一样多）'; },
+    bannerOk:'🎀 现在两人一样多啦：每人 7 支！小芳有 3 支是刚收到的（带🎀）——那她原来有几支呢？',
+    bannerWarn:'题目里小红只给了 3 支，把多拿的退回去吧！',
+    preMsg:function(r){ return '先把 3 支铅笔从小红拖给小芳（已经送出 ' + r + ' 支）'; }
+  });
+}
+
+/* 综合测评5：盒A 8 本，搬 1 本到盒B 后一样多 */
+function lvBookMove(){
+  return transferLevel({
+    title:'搬书的小秘密',
+    text:'第一个盒子里有 8 本书。从第一个盒子里拿出 1 本放入第二个盒子，两个盒子的书就一样多了。第二个盒子原来有几本书？',
+    opHint:'搬一搬：把 1 本书从第一个盒子搬到第二个盒子，让两盒一样多，再想想第二个盒子原来有几本，点下方数轴作答。',
+    hint:'第一个盒子搬走后剩 8−1=7 本；两盒一样多，第二个盒子现在也是 7 本，去掉刚搬来的 1 本就是原来的。',
+    answer:6,
+    formula:'8 − 1 = 7，7 − 1 = 6（本）',
+    explain:'第一个盒子拿出 1 本后剩 8−1=7（本）；两盒一样多，第二个盒子现在也是 7 本；去掉刚搬来的 1 本，第二个盒子原来有 7−1=6（本）。检验：6+1=7，两盒相等。',
+    giver:{ id:'zBA', icon:'📦', title:'第一个盒子（8 本）', count:8, emoji:'📖', badge:'盒A现有 ' },
+    receiver:{ id:'zBB', icon:'🎁', title:'第二个盒子（原来有几本是秘密哦）' },
+    given:1,
+    equalNum:7,
+    statusHtml:function(g, r){ return '第一个盒子现在 ' + g + ' 本 · 第二个盒子收到 ' + r + ' 本（题目说搬来 1 本后两盒一样多）'; },
+    bannerOk:'🎀 现在两个盒子一样多啦：都是 7 本！其中 1 本是刚搬来的（带🎀）——第二个盒子原来有几本呢？',
+    bannerWarn:'题目里只搬了 1 本，把多搬的放回去吧！',
+    preMsg:function(r){ return '先把 1 本书搬进第二个盒子（已经搬了 ' + r + ' 本）'; }
+  });
+}
+
+/* 综合测评4(1)：第一行 3 辆，第二行 9 辆，第一行再放几辆 */
+function lvCarAdd(){
+  return carLevel({
+    mode:'add',
+    title:'摆汽车 · 补一补',
+    text:'第一行摆着 3 辆汽车，第二行摆着 9 辆汽车。要使两行汽车同样多，第一行要再放几辆汽车？',
+    opHint:'搬一搬：从车库把备用汽车搬到第一行，直到两行一样多，再点下方数轴作答。',
+    hint:'第二行比第一行多几辆，就要补上几辆。',
+    answer:6,
+    formula:'9 − 3 = 6（辆）',
+    explain:'第二行比第一行多 9−3=6（辆），所以第一行要再放 6 辆，两行才一样多。检验：3+6=9，和第二行相等。'
+  });
+}
+
+/* 综合测评4(2)：第二行要去掉几辆 */
+function lvCarRemove(){
+  return carLevel({
+    mode:'remove',
+    title:'摆汽车 · 减一减',
+    text:'第一行摆着 3 辆汽车，第二行摆着 9 辆汽车。要使两行汽车同样多，第二行要去掉几辆汽车？',
+    opHint:'搬一搬：把第二行的汽车放回车库，直到两行一样多，再点下方数轴作答。',
+    hint:'第二行比第一行多几辆，就要拿走几辆。',
+    answer:6,
+    formula:'9 − 3 = 6（辆）',
+    explain:'第二行比第一行多 9−3=6（辆），所以第二行要去掉 6 辆，两行才一样多。检验：9−6=3，和第一行相等。'
+  });
+}
+
+/* ============================================================
+   第十部分：题池与随机抽选（反重复机制）
+   ============================================================ */
+var POOL = {
+  easy:[lvBirdFly, lvBirdHome, lvBurger, lvBallBox, lvEggs, lvPeach, lvButterfly, lvCookie, lvPlayground],
+  mid:[lvAppleBest, lvAppleCompare, lvBooksHL, lvBooksHM, lvBooksCompare, lvFishing],
+  hard:[lvPencil, lvBookMove, lvCarAdd, lvCarRemove]
+};
+function sampleRun(diff){
+  var arr = shuffle(POOL[diff]).map(function(f){ return f(); });
+  if(diff === 'easy'){ return arr.slice(0, 5); }
+  if(diff === 'mid'){ return arr.slice(0, 4); }
+  return arr;
+}
+
+/* ============================================================
+   第十一部分：流程控制（开始 / 作答 / 判定 / 结算）
+   ============================================================ */
+function cur(){ return S.levels[S.idx]; }
+function showScreen(id){
+  $all('.screen').forEach(function(s){ s.classList.add('hidden'); });
+  $('#' + id).classList.remove('hidden');
+}
+function showModal(v){
+  var m = $('#rulesModal');
+  if(v){ m.classList.remove('hidden'); } else { m.classList.add('hidden'); }
+}
+function fmtTime(ms){
+  var s = Math.floor(ms / 1000);
+  var m = Math.floor(s / 60), r = s % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r;
+}
+function updateHUD(){
+  $('#hudSteps').textContent = S.steps;
+  $('#hudStars').textContent = S.stars + '/' + (S.levels.length * 3);
+  $('#hudDiff').textContent = S.diff ? DIFFS[S.diff].tag : '—';
+}
+function startTimer(){
+  stopTimer();
+  S.t0 = Date.now();
+  S.timerId = setInterval(function(){
+    $('#hudTime').textContent = fmtTime(Date.now() - S.t0);
+  }, 500);
+}
+function stopTimer(){
+  if(S.timerId){ clearInterval(S.timerId); S.timerId = null; }
+}
+
+function startRun(diff){
+  S.diff = diff;
+  applyPalette(pick(PALETTES)); /* 每局随机主题色 */
+  S.levels = sampleRun(diff);   /* 每局随机抽题 */
+  S.idx = 0; S.stars = 0; S.steps = 0;
+  startTimer();
+  updateHUD();
+  showScreen('screenGame');
+  loadLevel();
+}
+
+function loadLevel(){
+  var L = cur();
+  S.wrong = 0; S.sub = 0; S.revealed = false; S.locked = false; S.onDrop = null;
+  $('#lvlNo').textContent = '第 ' + (S.idx + 1) + ' / ' + S.levels.length + ' 关';
+  $('#lvlTitle').textContent = L.title;
+  $('#diffTag').textContent = DIFFS[S.diff].tag;
+  $('#qtext').innerHTML = L.text();
+  var sc = $('#scene');
+  sc.innerHTML = '';
+  L.build(sc);
+  $('#opHint').textContent = '👉 ' + L.opHint;
+  $('#result').classList.add('hidden');
+  clearStar();
+  updateHUD();
+  window.scrollTo(0, 0);
+}
+
+/* 数轴作答入口 */
+function onNumCell(n){
+  if(S.locked){ toast('这一问已经完成啦，点「下一关」继续吧'); return; }
+  var L = cur();
+  setStar(n);
+  S.steps++; updateHUD();
+  var pre = L.precheck ? L.precheck() : { ok:true };
+  if(!pre.ok){
+    toast(pre.msg, 3200);
+    shakeNum();
+    setTimeout(clearStar, 850);
+    return;
+  }
+  if(n === L.answer()){
+    handleCorrect();
+  } else {
+    S.wrong++;
+    toast(S.wrong >= 2 ? L.hint() : pick(['再想一想，动手操作一下试试！', '数一数、比一比，再点一次！', '别急，回到场景里摆一摆～']), 3200);
+    cells()[n].classList.add('no');
+    shakeNum();
+    setTimeout(clearStar, 850);
+  }
+}
+
+function handleCorrect(){
+  var L = cur();
+  setStar(L.answer());                       /* 先放好星星（内部会先清空旧标记） */
+  cells()[L.answer()].classList.add('yes');  /* 再点亮答对格子 */
+  starBurst(cells()[L.answer()]);
+  var done = L.afterCorrect ? L.afterCorrect() : true;
+  if(!done){
+    /* 多问题关卡：推进到下一问，不锁死 */
+    S.locked = true;
+    setTimeout(function(){
+      clearStar();
+      $('#qtext').innerHTML = L.text();
+      $('#opHint').textContent = '👉 ' + L.opHint();
+      S.locked = false;
+    }, 1000);
+    return;
+  }
+  S.locked = true;
+  showResult();
+}
+
+function showResult(){
+  var L = cur();
+  var stars = S.revealed ? 0 : (S.wrong === 0 ? 3 : (S.wrong <= 2 ? 2 : 1));
+  S.stars += stars;
+  $('#rTitle').textContent = S.revealed ? '🔎 已揭示答案' : '🎉 太棒了，答对啦！';
+  $('#rStars').textContent = stars > 0 ? new Array(stars + 1).join('⭐') : '💛 下一次自己试试，就能收集星星啦';
+  $('#rFormula').textContent = L.formula();
+  $('#rExplain').textContent = '【解析】' + L.explain();
+  $('#btnNext').textContent = (S.idx >= S.levels.length - 1) ? '查看闯关战果 🏆' : '下一关 ➜';
+  $('#result').classList.remove('hidden');
+  if(!S.revealed){ FX.celebrate(1600); }
+  updateHUD();
+}
+
+function revealCurrent(){
+  if(S.locked){ return; }
+  var L = cur();
+  S.locked = true;
+  S.revealed = true;
+  toast('看老师做一遍，然后想想为什么～', 2000);
+  L.reveal(function(){
+    setStar(L.answer());
+    cells()[L.answer()].classList.add('yes');
+    showResult();
+  });
+}
+
+function finishRun(){
+  stopTimer();
+  var secs = Date.now() - S.t0;
+  var maxStars = S.levels.length * 3;
+  $('#dStars').textContent = '⭐ 收集星星：' + S.stars + ' / ' + maxStars;
+  $('#dTime').textContent = '⏱ 用时：' + fmtTime(secs);
+  $('#dSteps').textContent = '👣 操作步数：' + S.steps;
+  var msg;
+  if(S.stars >= maxStars){ msg = '满分星星！你是加与减小天才！🌟'; }
+  else if(S.stars >= Math.ceil(maxStars * 2 / 3)){ msg = '表现超棒，星星都快装满口袋啦！🎈'; }
+  else if(S.stars >= Math.ceil(maxStars / 3)){ msg = '很不错哦！再玩一次，争取更多星星！💪'; }
+  else { msg = '完成闯关！多练习几次，星星会越来越多！🌈'; }
+  $('#dMsg').textContent = msg;
+  showScreen('screenDone');
+  FX.final = true;
+  FX.start(); /* 通关庆祝：彩纸 + 烟花 */
+}
+
+/* ============================================================
+   第十二部分：初始化与按钮绑定
+   ============================================================ */
+function bindButtons(){
+  $('#btnRulesOpen').addEventListener('click', function(){ showModal(true); });
+  $('#btnRulesOpen2').addEventListener('click', function(){ showModal(true); });
+  $('#btnRulesClose').addEventListener('click', function(){ showModal(false); });
+  $all('[data-diff]').forEach(function(b){
+    b.addEventListener('click', function(){ startRun(b.dataset.diff); });
+  });
+  $('#btnReveal').addEventListener('click', revealCurrent);
+  $('#btnRestart').addEventListener('click', function(){
+    if(S.diff){ startRun(S.diff); }
+  });
+  $('#btnBack').addEventListener('click', function(){
+    stopTimer();
+    showScreen('screenSelect');
+  });
+  $('#btnNext').addEventListener('click', function(){
+    if(S.idx >= S.levels.length - 1){ finishRun(); }
+    else { S.idx++; loadLevel(); }
+  });
+  $('#btnAgain').addEventListener('click', function(){
+    FX.final = false; FX.stop();
+    startRun(S.diff);
+  });
+  $('#btnChange').addEventListener('click', function(){
+    FX.final = false; FX.stop();
+    stopTimer();
+    showScreen('screenSelect');
+  });
+}
+window.addEventListener('DOMContentLoaded', function(){
+  applyPalette(pick(PALETTES));
+  buildNumberLine();
+  bindButtons();
+  updateHUD();
+  showScreen('screenSelect');
+  showModal(true); /* 进入时先弹出规则说明（G6），可随时再看 */
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-d/g001", "name": "\u52a0\u4e0e\u51cf\uff08\u4e00\uff09\u00b7 \u6b22\u4e50\u679c\u56ed\u5927\u95ef\u5173", "file": "g001.html", "jiaocan": "\u30104\u3011\u7b2c4\u5173 \u52a0\u4e0e\u51cf\uff08\u4e00\uff09", "unit": "", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "D\uff1a\u5e94\u7528\u9898\u5927\u901a\u5173", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5e94\u7528\u9898\u5927\u901a\u5173\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-d"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>倍倍乐园 · 线段图搭建师（认识倍）</title>
+<style>
+/* ============================================================
+   倍倍乐园 · 线段图搭建师
+   教学主题：二年级下册《认识倍（上）》
+   核心玩法：用拖拽操作搭建"线段图"，把一倍数、倍数、几倍数
+   的关系变成看得见、拖得动的游戏操作。
+   ============================================================ */
+
+/* ---------- 主题变量（每局从色板随机注入，保证多次玩不腻） ---------- */
+:root{
+  --main:#ff8a3d;        /* 主色：线段、按钮 */
+  --deep:#e0641a;        /* 深主色：渐变收尾 */
+  --soft:#ffe8d2;        /* 浅主色：面板底纹 */
+  --accent:#1fae9e;      /* 强调色：参照线段、成功反馈 */
+  --bg:#fdf6ec;          /* 页面背景 */
+  --panel:#ffffff;       /* 卡片底 */
+  --ink:#3a3a3a;         /* 主文字 */
+  --line:#eadbc4;        /* 描边 */
+  --bad:#e05252;         /* 错误提示 */
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+  background:var(--bg);
+  background-image:radial-gradient(var(--soft) 1.6px, transparent 1.6px);
+  background-size:26px 26px;
+  color:var(--ink);
+  min-height:100vh;
+  -webkit-user-select:none;user-select:none;
+}
+button{font-family:inherit;}
+
+/* ---------- 通用 ---------- */
+.wrap{max-width:940px;margin:0 auto;padding:10px 12px 30px;}
+.hidden{display:none !important;}
+.btn{
+  border:none;border-radius:12px;cursor:pointer;
+  font-size:17px;font-weight:bold;padding:9px 16px;
+  background:var(--main);color:#fff;
+  box-shadow:0 3px 0 var(--deep);
+  transition:transform .08s, box-shadow .08s;
+  touch-action:manipulation;
+}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--deep);}
+.btn.plain{background:#fff;color:var(--deep);box-shadow:0 3px 0 var(--line);border:2px solid var(--line);}
+.btn.big{font-size:21px;padding:13px 26px;border-radius:16px;}
+.chip{
+  display:inline-block;background:var(--soft);color:var(--deep);
+  border-radius:999px;padding:3px 12px;font-weight:bold;font-size:15px;
+}
+
+/* ---------- 顶栏 ---------- */
+header.top{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  background:var(--panel);border:3px solid var(--line);border-radius:16px;
+  padding:8px 12px;margin-bottom:10px;
+}
+.top .logo{font-size:20px;font-weight:900;color:var(--deep);}
+.top .spacer{flex:1;}
+.stat{
+  background:var(--soft);border-radius:10px;padding:5px 10px;
+  font-weight:bold;font-size:16px;color:var(--deep);white-space:nowrap;
+}
+.stat small{font-weight:normal;color:#8a7a63;font-size:13px;display:block;line-height:1;}
+
+/* ---------- 题干卡 ---------- */
+#questCard{
+  background:var(--panel);border:3px solid var(--line);border-radius:16px;
+  padding:12px 16px;margin-bottom:10px;position:relative;
+}
+#questCard .qtag{
+  position:absolute;top:-14px;left:14px;background:var(--accent);color:#fff;
+  font-size:14px;font-weight:bold;border-radius:999px;padding:3px 12px;
+}
+#questCard .qtext{font-size:20px;line-height:1.65;font-weight:bold;}
+#questCard .qtext .num{
+  color:var(--deep);font-size:24px;padding:0 2px;
+  text-decoration:underline 3px var(--soft);
+}
+
+/* ---------- 舞台 ---------- */
+#stage{
+  background:var(--panel);border:3px solid var(--line);border-radius:16px;
+  padding:12px 14px 14px;min-height:300px;position:relative;overflow:hidden;
+}
+#refZone{margin-bottom:10px;}
+#trackZone{position:relative;min-height:120px;}
+#hintBar{
+  margin-top:12px;background:var(--soft);border-radius:12px;
+  padding:9px 14px;font-size:17px;font-weight:bold;color:var(--deep);
+  display:flex;align-items:center;gap:8px;line-height:1.5;
+}
+#hintBar.warn{background:#ffe1e1;color:var(--bad);}
+#hintBar.good{background:#dcf7ee;color:#0d8a63;}
+
+/* 线段行 */
+.segrow{display:flex;align-items:center;gap:8px;margin:8px 0;min-height:38px;}
+.segrow .rname{font-size:16px;font-weight:bold;color:#7a6c55;min-width:86px;text-align:right;}
+.seg{
+  height:36px;border-radius:9px;
+  background:linear-gradient(180deg,var(--main),var(--deep));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:17px;position:relative;
+  box-shadow:inset 0 -3px rgba(0,0,0,.14);
+}
+.seg.ref{background:linear-gradient(180deg,var(--accent),#127f74);}
+.seg.pop{animation:pop .4s;}
+@keyframes pop{0%{transform:scale(.55)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+.seg.narrow span{position:absolute;left:100%;padding-left:6px;color:var(--deep);}
+
+/* 修正块（多几的加块 / 少几的缺口块） */
+.modblk{
+  height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:16px;
+}
+.modblk.tail{background:repeating-linear-gradient(45deg,#ffd23e,#ffd23e 8px,#ffc21e 8px,#ffc21e 16px);color:#7a4d00;box-shadow:inset 0 -3px rgba(0,0,0,.12);}
+.modblk.short{background:#fff;border:3px dashed var(--bad);color:var(--bad);}
+.slot{
+  height:36px;border-radius:9px;border:3px dashed var(--deep);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--deep);font-weight:800;font-size:15px;
+  animation:blink 1s infinite;
+}
+@keyframes blink{50%{border-color:#f0b48a;}}
+
+/* 大线段（切分/补齐/等分场景） */
+.biglabel{
+  display:flex;align-items:center;gap:10px;margin:6px 0 8px;
+  font-size:17px;font-weight:bold;color:#7a6c55;flex-wrap:wrap;
+}
+.biglabel .val{
+  background:var(--deep);color:#fff;border-radius:8px;padding:2px 10px;font-size:18px;
+  transition:all .3s;
+}
+.bigrow{display:flex;align-items:stretch;gap:0;position:relative;}
+.mainseg{
+  height:52px;border-radius:10px 0 0 10px;
+  background:linear-gradient(180deg,var(--main),var(--deep));
+  display:flex;align-items:center;justify-content:space-around;
+  color:#fff;font-weight:800;font-size:19px;position:relative;
+  padding:0 8px;line-height:1.2;text-align:center;
+}
+.tailseg{
+  height:52px;border-radius:0 10px 10px 0;cursor:grab;touch-action:none;
+  background:repeating-linear-gradient(45deg,#ffd23e,#ffd23e 10px,#ffc21e 10px,#ffc21e 20px);
+  color:#7a4d00;font-weight:800;font-size:17px;
+  display:flex;align-items:center;justify-content:center;
+  border:3px dashed #b9791b;box-shadow:0 3px 8px rgba(0,0,0,.18);
+}
+.tailseg.fly{transition:all .5s ease-in;transform:translate(60px,-120px) scale(.2) rotate(40deg);opacity:0;}
+.gapslot{
+  height:52px;border-radius:0 10px 10px 0;background:#fff;
+  border:3px dashed var(--bad);color:var(--bad);font-weight:800;font-size:17px;
+  display:flex;align-items:center;justify-content:center;
+}
+.fillbox{
+  position:relative;height:56px;border-radius:10px;
+  background:#f4efe6;border:3px dashed #cbbfae;
+}
+.fpart{
+  position:absolute;top:0;height:100%;border-radius:8px;
+  background:linear-gradient(180deg,var(--main),var(--deep));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:19px;
+  box-shadow:inset 0 -3px rgba(0,0,0,.14);
+}
+.fpart.fresh{animation:pop .4s;}
+.fpart.reveal{animation:flipin .55s;}
+@keyframes flipin{0%{transform:rotateY(90deg) scale(.6)}100%{transform:rotateY(0) scale(1)}}
+.eqbubble{
+  display:inline-block;margin-top:10px;background:#fffbe8;border:3px solid #ffd23e;
+  color:#8a5a00;border-radius:12px;padding:6px 14px;font-size:19px;font-weight:900;
+  animation:pop .45s;
+}
+
+/* 探索场景（每拖 +1 实时反馈） */
+.growrow{display:flex;align-items:center;gap:8px;margin:12px 0;}
+.growrow .rname{font-size:17px;font-weight:bold;color:#7a6c55;min-width:86px;text-align:right;}
+.growseg{
+  height:42px;border-radius:9px;display:flex;align-items:center;justify-content:flex-end;
+  padding-right:8px;color:#fff;font-weight:800;font-size:17px;
+  transition:width .4s ease;background:linear-gradient(180deg,var(--accent),#127f74);
+}
+.growseg.targetrow{background:linear-gradient(180deg,var(--main),var(--deep));}
+.growseg.done{animation:pop .5s;box-shadow:0 0 0 5px #ffd23e;}
+#fbText{
+  margin-top:6px;background:var(--soft);border-radius:10px;padding:8px 12px;
+  font-size:17px;font-weight:bold;color:var(--deep);min-height:24px;
+}
+
+/* 相差框 */
+.diffwrap{position:relative;}
+#diffFrame{
+  position:absolute;height:100%;top:0;border:4px solid var(--bad);border-radius:10px;
+  background:rgba(224,82,82,.13);cursor:grab;touch-action:none;z-index:5;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--bad);font-weight:900;font-size:16px;pointer-events:auto;
+}
+#diffFrame.locked{cursor:default;animation:pop .5s;}
+#diffFrame .flabel{
+  position:absolute;top:-25px;left:50%;transform:translateX(-50%);
+  background:#fff;border:2px solid var(--bad);border-radius:8px;
+  padding:1px 9px;font-size:14px;font-weight:900;color:var(--bad);
+  white-space:nowrap;line-height:1.4;pointer-events:none;
+}
+
+/* ---------- 仓库 ---------- */
+#depotZone{
+  margin-top:12px;background:var(--soft);border:3px dashed var(--line);
+  border-radius:16px;padding:10px 12px;min-height:96px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+}
+#depotZone .dlabel{font-size:15px;font-weight:bold;color:#9a8a70;writing-mode:vertical-lr;letter-spacing:4px;}
+.depotItem{
+  background:#fff;border:3px solid var(--main);border-radius:12px;
+  padding:8px 12px;font-weight:800;font-size:16px;color:var(--deep);
+  cursor:grab;touch-action:none;text-align:center;line-height:1.35;
+  box-shadow:0 3px 0 var(--line);position:relative;
+}
+.depotItem .sub{display:block;font-size:13px;color:#9a8a70;font-weight:normal;}
+.depotItem.dragging{opacity:.35;}
+.depotItem.used{opacity:.3;pointer-events:none;}
+.depotItem.segitem{background:linear-gradient(180deg,var(--main),var(--deep));color:#fff;border-color:var(--deep);min-width:96px;height:52px;display:flex;align-items:center;justify-content:center;}
+.bin{
+  border:3px solid #9aa7b8;border-radius:14px;background:#eef2f7;color:#5a6b80;
+  font-size:34px;text-align:center;padding:6px 20px;line-height:1.1;min-width:96px;
+  font-weight:900;
+}
+.bin .sub{font-size:13px;font-weight:bold;display:block;}
+
+/* ---------- 遮罩面板 ---------- */
+.mask{
+  position:fixed;inset:0;background:rgba(60,45,25,.55);
+  display:flex;align-items:center;justify-content:center;z-index:60;padding:16px;
+}
+.panel{
+  background:var(--panel);border-radius:22px;border:4px solid var(--main);
+  max-width:640px;width:100%;max-height:88vh;overflow:auto;
+  padding:22px 24px;text-align:center;
+  animation:rise .35s;
+}
+@keyframes rise{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.panel h2{margin:2px 0 10px;font-size:26px;color:var(--deep);}
+.panel .rules{text-align:left;font-size:17px;line-height:1.9;margin:6px 0 14px;}
+.panel .rules b{color:var(--deep);}
+.panel .btnrow{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
+#winSol{list-style:none;margin:8px 0;padding:0;text-align:left;font-size:20px;font-weight:bold;line-height:2;}
+#winSol li{
+  background:var(--soft);border-radius:10px;padding:5px 14px;margin:6px 0;
+  opacity:0;transform:translateX(-14px);transition:all .4s;
+}
+#winSol li.show{opacity:1;transform:none;}
+#winSol li.answer{background:#dcf7ee;color:#0d8a63;}
+#winNote{font-size:16px;color:#9a8a70;margin-top:6px;}
+
+/* ---------- 菜单 ---------- */
+#menuScreen{text-align:center;padding-top:26px;}
+#menuScreen h1{
+  font-size:38px;color:var(--deep);margin:6px 0 2px;letter-spacing:2px;
+  text-shadow:2px 2px 0 #fff,4px 4px 0 var(--soft);
+}
+#menuScreen .sub1{font-size:19px;color:#9a8a70;font-weight:bold;margin-bottom:22px;}
+.diffcard{
+  display:block;width:100%;max-width:520px;margin:14px auto;
+  background:var(--panel);border:4px solid var(--main);border-radius:20px;
+  padding:16px 20px;cursor:pointer;text-align:left;position:relative;
+  box-shadow:0 5px 0 var(--line);transition:transform .12s;
+}
+.diffcard:active{transform:translateY(3px);}
+.diffcard .dname{font-size:24px;font-weight:900;color:var(--deep);}
+.diffcard .dtag{
+  position:absolute;right:16px;top:-14px;background:var(--accent);color:#fff;
+  border-radius:999px;padding:4px 14px;font-size:15px;font-weight:bold;
+}
+.diffcard .ddesc{font-size:16px;color:#7a6c55;margin-top:6px;line-height:1.6;}
+.diffcard .dico{font-size:30px;margin-right:10px;}
+
+/* ---------- 庆祝特效 ---------- */
+#fxCanvas{position:fixed;inset:0;pointer-events:none;z-index:80;}
+.starRow{font-size:46px;letter-spacing:8px;margin:8px 0;}
+.starRow .off{opacity:.22;filter:grayscale(1);}
+.finalStats{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:10px 0 4px;}
+.finalStats .stat{font-size:17px;padding:8px 16px;}
+
+/* ---------- 小屏适配 ---------- */
+@media (max-width:620px){
+  #questCard .qtext{font-size:17px;}
+  #questCard .qtext .num{font-size:20px;}
+  .top .logo{font-size:16px;}
+  .btn{font-size:15px;padding:8px 12px;}
+  .segrow .rname{min-width:64px;font-size:14px;}
+  .segrow{gap:5px;}
+  #menuScreen h1{font-size:30px;}
+  #depotZone{gap:10px;}
+  .mainseg{font-size:13px;padding:0 4px;}
+  .mainseg,.tailseg,.gapslot{height:56px;}
+  .fillbox{height:58px;}
+  .fpart{font-size:15px;}
+  .growseg{font-size:14px;}
+  #hintBar{font-size:15px;}
+  #fbText{font-size:14px;}
+  #diffFrame .flabel{font-size:12px;top:-22px;}
+}
+</style>
+</head>
+<body>
+
+<canvas id="fxCanvas" class="hidden"></canvas>
+
+<!-- ================= 菜单屏 ================= -->
+<div id="menuScreen" class="wrap">
+  <h1>倍倍乐园</h1>
+  <div class="sub1">认识倍 · 线段图搭建师 —— 拖一拖、搭一搭，倍数关系看得见！</div>
+
+  <div class="diffcard" data-diff="easy">
+    <span class="dtag">推荐入门</span>
+    <div class="dname"><span class="dico">🌈</span>初级 · 彩虹起跑线</div>
+    <div class="ddesc">拖出一段段线段搭出"几倍"，再接上"多几"加块或"少几"缺口块。</div>
+  </div>
+  <div class="diffcard" data-diff="mid">
+    <span class="dtag">进阶</span>
+    <div class="dname"><span class="dico">🌉</span>中级 · 智慧进阶桥</div>
+    <div class="ddesc">先把"多出来的"拖进回收站，或把"差的"补上，再用一份块把大线段平均铺满。</div>
+  </div>
+  <div class="diffcard" data-diff="hard">
+    <span class="dtag">挑战</span>
+    <div class="dname"><span class="dico">🌌</span>高级 · 星空大挑战</div>
+    <div class="ddesc">多步综合关卡：连续搭图、平均分、拖 +1 探索、相差框圈出多出的部分。</div>
+  </div>
+</div>
+
+<!-- ================= 游戏屏 ================= -->
+<div id="gameScreen" class="wrap hidden">
+  <header class="top">
+    <button class="btn plain" id="btnBack">返回难度</button>
+    <span class="logo">倍倍乐园</span>
+    <span class="chip" id="lvChip">初级 · 第1关</span>
+    <span class="spacer"></span>
+    <span class="stat"><small>时间</small><span id="stTime">00:00</span></span>
+    <span class="stat"><small>操作步数</small><span id="stMoves">0</span></span>
+    <button class="btn plain" id="btnRule">规则</button>
+    <button class="btn plain" id="btnReveal">揭示答案</button>
+    <button class="btn plain" id="btnRestart">重新开始</button>
+  </header>
+
+  <div id="questCard">
+    <span class="qtag" id="qTag">第1关</span>
+    <div class="qtext" id="qText"></div>
+  </div>
+
+  <div id="stage">
+    <div id="refZone"></div>
+    <div id="trackZone"></div>
+    <div id="hintBar"><span id="hintIcon">👉</span><span id="hintText"></span></div>
+    <div id="fbText" class="hidden"></div>
+  </div>
+
+  <div id="depotZone"><span class="dlabel">材料仓</span></div>
+</div>
+
+<!-- ================= 规则面板 ================= -->
+<div id="ruleMask" class="mask hidden">
+  <div class="panel">
+    <h2>🎯 玩法说明</h2>
+    <div class="rules">
+      <b>一段线段 = "一份"（一倍量）。</b><br>
+      ① <b>搭几倍：</b>从材料仓把「一段线段」拖到搭建区，拖几段就是几倍。<br>
+      ② <b>多几 / 少几：</b>题目说"还多几"就把加块接到线段末尾；"还少几"就把缺口块接上去。<br>
+      ③ <b>求一倍数：</b>把多出来的小尾巴拖进回收站；"差一点"就拖补块补成整倍；再把「一份块」铺满大线段，铺几份就是几倍。<br>
+      ④ <b>探索关：</b>每拖一个「+1」实时观察倍数变化，拖到正好为止。<br>
+      ⑤ <b>相差关：</b>把「相差框」拖去罩住"比它多出来的部分"。<br>
+      拖对了会亮星星，拖错了会弹回来，再试一次就好。卡住了可以点「揭示答案」看老师示范！
+    </div>
+    <div class="btnrow"><button class="btn big" id="btnRuleOk">开始挑战！</button></div>
+  </div>
+</div>
+
+<!-- ================= 单关结算 ================= -->
+<div id="winMask" class="mask hidden">
+  <div class="panel">
+    <h2 id="winTitle">🎉 闯关成功！</h2>
+    <ul id="winSol"></ul>
+    <div id="winNote"></div>
+    <div class="btnrow"><button class="btn big" id="btnNext">下一关 →</button></div>
+  </div>
+</div>
+
+<!-- ================= 最终成绩 ================= -->
+<div id="finalMask" class="mask hidden">
+  <div class="panel">
+    <h2>🏆 挑战完成！</h2>
+    <div class="starRow" id="starRow"></div>
+    <div class="finalStats">
+      <span class="stat"><small>总用时</small><span id="fTime">00:00</span></span>
+      <span class="stat"><small>总步数</small><span id="fMoves">0</span></span>
+      <span class="stat"><small>累计星星</small><span id="fStars">0 / 9</span></span>
+    </div>
+    <div id="fWords" style="font-size:17px;color:#7a6c55;margin:8px 0;"></div>
+    <div class="btnrow">
+      <button class="btn big" id="btnAgain">再玩一次</button>
+      <button class="btn big plain" id="btnMenu">返回难度</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   倍倍乐园 · 线段图搭建师 —— 主程序
+   题目全部改编自教参《第1讲 认识倍（上）》的例题与练习，
+   另补充 3 道同型自创变式（v1 星星贴纸 / v2 果树 / v3 气球）。
+   ============================================================ */
+
+/* ---------- 小工具 ---------- */
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, txt){
+  var d = document.createElement(tag);
+  if (cls) d.className = cls;
+  if (txt != null) d.textContent = txt;   /* 松散比较同时排除 null 与未传参 */
+  return d;
+}
+function shuffle(arr){
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function fmtTime(sec){
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+}
+
+/* ---------- 音效（WebAudio 现场生成，零外部资源） ---------- */
+var AC = null;
+function beep(freq, dur, type, vol){
+  try{
+    if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    var o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.12, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0008, AC.currentTime + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + dur);
+  }catch(e){ /* 无声环境直接忽略 */ }
+}
+var sndOK   = function(){ beep(660, .12); setTimeout(function(){ beep(880, .16); }, 90); };
+var sndBig  = function(){ beep(523, .12); setTimeout(function(){ beep(659, .12); }, 110); setTimeout(function(){ beep(784, .12); }, 220); setTimeout(function(){ beep(1047, .25); }, 330); };
+var sndMiss = function(){ beep(220, .18, "square", 0.06); };
+
+/* ---------- 色板（每局随机一套） ---------- */
+var THEMES = [
+  {main:"#ff8a3d", deep:"#e0641a", soft:"#ffe8d2", accent:"#1fae9e", bg:"#fdf6ec", line:"#eadbc4"},
+  {main:"#3a9bff", deep:"#1d6fd1", soft:"#d9ecff", accent:"#f5a623", bg:"#eef6ff", line:"#c9ddf2"},
+  {main:"#2fbf71", deep:"#1d9457", soft:"#d9f5e5", accent:"#ff8a3d", bg:"#f0fbf4", line:"#c8e8d5"},
+  {main:"#e85d9e", deep:"#c23a7d", soft:"#ffdfea", accent:"#41b8d5", bg:"#fdf1f7", line:"#f0cfdf"},
+  {main:"#8b5cf6", deep:"#6d3fd1", soft:"#ece2ff", accent:"#22b8a8", bg:"#f7f3ff", line:"#ddd2f0"}
+];
+function applyTheme(t){
+  var r = document.documentElement.style;
+  r.setProperty("--main", t.main); r.setProperty("--deep", t.deep);
+  r.setProperty("--soft", t.soft); r.setProperty("--accent", t.accent);
+  r.setProperty("--bg", t.bg);     r.setProperty("--line", t.line);
+}
+
+/* ============================================================
+   题库（题干完整取自教参；steps 是操作脚本，solution 是结算算式）
+   步骤类型：
+     lay  —— 拖 n 条一段线段（表达几倍）
+     mod  —— 在搭好的线段末端接上 "+d" 加块(kind=tail) 或 "-d" 缺口块(kind=short)
+     cut  —— 把大线段尾部的 "+d" 小尾巴拖进回收站
+     gap  —— 把 "+d" 补块补到大线段的虚线缺口上
+     fill —— 把一份块铺满大线段，共 parts 份（除法直观化）
+     grow —— 每拖一个 +1，实时观察，直到正好达到 expect
+     frame—— 把相差框拖去罩住多出来的份数
+   ============================================================ */
+var EASY = [
+  { id:"ex1", tag:"例题",
+    text:"乐乐老师奖励学习进步的同学。奖励牛牛金币 20 枚，田田得到金币的数量是牛牛的 3 倍还多 5 枚。奖励田田的金币有多少枚？",
+    refName:"牛牛 20枚", refVal:20, unit:"枚", goalName:"田田的金币",
+    steps:[ {t:"lay", n:3, unit:20}, {t:"mod", kind:"tail", d:5} ],
+    solution:["第1步：20 × 3 = 60（枚）", "第2步：60 + 5 = 65（枚）", "答：田田得到金币 65 枚。"],
+    answer:65 },
+  { id:"ex2", tag:"练习",
+    text:"学校有篮球 20 个，足球的数量是篮球的 3 倍还少 5 个，足球有多少个？",
+    refName:"篮球 20个", refVal:20, unit:"个", goalName:"足球",
+    steps:[ {t:"lay", n:3, unit:20}, {t:"mod", kind:"short", d:5} ],
+    solution:["第1步：20 × 3 = 60（个）", "第2步：60 − 5 = 55（个）", "答：足球有 55 个。"],
+    answer:55 },
+  { id:"ex3", tag:"练习",
+    text:"一支圆珠笔的价钱是 8 元，已知一盒彩笔的价钱是一支圆珠笔价钱的 3 倍，问小华买一盒彩笔和一支圆珠笔一共需要多少钱？",
+    refName:"圆珠笔 8元", refVal:8, unit:"元", goalName:"彩笔 + 圆珠笔",
+    steps:[ {t:"lay", n:4, unit:8, hintOverride:"一盒彩笔要拖 3 段，一支圆珠笔再拖 1 段，一共拖 4 段哦！"} ],
+    solution:["第1步：8 × 3 = 24（元）", "第2步：24 + 8 = 32（元）", "答：一共需要 32 元。"],
+    answer:32 },
+  { id:"v1", tag:"变式",
+    text:"小英收集了 7 颗星星贴纸，小光收集的星星数量是小英的 4 倍还多 3 颗，小光收集了多少颗星星？",
+    refName:"小英 7颗", refVal:7, unit:"颗", goalName:"小光的星星",
+    steps:[ {t:"lay", n:4, unit:7}, {t:"mod", kind:"tail", d:3} ],
+    solution:["第1步：7 × 4 = 28（颗）", "第2步：28 + 3 = 31（颗）", "答：小光收集了 31 颗星星。"],
+    answer:31 },
+  { id:"v2", tag:"变式",
+    text:"果园里有梨树 9 棵，苹果树的棵数是梨树的 5 倍还少 4 棵，苹果树有多少棵？",
+    refName:"梨树 9棵", refVal:9, unit:"棵", goalName:"苹果树",
+    steps:[ {t:"lay", n:5, unit:9}, {t:"mod", kind:"short", d:4} ],
+    solution:["第1步：9 × 5 = 45（棵）", "第2步：45 − 4 = 41（棵）", "答：苹果树有 41 棵。"],
+    answer:41 },
+  { id:"v3", tag:"变式",
+    text:"联欢会上有红气球 6 个，蓝气球的个数是红气球的 4 倍还少 2 个，蓝气球有多少个？",
+    refName:"红气球 6个", refVal:6, unit:"个", goalName:"蓝气球",
+    steps:[ {t:"lay", n:4, unit:6}, {t:"mod", kind:"short", d:2} ],
+    solution:["第1步：6 × 4 = 24（个）", "第2步：24 − 2 = 22（个）", "答：蓝气球有 22 个。"],
+    answer:22 }
+];
+var MID = [
+  { id:"ex4", tag:"例题",
+    text:"丁丁有 40 张贴纸，丁丁的贴纸数量是牛牛贴纸数量的 6 倍还多 4 张，牛牛有多少张贴纸？",
+    bigName:"丁丁的贴纸", bigVal:40, unit:"张", goalName:"牛牛的贴纸",
+    steps:[ {t:"cut", bigTotal:40, extra:4, after:36}, {t:"fill", total:36, parts:6, each:6} ],
+    solution:["第1步：40 − 4 = 36（张）", "第2步：36 ÷ 6 = 6（张）", "答：牛牛有 6 张贴纸。"],
+    answer:6 },
+  { id:"ex5", tag:"练习",
+    text:"同学们去采摘，摘了西红柿 27 筐，西红柿的筐数是黄瓜的 3 倍多 3 筐，同学们摘了多少筐黄瓜？",
+    bigName:"西红柿", bigVal:27, unit:"筐", goalName:"黄瓜",
+    steps:[ {t:"cut", bigTotal:27, extra:3, after:24}, {t:"fill", total:24, parts:3, each:8} ],
+    solution:["第1步：27 − 3 = 24（筐）", "第2步：24 ÷ 3 = 8（筐）", "答：同学们摘了 8 筐黄瓜。"],
+    answer:8 },
+  { id:"ex6", tag:"练习",
+    text:"学校买来排球 120 个，已知买来的排球个数是买来的足球个数的 3 倍，那么学校买来足球多少个？",
+    bigName:"排球", bigVal:120, unit:"个", goalName:"足球",
+    steps:[ {t:"fill", total:120, parts:3, each:40} ],
+    solution:["第1步：120 ÷ 3 = 40（个）", "答：学校买来足球 40 个。"],
+    answer:40 },
+  { id:"ex7", tag:"例题",
+    text:"阿普喷出水球 22 个，水球的数量是火球的 3 倍少 5 个，火球有多少个？",
+    bigName:"水球", bigVal:22, unit:"个", goalName:"火球",
+    steps:[ {t:"gap", bigTotal:22, gapVal:5, after:27}, {t:"fill", total:27, parts:3, each:9} ],
+    solution:["第1步：22 + 5 = 27（个）", "第2步：27 ÷ 3 = 9（个）", "答：火球有 9 个。"],
+    answer:9 },
+  { id:"ex8", tag:"练习",
+    text:"冷饮店有 45 箱可乐，已知可乐的数量是雪碧的 2 倍少 5 箱，那么雪碧有多少箱？",
+    bigName:"可乐", bigVal:45, unit:"箱", goalName:"雪碧",
+    steps:[ {t:"gap", bigTotal:45, gapVal:5, after:50}, {t:"fill", total:50, parts:2, each:25} ],
+    solution:["第1步：45 + 5 = 50（箱）", "第2步：50 ÷ 2 = 25（箱）", "答：雪碧有 25 箱。"],
+    answer:25 }
+];
+var HARD = [
+  { id:"ex9", tag:"练习",
+    text:"妈妈去市场买了 3 筐水果：一筐苹果、一筐梨和一筐橘子。已知一筐苹果的质量是 8 千克，一筐梨的质量是这筐苹果的 3 倍，这筐梨的质量又是这筐橘子的 2 倍，问一筐梨和一筐橘子各重多少千克？",
+    refName:"苹果 8千克", refVal:8, unit:"千克",
+    steps:[
+      {t:"lay", n:3, unit:8, goalName:"一筐梨"},
+      {t:"fill", total:24, parts:2, each:12, baseLabel:"一筐梨 24 千克", goalName:"一筐橘子"}
+    ],
+    solution:["第1步：8 × 3 = 24（千克）", "第2步：24 ÷ 2 = 12（千克）", "答：一筐梨重 24 千克，一筐橘子重 12 千克。"],
+    answer:"梨 24 千克，橘子 12 千克" },
+  { id:"ex10", tag:"练习",
+    text:"学校买来了排球 20 个，买来的排球个数是足球个数的 4 倍，学校买来的排球比足球多几个？",
+    bigName:"排球", bigVal:20, unit:"个", goalName:"足球",
+    steps:[
+      {t:"fill", total:20, parts:4, each:5},
+      {t:"frame", parts:4, each:5, diff:3, unit:"个"}
+    ],
+    solution:["第1步：20 ÷ 4 = 5（个）", "第2步：20 − 5 = 15（个）", "答：排球比足球多 15 个。"],
+    answer:15 },
+  { id:"ex11", tag:"练习",
+    text:"星期一早上，丁丁、牛牛和田田一起去上学，到了教室里发现已经来了 24 名男同学和 5 名女同学，要使教室中原有的男同学人数是女同学的 3 倍（不包括丁丁、牛牛和田田），应再来几名女同学？",
+    grow:{
+      rowA:{name:"男同学", v:24, unit:"名"},
+      rowB:{name:"女同学", start:5, unit:"名"},
+      expect:8, mode:"multiple", times:3
+    },
+    steps:[ {t:"grow"} ],
+    solution:["第1步：24 ÷ 3 = 8（名）", "第2步：8 − 5 = 3（名）", "答：应再来 3 名女同学。"],
+    answer:3 },
+  { id:"ex12", tag:"练习",
+    text:"动物园里有大猴 3 只，小猴 13 只，要使小猴的只数是大猴的 6 倍，应再添上几只小猴？",
+    grow:{
+      rowA:{name:"大猴", v:3, unit:"只"},
+      rowB:{name:"小猴", start:13, unit:"只"},
+      expect:18, mode:"needMore", times:6
+    },
+    steps:[ {t:"grow"} ],
+    solution:["第1步：3 × 6 = 18（只）", "第2步：18 − 13 = 5（只）", "答：应再添上 5 只小猴。"],
+    answer:5 }
+];
+var DIFFS = {
+  easy:{ name:"初级", label:"初级 · 彩虹起跑线", pool:EASY },
+  mid: { name:"中级", label:"中级 · 智慧进阶桥", pool:MID },
+  hard:{ name:"高级", label:"高级 · 星空大挑战", pool:HARD }
+};
+
+/* ============================================================
+   全局状态
+   ============================================================ */
+var G = {
+  screen:"menu",
+  diffKey:"easy",
+  levelList:[],   /* 本局抽中的 3 关 */
+  levelIdx:0,
+  stepIdx:0,
+  scale:8,        /* 每单位像素 */
+  moves:0,
+  mistakes:0,
+  stars:0,
+  sec:0,
+  timerId:null,
+  auto:false,     /* 自动示范模式（揭示答案） */
+  autoSeen:false, /* 本关是否看过示范 */
+  st:null,        /* 当前步骤的运行状态 */
+  dragBusy:false,
+  epoch:0         /* 状态纪元：重开/换关时 +1，让过期的延时回调自动失效 */
+};
+/* 延时回调包装：期间若重开/换关（纪元变化），回调自动作废 */
+function later(fn, ms){
+  var e = G.epoch;
+  setTimeout(function(){ if (G.epoch === e) fn(); }, ms);
+}
+function curLevel(){ return G.levelList[G.levelIdx]; }
+function curStepData(){
+  var L = curLevel();
+  var s = L.steps[G.stepIdx];
+  if (s.t === "grow") return L.grow;
+  return s;
+}
+function curStepType(){ return curLevel().steps[G.stepIdx].t; }
+
+/* ============================================================
+   舞台尺寸：比例尺 = 可用宽度 ÷ 本关最大数值
+   ============================================================ */
+function calcScale(maxVal){
+  var track = $("trackZone");
+  var avail = (track.clientWidth || 700) - 110; /* 留出标签区域 */
+  if (avail < 200) avail = Math.max(track.clientWidth || 320, 260) - 90;
+  var s = avail / maxVal;
+  if (s > 20) s = 20;
+  if (s < 3) s = 3;
+  return s;
+}
+function levelMaxVal(){
+  var L = curLevel(), m = 0;
+  L.steps.forEach(function(s){
+    if (s.t === "lay")  m = Math.max(m, s.unit * s.n + (s.d || 0));
+    if (s.t === "cut")  m = Math.max(m, s.bigTotal);
+    if (s.t === "gap")  m = Math.max(m, s.after);
+    if (s.t === "fill") m = Math.max(m, s.total);
+  });
+  if (L.grow) m = Math.max(m, L.grow.rowA.v, L.grow.expect);
+  if (L.refVal) m = Math.max(m, L.refVal);
+  if (L.bigVal) m = Math.max(m, L.bigVal);
+  return m;
+}
+
+/* ============================================================
+   提示条 / 反馈
+   ============================================================ */
+function setHint(txt, mood){
+  $("hintText").textContent = txt;
+  var bar = $("hintBar");
+  bar.className = "";
+  if (mood === "warn") bar.className = "warn";
+  if (mood === "good") bar.className = "good";
+  $("hintIcon").textContent = mood === "warn" ? "🔁" : (mood === "good" ? "🌟" : "👉");
+}
+function flashHint(txt){
+  var old = $("hintText").textContent;
+  setHint(txt, "warn"); sndMiss();
+  setTimeout(function(){ if (!G.auto) setHint(old); }, 1800);
+}
+function addMoves(n){ G.moves += (n || 1); $("stMoves").textContent = G.moves; }
+
+/* ============================================================
+   拖拽引擎（Pointer Events，鼠标触摸通用）
+   src：可拖元素；zones：[{elm, onDrop(payload, src)}]
+   ============================================================ */
+function makeDraggable(src, payload, zones, onMiss){
+  src.addEventListener("pointerdown", function(e){
+    if (G.dragBusy || G.auto) return;
+    if (src.classList.contains("used")) return;
+    e.preventDefault();
+    var rect = src.getBoundingClientRect();
+    var ghost = src.cloneNode(true);
+    ghost.style.position = "fixed";
+    ghost.style.left = (e.clientX - rect.width / 2) + "px";
+    ghost.style.top  = (e.clientY - rect.height / 2) + "px";
+    ghost.style.width = rect.width + "px";
+    ghost.style.height = rect.height + "px";
+    ghost.style.zIndex = "100";
+    ghost.style.pointerEvents = "none";
+    ghost.style.margin = "0";
+    document.body.appendChild(ghost);
+    src.classList.add("dragging");
+    function move(ev){
+      ghost.style.left = (ev.clientX - rect.width / 2) + "px";
+      ghost.style.top  = (ev.clientY - rect.height / 2) + "px";
+    }
+    function up(ev){
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      ghost.remove();
+      src.classList.remove("dragging");
+      /* 命中检测：指针位置落在哪个放区内 */
+      var hit = null;
+      for (var i = 0; i < zones.length; i++){
+        var pad = zones[i].pad || 8;          /* 水平容差，细线段可加大 */
+        var z = zones[i].elm.getBoundingClientRect();
+        if (z.width === 0 && z.height === 0) continue;
+        if (ev.clientX >= z.left - pad && ev.clientX <= z.right + pad &&
+            ev.clientY >= z.top - 26 && ev.clientY <= z.bottom + 26){
+          hit = zones[i]; break;
+        }
+      }
+      if (hit){
+        hit.onDrop(payload, src);
+      } else {
+        if (onMiss) onMiss(payload);
+      }
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  });
+}
+
+/* ============================================================
+   流程控制
+   ============================================================ */
+function showMenu(){
+  stopTimer();
+  G.epoch++;
+  G.screen = "menu";
+  $("menuScreen").classList.remove("hidden");
+  $("gameScreen").classList.add("hidden");
+  $("finalMask").classList.add("hidden");
+  $("winMask").classList.add("hidden");
+}
+function startDiff(key){
+  G.epoch++;
+  G.auto = false;
+  G.diffKey = key;
+  applyTheme(THEMES[Math.floor(Math.random() * THEMES.length)]);
+  G.levelList = shuffle(DIFFS[key].pool).slice(0, 3);
+  G.levelIdx = 0; G.moves = 0; G.mistakes = 0; G.stars = 0; G.sec = 0;
+  G.screen = "game";
+  $("menuScreen").classList.add("hidden");
+  $("gameScreen").classList.remove("hidden");
+  $("finalMask").classList.add("hidden");
+  $("winMask").classList.add("hidden");
+  $("stMoves").textContent = "0";
+  $("stTime").textContent = "00:00";
+  startTimer();
+  renderLevel();
+  showRule();
+}
+function startTimer(){
+  stopTimer();
+  G.timerId = setInterval(function(){
+    G.sec++; $("stTime").textContent = fmtTime(G.sec);
+  }, 1000);
+}
+function stopTimer(){
+  if (G.timerId){ clearInterval(G.timerId); G.timerId = null; }
+}
+function renderLevel(){
+  G.epoch++;
+  G.stepIdx = 0; G.auto = false; G.autoSeen = false;
+  var L = curLevel();
+  $("lvChip").textContent = DIFFS[G.diffKey].name + " · 第" + (G.levelIdx + 1) + "关";
+  $("qTag").textContent = "第" + (G.levelIdx + 1) + "关 · " + (L.tag || "关卡");
+  /* 题干完整呈现，数字高亮 */
+  var qt = $("qText"); qt.innerHTML = "";
+  qt.appendChild(renderQuestionRich(L.text));
+  calcScaleAndRender();
+}
+/* 把题干里的数字包上高亮 span */
+function renderQuestionRich(text){
+  var box = el("span");
+  var parts = text.split(/([0-9]+(?:\.[0-9]+)?)/g);
+  parts.forEach(function(p){
+    if (/^[0-9]/.test(p)){
+      box.appendChild(el("span", "num", p));
+    } else {
+      box.appendChild(document.createTextNode(p));
+    }
+  });
+  return box;
+}
+function calcScaleAndRender(){
+  G.scale = calcScale(levelMaxVal());
+  renderStep();
+}
+
+/* ============================================================
+   渲染：参照区
+   ============================================================ */
+function renderRefRow(name, val, unit){
+  var w = Math.max(val * G.scale, 40);
+  var row = el("div", "segrow");
+  row.appendChild(el("div", "rname", name));
+  var seg = el("div", "seg ref" + (w < 56 ? " narrow" : ""), "");
+  seg.style.width = w + "px";
+  seg.appendChild(el("span", "", val + (unit || "")));
+  row.appendChild(seg);
+  $("refZone").innerHTML = "";
+  $("refZone").appendChild(row);
+}
+
+/* ============================================================
+   各步骤渲染 + 交互
+   ============================================================ */
+function clearTrack(){ $("trackZone").innerHTML = ""; $("refZone").innerHTML = ""; }
+function clearDepot(){
+  var d = $("depotZone");
+  while (d.childNodes.length > 1) d.removeChild(d.lastChild);
+}
+
+function renderStep(){
+  G.st = {};
+  clearDepot();
+  $("fbText").classList.add("hidden");
+  var t = curStepType();
+  if (t === "lay")  return renderLay();
+  if (t === "mod")  return renderMod();
+  if (t === "cut")  return renderCut();
+  if (t === "gap")  return renderGap();
+  if (t === "fill") return renderFill(null, 0);
+  if (t === "grow") return renderGrow();
+  if (t === "frame")return renderFrame();
+}
+
+/* ---------- lay：拖 n 条一段线段 ---------- */
+function renderLay(){
+  var L = curLevel(), s = curStepData();
+  clearTrack();
+  G.st = { placed:0, need:s.n, unit:s.unit };
+  if (L.refName) renderRefRow(L.refName, L.refVal, L.unit || "");
+  var zone = $("trackZone");
+  var empty = el("div");
+  empty.style.cssText = "border:3px dashed var(--line);border-radius:14px;min-height:110px;display:flex;align-items:center;justify-content:center;color:#b9a98e;font-size:16px;font-weight:bold;padding:8px;";
+  empty.textContent = "【" + (s.goalName || "搭建区") + "】把线段拖到这里";
+  zone.appendChild(empty);
+  G.st.emptyEl = empty;   /* 记住占区元素，后续线段插在它前面 */
+  /* 材料仓：一段线段（无限供应） */
+  var item = el("div", "depotItem segitem", "一段线段");
+  item.style.width = Math.max(s.unit * G.scale * 0.6, 96) + "px";
+  $("depotZone").appendChild(item);
+  makeDraggable(item, {}, [
+    { elm: empty, onDrop: function(){ placeLaySeg(item); } },
+    { elm: zone,  onDrop: function(){ placeLaySeg(item); } }
+  ], function(){ flashHint("要把线段拖进搭建区里哦！"); });
+  setHint(s.hintOverride || ("从材料仓把「一段线段」拖到搭建区，一共拖 " + s.n + " 段！"));
+}
+function placeLaySeg(srcItem){
+  var zone = $("trackZone");
+  var w = Math.max(G.st.unit * G.scale, 40);
+  var row = el("div", "segrow");
+  row.appendChild(el("div", "rname", "第" + (G.st.placed + 1) + "段"));
+  var seg = el("div", "seg pop" + (w < 56 ? " narrow" : ""), "");
+  seg.style.width = w + "px";
+  seg.appendChild(el("span", "", G.st.unit + (curLevel().unit || "")));
+  row.appendChild(seg);
+  var empty = G.st.emptyEl;
+  if (empty && empty.parentNode === zone) zone.insertBefore(row, empty);
+  else zone.appendChild(row);
+  sndOK(); addMoves();
+  G.st.placed++;
+  if (G.st.placed >= G.st.need){
+    srcItem.classList.add("used");
+    setHint("太棒了，" + G.st.need + " 段搭好了！", "good");
+    later(stepDone, 650);
+  } else {
+    setHint("很好！再拖 " + (G.st.need - G.st.placed) + " 段。");
+  }
+}
+
+/* ---------- mod：接上 "+d" 加块 或 "-d" 缺口块 ---------- */
+function renderMod(){
+  var s = curStepData();
+  G.st = { done:false };
+  var zone = $("trackZone");
+  var rows = zone.querySelectorAll(".segrow");
+  var anchor = rows[rows.length - 1];
+  var slot = el("div", "slot", s.kind === "tail" ? ("接 +" + s.d) : ("接 −" + s.d));
+  slot.style.minWidth = Math.max(Math.abs(s.d) * G.scale, 46) + "px";
+  slot.style.marginLeft = "6px";
+  anchor.appendChild(slot);
+  var item = el("div", "depotItem", s.kind === "tail" ? ("+" + s.d + " 加块") : ("−" + s.d + " 缺口块"));
+  item.appendChild(el("span", "sub", s.kind === "tail" ? "比几倍还多" : "比几倍还少"));
+  $("depotZone").appendChild(item);
+  makeDraggable(item, {}, [
+    { elm: slot, onDrop: function(){ placeMod(item, slot); } }
+  ], function(){ flashHint("把" + (s.kind === "tail" ? "加块" : "缺口块") + "拖到线段末尾的虚线框上！"); });
+  setHint(s.kind === "tail"
+    ? ("题目说「还多 " + s.d + "」，把「+" + s.d + " 加块」拖到最后一段的末尾！")
+    : ("题目说「还少 " + s.d + "」，把「−" + s.d + " 缺口块」接到线段末尾，表示还差一点才到整倍！"));
+}
+function placeMod(item, slot){
+  if (G.st.done) return;
+  G.st.done = true;
+  var s = curStepData();
+  slot.className = s.kind === "tail" ? "modblk tail pop" : "modblk short pop";
+  slot.style.minWidth = Math.max(Math.abs(s.d) * G.scale, 46) + "px";
+  slot.textContent = s.kind === "tail" ? ("+" + s.d) : ("−" + s.d);
+  item.classList.add("used");
+  sndOK(); addMoves();
+  setHint("线段图搭好了！多几少几都表示出来了。", "good");
+  later(stepDone, 750);
+}
+
+/* ---------- cut：把 +d 小尾巴拖进回收站 ---------- */
+function renderCut(){
+  var L = curLevel(), s = curStepData();
+  clearTrack();
+  G.st = { done:false };
+  var zone = $("trackZone");
+  var lab = el("div", "biglabel");
+  lab.appendChild(el("span", "", L.bigName + "一共 " + s.bigTotal + (L.unit || "")));
+  var chip = el("span", "val", "整倍部分 ?");
+  chip.id = "bigChip";
+  lab.appendChild(chip);
+  zone.appendChild(lab);
+  var row = el("div", "bigrow");
+  var mainw = (s.bigTotal - s.extra) * G.scale;
+  var main = el("div", "mainseg", "「" + (L.goalName || "") + "」的整倍部分");
+  main.style.width = Math.max(mainw, 120) + "px";
+  var tail = el("div", "tailseg", "+" + s.extra);
+  tail.style.width = Math.max(s.extra * G.scale, 44) + "px";
+  row.appendChild(main); row.appendChild(tail);
+  zone.appendChild(row);
+  /* 回收站 */
+  var bin = el("div", "bin", "🗑");
+  bin.appendChild(el("span", "sub", "回收站"));
+  $("depotZone").appendChild(bin);
+  makeDraggable(tail, { extra:s.extra }, [
+    { elm: bin, onDrop: function(){ placeCut(tail, chip); } }
+  ], function(){ flashHint("把尾巴上的「+" + s.extra + "」拖进回收站！"); });
+  setHint("多出来的部分要先去掉！把线段尾巴上的「+" + s.extra + "」拖进回收站。");
+}
+function placeCut(tail, chip){
+  if (G.st.done) return;
+  G.st.done = true;
+  var s = curStepData(), L = curLevel();
+  tail.classList.add("fly");
+  sndOK(); addMoves();
+  later(function(){
+    tail.remove();
+    chip.textContent = "整倍部分 = " + (s.bigTotal - s.extra) + (L.unit || "");
+    var bub = el("div", "eqbubble", s.bigTotal + " − " + s.extra + " = " + s.after);
+    $("trackZone").appendChild(bub);
+    setHint("去掉多的 " + s.extra + "，整倍部分就是 " + s.after + "！", "good");
+  }, 480);
+  later(stepDone, 1600);
+}
+
+/* ---------- gap：把 +d 补块补到虚线缺口 ---------- */
+function renderGap(){
+  var L = curLevel(), s = curStepData();
+  clearTrack();
+  G.st = { done:false };
+  var zone = $("trackZone");
+  var lab = el("div", "biglabel");
+  lab.appendChild(el("span", "", L.bigName + " " + s.bigTotal + (L.unit || "")));
+  lab.appendChild(el("span", "", "→ 还差 " + s.gapVal + " 才到「" + (L.goalName || "") + "」的整倍"));
+  zone.appendChild(lab);
+  var row = el("div", "bigrow");
+  var main = el("div", "mainseg", s.bigTotal + (L.unit || ""));
+  main.style.width = Math.max(s.bigTotal * G.scale, 120) + "px";
+  var gap = el("div", "gapslot", "缺 " + s.gapVal);
+  gap.style.width = Math.max(s.gapVal * G.scale, 44) + "px";
+  row.appendChild(main); row.appendChild(gap);
+  zone.appendChild(row);
+  var item = el("div", "depotItem", "+" + s.gapVal + " 补块");
+  item.appendChild(el("span", "sub", "把少的补上"));
+  $("depotZone").appendChild(item);
+  makeDraggable(item, {}, [
+    { elm: gap, onDrop: function(){ placeGap(item, gap); } }
+  ], function(){ flashHint("把补块拖到虚线缺口上！"); });
+  setHint("「比整倍少 " + s.gapVal + "」→ 把「+" + s.gapVal + " 补块」补到缺口处，凑成整倍！");
+}
+function placeGap(item, gap){
+  if (G.st.done) return;
+  G.st.done = true;
+  var s = curStepData();
+  gap.className = "modblk tail pop";
+  gap.textContent = "+" + s.gapVal;
+  gap.style.minWidth = Math.max(s.gapVal * G.scale, 44) + "px";
+  item.classList.add("used");
+  sndOK(); addMoves();
+  var bub = el("div", "eqbubble", s.bigTotal + " + " + s.gapVal + " = " + s.after);
+  $("trackZone").appendChild(bub);
+  setHint("补上了！现在正好是整倍数 " + s.after + "。", "good");
+  later(stepDone, 1400);
+}
+
+/* ---------- fill：把一份块铺满大线段 ---------- */
+function renderFill(reuseBox, filled0){
+  var L = curLevel(), s = curStepData();
+  if (!reuseBox) clearTrack();
+  G.st = { filled: filled0 || 0, parts: s.parts, each: s.each, total: s.total, revealed:false };
+  var zone = $("trackZone");
+  var box;
+  if (reuseBox){
+    box = reuseBox;
+  } else {
+    var lab = el("div", "biglabel");
+    lab.appendChild(el("span", "", s.baseLabel || (L.bigName + " " + s.total + (L.unit || ""))));
+    lab.appendChild(el("span", "", "→ 平均分成 " + s.parts + " 份，就是「" + (s.goalName || L.goalName || "") + "」的量"));
+    zone.appendChild(lab);
+    box = el("div", "fillbox");
+    box.style.width = Math.max(s.total * G.scale, 140) + "px";
+    zone.appendChild(box);
+  }
+  var w = Math.max((s.total * G.scale) / s.parts, 34);
+  G.st.blkW = w; G.st.box = box;
+  var item = el("div", "depotItem", "一份块");
+  item.appendChild(el("span", "sub", "一份有多长？铺铺看"));
+  item.style.width = Math.max(w * 0.9, 88) + "px";
+  $("depotZone").appendChild(item);
+  makeDraggable(item, {}, [
+    { elm: box, onDrop: function(){ placeFillPart(item); } }
+  ], function(){ flashHint("把「一份块」拖到大线段上铺起来！"); });
+  setHint("「" + (s.goalName || L.goalName || "") + "」是它的 " + s.parts + " 倍 → 把「一份块」铺满整条线段，一共铺 " + s.parts + " 块！（已铺 " + G.st.filled + " 块）");
+}
+function placeFillPart(item){
+  var st = G.st;
+  if (st.revealed){ flashHint("已经铺满啦！"); return; }
+  var p = el("div", "fpart fresh", "?");
+  p.style.left = (st.filled * st.blkW) + "px";
+  p.style.width = st.blkW + "px";
+  st.box.appendChild(p);
+  sndOK(); addMoves();
+  st.filled++;
+  if (st.filled >= st.parts){
+    st.revealed = true;
+    item.classList.add("used");
+    setHint("铺满了 " + st.parts + " 份！看看每一份是多少……", "good");
+    /* 依次翻转显示每份的值 */
+    var parts = st.box.querySelectorAll(".fpart");
+    for (var i = 0; i < parts.length; i++){
+      (function(pp, idx){
+        setTimeout(function(){
+          pp.classList.add("reveal");
+          pp.textContent = st.each;
+          beep(560 + idx * 90, .1);
+        }, 300 + idx * 260);
+      })(parts[i], i);
+    }
+    later(function(){
+      var bub = el("div", "eqbubble", st.total + " ÷ " + st.parts + " = " + st.each);
+      $("trackZone").appendChild(bub);
+      setHint("每一份就是 " + st.each + "！", "good");
+    }, 300 + st.parts * 260 + 150);
+    later(stepDone, 300 + st.parts * 260 + 1300);
+  } else {
+    setHint("很好！一共要铺 " + st.parts + " 块，已铺 " + st.filled + " 块。");
+  }
+}
+
+/* ---------- grow：每拖一个 +1 实时探索 ---------- */
+function renderGrow(){
+  var L = curLevel(), g = L.grow;
+  clearTrack();
+  G.st = { cur: g.rowB.start, expect: g.expect, mode: g.mode };
+  var zone = $("trackZone");
+  var rowA = el("div", "growrow");
+  rowA.appendChild(el("div", "rname", g.rowA.name));
+  var segA = el("div", "growseg targetrow", g.rowA.v + g.rowA.unit);
+  segA.style.width = Math.max(g.rowA.v * G.scale, 42) + "px";
+  rowA.appendChild(segA);
+  zone.appendChild(rowA);
+  var rowB = el("div", "growrow");
+  rowB.appendChild(el("div", "rname", g.rowB.name));
+  var segB = el("div", "growseg", g.rowB.start + g.rowB.unit);
+  segB.id = "segB";
+  segB.style.width = Math.max(g.rowB.start * G.scale, 42) + "px";
+  rowB.appendChild(segB);
+  zone.appendChild(rowB);
+  $("fbText").classList.remove("hidden");
+  var item = el("div", "depotItem", "+1 " + g.rowB.unit);
+  item.appendChild(el("span", "sub", "每拖一次加一个"));
+  $("depotZone").appendChild(item);
+  makeDraggable(item, {}, [
+    { elm: segB, pad: 40, onDrop: function(){ placeGrow(item); } }
+  ], function(){ flashHint("把「+1」拖到" + g.rowB.name + "的线段上！"); });
+  updateGrowFB();
+  setHint("每次拖一个「+1 " + g.rowB.unit + "」放到" + g.rowB.name + "的线段上，直到「" + g.rowA.name + " " + g.rowA.v + g.rowA.unit + "」正好是它的 " + g.times + " 倍！");
+}
+function updateGrowFB(){
+  var L = curLevel(), g = L.grow, v = G.st.cur;
+  var fb = $("fbText");
+  if (G.st.mode === "multiple"){
+    var q = Math.floor(g.rowA.v / v), r = g.rowA.v % v;
+    if (r === 0 && q === g.times){
+      fb.textContent = "现在：" + g.rowA.name + " " + g.rowA.v + g.rowA.unit + "，" + g.rowB.name + " " + v + g.rowB.unit + " → " + g.rowA.v + " ÷ " + v + " = " + q + "，正好 " + q + " 倍！";
+    } else if (r === 0){
+      fb.textContent = "现在：" + g.rowA.name + " " + g.rowA.v + g.rowA.unit + "，" + g.rowB.name + " " + v + g.rowB.unit + " → " + g.rowA.v + " ÷ " + v + " = " + q + "，是 " + q + " 倍，还不是正好 " + g.times + " 倍。";
+    } else {
+      fb.textContent = "现在：" + g.rowA.name + " " + g.rowA.v + g.rowA.unit + "，" + g.rowB.name + " " + v + g.rowB.unit + " → " + g.rowA.v + " ÷ " + v + " = " + q + " 倍还多 " + r + "，还不是正好 " + g.times + " 倍。";
+    }
+  } else {
+    var goal = g.expect;
+    if (v >= goal){
+      fb.textContent = "现在：" + g.rowB.name + " " + v + g.rowB.unit + "，正好是 " + g.rowA.name + " " + g.rowA.v + g.rowA.unit + " 的 " + g.times + " 倍（" + g.rowA.v + " × " + g.times + " = " + goal + "）！";
+    } else {
+      fb.textContent = "现在：" + g.rowB.name + " " + v + g.rowB.unit + "，" + g.rowA.name + "的 " + g.times + " 倍是 " + goal + g.rowB.unit + "（" + g.rowA.v + " × " + g.times + "），还差 " + (goal - v) + g.rowB.unit + "。";
+    }
+  }
+}
+function placeGrow(item){
+  var g = curLevel().grow;
+  G.st.cur++;
+  var segB = $("segB");
+  segB.style.width = Math.max(G.st.cur * G.scale, 42) + "px";
+  segB.textContent = G.st.cur + g.rowB.unit;
+  segB.classList.remove("pop"); void segB.offsetWidth; segB.classList.add("pop");
+  sndOK(); addMoves();
+  updateGrowFB();
+  if (G.st.cur >= G.st.expect){
+    segB.classList.add("done");
+    item.classList.add("used");
+    setHint("正好 " + G.st.expect + g.rowB.unit + "！" + g.rowA.name + "是它的 " + g.times + " 倍啦。", "good");
+    later(stepDone, 1200);
+  } else {
+    setHint("继续试试！再拖一个「+1 " + g.rowB.unit + "」。");
+  }
+}
+
+/* ---------- frame：相差框罩住多出的份数 ---------- */
+function renderFrame(){
+  var L = curLevel(), s = curStepData();
+  G.st = { done:false };
+  var zone = $("trackZone");
+  /* 保留上一步铺好的排球行，追加足球行与相差框 */
+  var frow = el("div", "growrow");
+  frow.appendChild(el("div", "rname", L.bigName + "（" + s.parts + "份）"));
+  var fw = el("div", "diffwrap");
+  fw.style.width = (s.parts * s.each * G.scale) + "px";
+  fw.style.height = "46px";
+  fw.id = "fillWrap";
+  for (var i = 0; i < s.parts; i++){
+    var b = el("div", "seg", s.each + (s.unit || ""));
+    b.style.cssText = "position:absolute;top:0;height:100%;left:" + (i * s.each * G.scale) + "px;width:" + (s.each * G.scale - 3) + "px;font-size:16px;";
+    fw.appendChild(b);
+  }
+  var frame = el("div", "");
+  frame.id = "diffFrame";
+  frame.appendChild(el("span", "flabel", "多出的部分"));
+  frame.style.width = (s.diff * s.each * G.scale - 3) + "px";
+  frame.style.left = "-9999px";
+  fw.appendChild(frame);
+  frow.appendChild(fw);
+  zone.appendChild(frow);
+  var orow = el("div", "growrow");
+  orow.appendChild(el("div", "rname", "足球（1份）"));
+  var ob = el("div", "seg ref", s.each + (s.unit || ""));
+  ob.style.width = Math.max(s.each * G.scale, 42) + "px";
+  orow.appendChild(ob);
+  zone.appendChild(orow);
+  /* 仓库：相差框（拖到排球行上自由定位） */
+  var item = el("div", "depotItem", "相差框");
+  item.appendChild(el("span", "sub", "罩住多出来的份数"));
+  $("depotZone").appendChild(item);
+  enableFrameDrag(item, fw, frame, s.each * G.scale, s);
+  setHint(L.bigName + "有 " + s.parts + " 份，足球只有 1 份 → 把「相差框」拖去罩住" + L.bigName + "里比足球多出来的部分！");
+}
+function enableFrameDrag(item, wrap, frame, blkW, s){
+  item.addEventListener("pointerdown", function(e){
+    if (!G.st || G.st.done || G.auto) return;
+    e.preventDefault();
+    var wr = wrap.getBoundingClientRect();
+    function move(ev){
+      var x = ev.clientX - wr.left - frame.offsetWidth / 2;
+      x = Math.max(0, Math.min(x, wrap.offsetWidth - frame.offsetWidth));
+      frame.style.left = x + "px";
+    }
+    move(e);
+    function up(ev){
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if (!G.st || G.st.done) return;
+      var yr = wrap.getBoundingClientRect();
+      if (ev.clientY < yr.top - 34 || ev.clientY > yr.bottom + 34){
+        frame.style.left = "-9999px";
+        flashHint("把相差框拖到" + curLevel().bigName + "的线段上！");
+        return;
+      }
+      var x = ev.clientX - wr.left - frame.offsetWidth / 2;
+      var idx = Math.round(x / blkW);
+      if (idx < 0) idx = 0;
+      if (idx > s.parts - s.diff) idx = s.parts - s.diff;
+      if (idx === 0){
+        frame.style.left = "-9999px";
+        flashHint("第 1 份和足球同样多，不要框进去，罩住多出来的部分！");
+        G.mistakes++;
+        return;
+      }
+      /* 放对了：锁定在多出的份上 */
+      G.st.done = true;
+      frame.classList.add("locked");
+      frame.style.left = (idx * blkW) + "px";
+      item.classList.add("used");
+      sndOK(); addMoves();
+      var bub = el("div", "eqbubble", (s.parts * s.each) + " − " + s.each + " = " + (s.parts * s.each - s.each));
+      $("trackZone").appendChild(bub);
+      setHint("罩住了多出来的 " + s.diff + " 份！多的就是 " + (s.parts * s.each - s.each) + (s.unit || "") + "。", "good");
+      later(stepDone, 1300);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  });
+}
+
+/* ============================================================
+   步骤推进 / 通关
+   ============================================================ */
+function stepDone(){
+  var steps = curLevel().steps;
+  G.stepIdx++;
+  if (G.stepIdx < steps.length){
+    later(function(){
+      renderStep();
+      if (G.auto) later(autoSimStep, 350);   /* 示范模式继续演示下一步 */
+    }, 200);
+  } else {
+    G.auto = false;
+    later(levelDone, 300);
+  }
+}
+function levelDone(){
+  sndBig();
+  confetti(1600);
+  var L = curLevel();
+  $("winTitle").textContent = "🎉 第 " + (G.levelIdx + 1) + " 关 闯关成功！";
+  var ul = $("winSol"); ul.innerHTML = "";
+  L.solution.forEach(function(line, i){
+    var li = el("li", i === L.solution.length - 1 ? "answer" : "", line);
+    ul.appendChild(li);
+    setTimeout(function(){ li.classList.add("show"); }, 350 + i * 420);
+  });
+  $("winNote").textContent = G.autoSeen
+    ? "这一关是看老师示范完成的，再自己挑战一次会更棒！"
+    : "线段图搭得又对又稳，真厉害！";
+  $("btnNext").textContent = (G.levelIdx + 1 < G.levelList.length) ? "下一关 →" : "查看成绩 🏆";
+  /* 星星：看过示范或失误多会少一颗 */
+  var st = G.autoSeen ? (G.mistakes === 0 ? 2 : 1)
+                      : (G.mistakes === 0 ? 3 : (G.mistakes <= 4 ? 2 : 1));
+  G.stars += st;
+  $("winMask").classList.remove("hidden");
+}
+function nextLevel(){
+  $("winMask").classList.add("hidden");
+  G.mistakes = 0;
+  G.autoSeen = false;
+  if (G.levelIdx + 1 < G.levelList.length){
+    G.levelIdx++;
+    renderLevel();
+  } else {
+    finalDone();
+  }
+}
+function finalDone(){
+  stopTimer();
+  var maxStar = G.levelList.length * 3;
+  var row = $("starRow"); row.innerHTML = "";
+  var lit = Math.round(G.stars / maxStar * 3);
+  for (var i = 0; i < 3; i++){
+    row.appendChild(el("span", i < lit ? "" : "off", "⭐"));
+  }
+  $("fTime").textContent = fmtTime(G.sec);
+  $("fMoves").textContent = G.moves;
+  $("fStars").textContent = G.stars + " / " + maxStar;
+  $("fWords").textContent = lit >= 3 ? "线段图大师就是你！倍数关系全都被你拖出来啦。"
+    : lit === 2 ? "很棒！再玩一次争取全对不失误，星星更多哦。"
+    : "别灰心，再挑战一次，拖一拖就更熟练啦！";
+  $("finalMask").classList.remove("hidden");
+  sndBig();
+  fireworks(3800);
+}
+
+/* ============================================================
+   揭示答案：自动示范剩余步骤（与手动成功走同一路径）
+   ============================================================ */
+function revealAnswer(){
+  if (G.screen !== "game") return;
+  if (G.auto) return;
+  G.auto = true; G.autoSeen = true;
+  setHint("看仔细啦，老师来示范一遍……", "good");
+  autoSimStep();
+}
+/* 自动示范当前步骤（与手动放置走同一条成功路径） */
+function autoSimStep(){
+  var steps = curLevel().steps;
+  if (G.stepIdx >= steps.length) return;
+  {
+    var t = steps[G.stepIdx].t;
+    var es = G.epoch;
+    if (t === "lay"){
+      var src = $("depotZone").querySelector(".segitem");
+      var iv = setInterval(function(){
+        if (G.epoch !== es){ clearInterval(iv); return; }
+        if (!src || G.st.placed >= G.st.need){ clearInterval(iv); return; }
+        placeLaySeg(src);
+      }, 620);
+    } else if (t === "mod"){
+      later(function(){
+        var item = $("depotZone").querySelector(".depotItem");
+        var slot = document.querySelector("#trackZone .slot");
+        if (item && slot) placeMod(item, slot);
+      }, 620);
+    } else if (t === "cut"){
+      later(function(){
+        var tail = document.querySelector("#trackZone .tailseg");
+        var chip = $("bigChip");
+        if (tail && chip) placeCut(tail, chip);
+      }, 620);
+    } else if (t === "gap"){
+      later(function(){
+        var item = $("depotZone").querySelector(".depotItem");
+        var gap = document.querySelector("#trackZone .gapslot");
+        if (item && gap) placeGap(item, gap);
+      }, 620);
+    } else if (t === "fill"){
+      var ivf = setInterval(function(){
+        if (G.epoch !== es){ clearInterval(ivf); return; }
+        var item = $("depotZone").querySelector(".depotItem");
+        if (!item || G.st.revealed){ clearInterval(ivf); return; }
+        placeFillPart(item);
+      }, 640);
+    } else if (t === "grow"){
+      var ivg = setInterval(function(){
+        if (G.epoch !== es){ clearInterval(ivg); return; }
+        var item = $("depotZone").querySelector(".depotItem");
+        if (!item || G.st.cur >= G.st.expect){ clearInterval(ivg); return; }
+        placeGrow(item);
+      }, 640);
+    } else if (t === "frame"){
+      later(function(){
+        var frame = $("diffFrame");
+        if (frame && G.st && !G.st.done){
+          var s = curStepData();
+          var blkW = s.each * G.scale;
+          G.st.done = true;
+          frame.classList.add("locked");
+          frame.style.left = blkW + "px";
+          var item = $("depotZone").querySelector(".depotItem");
+          if (item) item.classList.add("used");
+          sndOK(); addMoves();
+          var bub = el("div", "eqbubble", (s.parts * s.each) + " − " + s.each + " = " + (s.parts * s.each - s.each));
+          $("trackZone").appendChild(bub);
+          setHint("示范：罩住多出来的 " + s.diff + " 份！", "good");
+          later(stepDone, 1200);
+        }
+      }, 700);
+    }
+  }
+}
+
+/* ============================================================
+   庆祝特效：彩纸 + 烟花（Canvas 手绘粒子）
+   ============================================================ */
+function fxParticles(kind, dur){
+  var cv = $("fxCanvas");
+  cv.classList.remove("hidden");
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  var ctx = cv.getContext("2d");
+  var cols = ["#ffd23e", "#ff6b6b", "#4ecdc4", "#a78bfa", "#f59e0b", "#2fbf71", "#3a9bff"];
+  var ps = [];
+  if (kind === "confetti"){
+    for (var i = 0; i < 130; i++){
+      ps.push({
+        x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * 0.4,
+        vx: (Math.random() - .5) * 2.4, vy: 2.4 + Math.random() * 3.4,
+        s: 6 + Math.random() * 7, r: Math.random() * Math.PI, vr: (Math.random() - .5) * .25,
+        c: cols[Math.floor(Math.random() * cols.length)], shape: Math.random() < .5 ? "r" : "c"
+      });
+    }
+  } else {
+    for (var j = 0; j < 5; j++){
+      var cx = cv.width * (0.18 + Math.random() * 0.64);
+      var cy = cv.height * (0.18 + Math.random() * 0.4);
+      var col = cols[Math.floor(Math.random() * cols.length)];
+      for (var k = 0; k < 34; k++){
+        var ang = Math.PI * 2 * k / 34, sp = 2 + Math.random() * 3.4;
+        ps.push({ x: cx, y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+                  s: 3 + Math.random() * 3.4, g: .045, life: 90 + Math.random() * 50,
+                  c: col, shape: "c" });
+      }
+    }
+  }
+  var t0 = Date.now();
+  function frame(){
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ps.forEach(function(p){
+      p.x += p.vx; p.y += p.vy;
+      if (p.g) p.vy += p.g;
+      if (p.vr) p.r += p.vr;
+      if (p.life) p.life--;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if (p.r) ctx.rotate(p.r);
+      ctx.fillStyle = p.c;
+      ctx.globalAlpha = p.life ? Math.min(1, p.life / 50) : 1;
+      if (p.shape === "r"){ ctx.fillRect(-p.s / 2, -p.s / 3, p.s, p.s * 0.66); }
+      else { ctx.beginPath(); ctx.arc(0, 0, p.s / 2, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+    });
+    ps = ps.filter(function(p){ return p.y < cv.height + 30 && (!p.life || p.life > 0); });
+    if (Date.now() - t0 < dur && ps.length){
+      requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      cv.classList.add("hidden");
+    }
+  }
+  requestAnimationFrame(frame);
+}
+function confetti(dur){ fxParticles("confetti", dur || 1800); }
+function fireworks(dur){ fxParticles("fireworks", dur || 3600); }
+
+/* ============================================================
+   规则面板 / 按钮事件
+   ============================================================ */
+function showRule(){ $("ruleMask").classList.remove("hidden"); }
+
+$("btnRuleOk").addEventListener("click", function(){ $("ruleMask").classList.add("hidden"); });
+$("btnRule").addEventListener("click", showRule);
+$("btnReveal").addEventListener("click", revealAnswer);
+$("btnRestart").addEventListener("click", function(){
+  $("winMask").classList.add("hidden");
+  $("finalMask").classList.add("hidden");
+  startDiff(G.diffKey);   /* 同难度重新随机抽题 */
+});
+$("btnBack").addEventListener("click", showMenu);
+$("btnNext").addEventListener("click", nextLevel);
+$("btnAgain").addEventListener("click", function(){ startDiff(G.diffKey); });
+$("btnMenu").addEventListener("click", showMenu);
+document.querySelectorAll(".diffcard").forEach(function(card){
+  card.addEventListener("click", function(){ startDiff(card.getAttribute("data-diff")); });
+});
+
+/* 进入菜单时随机换一套配色 */
+applyTheme(THEMES[Math.floor(Math.random() * THEMES.length)]);
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a2b/g001", "name": "\u500d\u500d\u4e50\u56ed \u00b7 \u7ebf\u6bb5\u56fe\u642d\u5efa\u5e08\uff08\u8ba4\u8bc6\u500d\uff09", "file": "g001.html", "jiaocan": "\u30101\u3011\u7b2c1\u8bb2 \u8ba4\u8bc6\u500d\uff08\u4e0a\uff09", "unit": "\u7b2c1\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b72\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a2b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

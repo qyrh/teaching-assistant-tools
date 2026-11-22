@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>正多边形分割工坊 · 核心：找中心</title>
+<style>
+/* ================= 全局样式 ================= */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;
+  background:var(--bg,#eff6ff);color:var(--dark,#1e3a8a);
+  transition:background .5s;overflow-x:hidden;
+}
+#app{display:flex;flex-direction:column;min-height:100%;}
+/* ---- 顶栏 ---- */
+header{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:10px 18px;background:var(--main,#2563eb);color:#fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);position:sticky;top:0;z-index:20;
+}
+header h1{font-size:22px;font-weight:800;letter-spacing:1px;}
+#hud{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.hud-chip{
+  background:rgba(255,255,255,.22);border:2px solid rgba(255,255,255,.65);
+  border-radius:20px;padding:4px 14px;font-size:18px;font-weight:700;min-width:96px;text-align:center;
+}
+.hbtn{
+  background:rgba(255,255,255,.92);color:var(--dark,#1e3a8a);border:none;border-radius:20px;
+  padding:7px 16px;font-size:16px;font-weight:700;cursor:pointer;
+}
+.hbtn:hover{background:#fff;transform:translateY(-1px);}
+/* ---- 主区域 ---- */
+main{flex:1;display:none;padding:14px;gap:14px;}
+main.on{display:flex;}
+/* 首页 */
+#screen-home{display:none;flex-direction:column;align-items:center;gap:18px;padding:26px 16px 40px;}
+#screen-home.on{display:flex;}
+.big-title{font-size:40px;font-weight:900;color:var(--main,#2563eb);text-align:center;letter-spacing:2px;}
+.sub-title{font-size:20px;font-weight:700;color:var(--dark,#1e3a8a);}
+.tip-card{
+  max-width:760px;background:#fff;border:3px dashed var(--main,#2563eb);border-radius:16px;
+  padding:16px 22px;font-size:18px;line-height:1.8;box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+.tip-card b{color:var(--main,#2563eb);}
+.diff-wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin-top:8px;}
+.diff-btn{
+  width:230px;border:none;border-radius:18px;padding:20px 16px;cursor:pointer;color:#fff;
+  box-shadow:0 6px 16px rgba(0,0,0,.18);transition:transform .15s;text-align:center;
+}
+.diff-btn:hover{transform:translateY(-5px) scale(1.03);}
+.diff-btn .dn{font-size:24px;font-weight:900;display:block;}
+.diff-btn .dd{font-size:15px;line-height:1.6;display:block;margin-top:8px;opacity:.95;}
+.diff-btn .dc{font-size:14px;display:block;margin-top:8px;background:rgba(255,255,255,.25);border-radius:12px;padding:3px;}
+/* 游戏区 */
+#screen-game{flex-direction:row;align-items:stretch;}
+#left{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;}
+#stage{
+  position:relative;background:#fff;border-radius:16px;box-shadow:inset 0 0 0 3px var(--main);
+  height:min(60vh,560px);min-height:380px;overflow:hidden;
+}
+#cv,#fx{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none;}
+#fx{pointer-events:none;z-index:10;}
+#toast{
+  position:absolute;left:50%;bottom:14px;transform:translateX(-50%) translateY(20px);
+  background:rgba(20,30,60,.88);color:#fff;padding:10px 20px;border-radius:24px;font-size:17px;
+  opacity:0;transition:.3s;pointer-events:none;max-width:88%;text-align:center;z-index:5;
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+/* 成功浮层 */
+#ovl{
+  position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.55);z-index:6;
+}
+#ovl.on{display:flex;}
+#ovl .ovl-card{
+  background:#fff;border:4px solid var(--main);border-radius:20px;padding:22px 26px;max-width:480px;
+  text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.2);animation:pop .45s;
+}
+@keyframes pop{0%{transform:scale(.6);opacity:0;}70%{transform:scale(1.06);}100%{transform:scale(1);}}
+#ovl .stars{font-size:40px;color:#f59e0b;letter-spacing:6px;}
+#ovl h2{font-size:26px;color:var(--main);margin:6px 0;}
+#ovl p{font-size:17px;line-height:1.75;margin:10px 0;text-align:left;}
+#ovl .btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
+/* 卡片拖放托盘 */
+#tray{display:none;flex-direction:column;gap:10px;background:#fff;border-radius:16px;padding:12px 16px;box-shadow:inset 0 0 0 3px var(--main);}
+#tray.on{display:flex;}
+#formula{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:24px;font-weight:900;justify-content:center;}
+.slot{
+  width:62px;height:62px;border:3px dashed var(--main);border-radius:12px;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:var(--main);
+  cursor:pointer;position:relative;
+}
+.slot.ok{border-style:solid;background:#d1fae5;color:#065f46;}
+.slot.shake{animation:shake .4s;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-7px);}75%{transform:translateX(7px);}}
+#cardpool{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;min-height:70px;}
+.card{
+  width:62px;height:62px;border-radius:12px;background:var(--main);color:#fff;font-size:26px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;cursor:grab;user-select:none;touch-action:none;
+  box-shadow:0 3px 8px rgba(0,0,0,.25);position:relative;
+}
+.card.dragging{position:fixed;z-index:99;cursor:grabbing;transform:scale(1.12);box-shadow:0 10px 24px rgba(0,0,0,.35);}
+.card.used{opacity:.25;pointer-events:none;}
+#tray .hint{font-size:15px;color:#555;text-align:center;}
+/* 右侧面板 */
+#panel{
+  width:330px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;
+}
+.card-box{background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 3px 10px rgba(0,0,0,.08);}
+.card-box h3{font-size:17px;color:var(--main);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+#lv-title{font-size:20px;font-weight:900;}
+#lv-quote{font-size:16px;line-height:1.7;background:var(--bg);border-radius:10px;padding:8px 10px;margin-top:6px;}
+#lv-task{font-size:17px;line-height:1.7;font-weight:700;margin-top:8px;color:var(--dark);}
+#lv-legend{font-size:15px;line-height:1.65;color:#555;margin-top:8px;}
+#status{font-size:17px;line-height:1.8;font-weight:700;}
+#status .num{color:var(--main);font-size:20px;}
+.btn-grid{display:flex;flex-wrap:wrap;gap:8px;}
+.gbtn{
+  border:none;border-radius:12px;padding:10px 14px;font-size:16px;font-weight:700;cursor:pointer;
+  background:var(--main);color:#fff;flex:1;min-width:118px;transition:.15s;
+}
+.gbtn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+.gbtn.gray{background:#64748b;}
+.gbtn.gold{background:#d97706;}
+.gbtn.green{background:#059669;}
+/* 规则弹窗 */
+#modal{
+  position:fixed;inset:0;background:rgba(15,25,50,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;
+}
+#modal.on{display:flex;}
+#modal .mcard{
+  background:#fff;border-radius:20px;max-width:620px;width:100%;max-height:86vh;overflow:auto;padding:24px 26px;
+}
+#modal h2{color:var(--main);font-size:26px;margin-bottom:12px;}
+#modal ol{margin-left:22px;font-size:17px;line-height:2;}
+#modal .secret{margin-top:12px;background:var(--bg);border-radius:12px;padding:12px 14px;font-size:17px;line-height:1.9;}
+#modal .mclose{margin-top:16px;width:100%;}
+/* 响应式 */
+@media (max-width:900px){
+  #screen-game{flex-direction:column;}
+  #panel{width:100%;}
+  #stage{height:min(52vh,470px);min-height:330px;}
+  header h1{font-size:18px;}
+  .big-title{font-size:30px;}
+  .hud-chip{font-size:15px;padding:3px 10px;min-width:80px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>正多边形分割工坊</h1>
+    <div id="hud">
+      <div class="hud-chip" id="hud-time">时间 00:00</div>
+      <div class="hud-chip" id="hud-step">步数 0</div>
+      <div class="hud-chip" id="hud-star">★ 0</div>
+      <button class="hbtn" id="btn-rules">规则说明</button>
+      <button class="hbtn" id="btn-home">返回难度选择</button>
+    </div>
+  </header>
+
+  <!-- 首页：难度选择 -->
+  <section id="screen-home" class="on">
+    <div class="big-title">正多边形分割工坊</div>
+    <div class="sub-title">第2讲 正多边形的面积 · 秘籍1：正n边形分割的核心——找中心</div>
+    <div class="tip-card">
+      <b>工坊秘籍：</b>分割正多边形，找<b>边上的等分点</b>或者整个图形的<b>中心点</b>。
+      要分的块数往往是 2 或 3 的倍数，可以先分成两块或三块，再继续往下分。
+      中心点 到每个顶点的距离都相等，它就藏在图形的正中间！
+    </div>
+    <div class="diff-wrap">
+      <button class="diff-btn" data-diff="0" style="background:#2563eb;">
+        <span class="dn">初级 · 初试身手</span>
+        <span class="dd">例题级热身：把图形平均分成 2 块，感受中点与对称的威力</span>
+        <span class="dc">共 3 关</span>
+      </button>
+      <button class="diff-btn" data-diff="1" style="background:#059669;">
+        <span class="dn">中级 · 找中心达人</span>
+        <span class="dd">先亲手找出中心点，再把图形分成 3 块或 4 块</span>
+        <span class="dc">共 3 关</span>
+      </button>
+      <button class="diff-btn" data-diff="2" style="background:#d97706;">
+        <span class="dn">高级 · 智慧之巅</span>
+        <span class="dd">变式与综合：四等分、三等分正方形，还有两道数块计面积挑战</span>
+        <span class="dc">共 5 关</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- 游戏页 -->
+  <main id="screen-game">
+    <div id="left">
+      <div id="stage">
+        <canvas id="cv"></canvas>
+        <canvas id="fx"></canvas>
+        <div id="toast"></div>
+        <div id="ovl"><div class="ovl-card">
+          <div class="stars" id="ovl-stars">★★★</div>
+          <h2 id="ovl-title">太棒了，通关！</h2>
+          <p id="ovl-text"></p>
+          <div class="btns">
+            <button class="gbtn green" id="ovl-next">下一关</button>
+            <button class="gbtn gold" id="ovl-retry">再挑战另一种分法</button>
+            <button class="gbtn gray" id="ovl-home">返回难度选择</button>
+          </div>
+        </div></div>
+      </div>
+      <div id="tray">
+        <div id="formula"></div>
+        <div id="cardpool"></div>
+        <div class="hint" id="tray-hint"></div>
+      </div>
+    </div>
+    <aside id="panel">
+      <div class="card-box">
+        <div id="lv-title">关卡</div>
+        <div id="lv-quote"></div>
+        <div id="lv-task"></div>
+        <div id="lv-legend"></div>
+      </div>
+      <div class="card-box"><h3>实时战况</h3><div id="status">—</div></div>
+      <div class="card-box"><h3>操作台</h3>
+        <div class="btn-grid">
+          <button class="gbtn gray" id="b-undo">撤销一刀</button>
+          <button class="gbtn gray" id="b-clear">清空画笔</button>
+          <button class="gbtn green" id="b-check">检验分割</button>
+          <button class="gbtn gold" id="b-reveal">揭示答案</button>
+          <button class="gbtn" id="b-restart">重新开始</button>
+          <button class="gbtn gray" id="b-back">返回难度选择</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<!-- 规则弹窗 -->
+<div id="modal">
+  <div class="mcard">
+    <h2>工坊规则说明</h2>
+    <ol>
+      <li>选择难度进入挑战，每个关卡都要亲手操作才能通关。</li>
+      <li><b>分图形关：</b>依次点击两个亮点，就能画出一条"分割线"；点击已画好的线可以擦掉它。把图形按要求分好，即自动通关。</li>
+      <li><b>找中心关：</b>图中先不标出中心 O，先点击你认为中心所在的位置，找对了中心才会出现。</li>
+      <li><b>数块关：</b>按提示逐块点击小图形完成计数，再把数字卡片拖进算式空格，点"检验"过关。</li>
+      <li>随时可用：揭示答案 / 重新开始 / 返回难度选择。</li>
+    </ol>
+    <div class="secret"><b>工坊秘籍：</b>分割正多边形，找边上的等分点或整个图形的中心点；块数常是 2 或 3 的倍数，可先分两块、三块再细分。</div>
+    <button class="gbtn mclose" id="m-close">我明白了，出发！</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================================================================
+   正多边形分割工坊
+   核心玩法：学生在画布上点击标记点画分割线，程序用真实几何计算
+   （采样法求区域、面积与形状指纹）实时判断分割是否成功。
+   ================================================================ */
+
+/* ---------------- 基础工具 ---------------- */
+var $ = function(s){ return document.querySelector(s); };
+var TAU = Math.PI * 2;
+var SQ2 = Math.SQRT2;
+function dist2(a,b){ var dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function fmtTime(sec){
+  var m=Math.floor(sec/60), s=sec%60;
+  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+}
+/* 点是否在多边形内（射线法，含边界容差） */
+function pointInPoly(x,y,poly){
+  var inside=false, n=poly.length;
+  for(var i=0,j=n-1;i<n;j=i++){
+    var xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+/* 点到线段距离 */
+function distToSeg(x,y,a,b){
+  var dx=b.x-a.x, dy=b.y-a.y;
+  var L2=dx*dx+dy*dy;
+  if(L2===0) return Math.hypot(x-a.x,y-a.y);
+  var t=((x-a.x)*dx+(y-a.y)*dy)/L2;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(x-(a.x+t*dx), y-(a.y+t*dy));
+}
+/* 叉积符号：点在直线哪一侧 */
+function crossSign(a,b,x,y){ return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x); }
+/* 多边形面积（鞋带公式） */
+function shoelace(poly){
+  var s=0,n=poly.length;
+  for(var i=0;i<n;i++){ var j=(i+1)%n; s+=poly[i].x*poly[j].y-poly[j].x*poly[i].y; }
+  return Math.abs(s)/2;
+}
+
+/* ---------------- 色板（每关随机挑一个，保证常玩常新） ---------------- */
+var PALETTES=[
+ {name:'碧海蓝', main:'#2563eb', dark:'#1e3a8a', bg:'#eff6ff', accents:['#ef4444','#f59e0b','#10b981','#8b5cf6','#ec4899','#06b6d4']},
+ {name:'森林绿', main:'#059669', dark:'#064e3b', bg:'#ecfdf5', accents:['#f97316','#3b82f6','#a855f7','#e11d48','#14b8a6','#eab308']},
+ {name:'暖阳橙', main:'#ea580c', dark:'#7c2d12', bg:'#fff7ed', accents:['#0ea5e9','#22c55e','#a855f7','#f43f5e','#eab308','#14b8a6']},
+ {name:'葡萄紫', main:'#7c3aed', dark:'#4c1d95', bg:'#f5f3ff', accents:['#f59e0b','#06b6d4','#84cc16','#f43f5e','#3b82f6','#ec4899']},
+ {name:'青松翠', main:'#0d9488', dark:'#134e4a', bg:'#f0fdfa', accents:['#f43f5e','#f59e0b','#6366f1','#22c55e','#ec4899','#0ea5e9']},
+ {name:'蔷薇粉', main:'#e11d48', dark:'#881337', bg:'#fff1f2', accents:['#0ea5e9','#f59e0b','#22c55e','#8b5cf6','#14b8a6','#6366f1']}
+];
+
+/* ---------------- 关卡定义 ----------------
+   kind: construct 分图形关 / count 数块关
+   centerMode: shown 直接显示中心 / hidden 需先找中心 / none 无中心点
+   cong: 是否要求"形状都相同"（true=全等，false=只要求大小相同）
+*/
+var LEVELS={
+ t2:{key:'t2',diff:0,kind:'construct',shape:'tri',n:3,target:2,cong:true,centerMode:'none',
+   title:'三角形二分之旅',quote:'例1(1)：把图1中的正三角形分割成大小、形状都相同的两部分（只需画出）。',
+   task:'点击两个亮点画出分割线，把正三角形分成 2 块大小、形状都相同的部分！',
+   legend:'A、B、C 是顶点；M1、M2、M3 分别是三条边的中点。',
+   explain:'从顶点向对边中点连线（中线），就能把正三角形分成大小、形状都相同的两块！三条中线任选一条都行，快再试一条！',
+   sol:[['V0','M1']]},
+ s2:{key:'s2',diff:0,kind:'construct',shape:'sq',n:4,target:2,cong:true,centerMode:'shown',
+   title:'正方形二分之门',quote:'例2(1)：把下面的正方形分割成大小、形状都相同的两部分，至少给出两种方法（只需画出）。',
+   task:'点击两个亮点画出分割线，把正方形分成 2 块大小、形状都相同的部分！',
+   legend:'A、B、C、D 是顶点；M1~M4 是四条边的中点；O 是中心。',
+   explain:'连接一组对边中点，或画一条对角线，都能把正方形分成完全相同的两块——一共 4 种方法，你都发现了吗？',
+   sol:[['M0','M2']]},
+ h2:{key:'h2',diff:0,kind:'construct',shape:'hex',n:6,target:2,cong:true,centerMode:'shown',
+   title:'六边形二分热身',quote:'热身变式：把下面的正六边形分割成大小、形状都相同的两部分（只需画出）。',
+   task:'点击两个亮点画出分割线，把正六边形分成 2 块大小、形状都相同的部分！',
+   legend:'A~F 是六个顶点；M1~M6 是六条边的中点；O 是中心。',
+   explain:'经过中心 O 连接两个相对的顶点（或两条对边的中点），就能把正六边形分成完全相同的两块，一共 6 条这样的线！',
+   sol:[['V0','V3']]},
+ t3:{key:'t3',diff:1,kind:'construct',shape:'tri',n:3,target:3,cong:true,centerMode:'hidden',
+   title:'找中心·三分天下',quote:'例1(2)：把图2、图3中的正三角形分割成大小、形状都相同的三部分，至少找出两种方法（只需画出）。',
+   task:'先点击你认为是中心的位置，找出中心 O；再画分割线，把正三角形分成 3 块大小、形状都相同的部分！',
+   legend:'A、B、C 是顶点；M1~M3 是边的中点；中心找对后会出现点 O。',
+   explain:'从中心向 3 个顶点连线，得到 3 个全等的等腰三角形；从中心向 3 条边的中点连线也行——这正是要求的两种方法！',
+   sol:[['O','V0'],['O','V1'],['O','V2']]},
+ s4:{key:'s4',diff:1,kind:'construct',shape:'sq',n:4,target:4,cong:true,centerMode:'shown',
+   title:'正方形四分之桥',quote:'例2(2)：把下面的正方形分割成大小、形状都相同的四个部分，至少给出两种方法（只需画出）。',
+   task:'点击两个亮点画分割线，把正方形分成 4 块大小、形状都相同的部分！提示：可以想想能不能用上中心 O。',
+   legend:'A、B、C、D 是顶点；M1~M4 是边的中点；O 是中心。',
+   explain:'两条中点连线（十字）、从中心向四个顶点连线、从中心向四条边中点连线，都能四等分正方形——方法多着呢！',
+   sol:[['M0','M2'],['M1','M3']]},
+ h3:{key:'h3',diff:1,kind:'construct',shape:'hex',n:6,target:3,cong:true,centerMode:'hidden',
+   title:'找中心·六边形三分',quote:'例3(1)：把下面的正六边形分割成大小、形状都相同的三个部分，至少给出两种方法（只需画出）。',
+   task:'先找出中心 O，再画分割线，把正六边形分成 3 块大小、形状都相同的部分！',
+   legend:'A~F 是顶点；M1~M6 是边的中点；中心找对后会出现点 O。',
+   explain:'从中心向隔一个的顶点连线（如 O-A、O-C、O-E），得到 3 个全等的菱形；从中心向隔一条边的中点连线，也能得到 3 块全等图形！',
+   sol:[['O','V0'],['O','V2'],['O','V4']]},
+ t4:{key:'t4',diff:2,kind:'construct',shape:'tri',n:3,target:4,cong:true,centerMode:'none',
+   title:'三角形四分挑战',quote:'例1(3)：把图4正三角形分割成大小、形状都相同的四个部分（只需画出）。',
+   task:'画分割线，把正三角形分成 4 块大小、形状都相同的部分！想想三条边的中点能帮上什么忙。',
+   legend:'A、B、C 是顶点；M1~M3 是三条边的中点。',
+   explain:'把三条边的中点两两相连，大正三角形就变成了 4 个大小、形状都相同的小正三角形！中心那块是倒过来的哦。',
+   sol:[['M0','M1'],['M1','M2'],['M2','M0']]},
+ s3:{key:'s3',diff:2,kind:'construct',shape:'sq3',n:4,target:3,cong:false,centerMode:'shown',
+   title:'正方形三分智慧',quote:'练习2：将下面的正方形分割成大小相同的三个部分，尽可能给出多种方法。',
+   task:'画分割线，把正方形分成 3 块大小相同（面积相等）的部分！这一关只要求大小相同，形状可以不同。',
+   legend:'A、B、C、D 是顶点；P1、P2 是 AB 边的三等分点（从 A 往 B 数），其余各边同理；O 是中心。',
+   explain:'过一组对边的三等分点画两条平行线，正方形就被分成 3 条大小相同的竖条；横着分也行，还有更有创意的分法等你发现！',
+   sol:[['T0a','T2b'],['T0b','T2a']]},
+ h6:{key:'h6',diff:2,kind:'construct',shape:'hex',n:6,target:6,cong:false,centerMode:'hidden',
+   title:'找中心·六边形六分',quote:'例3(2)：将下面的正六边形分割成大小相同的六个部分，至少给出两种方法（只需画出）。',
+   task:'先找出中心 O，再画分割线，把正六边形分成 6 块大小相同的部分！',
+   legend:'A~F 是顶点；M1~M6 是边的中点；中心找对后会出现点 O。',
+   explain:'从中心向 6 个顶点连线，得到 6 个全等的正三角形；从中心向 6 条边的中点连线，得到 6 个全等的"风筝"；在三分的基础上再对分也行！',
+   sol:[['O','V0'],['O','V1'],['O','V2'],['O','V3'],['O','V4'],['O','V5']]},
+ c10:{key:'c10',diff:2,kind:'count',fig:'c10',
+   title:'数块算面积·正方形篇',quote:'练习1：如图，△ABC 和 △DEF 都是等腰直角三角形，阴影部分是正方形。如果 △ABC 的面积是 45 平方厘米，那么 △DEF 的面积是多少平方厘米？',
+   task:'三步走：① 逐块点击 △ABC 里的小三角形，数一数有几块；② 再数 △DEF 里的；③ 拖动数字卡片补全算式！每块小三角形都一样大。',
+   legend:'虚线是分割线；中间带斜线的正方形是阴影部分。',
+   explain:'△ABC 被分成 9 块小三角形，△DEF 被分成 8 块，每块同样大。所以 △DEF = 45 ÷ 9 × 8 = 40（平方厘米）。',
+   cards:{prefix:'45 ÷',mid:'×',suffix:'=（平方厘米）',
+     slots:[{v:9,label:'第1空：△ABC 含几块小三角形'},{v:8,label:'第2空：△DEF 含几块小三角形'},{v:40,label:'第3空：△DEF 的面积'}],
+     pool:[9,8,40,5,13,72,45]}},
+ c11:{key:'c11',diff:2,kind:'count',fig:'c11',
+   title:'数块算面积·六边形篇',quote:'练习3：如图所示，大正六边形的面积为 360 平方厘米，那么阴影正六边形的面积是多少平方厘米？',
+   task:'三步走：① 逐块点击阴影正六边形里的小三角形，数一数有几块；② 再点击外围的 6 个扇形（每块 = 2 个同样大的小块）；③ 拖动数字卡片补全算式！所有小块大小相同。',
+   legend:'O 是中心；虚线是分割线；涂色六边形是阴影部分。',
+   explain:'阴影正六边形分成 6 块小三角形，整个大正六边形相当于 18 块同样的小三角形，正好是阴影的 3 倍。所以阴影 = 360 ÷ 18 × 6 = 120（平方厘米）。',
+   cards:{prefix:'360 ÷',mid:'×',suffix:'=（平方厘米）',
+     slots:[{v:18,label:'第1空：大正六边形相当于几块'},{v:6,label:'第2空：阴影正六边形含几块'},{v:120,label:'第3空：阴影正六边形的面积'}],
+     pool:[18,6,120,3,60,20,240]}}
+};
+var DIFF_ORDER=[
+  shuffle(['t2','s2','h2']),
+  shuffle(['t3','s4','h3']),
+  shuffle(['t4','s3','h6','c10','c11'])
+];
+
+/* ---------------- 全局状态 ---------------- */
+var G={
+  screen:'home', diff:0, order:[], idx:0, level:null,
+  pal:PALETTES[0], rot:0,
+  poly:[], points:[], pointMap:{}, segs:[], pending:null,
+  centerFound:true, phase:'draw', revealing:false, successFlag:false,
+  steps:0, sec:0, timer:null, stars:0, lastA:null,
+  count:{phase:1, abcDone:[], defDone:[]},
+  cards:{placed:{}, done:false},
+  T:{cx:0,cy:0,s:1}
+};
+
+/* ---------------- DOM 引用 ---------------- */
+var cv=$('#cv'), fx=$('#fx'), ctx=cv.getContext('2d'), fctx=fx.getContext('2d');
+
+/* ---------------- 计时器 ---------------- */
+function startTimer(){
+  stopTimer(); G.sec=0;
+  G.timer=setInterval(function(){ G.sec++; $('#hud-time').textContent='时间 '+fmtTime(G.sec); },1000);
+  $('#hud-time').textContent='时间 00:00';
+}
+function stopTimer(){ if(G.timer){clearInterval(G.timer);G.timer=null;} }
+function addStep(){ G.steps++; $('#hud-step').textContent='步数 '+G.steps; }
+
+/* ---------------- 提示气泡 ---------------- */
+var toastTimer=null;
+function toast(msg,ms){
+  var t=$('#toast'); t.textContent=msg; t.classList.add('on');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){t.classList.remove('on');},ms||2400);
+}
+
+/* ---------------- 关卡几何构建（分图形关） ---------------- */
+function buildConstruct(def){
+  var n=def.n, rot=G.rot, pts=[], i;
+  var V=[];
+  for(i=0;i<n;i++){
+    var a=rot - Math.PI/2 + i*TAU/n;
+    V.push({x:Math.cos(a), y:Math.sin(a)});
+  }
+  G.poly=V.map(function(p){return {x:p.x,y:p.y};});
+  var labels='ABCDEF';
+  for(i=0;i<n;i++){
+    pts.push({id:'V'+i, label:labels[i], x:V[i].x, y:V[i].y, kind:'vertex', show:true});
+  }
+  /* 各边中点：M_i 是边 V_i V_(i+1) 的中点，标签 M1..Mn */
+  for(i=0;i<n;i++){
+    var j=(i+1)%n;
+    pts.push({id:'M'+i, label:'M'+(i+1), x:(V[i].x+V[j].x)/2, y:(V[i].y+V[j].y)/2, kind:'mid', show:true, edge:i});
+  }
+  /* 三等分点（仅正方形三分关）：T{e}a = 边e 靠近起点的三等分点 */
+  if(def.shape==='sq3'){
+    for(i=0;i<n;i++){
+      var j2=(i+1)%n;
+      pts.push({id:'T'+i+'a', label:'P'+(i*2+1), x:V[i].x*2/3+V[j2].x/3, y:V[i].y*2/3+V[j2].y/3, kind:'tri1', show:true, edge:i});
+      pts.push({id:'T'+i+'b', label:'P'+(i*2+2), x:V[i].x/3+V[j2].x*2/3, y:V[i].y/3+V[j2].y*2/3, kind:'tri2', show:true, edge:i});
+    }
+  }
+  /* 中心 */
+  if(def.centerMode!=='none'){
+    pts.push({id:'O', label:'O', x:0, y:0, kind:'center', show:def.centerMode==='shown'});
+    G.centerFound=(def.centerMode==='shown');
+  }else{ G.centerFound=true; }
+  G.points=pts;
+  G.pointMap={};
+  pts.forEach(function(p){G.pointMap[p.id]=p;});
+}
+function ptById(id){ return G.pointMap[id]; }
+
+/* 关卡令牌：防止上一关遗留的定时器污染新关卡状态 */
+function countLater(fn, ms){
+  var token=G.levelToken;
+  setTimeout(function(){ if(G.levelToken===token) fn(); }, ms);
+}
+
+/* ---------------- 数块关图形数据 ---------------- */
+/* c10：等腰直角三角形 + 正方形（坐标系 uv，正方形 = [2,3]x[0,1]） */
+function buildC10(){
+  var h=SQ2, q=SQ2/2;
+  var fig={
+    bbox:[-0.6,1-2*h-0.6,3+2*h+0.6,3.6],
+    triABC:[[0,0],[3,0],[3,3]],
+    triDEF:[[2,1],[2+2*h,1],[2,1-2*h]],
+    square:[[2,0],[3,0],[3,1],[2,1]],
+    labels:[
+      {t:'A',p:[3,3]},{t:'B',p:[3,0]},{t:'C',p:[0,0]},
+      {t:'D',p:[2+2*h,1]},{t:'E',p:[2,1]},{t:'F',p:[2,1-2*h]},
+      {t:'正方形',p:[2.5,0.5],small:true}
+    ],
+    abcPieces:[
+      [[0,0],[1,0],[1,1]],[[1,0],[2,0],[2,1]],[[1,0],[2,1],[1,1]],
+      [[2,0],[3,0],[3,1]],[[2,0],[3,1],[2,1]],
+      [[1,1],[2,1],[2,2]],[[2,1],[3,1],[3,2]],[[2,1],[3,2],[2,2]],[[2,2],[3,2],[3,3]]
+    ],
+    defPieces:[
+      [[2,1],[2+h,1],[2+q,1-q]],
+      [[2,1],[2,1-h],[2+q,1-q]],
+      [[2+h,1],[2+2*h,1],[2+1.5*h,1-q]],
+      [[2,1-h],[2,1-2*h],[2+q,1-1.5*h]],
+      [[2+q,1-q],[2+h,1],[2+1.5*h,1-q]],
+      [[2+q,1-q],[2+1.5*h,1-q],[2+h,1-h]],
+      [[2+q,1-q],[2+h,1-h],[2+q,1-1.5*h]],
+      [[2+q,1-q],[2+q,1-1.5*h],[2,1-h]]
+    ]
+  };
+  return fig;
+}
+/* c11：大正六边形 + 同心阴影正六边形（顶点同向，半径 1 与 1/√3） */
+function buildC11(){
+  var V=[],S=[],i;
+  for(i=0;i<6;i++){
+    var a=Math.PI/2 - i*TAU/6;
+    V.push([Math.cos(a),Math.sin(a)]);
+    S.push([Math.cos(a)/Math.sqrt(3),Math.sin(a)/Math.sqrt(3)]);
+  }
+  var shadow=[],ring=[],rays=[],axes=[],labels=[];
+  var lb='ABCDEF';
+  for(i=0;i<6;i++){
+    var j=(i+1)%6;
+    shadow.push({poly:[[0,0],S[i],S[j]]});
+    ring.push({poly:[S[i],V[i],V[j],S[j]]});
+    rays.push([S[i],V[i]]);
+    var M=[(V[i][0]+V[j][0])/2,(V[i][1]+V[j][1])/2];
+    var N=[(S[i][0]+S[j][0])/2,(S[i][1]+S[j][1])/2];
+    axes.push([N,M]);
+    labels.push({t:lb[i],p:[V[i][0]*1.13,V[i][1]*1.13]});
+  }
+  labels.push({t:'O',p:[0,-0.08]});
+  labels.push({t:'阴影',p:[0,0.52],small:true});
+  return {
+    bbox:[-1.28,1.42,-1.28,1.42].map(function(v,i){return i<2?-1.3:1.3;}),
+    bigHex:V, smallHex:S, shadow:shadow, ring:ring, rays:rays, axes:axes, labels:labels
+  };
+}
+var COUNT_FIGS={c10:null,c11:null};
+
+/* ---------------- 区域分析（真实几何：网格采样 + 洪泛连通求区域） ----------------
+   做法：在多边形内撒均匀网格点，剔除紧贴分割线的点；
+   相邻网格点只要连线不穿过任何分割线就连通（eps 排除带保证这一点），
+   洪泛填充得到真实"区域"，再统计面积占比与形状指纹。
+   这样即使分割线都汇聚于中心，也不会把区域误拆开。 */
+function analyze(){
+  var poly=G.poly;
+  if(!poly.length) return null;
+  var segs=G.segs.map(function(s){
+    return {a:{x:ptById(s[0]).x,y:ptById(s[0]).y}, b:{x:ptById(s[1]).x,y:ptById(s[1]).y}};
+  });
+  var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9,i,j,k;
+  poly.forEach(function(p){
+    if(p.x<minx)minx=p.x; if(p.x>maxx)maxx=p.x;
+    if(p.y<miny)miny=p.y; if(p.y>maxy)maxy=p.y;
+  });
+  var w=maxx-minx,hh=maxy-miny;
+  var N=96, cell=Math.max(w,hh)/N;
+  var nx=Math.max(2,Math.floor(w/cell)), ny=Math.max(2,Math.floor(hh/cell));
+  var eps=cell*0.58; /* 排除带：保证相邻两格之间的连线不可能穿过分割线 */
+  var keep=new Uint8Array(nx*ny);
+  for(i=0;i<nx;i++)for(j=0;j<ny;j++){
+    var x=minx+(i+0.5)*cell, y=miny+(j+0.5)*cell;
+    if(!pointInPoly(x,y,poly)) continue;
+    var bad=false;
+    for(k=0;k<segs.length;k++){
+      if(distToSeg(x,y,segs[k].a,segs[k].b)<eps){bad=true;break;}
+    }
+    if(!bad) keep[i*ny+j]=1;
+  }
+  /* 洪泛填充：4 邻接连通 */
+  var comp=new Int32Array(nx*ny); for(k=0;k<comp.length;k++)comp[k]=-1;
+  var regionsRaw=[], cid=0, stack=[];
+  for(i=0;i<nx;i++)for(j=0;j<ny;j++){
+    var id0=i*ny+j;
+    if(!keep[id0]||comp[id0]>=0) continue;
+    var pts=[];
+    stack.length=0; stack.push([i,j]); comp[id0]=cid;
+    while(stack.length){
+      var cellij=stack.pop(), ci=cellij[0], cj=cellij[1];
+      var cx=minx+(ci+0.5)*cell, cy=miny+(cj+0.5)*cell;
+      pts.push([cx,cy]);
+      var nb=[[ci+1,cj],[ci-1,cj],[ci,cj+1],[ci,cj-1]];
+      for(var q=0;q<4;q++){
+        var ni=nb[q][0], nj2=nb[q][1];
+        if(ni<0||ni>=nx||nj2<0||nj2>=ny) continue;
+        var nid=ni*ny+nj2;
+        if(keep[nid]&&comp[nid]<0){ comp[nid]=cid; stack.push([ni,nj2]); }
+      }
+    }
+    regionsRaw.push(pts); cid++;
+  }
+  var areaTot=shoelace(poly), regions=[], kept=0;
+  regionsRaw.forEach(function(pts){
+    var n=pts.length;
+    if(n*cell*cell > areaTot*0.015){
+      var sx=0,sy=0;
+      pts.forEach(function(p){sx+=p[0];sy+=p[1];});
+      regions.push({pts:pts,n:n,sx:sx,sy:sy});
+      kept+=n;
+    }
+  });
+  regions.forEach(function(r){
+    r.frac=r.n/kept; r.cx=r.sx/r.n; r.cy=r.sy/r.n;
+    var ds=r.pts.map(function(p){return Math.hypot(p[0]-r.cx,p[1]-r.cy);}).sort(function(a,b){return a-b;});
+    r.fp=[0.15,0.35,0.5,0.65,0.85].map(function(f){
+      return ds[Math.min(ds.length-1,Math.round(f*(ds.length-1)))];
+    });
+  });
+  /* 按面积从大到小排序，保证配色稳定 */
+  regions.sort(function(a,b){return b.frac-a.frac;});
+  return {regions:regions,cell:cell};
+}
+/* 成功判定 */
+function checkSuccess(A){
+  var L=G.level, rs=A.regions;
+  if(rs.length!==L.target) return {ok:false,why:'count',n:rs.length};
+  var fmin=1,fmax=0;
+  rs.forEach(function(r){ if(r.frac<fmin)fmin=r.frac; if(r.frac>fmax)fmax=r.frac; });
+  if(fmax-fmin>0.05) return {ok:false,why:'area',fmin:fmin,fmax:fmax};
+  if(L.cong){
+    for(var i=1;i<rs.length;i++){
+      for(var k=0;k<5;k++){
+        var a=rs[0].fp[k], b=rs[i].fp[k];
+        if(Math.abs(a-b)/Math.max(1e-9,(a+b)/2)>0.08) return {ok:false,why:'shape'};
+      }
+    }
+  }
+  return {ok:true};
+}
+
+/* ---------------- 画布尺寸与坐标变换 ---------------- */
+function resizeAll(){
+  var st=$('#stage');
+  var dpr=window.devicePixelRatio||1;
+  [cv,fx].forEach(function(c){
+    c.width=st.clientWidth*dpr; c.height=st.clientHeight*dpr;
+  });
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  fctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+window.addEventListener('resize',function(){ setTimeout(resizeAll,60); });
+
+function fitTransform(bbox){
+  var W=cv.clientWidth||$('#stage').clientWidth, H=$('#stage').clientHeight;
+  var pad=74;
+  var s=Math.min((W-2*pad)/(bbox[2]-bbox[0]),(H-2*pad)/(bbox[3]-bbox[1]));
+  return {cx:(W-(bbox[0]+bbox[2])*s)/2, cy:(H+(bbox[1]+bbox[3])*s)/2, s:s};
+}
+function w2s(p){ return [G.T.cx+p[0]*G.T.s, G.T.cy-p[1]*G.T.s]; }
+function s2w(x,y){ return [(x-G.T.cx)/G.T.s, (G.T.cy-y)/G.T.s]; }
+function w2sObj(p){ return {x:G.T.cx+p.x*G.T.s, y:G.T.cy-p.y*G.T.s}; }
+
+/* ---------------- 绘制：分图形关 ---------------- */
+function drawConstruct(){
+  var c=ctx, W=cv.clientWidth, H=$('#stage').clientHeight, pal=G.pal;
+  G.T={cx:W/2, cy:H/2+6, s:Math.min(W,H)/2-84};
+  if(G.T.s<50)G.T.s=50;
+  var polyS=G.poly.map(w2sObj);
+
+  /* 半透明底色块 */
+  c.save();
+  c.beginPath();
+  polyS.forEach(function(p,i){ i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y); });
+  c.closePath();
+  c.fillStyle='rgba(255,255,255,.65)';
+  c.fill();
+  c.restore();
+
+  /* 区域实时着色（马赛克小块） */
+  var A=analyze(); G.lastA=A;
+  if(A && A.regions.length>0 && G.segs.length>0){
+    var alpha=G.successFlag?0.5:0.3, r=Math.max(2,G.T.s*A.cell*0.72);
+    A.regions.forEach(function(reg,ri){
+      c.fillStyle=pal.accents[ri%pal.accents.length];
+      c.globalAlpha=alpha;
+      reg.pts.forEach(function(p){
+        var sp=w2s(p);
+        c.beginPath(); c.arc(sp[0],sp[1],r,0,TAU); c.fill();
+      });
+      c.globalAlpha=1;
+      /* 区域面积占比 */
+      if(A.regions.length<=8 && reg.pts.length>30){
+        var cp=w2s([reg.cx,reg.cy]);
+        c.font='bold 17px "Microsoft YaHei",sans-serif';
+        c.lineWidth=4; c.strokeStyle='#fff'; c.textAlign='center'; c.textBaseline='middle';
+        var txt=Math.round(reg.frac*100)+'%';
+        c.strokeText(txt,cp[0],cp[1]); c.fillStyle=pal.dark; c.fillText(txt,cp[0],cp[1]);
+      }
+    });
+  }
+
+  /* 多边形轮廓 */
+  c.beginPath();
+  polyS.forEach(function(p,i){ i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y); });
+  c.closePath();
+  c.lineWidth=5; c.lineJoin='round'; c.strokeStyle=pal.dark; c.stroke();
+
+  /* 学生画的分割线 */
+  G.segs.forEach(function(s){
+    var a=w2sObj(ptById(s[0])), b=w2sObj(ptById(s[1]));
+    c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y);
+    c.lineWidth=5; c.lineCap='round';
+    c.strokeStyle=pal.accents[3]; c.stroke();
+    c.lineWidth=1.6; c.strokeStyle='#fff'; c.globalAlpha=.7; c.stroke(); c.globalAlpha=1;
+  });
+
+  /* 目标提示（画布左上角） */
+  c.font='bold 18px "Microsoft YaHei",sans-serif';
+  c.textAlign='left'; c.textBaseline='top';
+  c.lineWidth=4; c.strokeStyle='#fff';
+  var goalTxt='目标：'+G.level.target+' 块 · '+(G.level.cong?'大小、形状都相同':'大小相同');
+  c.strokeText(goalTxt,12,10); c.fillStyle=pal.dark; c.fillText(goalTxt,12,10);
+
+  /* 标记点与标签 */
+  var center={x:W/2,y:H/2};
+  G.points.forEach(function(p){
+    if(!p.show) return;
+    var sp=w2sObj(p);
+    /* 选中待连的点：高亮圈 */
+    if(G.pending===p.id){
+      c.beginPath(); c.arc(sp.x,sp.y,15,0,TAU);
+      c.lineWidth=3; c.strokeStyle=pal.accents[0]; c.stroke();
+    }
+    if(p.kind==='center'){
+      /* 中心画成菱形星 */
+      c.save(); c.translate(sp.x,sp.y); c.rotate(Math.PI/4);
+      c.fillStyle=pal.accents[4]; c.strokeStyle='#fff'; c.lineWidth=2.5;
+      c.beginPath(); c.fillRect(-8,-8,16,16); c.strokeRect(-8,-8,16,16);
+      c.restore();
+    }else{
+      c.beginPath(); c.arc(sp.x,sp.y,8,0,TAU);
+      c.fillStyle='#fff'; c.fill();
+      c.lineWidth=3; c.strokeStyle=pal.main; c.stroke();
+    }
+    /* 标签：沿远离中心方向偏移 */
+    var dx=sp.x-center.x, dy=sp.y-center.y, L=Math.hypot(dx,dy)||1;
+    var lx=sp.x+dx/L*24, ly=sp.y+dy/L*24;
+    c.font='bold 17px "Microsoft YaHei",sans-serif';
+    c.textAlign='center'; c.textBaseline='middle';
+    c.lineWidth=4; c.strokeStyle='#fff';
+    c.strokeText(p.label,lx,ly);
+    c.fillStyle=pal.dark; c.fillText(p.label,lx,ly);
+  });
+
+  /* 找中心阶段的提示 */
+  if(G.phase==='center'){
+    c.font='bold 20px "Microsoft YaHei",sans-serif';
+    c.textAlign='center'; c.textBaseline='middle';
+    var msg='秘籍第一步：点击你认为中心所在的位置！';
+    c.lineWidth=5; c.strokeStyle='#fff';
+    c.strokeText(msg,W/2,H-26); c.fillStyle=pal.main; c.fillText(msg,W/2,H-26);
+  }
+  updateStatus(A);
+}
+/* 右侧实时战况 */
+function updateStatus(A){
+  var el=$('#status'), L=G.level;
+  if(!L){ el.textContent='—'; return; }
+  if(L.kind!=='construct'){ updateCountStatus(); return; }
+  if(G.phase==='center'){
+    el.innerHTML='先找中心！中心到每个顶点的距离都相等。<br>已尝试 <span class="num">'+(G.steps||0)+'</span> 次';
+    return;
+  }
+  if(!A||G.segs.length===0){ el.innerHTML='还没有画分割线<br>目标：<span class="num">'+L.target+'</span> 块'; return; }
+  var chk=checkSuccess(A);
+  var fmin=1,fmax=0;
+  A.regions.forEach(function(r){ if(r.frac<fmin)fmin=r.frac; if(r.frac>fmax)fmax=r.frac; });
+  var html='当前分成 <span class="num">'+A.regions.length+'</span> 块（目标 '+L.target+' 块）<br>'+
+    '最大块 '+Math.round(fmax*100)+'% · 最小块 '+Math.round(fmin*100)+'%';
+  if(A.regions.length===L.target){
+    if(chk.why==='area') html+='<br>块数对了，但各块大小还不相同';
+    else if(chk.why==='shape') html+='<br>大小相同，但形状还不相同';
+  }
+  el.innerHTML=html;
+}
+
+/* ---------------- 绘制：数块关 ---------------- */
+function drawCount(){
+  var c=ctx, W=cv.clientWidth, H=$('#stage').clientHeight, pal=G.pal;
+  var fig=COUNT_FIGS[G.level.fig];
+  G.T=fitTransform(fig.bbox);
+  var toP=function(p){ return w2s(p); };
+
+  if(G.level.fig==='c10') drawC10(c,fig,pal,toP);
+  else drawC11(c,fig,pal,toP);
+
+  /* 左上角目标提示 */
+  c.font='bold 18px "Microsoft YaHei",sans-serif';
+  c.textAlign='left'; c.textBaseline='top';
+  c.lineWidth=4; c.strokeStyle='#fff';
+  var gt=G.count.phase===1?'第 1 步：数一数目标图形':(G.count.phase===2?'第 2 步：继续数':'第 3 步：拖卡片补全算式');
+  c.strokeText(gt,12,10); c.fillStyle=pal.dark; c.fillText(gt,12,10);
+}
+function polyPath(c,pts,toP){
+  c.beginPath();
+  pts.forEach(function(p,i){ var s=toP(p); i?c.lineTo(s[0],s[1]):c.moveTo(s[0],s[1]); });
+  c.closePath();
+}
+function drawBadge(c,pt,txt,pal){
+  var s=w2s(pt);
+  c.beginPath(); c.arc(s[0],s[1],13,0,TAU);
+  c.fillStyle=pal.main; c.fill(); c.lineWidth=2.5; c.strokeStyle='#fff'; c.stroke();
+  c.font='bold 16px "Microsoft YaHei",sans-serif';
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillStyle='#fff'; c.fillText(txt,s[0],s[1]+0.5);
+}
+function centroid(pts){
+  var x=0,y=0; pts.forEach(function(p){x+=p[0];y+=p[1];});
+  return [x/pts.length,y/pts.length];
+}
+function drawC10(c,fig,pal,toP){
+  var st=G.count;
+  var abcGlow=(st.phase===1), defGlow=(st.phase===2);
+  /* 两个三角形底色 */
+  c.globalAlpha=abcGlow?0.14:0.05;
+  polyPath(c,fig.triABC,toP); c.fillStyle=pal.accents[2]; c.fill();
+  c.globalAlpha=defGlow?0.14:0.05;
+  polyPath(c,fig.triDEF,toP); c.fillStyle=pal.accents[0]; c.fill();
+  c.globalAlpha=1;
+  /* 阴影正方形：斜线填充 */
+  polyPath(c,fig.square,toP); c.save(); c.clip();
+  var p1=toP(fig.square[0]), p3=toP(fig.square[2]);
+  c.strokeStyle=pal.accents[3]; c.lineWidth=2.5;
+  var step=9, x0=Math.min(p1[0],p3[0])-40, x1=Math.max(p1[0],p3[0])+40;
+  var y0=Math.min(p1[1],p3[1])-40, y1=Math.max(p1[1],p3[1])+40;
+  for(var k=x0-y1;k<x1;k+=step){
+    c.beginPath(); c.moveTo(k,y0); c.lineTo(k+(y1-y0),y1); c.stroke();
+  }
+  c.restore();
+  polyPath(c,fig.square,toP); c.lineWidth=3; c.strokeStyle=pal.accents[3]; c.stroke();
+  /* 分割虚线：当前阶段的图形加亮 */
+  function dashes(pieces,on){
+    c.save(); c.setLineDash([7,6]); c.lineWidth=on?2.6:1.6;
+    c.strokeStyle=on?pal.dark:'#94a3b8'; c.globalAlpha=on?0.95:0.4;
+    pieces.forEach(function(pc){
+      c.beginPath();
+      pc.forEach(function(p,i){var s=toP(p); i?c.lineTo(s[0],s[1]):c.moveTo(s[0],s[1]);});
+      c.closePath(); c.stroke();
+    });
+    c.restore();
+  }
+  dashes(fig.abcPieces,abcGlow||st.phase>=3);
+  dashes(fig.defPieces,defGlow||st.phase>=3);
+  /* 已点亮的块 */
+  function fillDone(list,pieces,color){
+    list.forEach(function(idx){
+      var pc=pieces[idx];
+      polyPath(c,pc,toP);
+      c.globalAlpha=0.5; c.fillStyle=color; c.fill(); c.globalAlpha=1;
+      c.lineWidth=2.5; c.strokeStyle=color; c.stroke();
+      drawBadge(c,centroid(pc),String(idx+1),pal);
+    });
+  }
+  fillDone(st.abcDone,fig.abcPieces,pal.accents[2]);
+  fillDone(st.defDone,fig.defPieces,pal.accents[0]);
+  /* 外框 */
+  polyPath(c,fig.triABC,toP); c.lineWidth=5; c.strokeStyle=pal.dark; c.stroke();
+  polyPath(c,fig.triDEF,toP); c.stroke();
+  /* 标签 */
+  fig.labels.forEach(function(lb){
+    var s=toP(lb.p);
+    c.font=(lb.small?'bold 17px':'bold 20px')+' "Microsoft YaHei",sans-serif';
+    c.textAlign='center'; c.textBaseline='middle';
+    c.lineWidth=4; c.strokeStyle='#fff';
+    c.strokeText(lb.t,s[0],s[1]-(lb.small?0:6));
+    c.fillStyle=lb.small?pal.accents[3]:pal.dark;
+    c.fillText(lb.t,s[0],s[1]-(lb.small?0:6));
+  });
+}
+function drawC11(c,fig,pal,toP){
+  var st=G.count;
+  /* 大六边形底 */
+  polyPath(c,fig.bigHex,toP); c.fillStyle='rgba(255,255,255,.7)'; c.fill();
+  /* 阴影六边形涂色 */
+  polyPath(c,fig.smallHex,toP);
+  c.globalAlpha=.4; c.fillStyle=pal.accents[0]; c.fill(); c.globalAlpha=1;
+  /* 分割虚线：中心到顶点的连线 + 各扇形对称轴 */
+  c.save(); c.setLineDash([7,6]); c.lineWidth=2.2; c.strokeStyle=pal.dark; c.globalAlpha=.8;
+  fig.rays.forEach(function(sg){
+    var a=toP(sg[0]),b=toP(sg[1]);
+    c.beginPath(); c.moveTo(a[0],a[1]); c.lineTo(b[0],b[1]); c.stroke();
+  });
+  fig.axes.forEach(function(sg){
+    var a=toP(sg[0]),b=toP(sg[1]);
+    c.beginPath(); c.moveTo(a[0],a[1]); c.lineTo(b[0],b[1]); c.stroke();
+  });
+  c.restore();
+  /* 已点亮的阴影块 */
+  var sd=G.count.abcDone;
+  sd.forEach(function(idx){
+    var pc=fig.shadow[idx].poly;
+    polyPath(c,pc,toP);
+    c.globalAlpha=.75; c.fillStyle=pal.accents[0]; c.fill(); c.globalAlpha=1;
+    drawBadge(c,centroid(pc),String(idx+1),pal);
+  });
+  /* 已点亮的外围扇形（每块=2 小块） */
+  G.count.defDone.forEach(function(idx){
+    var pc=fig.ring[idx].poly;
+    polyPath(c,pc,toP);
+    c.globalAlpha=.5; c.fillStyle=pal.accents[1]; c.fill(); c.globalAlpha=1;
+    c.lineWidth=2.5; c.strokeStyle=pal.accents[1]; c.stroke();
+    drawBadge(c,centroid(pc),'+2',pal);
+  });
+  /* 外框 */
+  polyPath(c,fig.bigHex,toP); c.lineWidth=5; c.lineJoin='round'; c.strokeStyle=pal.dark; c.stroke();
+  polyPath(c,fig.smallHex,toP); c.lineWidth=3; c.strokeStyle=pal.accents[0]; c.stroke();
+  /* 中心点 */
+  var o=toP([0,0]);
+  c.save(); c.translate(o[0],o[1]); c.rotate(Math.PI/4);
+  c.fillStyle=pal.accents[4]; c.strokeStyle='#fff'; c.lineWidth=2.5;
+  c.fillRect(-7,-7,14,14); c.strokeRect(-7,-7,14,14);
+  c.restore();
+  /* 标签 */
+  fig.labels.forEach(function(lb){
+    var s=toP(lb.p);
+    c.font=(lb.small?'bold 17px':'bold 20px')+' "Microsoft YaHei",sans-serif';
+    c.textAlign='center'; c.textBaseline='middle';
+    c.lineWidth=4; c.strokeStyle='#fff';
+    c.strokeText(lb.t,s[0],s[1]);
+    c.fillStyle=lb.small?pal.accents[0]:pal.dark; c.fillText(lb.t,s[0],s[1]);
+  });
+}
+function updateCountStatus(){
+  var el=$('#status'), st=G.count, L=G.level;
+  if(L.fig==='c10'){
+    if(st.phase===1) el.innerHTML='第 1 步：点击 △ABC 里的每一块小三角形<br>已点亮 <span class="num">'+st.abcDone.length+'</span> / 9 块';
+    else if(st.phase===2) el.innerHTML='△ABC 共 <span class="num">9</span> 块！<br>第 2 步：点击 △DEF 里的每一块<br>已点亮 <span class="num">'+st.defDone.length+'</span> / 8 块';
+    else el.innerHTML='△ABC = 9 块，△DEF = 8 块，每块一样大。<br>第 3 步：拖卡片完成 45 ÷ ▢ × ▢ = ▢';
+  }else{
+    if(st.phase===1) el.innerHTML='第 1 步：点击阴影正六边形里的每一块小三角形<br>已点亮 <span class="num">'+st.abcDone.length+'</span> / 6 块';
+    else if(st.phase===2) el.innerHTML='阴影共 6 块！<br>第 2 步：点击外围 6 个扇形（每个 = 2 小块）<br>已点亮 <span class="num">'+st.defDone.length+'</span> / 6 个';
+    else el.innerHTML='大六边形 = 6 + 2×6 = <span class="num">18</span> 块，阴影 = 6 块。<br>第 3 步：拖卡片完成 360 ÷ ▢ × ▢ = ▢';
+  }
+}
+
+/* ---------------- 总绘制 ---------------- */
+function draw(){
+  if(G.screen!=='game'||!G.level){ return; }
+  ctx.clearRect(0,0,cv.clientWidth,$('#stage').clientHeight);
+  if(G.level.kind==='construct') drawConstruct();
+  else drawCount();
+}
+
+/* ---------------- 交互：分图形关 ---------------- */
+function handleConstructClick(mx,my){
+  if(G.successFlag||G.revealing) return;
+  var pal=G.pal;
+  /* 找中心阶段 */
+  if(G.phase==='center'){
+    var w=s2w(mx,my);
+    var R=1, d=Math.hypot(w[0],w[1]);
+    addStep();
+    if(d<=R*0.14){
+      G.centerFound=true; ptById('O').show=true; G.phase='draw';
+      toast('找对啦！这就是中心 O——它到每个顶点的距离都相等！');
+      FX.burst(mx,my,10);
+    }else{
+      var near=d<R*0.34;
+      toast(near?'很接近了，再往图形正中间点点看！':'还没找到哦，中心在图形正中间，到每个顶点一样远！');
+    }
+    draw(); return;
+  }
+  /* 画线阶段：优先命中标记点 */
+  var hitP=null;
+  for(var i=0;i<G.points.length;i++){
+    var p=G.points[i];
+    if(!p.show) continue;
+    var sp=w2sObj(p);
+    if(Math.hypot(sp.x-mx,sp.y-my)<17){ hitP=p; break; }
+  }
+  if(hitP){
+    if(G.pending===hitP.id){ G.pending=null; draw(); return; }
+    if(!G.pending){ G.pending=hitP.id; draw(); return; }
+    /* 成一条分割线 */
+    var a=G.pending, b=hitP.id; G.pending=null;
+    var dup=G.segs.some(function(s){
+      return (s[0]===a&&s[1]===b)||(s[0]===b&&s[1]===a);
+    });
+    if(!dup){
+      G.segs.push([a,b]); addStep();
+      tryAutoSuccess();
+    }
+    draw(); return;
+  }
+  /* 命中已有分割线：擦除 */
+  for(var k=G.segs.length-1;k>=0;k--){
+    var pa=w2sObj(ptById(G.segs[k][0])), pb=w2sObj(ptById(G.segs[k][1]));
+    if(distToSeg(mx,my,pa,pb)<10){
+      G.segs.splice(k,1); addStep(); G.pending=null;
+      draw(); return;
+    }
+  }
+  G.pending=null; draw();
+}
+function tryAutoSuccess(){
+  if(G.successFlag||G.revealing) return;
+  var A=analyze();
+  if(!A) return;
+  var chk=checkSuccess(A);
+  if(chk.ok) succeed(false);
+}
+
+/* ---------------- 交互：数块关 ---------------- */
+function handleCountClick(mx,my){
+  if(G.successFlag||G.revealing) return;
+  var w=s2w(mx,my), px=w[0], py=w[1], st=G.count, fig=COUNT_FIGS[G.level.fig];
+  function inPieces(pieces){
+    for(var i=0;i<pieces.length;i++){
+      var poly=pieces[i].map(function(p){return {x:p[0],y:p[1]};});
+      if(pointInPoly(px,py,poly)) return i;
+    }
+    return -1;
+  }
+  if(G.level.fig==='c10'){
+    if(st.phase===1){
+      var iA=inPieces(fig.abcPieces.map(function(pc){return pc;}));
+      if(iA>=0){
+        if(st.abcDone.indexOf(iA)<0){ st.abcDone.push(iA); addStep(); draw();
+          if(st.abcDone.length===9){ toast('△ABC 数好啦：一共 9 块小三角形！'); countLater(function(){st.phase=2;draw();updateCountStatus();},900); }
+        }
+      }else if(inPieces(fig.defPieces)>=0){ toast('这块属于 △DEF，现在先只数 △ABC 里的！'); }
+      return;
+    }
+    if(st.phase===2){
+      var iD=inPieces(fig.defPieces);
+      if(iD>=0){
+        if(st.defDone.indexOf(iD)<0){ st.defDone.push(iD); addStep(); draw();
+          if(st.defDone.length===8){ toast('△DEF 数好啦：一共 8 块！每块小三角形一样大，动手算算吧！'); countLater(function(){st.phase=3;setupCards();draw();updateCountStatus();},900); }
+        }
+      }else if(inPieces(fig.abcPieces)>=0){ toast('这块属于 △ABC（已经数完啦），现在数 △DEF 的！'); }
+      return;
+    }
+    return;
+  }
+  /* c11 */
+  if(st.phase===1){
+    var iS=inPieces(fig.shadow.map(function(s){return s.poly;}));
+    if(iS>=0){
+      if(st.abcDone.indexOf(iS)<0){ st.abcDone.push(iS); addStep(); draw();
+        if(st.abcDone.length===6){ toast('阴影正六边形数好啦：一共 6 块小三角形！'); countLater(function(){st.phase=2;draw();updateCountStatus();},900); }
+      }
+    }else if(inPieces(fig.ring.map(function(r){return r.poly;}))>=0){ toast('这是外围的扇形，现在先数阴影里的 6 块！'); }
+    return;
+  }
+  if(st.phase===2){
+    var iR=inPieces(fig.ring.map(function(r){return r.poly;}));
+    if(iR>=0){
+      if(st.defDone.indexOf(iR)<0){ st.defDone.push(iR); addStep(); draw();
+        if(st.defDone.length===6){ toast('外围 6 个扇形点完：6 + 2×6 = 18 块，大六边形是阴影的 3 倍！'); countLater(function(){st.phase=3;setupCards();draw();updateCountStatus();},1000); }
+      }
+    }else if(inPieces(fig.shadow.map(function(s){return s.poly;}))>=0){ toast('阴影里的 6 块已经数完啦，现在点外围的扇形！'); }
+  }
+}
+
+/* ---------------- 数字卡片拖放 ---------------- */
+function setupCards(){
+  var cfg=G.level.cards, st=G.cards;
+  st.placed={}; st.done=false;
+  var f=$('#formula');
+  f.innerHTML='';
+  function mkSlot(i){
+    var d=document.createElement('div');
+    d.className='slot'; d.dataset.i=i; d.title=cfg.slots[i].label;
+    d.addEventListener('click',function(){
+      if(st.done) return;
+      if(st.placed[i]!==undefined){
+        restoreCard(st.placed[i]);
+        delete st.placed[i]; renderSlots();
+      }
+    });
+    return d;
+  }
+  var sp1=document.createElement('span'); sp1.textContent=cfg.prefix; f.appendChild(sp1);
+  f.appendChild(mkSlot(0));
+  var sp2=document.createElement('span'); sp2.textContent=cfg.mid; f.appendChild(sp2);
+  f.appendChild(mkSlot(1));
+  var sp3=document.createElement('span'); sp3.textContent='=';
+  f.appendChild(sp3);
+  f.appendChild(mkSlot(2));
+  var sp4=document.createElement('span'); sp4.textContent=cfg.suffix; f.appendChild(sp4);
+
+  var pool=$('#cardpool'); pool.innerHTML='';
+  var vals=shuffle(cfg.pool);
+  vals.forEach(function(v){
+    var cd=document.createElement('div');
+    cd.className='card'; cd.textContent=v; cd.dataset.v=v;
+    cd.addEventListener('pointerdown',function(e){ startDrag(e,cd); });
+    pool.appendChild(cd);
+  });
+  $('#tray-hint').textContent='拖动数字卡片到空格里（点格子里的卡片可取回），放好后点"检验分割"。空格含义：'+cfg.slots.map(function(s,i){return s.label;}).join('；')+'。';
+  $('#tray').classList.add('on');
+  renderSlots();
+}
+function renderSlots(){
+  var st=G.cards;
+  document.querySelectorAll('#formula .slot').forEach(function(sl){
+    var i=+sl.dataset.i;
+    sl.textContent=(st.placed[i]!==undefined)?st.placed[i]:'';
+    sl.classList.toggle('ok',st.done && st.placed[i]===G.level.cards.slots[i].v);
+  });
+}
+function restoreCard(v){
+  var cd=document.querySelector('#cardpool .card[data-v="'+v+'"]');
+  if(cd) cd.classList.remove('used');
+}
+var drag=null;
+function startDrag(e,cd){
+  if(G.cards.done) return;
+  e.preventDefault();
+  drag={el:cd,v:+cd.dataset.v};
+  cd.classList.add('dragging');
+  document.body.appendChild(cd);
+  moveDrag(e);
+  try{ cd.setPointerCapture(e.pointerId); }catch(err){ /* 部分环境不支持，改用全局监听 */ }
+  window.addEventListener('pointermove',moveDrag);
+  window.addEventListener('pointerup',endDrag);
+  window.addEventListener('pointercancel',endDrag);
+}
+function moveDrag(e){
+  if(!drag) return;
+  drag.el.style.left=(e.clientX-31)+'px';
+  drag.el.style.top=(e.clientY-31)+'px';
+}
+function endDrag(e){
+  if(!drag) return;
+  var el=drag.el, v=drag.v;
+  el.classList.remove('dragging');
+  el.style.left=''; el.style.top='';
+  window.removeEventListener('pointermove',moveDrag);
+  window.removeEventListener('pointerup',endDrag);
+  window.removeEventListener('pointercancel',endDrag);
+  $('#cardpool').appendChild(el);
+  /* 判断是否落在某个空格上 */
+  var slots=document.querySelectorAll('#formula .slot');
+  var hit=false;
+  slots.forEach(function(sl){
+    var r=sl.getBoundingClientRect();
+    if(e.clientX>=r.left-6&&e.clientX<=r.right+6&&e.clientY>=r.top-6&&e.clientY<=r.bottom+6){
+      var i=+sl.dataset.i;
+      if(G.cards.placed[i]!==undefined) restoreCard(G.cards.placed[i]);
+      G.cards.placed[i]=v; el.classList.add('used'); hit=true; addStep();
+    }
+  });
+  renderSlots();
+  drag=null;
+}
+function checkCards(){
+  var st=G.cards, cfg=G.level.cards;
+  var complete=true;
+  for(var i=0;i<3;i++) if(st.placed[i]===undefined) complete=false;
+  if(!complete){ toast('先把三个空格都拖上数字卡片哦！'); return; }
+  var ok=true;
+  for(var j=0;j<3;j++) if(st.placed[j]!==cfg.slots[j].v) ok=false;
+  if(ok){ st.done=true; renderSlots(); succeed(false); }
+  else{
+    document.querySelectorAll('#formula .slot').forEach(function(sl){ sl.classList.add('shake'); });
+    setTimeout(function(){ document.querySelectorAll('#formula .slot').forEach(function(sl){sl.classList.remove('shake');}); },450);
+    toast('有卡片还没放对位置，再想想每块小图形的数量！');
+  }
+}
+
+/* ---------------- 通关 / 揭示答案 ---------------- */
+function succeed(viaReveal){
+  G.successFlag=true; G.revealing=false;
+  draw();
+  var L=G.level;
+  if(!viaReveal){ G.stars++; $('#hud-star').textContent='★ '+G.stars; FX.confetti(2.4); }
+  else FX.confetti(1.2);
+  var ovl=$('#ovl');
+  $('#ovl-stars').textContent=viaReveal?'☆ ☆ ☆':'★ ★ ★';
+  $('#ovl-title').textContent=viaReveal?'答案已揭示':'太棒了，通关！';
+  var tail=viaReveal?'（本关由答案揭示完成，再挑战一次可以赢回小星星哦）':'（收集到 1 颗小星星）';
+  $('#ovl-text').textContent=L.explain+tail;
+  $('#ovl-next').textContent=(G.idx>=G.order.length-1)?'完成本难度':'下一关';
+  ovl.classList.add('on');
+}
+function revealAnswer(){
+  if(G.successFlag) return;
+  var L=G.level;
+  if(L.kind==='construct'){
+    G.revealing=true; G.pending=null; G.segs=[];
+    var steps=[];
+    if(L.centerMode==='hidden'&&!G.centerFound){
+      steps.push(function(){ G.centerFound=true; ptById('O').show=true; draw(); toast('第一步：先找到中心 O！'); });
+    }
+    L.sol.forEach(function(pair){
+      steps.push(function(){
+        G.segs.push([pair[0],pair[1]]); draw();
+      });
+    });
+    var i=0, token=G.levelToken;
+    function run(){
+      if(token!==G.levelToken) return; /* 关卡已切换，放弃本次揭示 */
+      if(i<steps.length){ steps[i](); i++; setTimeout(run,650); }
+      else{ G.revealing=false; succeed(true); }
+    }
+    run();
+  }else{
+    /* 数块关：直接点亮全部 + 填好卡片 */
+    G.revealing=true;
+    var st=G.count, fig=COUNT_FIGS[L.fig];
+    st.abcDone=[]; st.defDone=[];
+    if(L.fig==='c10'){
+      fig.abcPieces.forEach(function(_,i){st.abcDone.push(i);});
+      fig.defPieces.forEach(function(_,i){st.defDone.push(i);});
+    }else{
+      fig.shadow.forEach(function(_,i){st.abcDone.push(i);});
+      fig.ring.forEach(function(_,i){st.defDone.push(i);});
+    }
+    st.phase=3; draw(); updateCountStatus();
+    if(!$('#tray').classList.contains('on')) setupCards();
+    G.cards.placed={0:L.cards.slots[0].v,1:L.cards.slots[1].v,2:L.cards.slots[2].v};
+    document.querySelectorAll('#cardpool .card').forEach(function(c){c.classList.add('used');});
+    renderSlots();
+    G.revealing=false;
+    succeed(true);
+  }
+}
+
+/* ---------------- 彩纸庆祝（Canvas 实现） ---------------- */
+var FX={
+  parts:[], raf:null, until:0,
+  confetti:function(sec){
+    var W=fx.clientWidth,H=fx.clientHeight,pal=G.pal;
+    this.until=performance.now()+sec*1000;
+    var colors=[pal.main,'#f59e0b','#fde047','#fff'].concat(pal.accents);
+    for(var i=0;i<150;i++){
+      this.parts.push({
+        x:Math.random()*W, y:-15-Math.random()*110,
+        vx:(Math.random()-0.5)*2.4, vy:2.4+Math.random()*3.2,
+        r:5+Math.random()*7, rot:Math.random()*TAU, vr:(Math.random()-0.5)*0.3,
+        c:colors[Math.floor(Math.random()*colors.length)]
+      });
+    }
+    /* 中心再来一波星屑，课堂效果更醒目 */
+    this.burst(W/2,H*0.42,26);
+    if(!this.raf) this.loop();
+  },
+  burst:function(x,y,n){
+    this.until=performance.now()+900;
+    for(var i=0;i<n;i++){
+      var a=Math.random()*TAU;
+      this.parts.push({x:x,y:y,vx:Math.cos(a)*3,vy:Math.sin(a)*3-1,r:3+Math.random()*4,
+        rot:0,vr:0.2,c:G.pal.accents[i%G.pal.accents.length]});
+    }
+    if(!this.raf) this.loop();
+  },
+  loop:function(){
+    var self=this;
+    this.raf=requestAnimationFrame(function(){
+      var W=fx.clientWidth,H=fx.clientHeight;
+      fctx.clearRect(0,0,W,H);
+      var now=performance.now();
+      self.parts=self.parts.filter(function(p){ return p.y<H+30&&p.x>-30&&p.x<W+30; });
+      self.parts.forEach(function(p){
+        p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.rot+=p.vr;
+        fctx.save(); fctx.translate(p.x,p.y); fctx.rotate(p.rot);
+        fctx.fillStyle=p.c;
+        fctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*0.62);
+        fctx.restore();
+      });
+      if(now<self.until||self.parts.length){ self.loop(); }
+      else{ self.raf=null; fctx.clearRect(0,0,W,H); }
+    });
+  }
+};
+
+/* ---------------- 关卡流程 ---------------- */
+function startLevel(key){
+  G.levelToken=(G.levelToken||0)+1;
+  var def=LEVELS[key];
+  G.level=def; G.successFlag=false; G.revealing=false; G.pending=null; G.segs=[];
+  G.steps=0; $('#hud-step').textContent='步数 0';
+  G.rot=Math.random()*TAU;
+  var pi=Math.floor(Math.random()*PALETTES.length);
+  G.pal=PALETTES[pi];
+  document.body.style.setProperty('--main',G.pal.main);
+  document.body.style.setProperty('--dark',G.pal.dark);
+  document.body.style.setProperty('--bg',G.pal.bg);
+  $('#ovl').classList.remove('on');
+  $('#tray').classList.remove('on');
+  if(def.kind==='construct'){
+    G.phase=(def.centerMode==='hidden')?'center':'draw';
+    buildConstruct(def);
+  }else{
+    G.phase='count';
+    COUNT_FIGS[def.fig]=(def.fig==='c10')?buildC10():buildC11();
+    G.count={phase:1,abcDone:[],defDone:[]};
+    G.cards={placed:{},done:false};
+  }
+  /* 面板内容 */
+  var dn=['初级','中级','高级'][def.diff];
+  $('#lv-title').textContent=dn+' 第 '+(G.idx+1)+' 关 · '+def.title;
+  $('#lv-quote').textContent='原题：'+def.quote;
+  $('#lv-task').textContent='任务：'+def.task;
+  $('#lv-legend').textContent='图例：'+def.legend;
+  if(def.kind==='count') updateCountStatus(); else $('#status').textContent='先观察图形，规划你的分割线吧！';
+  $('#screen-home').classList.remove('on');
+  $('#screen-game').classList.add('on');
+  G.screen='game';
+  startTimer();
+  resizeAll();
+}
+function nextLevel(){
+  if(G.idx>=G.order.length-1){
+    /* 本难度全部完成 */
+    stopTimer();
+    FX.confetti(4);
+    $('#ovl-stars').textContent='★ ★ ★';
+    $('#ovl-title').textContent=dn2()+' 全部通关！';
+    $('#ovl-text').textContent='你已经集齐本难度所有关卡的小星星！共 '+G.stars+' 颗。记住工坊秘籍：分割正多边形，找边上的等分点或中心点；块数常是 2 或 3 的倍数，可以先分两块、三块再细分。去挑战更高的难度吧！';
+    $('#ovl-next').textContent='返回难度选择';
+    $('#ovl').classList.add('on');
+    G.level=null;
+    return;
+  }
+  G.idx++;
+  startLevel(G.order[G.idx]);
+}
+function dn2(){ return ['初级','中级','高级'][G.diff]; }
+function restartLevel(){
+  if(!G.level){ backHome(); return; }
+  startLevel(G.level.key);
+}
+function backHome(){
+  stopTimer();
+  G.screen='home'; G.level=null;
+  $('#ovl').classList.remove('on');
+  $('#tray').classList.remove('on');
+  $('#screen-game').classList.remove('on');
+  $('#screen-home').classList.add('on');
+  ctx.clearRect(0,0,cv.clientWidth,$('#stage').clientHeight);
+}
+
+/* ---------------- 事件绑定 ---------------- */
+cv.addEventListener('pointerdown',function(e){
+  if(G.screen!=='game'||!G.level) return;
+  var r=cv.getBoundingClientRect();
+  var mx=e.clientX-r.left, my=e.clientY-r.top;
+  if(G.level.kind==='construct') handleConstructClick(mx,my);
+  else handleCountClick(mx,my);
+});
+document.querySelectorAll('.diff-btn').forEach(function(b){
+  b.addEventListener('click',function(){
+    G.diff=+b.dataset.diff;
+    G.order=DIFF_ORDER[G.diff].slice();
+    G.idx=0;
+    startLevel(G.order[0]);
+  });
+});
+$('#b-undo').addEventListener('click',function(){
+  if(!G.level||G.level.kind!=='construct'||G.successFlag||G.revealing) return;
+  if(G.segs.length){ G.segs.pop(); G.pending=null; draw(); toast('撤销了最后一刀'); }
+  else toast('还没有画过分割线呢');
+});
+$('#b-clear').addEventListener('click',function(){
+  if(!G.level||G.level.kind!=='construct'||G.successFlag||G.revealing) return;
+  if(G.segs.length||G.pending){ G.segs=[]; G.pending=null; addStep(); draw(); toast('画笔已清空，重新构思吧！'); }
+  else toast('画布本来就是空的哦');
+});
+$('#b-check').addEventListener('click',function(){
+  if(!G.level) return;
+  if(G.level.kind==='count'){ if(G.count.phase===3) checkCards(); else toast('先完成前面两步数块任务吧！'); return; }
+  if(G.phase==='center'){ toast('先点击图形找出中心点！'); return; }
+  if(G.successFlag||G.revealing) return;
+  var A=analyze();
+  if(!A||!G.segs.length){ toast('先画几条分割线，再来检验吧！'); return; }
+  var chk=checkSuccess(A);
+  if(chk.ok){ succeed(false); return; }
+  var fmin=1,fmax=0;
+  A.regions.forEach(function(r){ if(r.frac<fmin)fmin=r.frac; if(r.frac>fmax)fmax=r.frac; });
+  var msg='';
+  if(chk.why==='count') msg='现在分成了 '+A.regions.length+' 块，目标是 '+G.level.target+' 块，再调整一下分割线吧！';
+  else if(chk.why==='area') msg='块数对了，但最大块 '+Math.round(fmax*100)+'%、最小块 '+Math.round(fmin*100)+'%，大小还不相同。';
+  else msg='各块大小相同，但形状还不相同。试试从中心点或边的等分点出发画线！';
+  toast(msg,3400);
+  draw();
+});
+$('#b-reveal').addEventListener('click',function(){
+  if(!G.level||G.successFlag||G.revealing) return;
+  revealAnswer();
+});
+$('#b-restart').addEventListener('click',restartLevel);
+$('#b-back').addEventListener('click',backHome);
+$('#btn-home').addEventListener('click',backHome);
+$('#btn-rules').addEventListener('click',function(){ $('#modal').classList.add('on'); });
+$('#m-close').addEventListener('click',function(){ $('#modal').classList.remove('on'); });
+$('#ovl-next').addEventListener('click',function(){
+  if(!G.level){ $('#ovl').classList.remove('on'); backHome(); return; }
+  nextLevel();
+});
+$('#ovl-retry').addEventListener('click',function(){ restartLevel(); });
+$('#ovl-home').addEventListener('click',backHome);
+
+/* ---------------- 初始化 ---------------- */
+G.pal=PALETTES[Math.floor(Math.random()*PALETTES.length)];
+document.body.style.setProperty('--main',G.pal.main);
+document.body.style.setProperty('--dark',G.pal.dark);
+document.body.style.setProperty('--bg',G.pal.bg);
+resizeAll();
+/* 首次进入弹出规则说明（可随时再点开） */
+$('#modal').classList.add('on');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-j/g001", "name": "\u6b63\u591a\u8fb9\u5f62\u5206\u5272\u5de5\u574a \u00b7 \u6838\u5fc3\uff1a\u627e\u4e2d\u5fc3", "file": "g001.html", "jiaocan": "\u30105\u3011\u7b2c2\u8bb2 \u6b63\u591a\u8fb9\u5f62\u7684\u9762\u79ef\uff1a\u79d8\u7c4d1\u6b63n\u8fb9\u5f62\u5206\u5272\u7684\u6838\u5fc3\u627e\u4e2d\u5fc3", "unit": "\u7b2c2\u8bb2", "grade": "\u4e94\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "J\uff1a\u51e0\u4f55\u4e13\u9879", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u51e0\u4f55\u4e13\u9879\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-j"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>展开图侦探 · 寻找对应面 · 第12讲 有趣的立体图形（下）</title>
+<style>
+/* ============================================================
+   设计令牌：主色每局随机覆盖，保证多次游玩不重样
+   ============================================================ */
+:root{
+  --main:#2E7D6B; --main-dark:#1F594B; --main-light:#D6F0E8;
+  --accent:#F4A300; --pink:#E85D6C;
+  --ink:#1B2A2E; --paper:#FFFCF4; --line:#2F4858;
+  --ok:#2E8B57; --bad:#D9472F; --gold:#FFD43B;
+  --shadow:0 6px 0 rgba(0,0,0,.12), 0 10px 22px rgba(0,0,0,.12);
+  font-size:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Heiti SC","Source Han Sans SC",sans-serif;
+  background:var(--paper); color:var(--ink); overflow-x:hidden; line-height:1.5;
+}
+/* 纸纹背景（纯CSS） */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(46,125,107,.07), transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(244,163,0,.07), transparent 45%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(0,0,0,.018) 39px 40px);
+}
+#app{position:relative;z-index:1;min-height:100vh;}
+
+/* ============ 顶部信息条 ============ */
+header.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;flex-wrap:wrap;gap:8px;
+  background:var(--main);color:#fff;
+  box-shadow:0 3px 0 var(--main-dark);
+  position:sticky;top:0;z-index:50;
+}
+header.topbar .title{font-weight:800;font-size:1.1rem;letter-spacing:.5px;}
+header.topbar .title small{opacity:.85;font-weight:600;font-size:.74rem;display:block;margin-top:2px;}
+header .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+header .chip{
+  background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);
+  padding:4px 12px;border-radius:999px;font-weight:700;font-size:.9rem;
+  min-width:74px;text-align:center;
+}
+header .chip b{font-size:1.02rem;}
+header .btn-ghost{
+  background:rgba(255,255,255,.18);color:#fff;border:2px solid #fff;
+  padding:6px 12px;border-radius:10px;font-weight:700;cursor:pointer;font-size:.92rem;
+}
+header .btn-ghost:active{transform:translateY(2px);}
+
+/* ============ 通用按钮 ============ */
+.btn{
+  font-family:inherit;font-weight:800;cursor:pointer;border:none;
+  padding:13px 20px;border-radius:14px;font-size:1rem;color:#fff;
+  box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s, box-shadow .08s;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(0,0,0,.18);}
+.btn-primary{background:var(--main);}
+.btn-accent{background:var(--accent);}
+.btn-pink{background:var(--pink);}
+.btn-ink{background:var(--line);}
+.btn-line{background:#fff;color:var(--ink);border:3px solid var(--ink);}
+
+/* ============ 屏幕（视图） ============ */
+.screen{display:none;padding:18px 12px 50px;animation:fade .35s ease;}
+.screen.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+/* ============ 难度选择 ============ */
+.center-wrap{max-width:780px;margin:0 auto;text-align:center;}
+.hero-title{
+  font-size:2.1rem;font-weight:900;margin:6px 0 4px;color:var(--main-dark);
+  text-shadow:3px 3px 0 var(--main-light);
+}
+.hero-sub{font-size:1.05rem;color:var(--ink);opacity:.82;margin-bottom:20px;}
+.hero-sub b{color:var(--main-dark);}
+.diff-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;margin-top:14px;}
+.diff-card{
+  background:#fff;border:4px solid var(--ink);border-radius:18px;padding:22px 14px 18px;
+  cursor:pointer;box-shadow:0 8px 0 var(--ink);transition:transform .1s;
+  position:relative;overflow:hidden;
+}
+.diff-card:active{transform:translateY(4px);box-shadow:0 4px 0 var(--ink);}
+.diff-card .badge{
+  position:absolute;top:10px;right:10px;background:var(--accent);color:#fff;
+  font-weight:800;font-size:.78rem;padding:3px 11px;border-radius:999px;border:2px solid var(--ink);
+}
+.diff-card h3{margin:8px 0 4px;font-size:1.35rem;color:var(--main-dark);}
+.diff-card .stars{font-size:1.25rem;color:var(--accent);letter-spacing:2px;}
+.diff-card p{margin:8px 0 0;font-size:.94rem;color:var(--ink);opacity:.85;line-height:1.45;}
+.diff-card .icon{
+  width:72px;height:72px;margin:6px auto 2px;display:flex;align-items:center;justify-content:center;
+  background:var(--main-light);border-radius:50%;border:3px solid var(--main);
+}
+.cube-mini{width:48px;height:48px;}
+
+/* ============ 游戏主区 ============ */
+.game-head{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.quest-box{
+  background:#fff;border:3px dashed var(--main);border-radius:14px;
+  padding:12px 16px;margin:0 auto 14px;font-size:1.02rem;font-weight:600;
+  box-shadow:var(--shadow);max-width:680px;text-align:center;
+}
+.quest-box .tag{
+  display:inline-block;background:var(--main);color:#fff;border-radius:8px;
+  padding:2px 10px;font-size:.82rem;margin-right:8px;font-weight:800;vertical-align:middle;
+}
+.quest-box b{color:var(--main-dark);}
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:18px 0 8px;}
+
+/* ============ 展开图舞台 ============ */
+#netStageWrap{
+  display:flex;justify-content:center;align-items:center;
+  background:#FFFDF6;border:3px solid var(--ink);border-radius:18px;
+  padding:16px 10px;box-shadow:var(--shadow);min-height:280px;overflow:auto;
+}
+#netStage{position:relative;}
+.face{
+  position:absolute;display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:1.6rem;cursor:pointer;user-select:none;
+  border:3px solid var(--ink);border-radius:8px;
+  transition:transform .15s, box-shadow .15s, background .2s;
+  background:#fff;color:var(--ink);
+  touch-action:manipulation;
+}
+.face:hover{box-shadow:0 0 0 4px var(--gold);}
+.face.sel{background:var(--gold) !important;color:var(--ink);transform:scale(1.05);box-shadow:0 0 0 4px var(--accent);}
+.face.matched{background:var(--ok) !important;color:#fff;border-color:var(--ok);}
+.face.matched::after{content:" ✓";font-size:1rem;}
+.face.shake{animation:shake .42s;}
+.face.hint-glow{box-shadow:0 0 0 5px var(--accent);animation:pulse 1s 2;}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+#linkLayer{position:absolute;inset:0;pointer-events:none;}
+
+.progress-wrap{
+  margin:12px auto;max-width:540px;display:flex;align-items:center;gap:10px;
+}
+.progress-bar{flex:1;height:18px;background:#eee;border:2px solid var(--ink);border-radius:999px;overflow:hidden;}
+.progress-bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--main),var(--accent));transition:width .4s;}
+.progress-label{font-weight:800;}
+
+.answer-box{
+  background:#fff;border:3px solid var(--accent);border-radius:14px;padding:14px;margin:14px auto;max-width:520px;
+  display:none;box-shadow:var(--shadow);
+}
+.answer-box.show{display:block;animation:fade .3s;}
+.answer-box h4{margin:0 0 10px;color:var(--bad);}
+.answer-box table{width:100%;border-collapse:collapse;}
+.answer-box td{padding:7px 8px;border-bottom:1px dashed #ccc;font-weight:700;text-align:center;}
+.answer-box td:first-child{text-align:left;color:var(--main-dark);}
+
+/* ============ 高级模式：分拣区 ============ */
+.sort-stage{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;}
+.sort-bin{
+  background:#fff;border:3px solid var(--ink);border-radius:16px;padding:12px;min-height:130px;
+  transition:box-shadow .15s;
+}
+.sort-bin h4{margin:0 0 10px;text-align:center;font-size:1.05rem;}
+.sort-bin.yes h4{color:var(--ok);}
+.sort-bin.no h4{color:var(--bad);}
+.sort-bin.over{box-shadow:0 0 0 5px var(--accent);}
+.sort-net{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;min-height:40px;align-items:center;}
+.sort-net .mini-net{cursor:grab;transition:transform .1s;touch-action:none;}
+.sort-net .mini-net:active{cursor:grabbing;transform:scale(.95);}
+
+.drag-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:.85;}
+
+/* ============ 庆祝层 ============ */
+#celebrate{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.5);z-index:200;flex-direction:column;padding:16px;
+}
+#celebrate.show{display:flex;}
+#celebrate .card{
+  background:#fff;border:5px solid var(--accent);border-radius:22px;padding:26px 28px;
+  text-align:center;max-width:480px;width:100%;box-shadow:0 0 0 8px rgba(255,212,59,.4), 0 20px 50px rgba(0,0,0,.3);
+  animation:pop .5s cubic-bezier(.2,1.4,.4,1);position:relative;z-index:2;
+}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+#celebrate h2{margin:0 0 8px;font-size:1.7rem;color:var(--main-dark);}
+#celebrate p{margin:0 0 16px;font-size:1.02rem;}
+#confettiCanvas{position:fixed;inset:0;pointer-events:none;z-index:1;}
+
+/* ============ 规则弹层 ============ */
+#ruleModal, #warnModal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.55);z-index:150;padding:16px;
+}
+#ruleModal.show, #warnModal.show{display:flex;}
+.modal-card{
+  background:#fff;border-radius:18px;padding:22px;max-width:580px;width:100%;
+  box-shadow:var(--shadow);border:4px solid var(--ink);max-height:88vh;overflow:auto;
+}
+.modal-card h3{margin:0 0 12px;color:var(--main-dark);font-size:1.25rem;}
+.modal-card p{margin:8px 0;}
+.modal-card ul{margin:6px 0 12px;padding-left:22px;}
+.modal-card li{margin:7px 0;line-height:1.55;}
+.modal-card b{color:var(--main-dark);}
+.demo-row{text-align:center;margin:6px 0;}
+.demo-目{display:inline-flex;gap:3px;vertical-align:middle;margin:2px;}
+.demo-目 span{
+  width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;
+  border:2px solid var(--ink);background:var(--main-light);
+  font-weight:900;border-radius:4px;
+}
+.modal-card .close-row{text-align:right;margin-top:10px;}
+
+/* ============ 提示气泡 ============ */
+.toast{
+  position:fixed;left:50%;top:88px;transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+  font-weight:700;z-index:180;opacity:0;pointer-events:none;transition:opacity .3s, top .3s;
+  box-shadow:var(--shadow);max-width:90%;text-align:center;font-size:.96rem;
+}
+.toast.show{opacity:1;top:100px;}
+.toast.ok{background:var(--ok);}
+.toast.bad{background:var(--bad);}
+
+@media (max-width:600px){
+  :root{font-size:15px;}
+  .face{font-size:1.3rem;}
+  .hero-title{font-size:1.55rem;}
+  header.topbar .title{font-size:.98rem;}
+  header.topbar .title small{font-size:.68rem;}
+  .sort-stage{grid-template-columns:1fr;}
+  .btn{padding:12px 15px;font-size:.95rem;}
+  .diff-card{padding:16px 10px 14px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶部条 -->
+  <header class="topbar">
+    <div class="title">🔍 展开图侦探 · 寻找对应面
+      <small>第12讲 有趣的立体图形（下）｜用"目"字型找相对面</small>
+    </div>
+    <div class="meta">
+      <div class="chip">⏱ <b id="timeText">00:00</b></div>
+      <div class="chip">🎯 <b id="stepText">0</b> 步</div>
+      <button class="btn-ghost" id="btnRule">规则</button>
+      <button class="btn-ghost" id="btnHome">难度</button>
+    </div>
+  </header>
+
+  <!-- 屏幕1：难度选择 -->
+  <section class="screen active" id="screenHome">
+    <div class="center-wrap">
+      <div class="hero-title">展开图侦探</div>
+      <div class="hero-sub">把平面展开图<b>"折叠"</b>成正方体，找出 <b>3 组相对的面</b>！<br>用"目"字型的智慧，一双双地配对吧～</div>
+      <div class="diff-grid">
+        <div class="diff-card" data-diff="easy">
+          <span class="badge">入门</span>
+          <div class="icon">
+            <svg class="cube-mini" viewBox="0 0 64 64"><rect x="24" y="6" width="16" height="16" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="6" y="24" width="16" height="16" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="24" y="24" width="16" height="16" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="42" y="24" width="16" height="16" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="24" y="42" width="16" height="16" fill="#fff" stroke="#1B2A2E" stroke-width="3"/></svg>
+          </div>
+          <h3>初级</h3>
+          <div class="stars">★☆☆</div>
+          <p>1-4-1 十字型展开图<br>点击两个面，配出 3 组相对面</p>
+        </div>
+        <div class="diff-card" data-diff="mid">
+          <span class="badge">进阶</span>
+          <div class="icon">
+            <svg class="cube-mini" viewBox="0 0 64 64"><rect x="6" y="6" width="14" height="14" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="20" y="6" width="14" height="14" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="34" y="6" width="14" height="14" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="34" y="20" width="14" height="14" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="34" y="34" width="14" height="14" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="34" y="48" width="14" height="14" fill="#fff" stroke="#1B2A2E" stroke-width="3"/></svg>
+          </div>
+          <h3>中级</h3>
+          <div class="stars">★★☆</div>
+          <p>2-3-1 / 2-2-2 / 3-3 型<br>隐藏的"目"字，更需动脑</p>
+        </div>
+        <div class="diff-card" data-diff="hard">
+          <span class="badge">综合</span>
+          <div class="icon">
+            <svg class="cube-mini" viewBox="0 0 64 64"><rect x="6" y="20" width="12" height="12" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="18" y="20" width="12" height="12" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="30" y="20" width="12" height="12" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="42" y="20" width="12" height="12" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="42" y="32" width="12" height="12" fill="#fff" stroke="#1B2A2E" stroke-width="3"/><rect x="42" y="44" width="12" height="12" fill="#fff" stroke="#1B2A2E" stroke-width="3"/></svg>
+          </div>
+          <h3>高级</h3>
+          <div class="stars">★★★</div>
+          <p>判断"能否折叠成正方体"<br>拖拽分拣：能 / 不能</p>
+        </div>
+      </div>
+      <p style="margin-top:20px;opacity:.7;font-size:.9rem;">💡 每局主色与题目随机生成，多次游玩不重样！</p>
+    </div>
+  </section>
+
+  <!-- 屏幕2：配对模式 -->
+  <section class="screen" id="screenMatch">
+    <div class="game-head">
+      <div class="quest-box" id="questBox"></div>
+    </div>
+    <div class="progress-wrap">
+      <span class="progress-label">已配对</span>
+      <div class="progress-bar"><i id="progFill"></i></div>
+      <span class="progress-label"><b id="progText">0 / 3</b></span>
+    </div>
+    <div id="netStageWrap">
+      <div id="netStage">
+        <svg id="linkLayer" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-accent" id="btnHint">💡 提示</button>
+      <button class="btn btn-pink" id="btnReveal">👁 揭示答案</button>
+      <button class="btn btn-line" id="btnRestart">🔄 重新开始</button>
+      <button class="btn btn-ink" id="btnBackMatch">🏠 返回难度</button>
+    </div>
+    <div class="answer-box" id="answerBox">
+      <h4>📝 标准答案（3 组相对面）</h4>
+      <table id="answerTable"></table>
+    </div>
+  </section>
+
+  <!-- 屏幕3：高级分拣模式 -->
+  <section class="screen" id="screenSort">
+    <div class="game-head">
+      <div class="quest-box" id="questSortBox">
+        <span class="tag">任务</span>把每个展开图拖到对应的箱子里：能否折成正方体？<br>
+        <span style="font-size:.92rem;opacity:.82;">判断依据：能否找到 <b>3 组相对面</b>（即 3 个"目"字型或可旋转成"目"）。</span>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <span class="progress-label">已分拣</span>
+      <div class="progress-bar"><i id="progFillSort"></i></div>
+      <span class="progress-label"><b id="progTextSort">0 / 6</b></span>
+    </div>
+    <div class="sort-bin" style="margin-bottom:14px;">
+      <h4 style="color:var(--main-dark);text-align:center;">📦 待分拣的展开图（拖动它们）</h4>
+      <div class="sort-net" id="sortPool"></div>
+    </div>
+    <div class="sort-stage">
+      <div class="sort-bin yes" id="binYes" data-accept="yes">
+        <h4>✅ 能折成正方体</h4>
+        <div class="sort-net" id="sortYes"></div>
+      </div>
+      <div class="sort-bin no" id="binNo" data-accept="no">
+        <h4>❌ 不能折成</h4>
+        <div class="sort-net" id="sortNo"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-accent" id="btnHintSort">💡 提示</button>
+      <button class="btn btn-pink" id="btnRevealSort">👁 揭示答案</button>
+      <button class="btn btn-line" id="btnRestartSort">🔄 重新开始</button>
+      <button class="btn btn-ink" id="btnBackSort">🏠 返回难度</button>
+    </div>
+    <div class="answer-box" id="answerBoxSort">
+      <h4>📝 标准答案</h4>
+      <table id="answerTableSort"></table>
+    </div>
+  </section>
+
+</div>
+
+<!-- 规则弹层 -->
+<div id="ruleModal">
+  <div class="modal-card">
+    <h3>📖 游戏规则 · 找"目"字型</h3>
+    <p style="font-weight:700;color:var(--main-dark);">🎯 目标：找出正方体展开图中的 <b>3 组相对面</b>。</p>
+    <p><b>关键方法 —— 找"目"字型：</b></p>
+    <ul>
+      <li>在展开图中找到 <b>3 个面横排连成一行</b>（像汉字"目"），那么这一行的 <b>左右两端</b> 就是相对面。</li>
+      <li>同理，<b>3 个面竖排连成一列</b>，<b>上下两端</b> 也是相对面。</li>
+      <li>正方体有 <b>6 个面</b>，正好可以分成 <b>3 组相对面</b>。每局找齐 3 组就通关！</li>
+      <li>如果直观看不出"目"，可以尝试<b>旋转</b> 局部图形再找。</li>
+    </ul>
+    <p style="text-align:center;font-weight:700;">演示：下面的 A 和 C 相对（3 连横排的两端）</p>
+    <div class="demo-row">
+      <span class="demo-目"><span>A</span><span>B</span><span>C</span></span>
+    </div>
+    <p style="text-align:center;opacity:.75;font-size:.92rem;">A、B、C 三个面横排相连，则 <b>A 和 C 是相对面</b>，B 与另一处的某个面相对。</p>
+    <p><b>🖱 操作方式：</b></p>
+    <ul>
+      <li><b>初级/中级：</b> 点击两个面来配对。正确则绿色固定 + 连线；错误会抖动。找齐 3 组即通关！</li>
+      <li><b>高级：</b> 把展开图拖到"能/不能"两个箱子。判断依据：能否找到 3 组相对面。</li>
+    </ul>
+    <div class="close-row"><button class="btn btn-primary" id="btnCloseRule">明白啦，开始玩！</button></div>
+  </div>
+</div>
+
+<!-- 警告弹层 -->
+<div id="warnModal">
+  <div class="modal-card" style="max-width:380px;text-align:center;">
+    <h3 id="warnTitle">确认操作</h3>
+    <p id="warnMsg" style="font-weight:600;"></p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:10px;">
+      <button class="btn btn-line" id="warnCancel">取消</button>
+      <button class="btn btn-pink" id="warnOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 庆祝层 -->
+<div id="celebrate">
+  <canvas id="confettiCanvas"></canvas>
+  <div class="card">
+    <h2 id="celTitle">🎉 太棒啦！</h2>
+    <p id="celMsg"></p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="celNext">🔄 再玩一局</button>
+      <button class="btn btn-ink" id="celHome">🏠 换难度</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   展开图侦探 · 核心逻辑
+   设计理念：
+   - 题型本质 = 找正方体展开图的相对面（"目"字型规则）
+   - 数学正确性：通过"虚拟折叠"算法（计算每个面的法向量）
+     来精确判定哪些面相对，以及哪些展开图能折成正方体。
+   - 11 种标准正方体展开图全部内置，每局随机抽取。
+   ================================================================ */
+
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const rnd = (n) => Math.floor(Math.random()*n);
+const shuffle = (a) => { const b=a.slice(); for(let i=b.length-1;i>0;i--){const j=rnd(i+1);[b[i],b[j]]=[b[j],b[i]];} return b; };
+const sample = (a, k) => shuffle(a).slice(0, k);
+const choice = (a) => a[rnd(a.length)];
+
+/* ---------- 主色随机化 ---------- */
+const PALETTES = [
+  {main:'#2E7D6B', dark:'#1F594B', light:'#D6F0E8'},
+  {main:'#3F6FB0', dark:'#264B82', light:'#D8E6F6'},
+  {main:'#B5651D', dark:'#7E4310', light:'#F6E2CD'},
+  {main:'#8E4A9E', dark:'#5E2E6C', light:'#EBD9F0'},
+  {main:'#1F8A8A', dark:'#0F5E5E', light:'#CDEDED'},
+  {main:'#C0392B', dark:'#822019', light:'#F8D7D3'},
+  {main:'#4A8C2A', dark:'#2F5E18', light:'#DCEBCF'},
+  {main:'#D97706', dark:'#974F06', light:'#FAE3C5'}
+];
+function applyRandomPalette(){
+  const p = choice(PALETTES);
+  const r = document.documentElement.style;
+  r.setProperty('--main', p.main);
+  r.setProperty('--main-dark', p.dark);
+  r.setProperty('--main-light', p.light);
+  const h = $('header.topbar');
+  h.style.background = p.main;
+  h.style.boxShadow = `0 3px 0 ${p.dark}`;
+}
+
+/* ---------- Toast ---------- */
+let toastTimer=null;
+function toast(msg, type=''){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.className='toast '+type; }, 1700);
+}
+
+/* ---------- 计时器与步数 ---------- */
+let timeStart=0, timeInt=null, stepCount=0;
+function startTimer(){
+  stopTimer();
+  timeStart = Date.now(); stepCount = 0;
+  $('#stepText').textContent = '0';
+  timeInt = setInterval(()=>{
+    const s = Math.floor((Date.now()-timeStart)/1000);
+    const m = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    $('#timeText').textContent = `${m}:${ss}`;
+  }, 500);
+}
+function stopTimer(){ if(timeInt){clearInterval(timeInt);timeInt=null;} }
+function addStep(){ stepCount++; $('#stepText').textContent = String(stepCount); }
+
+/* ---------- 屏幕切换 ---------- */
+function showScreen(id){
+  $$('.screen').forEach(s=>s.classList.remove('active'));
+  $('#'+id).classList.add('active');
+}
+
+/* ================================================================
+   核心：虚拟折叠算法（与 Python 枚举一致，已通过 216 种六连方
+   测试，精确得到 11 种正方体展开图）
+   - 输入：layout = [[r,c],...]（6 个格子的行列坐标）
+   - 输出：{valid:bool, pairs:[[a,b],...]}（pairs 为相对面索引对）
+   ================================================================ */
+function foldNet(layout){
+  // 建立格子→索引映射
+  const idxMap = {};
+  layout.forEach((rc,i)=>{ idxMap[rc[0]+','+rc[1]] = i; });
+  const neighbors = (r,c)=>{
+    const res=[];
+    const dirs=[[[-1,0],'up'],[[1,0],'down'],[[0,-1],'left'],[[0,1],'right']];
+    for(const [[dr,dc],dirn] of dirs){
+      const nb = idxMap[(r+dr)+','+(c+dc)];
+      if(nb!==undefined) res.push([nb,dirn]);
+    }
+    return res;
+  };
+  const neg = (v)=>[-v[0],-v[1],-v[2]];
+  const frames = {};
+  // 起始面：法向量 +Z，向右 +X，向下 +Y
+  const startIdx = 0;
+  const [sr,sc] = layout[0];
+  frames[startIdx] = { n:[0,0,1], eR:[1,0,0], eD:[0,1,0] };
+  const queue = [[sr,sc,startIdx]];
+  const visited = new Set([startIdx]);
+  while(queue.length){
+    const [r,c,i] = queue.shift();
+    const cf = frames[i];
+    for(const [nb,dirn] of neighbors(r,c)){
+      let nf;
+      if(dirn==='right')      nf = { n:cf.eR, eR:neg(cf.n), eD:cf.eD };
+      else if(dirn==='left')  nf = { n:neg(cf.eR), eR:cf.n, eD:cf.eD };
+      else if(dirn==='down')  nf = { n:cf.eD, eR:cf.eR, eD:neg(cf.n) };
+      else /* up */           nf = { n:neg(cf.eD), eR:cf.eR, eD:cf.n };
+      if(visited.has(nb)){
+        // 法向量必须一致，否则折不出正方体
+        const fn = frames[nb].n;
+        if(fn[0]!==nf.n[0] || fn[1]!==nf.n[1] || fn[2]!==nf.n[2]) return null;
+      } else {
+        frames[nb] = nf; visited.add(nb);
+        // 直接通过索引读取该面的格子坐标，入队继续 BFS
+        queue.push([layout[nb][0], layout[nb][1], nb]);
+      }
+    }
+  }
+  if(Object.keys(frames).length!==6) return null;
+  // 6 个法向量必须互不相同
+  const seen={};
+  for(const i in frames){
+    const k = frames[i].n.join(',');
+    if(seen[k]!==undefined) return null;
+    seen[k]=i;
+  }
+  // 配对：法向量相反的两个面是相对面
+  const pairs=[]; const used=new Set();
+  for(let i=0;i<6;i++){
+    if(used.has(i)) continue;
+    const tgt = neg(frames[i].n).join(',');
+    for(let j=i+1;j<6;j++){
+      if(used.has(j)) continue;
+      if(frames[j].n.join(',')===tgt){
+        pairs.push([i,j]); used.add(i); used.add(j); break;
+      }
+    }
+  }
+  return pairs;
+}
+
+/* ================================================================
+   题库：11 种标准正方体展开图（已用折叠算法逐一验证）
+   每条记录：layout（6 格坐标，从上到下、从左到右读取顺序）
+   ================================================================ */
+// 11 种标准正方体展开图（全部经"虚拟折叠"算法逐一验证为可折成正方体）
+// 布局坐标来自 216 种六连方的穷举枚举，每一行/列的"目"字型相对面规则均成立。
+// ASCII 图示参考：
+//   #1 (3-3 错位):  ..### / ###..     #2 (1-4-1 十字):  .#.. / #### / .#..
+//   #3 (1-4-1):     .#.. / #### / ..#.   #4 (1-4-1):  #... / #### / ..#.
+//   #5 (1-4-1):     #... / #### / .#..    #6 (2-3-1):  ##.. / .### / .#..
+//   #7 (2-3-1):     ##.. / .### / ..#.    #8 (1-4-1):  #... / #### / #...
+//   #9 (1-4-1):     ...# / #### / #...    #10 (2-3-1): ..## / ###. / #...
+//   #11 (2-2-2):    ..## / .##. / ##..
+const NETS_141 = [
+  // 1-4-1 型：中间一排 4 个，上下各 1 个
+  { name:'1-4-1 十字型',   layout:[[0,1],[1,0],[1,1],[1,2],[1,3],[2,1]] }, // #2
+  { name:'1-4-1 偏下右',   layout:[[0,1],[1,0],[1,1],[1,2],[1,3],[2,2]] }, // #3
+  { name:'1-4-1 左上右下', layout:[[0,0],[1,0],[1,1],[1,2],[1,3],[2,2]] }, // #4
+  { name:'1-4-1 左上左下', layout:[[0,0],[1,0],[1,1],[1,2],[1,3],[2,1]] }, // #5
+  { name:'1-4-1 左右同侧', layout:[[0,0],[1,0],[1,1],[1,2],[1,3],[2,0]] }, // #8
+  { name:'1-4-1 对角型',   layout:[[0,3],[1,0],[1,1],[1,2],[1,3],[2,0]] }, // #9
+];
+const NETS_231 = [
+  // 2-3-1 型：上面 2 个、中间 3 个、下面 1 个
+  { name:'2-3-1 型 A',     layout:[[0,0],[0,1],[1,1],[1,2],[1,3],[2,1]] }, // #6
+  { name:'2-3-1 型 B',     layout:[[0,0],[0,1],[1,1],[1,2],[1,3],[2,2]] }, // #7
+  { name:'2-3-1 型 C',     layout:[[0,2],[0,3],[1,0],[1,1],[1,2],[2,0]] }, // #10
+];
+const NETS_222 = [
+  // 2-2-2 阶梯型：6 格呈阶梯状排列
+  { name:'2-2-2 阶梯型',   layout:[[0,2],[0,3],[1,1],[1,2],[2,0],[2,1]] }, // #11
+];
+const NETS_33 = [
+  // 3-3 型：两行各 3 个，错开 2 格
+  { name:'3-3 错位型',     layout:[[0,2],[0,3],[0,4],[1,0],[1,1],[1,2]] }, // #1
+];
+const NETS_ALL = [...NETS_141, ...NETS_231, ...NETS_222, ...NETS_33];
+
+// 不能折成正方体的"陷阱"展开图（已用折叠算法逐一验证为 INVALID）
+const NETS_BAD = [
+  { name:'一字长蛇（6连）',  layout:[[0,0],[0,1],[0,2],[0,3],[0,4],[0,5]] },
+  { name:'2×3 矩形',         layout:[[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]] },
+  { name:'3×2 矩形',         layout:[[0,0],[0,1],[1,0],[1,1],[2,0],[2,1]] },
+  { name:'L 拐角（断开）',   layout:[[0,0],[0,1],[0,2],[1,2],[2,2],[2,3]] },
+  { name:'十字带重叠',       layout:[[0,1],[1,0],[1,1],[1,2],[2,1],[0,2]] },
+  { name:'T 字多一臂',       layout:[[0,0],[0,1],[0,2],[0,3],[0,4],[1,2]] },
+];
+
+// 启动时用折叠算法预计算每个 net 的 pairs（保证数学正确）
+NETS_ALL.forEach(n=>{ n.pairs = foldNet(n.layout); });
+NETS_BAD.forEach(n=>{ n.pairs = foldNet(n.layout); /* 应为 null */ });
+
+/* ---------- 字母/数字标签 ---------- */
+const LABELS_LETTER = ['A','B','C','D','E','F'];
+const LABELS_NUM = ['1','2','3','4','5','6'];
+
+// 反重复：每次进入关卡，把面的标签随机打乱（这样同一展开图，每次答案都不同）
+function makeLevel(net){
+  const labels = shuffle(Math.random()<0.5 ? LABELS_LETTER.slice() : LABELS_NUM.slice());
+  return { net, labels, pairs: net.pairs };
+}
+
+/* ================================================================
+   配对模式渲染
+   ================================================================ */
+let currentMatch=null, selectedFace=null, matchedPairs=[], lastDiff='easy';
+
+function renderMatchBoard(level){
+  currentMatch = level;
+  matchedPairs = [];
+  selectedFace = null;
+  const stage = $('#netStage');
+  $('#linkLayer').innerHTML = '';
+  $$('.face', stage).forEach(f=>f.remove());
+
+  const cells = level.net.layout;
+  const rows = cells.map(c=>c[0]); const cols = cells.map(c=>c[1]);
+  const minR=Math.min(...rows), maxR=Math.max(...rows);
+  const minC=Math.min(...cols), maxC=Math.max(...cols);
+  // 根据屏幕宽度自适应面的大小
+  const wrap = $('#netStageWrap');
+  const wrapW = Math.min(wrap.clientWidth - 40, 460);
+  const spanC = maxC-minC+1, spanR = maxR-minR+1;
+  const faceSize = Math.max(46, Math.min(78, Math.floor((wrapW - (spanC-1)*4 - 16) / spanC)));
+  const gap=4, pad=8;
+  const W = spanC*faceSize + (spanC-1)*gap + pad*2;
+  const H = spanR*faceSize + (spanR-1)*gap + pad*2;
+  stage.style.width = W+'px';
+  stage.style.height = H+'px';
+  $('#linkLayer').setAttribute('width', W);
+  $('#linkLayer').setAttribute('height', H);
+
+  cells.forEach((rc,i)=>{
+    const [r,c] = rc;
+    const x = pad + (c-minC)*(faceSize+gap);
+    const y = pad + (r-minR)*(faceSize+gap);
+    const f = document.createElement('div');
+    f.className='face';
+    f.style.left=x+'px'; f.style.top=y+'px';
+    f.style.width=faceSize+'px'; f.style.height=faceSize+'px';
+    f.style.fontSize = (faceSize*0.5)+'px';
+    f.textContent = level.labels[i];
+    f.dataset.idx = i;
+    f.addEventListener('click', ()=>onFaceClick(f,i));
+    stage.appendChild(f);
+  });
+
+  $('#questBox').innerHTML = `<span class="tag">题型</span><b>${level.net.name}</b> 型展开图<br>点击两个面，找出 <b>3 组相对的面</b>。找齐即通关！`;
+  updateMatchProgress();
+  $('#answerBox').classList.remove('show');
+}
+
+function onFaceClick(el, idx){
+  if(el.classList.contains('matched')) return;
+  addStep();
+  if(selectedFace===null){
+    selectedFace = idx;
+    el.classList.add('sel');
+    return;
+  }
+  if(selectedFace===idx){
+    el.classList.remove('sel');
+    selectedFace=null; return;
+  }
+  const a = selectedFace, b = idx;
+  const prevEl = $(`.face[data-idx="${a}"]`);
+  prevEl.classList.remove('sel');
+  const isPair = currentMatch.pairs.some(p =>
+    (p[0]===a && p[1]===b) || (p[0]===b && p[1]===a));
+  if(isPair){
+    el.classList.add('matched'); prevEl.classList.add('matched');
+    matchedPairs.push([Math.min(a,b), Math.max(a,b)]);
+    drawLink(a,b);
+    toast('✓ 配对正确！','ok');
+    updateMatchProgress();
+    selectedFace=null;
+    if(matchedPairs.length===3){
+      setTimeout(onMatchWin, 480);
+    }
+  } else {
+    el.classList.add('shake'); prevEl.classList.add('shake');
+    toast('✗ 这两个面不相对，再想想～','bad');
+    setTimeout(()=>{ el.classList.remove('shake'); prevEl.classList.remove('shake'); }, 430);
+    selectedFace=null;
+  }
+}
+
+function drawLink(a,b){
+  const fa = $(`.face[data-idx="${a}"]`), fb = $(`.face[data-idx="${b}"]`);
+  if(!fa||!fb) return;
+  const ax = fa.offsetLeft + fa.offsetWidth/2;
+  const ay = fa.offsetTop + fa.offsetHeight/2;
+  const bx = fb.offsetLeft + fb.offsetWidth/2;
+  const by = fb.offsetTop + fb.offsetHeight/2;
+  const svg = $('#linkLayer');
+  const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('x1',ax); line.setAttribute('y1',ay);
+  line.setAttribute('x2',bx); line.setAttribute('y2',by);
+  line.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--accent'));
+  line.setAttribute('stroke-width','5');
+  line.setAttribute('stroke-linecap','round');
+  line.setAttribute('stroke-dasharray','8 6');
+  line.setAttribute('opacity','0.9');
+  svg.appendChild(line);
+}
+
+function updateMatchProgress(){
+  $('#progFill').style.width = (matchedPairs.length/3*100)+'%';
+  $('#progText').textContent = `${matchedPairs.length} / 3`;
+}
+
+function onMatchWin(){
+  stopTimer();
+  $('#celTitle').textContent = '🎉 太棒啦，全部配对成功！';
+  $('#celMsg').innerHTML = `用时 <b>${$('#timeText').textContent}</b>，共 <b>${stepCount}</b> 步。<br>你掌握了"目"字型找相对面的方法！`;
+  $('#celebrate').classList.add('show');
+  launchConfetti();
+}
+
+function matchHint(){
+  if(matchedPairs.length>=3) return;
+  const remain = currentMatch.pairs.filter(p =>
+    !matchedPairs.some(m=>m[0]===Math.min(p[0],p[1]) && m[1]===Math.max(p[0],p[1])));
+  if(!remain.length) return;
+  const [a,b] = remain[0];
+  const fa=$(`.face[data-idx="${a}"]`), fb=$(`.face[data-idx="${b}"]`);
+  fa.classList.add('hint-glow'); fb.classList.add('hint-glow');
+  toast('💡 看这两个闪烁的面，它们是相对的～','ok');
+  setTimeout(()=>{ fa.classList.remove('hint-glow'); fb.classList.remove('hint-glow'); }, 2100);
+  addStep();
+}
+
+function matchReveal(){
+  const tbl = $('#answerTable');
+  let html='';
+  currentMatch.pairs.forEach((p,i)=>{
+    html += `<tr><td>第 ${i+1} 组相对面</td><td>${currentMatch.labels[p[0]]} ⟷ ${currentMatch.labels[p[1]]}</td></tr>`;
+  });
+  tbl.innerHTML = html;
+  $('#answerBox').classList.add('show');
+  const palette = ['#FFD43B','#A7D8F0','#F6C6D4'];
+  currentMatch.pairs.forEach((p,i)=>{
+    const fa=$(`.face[data-idx="${p[0]}"]`), fb=$(`.face[data-idx="${p[1]}"]`);
+    if(fa && !fa.classList.contains('matched')) fa.style.background = palette[i];
+    if(fb && !fb.classList.contains('matched')) fb.style.background = palette[i];
+  });
+  toast('答案已揭示（同色 = 相对面）','bad');
+}
+
+/* ================================================================
+   高级模式：拖拽分拣
+   ================================================================ */
+let sortLevels=[], sortDone=0;
+
+function setupSort(){
+  // 随机抽 3 个能折 + 3 个不能折
+  const goods = sample(NETS_ALL, 3);
+  const bads = sample(NETS_BAD, 3);
+  sortLevels = shuffle([...goods, ...bads].map(n=>({net:n, answer: n.pairs && n.pairs.length===3 ? 'yes':'no'})));
+  sortDone = 0;
+  renderSortPool();
+  updateSortProgress();
+  $('#answerBoxSort').classList.remove('show');
+}
+
+function renderMiniNet(net){
+  const cells = net.layout;
+  const rows = cells.map(c=>c[0]); const cols = cells.map(c=>c[1]);
+  const minR=Math.min(...rows), maxR=Math.max(...rows);
+  const minC=Math.min(...cols), maxC=Math.max(...cols);
+  const size=26, gap=3;
+  const W=(maxC-minC+1)*size+(maxC-minC)*gap;
+  const H=(maxR-minR+1)*size+(maxR-minR)*gap;
+  const wrap = document.createElement('div');
+  wrap.className='mini-net';
+  wrap.style.display='inline-block';
+  wrap.style.background='#fff';
+  wrap.style.border='3px solid var(--ink)';
+  wrap.style.borderRadius='10px';
+  wrap.style.padding='5px';
+  wrap.style.boxShadow='0 3px 0 var(--ink)';
+  let svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
+  cells.forEach((rc)=>{
+    const x=(rc[1]-minC)*(size+gap), y=(rc[0]-minR)*(size+gap);
+    svg += `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="#fff" stroke="#1B2A2E" stroke-width="2.5" rx="3"/>`;
+  });
+  svg += '</svg>';
+  wrap.innerHTML = svg;
+  return wrap;
+}
+
+function renderSortPool(){
+  const pool=$('#sortPool'), yes=$('#sortYes'), no=$('#sortNo');
+  pool.innerHTML=''; yes.innerHTML=''; no.innerHTML='';
+  sortLevels.forEach((lv,i)=>{
+    const card = renderMiniNet(lv.net);
+    card.dataset.idx = i;
+    card.dataset.answer = lv.answer;
+    card.setAttribute('draggable','true');
+    card.addEventListener('dragstart', onSortDragStart);
+    card.addEventListener('dragend', onSortDragEnd);
+    card.addEventListener('touchstart', onSortTouchStart, {passive:false});
+    pool.appendChild(card);
+  });
+  ['binYes','binNo'].forEach(id=>{
+    const bin=$('#'+id);
+    bin.addEventListener('dragover', e=>{e.preventDefault(); bin.classList.add('over');});
+    bin.addEventListener('dragleave', ()=>bin.classList.remove('over'));
+    bin.addEventListener('drop', e=>{
+      e.preventDefault(); bin.classList.remove('over');
+      const idx = e.dataTransfer.getData('text/plain');
+      sortDrop(idx, bin.dataset.accept);
+    });
+  });
+}
+
+let dragSrcEl=null;
+function onSortDragStart(e){
+  dragSrcEl = e.currentTarget;
+  e.dataTransfer.setData('text/plain', e.currentTarget.dataset.idx);
+  e.dataTransfer.effectAllowed='move';
+  setTimeout(()=>{e.currentTarget.style.opacity='.3';},0);
+}
+function onSortDragEnd(e){ e.currentTarget.style.opacity='1'; }
+
+let touchGhost=null, touchIdx=null;
+function onSortTouchStart(e){
+  e.preventDefault();
+  const card = e.currentTarget;
+  touchIdx = card.dataset.idx;
+  const t = e.touches[0];
+  const rect = card.getBoundingClientRect();
+  touchGhost = card.cloneNode(true);
+  touchGhost.classList.add('drag-ghost');
+  touchGhost.style.left = rect.left+'px';
+  touchGhost.style.top = rect.top+'px';
+  touchGhost.style.width = rect.width+'px';
+  touchGhost.style.height = rect.height+'px';
+  document.body.appendChild(touchGhost);
+  card.style.opacity='.3';
+  document.addEventListener('touchmove', onSortTouchMove, {passive:false});
+  document.addEventListener('touchend', onSortTouchEnd);
+}
+function onSortTouchMove(e){
+  if(!touchGhost) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  touchGhost.style.left = (t.clientX - touchGhost.offsetWidth/2)+'px';
+  touchGhost.style.top = (t.clientY - touchGhost.offsetHeight/2)+'px';
+}
+function onSortTouchEnd(e){
+  document.removeEventListener('touchmove', onSortTouchMove);
+  document.removeEventListener('touchend', onSortTouchEnd);
+  if(!touchGhost) return;
+  const t = e.changedTouches[0];
+  const target = document.elementFromPoint(t.clientX, t.clientY);
+  const bin = target ? target.closest('.sort-bin') : null;
+  const orig = $(`.mini-net[data-idx="${touchIdx}"]`);
+  if(orig) orig.style.opacity='1';
+  touchGhost.remove(); touchGhost=null;
+  if(bin) sortDrop(touchIdx, bin.dataset.accept);
+  touchIdx=null;
+}
+
+function sortDrop(idxStr, accept){
+  const idx = parseInt(idxStr);
+  const lv = sortLevels[idx];
+  if(!lv) return;
+  const card = $(`.mini-net[data-idx="${idx}"]`);
+  if(!card) return;
+  // 已经在目标箱子里就忽略
+  if(card.parentElement.id === (accept==='yes'?'sortYes':'sortNo')) return;
+  addStep();
+  if(lv.answer === accept){
+    card.setAttribute('draggable','false');
+    card.style.cursor='default';
+    const tgtBin = accept==='yes' ? $('#sortYes') : $('#sortNo');
+    tgtBin.appendChild(card);
+    sortDone++;
+    updateSortProgress();
+    toast('✓ 判断正确！','ok');
+    if(sortDone===sortLevels.length){
+      setTimeout(onSortWin, 420);
+    }
+  } else {
+    card.classList.add('shake');
+    toast('✗ 再想想：能否找到 3 组相对面？','bad');
+    setTimeout(()=>card.classList.remove('shake'), 430);
+  }
+}
+
+function updateSortProgress(){
+  $('#progFillSort').style.width = (sortDone/sortLevels.length*100)+'%';
+  $('#progTextSort').textContent = `${sortDone} / ${sortLevels.length}`;
+}
+
+function onSortWin(){
+  stopTimer();
+  $('#celTitle').textContent = '🎉 分拣大师！';
+  $('#celMsg').innerHTML = `用时 <b>${$('#timeText').textContent}</b>，共 <b>${stepCount}</b> 步。<br>你能一眼判断展开图能否折成正方体！`;
+  $('#celebrate').classList.add('show');
+  launchConfetti();
+}
+
+function sortHint(){
+  const remain = sortLevels.filter((lv,i)=>{
+    const card = $(`.mini-net[data-idx="${i}"]`);
+    return card && card.parentElement.id==='sortPool';
+  });
+  if(!remain.length) return;
+  const lv = remain[0];
+  const idx = sortLevels.indexOf(lv);
+  const card = $(`.mini-net[data-idx="${idx}"]`);
+  if(card){
+    card.style.outline = '5px solid var(--accent)';
+    card.style.boxShadow='0 0 0 4px var(--accent)';
+    setTimeout(()=>{ card.style.outline=''; card.style.boxShadow='0 3px 0 var(--ink)'; }, 2200);
+    toast(lv.answer==='yes' ? '💡 这一个能折成正方体（有3组相对面）' : '💡 这一个不能折成正方体','ok');
+    addStep();
+  }
+}
+
+function sortReveal(){
+  let html='';
+  sortLevels.forEach((lv,i)=>{
+    html += `<tr><td>展开图 ${i+1}（${lv.net.name}）</td><td>${lv.answer==='yes'?'✅ 能折成':'❌ 不能折成'}</td></tr>`;
+  });
+  $('#answerTableSort').innerHTML = html;
+  $('#answerBoxSort').classList.add('show');
+  sortLevels.forEach((lv,i)=>{
+    const card = $(`.mini-net[data-idx="${i}"]`);
+    if(card && card.parentElement.id==='sortPool'){
+      card.style.opacity='.55';
+      card.style.border='3px dashed '+(lv.answer==='yes'?'var(--ok)':'var(--bad)');
+    }
+  });
+  toast('答案已揭示','bad');
+}
+
+/* ================================================================
+   庆祝：彩纸 Canvas 动画
+   ================================================================ */
+let confettiAnim=null;
+function launchConfetti(){
+  const canvas = $('#confettiCanvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  const pieces = [];
+  const colors = ['#F4A300','#2E7D6B','#E85D6C','#3F6FB0','#FFD43B','#8E4A9E','#2E8B57','#D9472F'];
+  for(let i=0;i<180;i++){
+    pieces.push({
+      x: Math.random()*canvas.width,
+      y: -20 - Math.random()*canvas.height*0.4,
+      r: 6+Math.random()*9,
+      c: choice(colors),
+      vx: -2.5+Math.random()*5,
+      vy: 2+Math.random()*4.5,
+      rot: Math.random()*Math.PI,
+      vr: -0.25+Math.random()*0.5,
+      shape: Math.random()<0.5?'rect':'circ'
+    });
+  }
+  let frame=0;
+  function tick(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    pieces.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      if(p.y>canvas.height+20){ p.y=-20; p.x=Math.random()*canvas.width; }
+      ctx.save();
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.c;
+      if(p.shape==='rect'){
+        ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*0.6);
+      } else {
+        ctx.beginPath(); ctx.arc(0,0,p.r/2,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    });
+    frame++;
+    if(frame<680){ confettiAnim = requestAnimationFrame(tick); }
+    else { ctx.clearRect(0,0,canvas.width,canvas.height); }
+  }
+  tick();
+}
+function stopConfetti(){
+  if(confettiAnim){ cancelAnimationFrame(confettiAnim); confettiAnim=null; }
+  const c=$('#confettiCanvas'); if(c){ const ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height); }
+}
+
+/* ================================================================
+   开始一局
+   ================================================================ */
+function startGame(diff){
+  lastDiff = diff;
+  applyRandomPalette();
+  startTimer();
+  if(diff==='easy'){
+    const net = choice(NETS_141);
+    const lv = makeLevel(net);
+    showScreen('screenMatch');
+    renderMatchBoard(lv);
+  } else if(diff==='mid'){
+    const pool = [...NETS_231, ...NETS_222, ...NETS_33];
+    const net = choice(pool);
+    const lv = makeLevel(net);
+    showScreen('screenMatch');
+    renderMatchBoard(lv);
+  } else if(diff==='hard'){
+    showScreen('screenSort');
+    setupSort();
+  }
+}
+
+/* ================================================================
+   事件绑定
+   ================================================================ */
+let warnCallback=null;
+function confirmDialog(title, msg, cb){
+  $('#warnTitle').textContent = title;
+  $('#warnMsg').textContent = msg;
+  warnCallback = cb;
+  $('#warnModal').classList.add('show');
+}
+
+function bindEvents(){
+  $$('.diff-card').forEach(card=>{
+    card.addEventListener('click', ()=> startGame(card.dataset.diff));
+  });
+
+  $('#btnRule').addEventListener('click', ()=> $('#ruleModal').classList.add('show'));
+  $('#btnHome').addEventListener('click', ()=>{
+    if($('#screenMatch').classList.contains('active') || $('#screenSort').classList.contains('active')){
+      confirmDialog('返回难度选择？','当前进度不会保存。', ()=>{ stopTimer(); showScreen('screenHome'); });
+    } else showScreen('screenHome');
+  });
+  $('#btnCloseRule').addEventListener('click', ()=> $('#ruleModal').classList.remove('show'));
+
+  // 配对模式
+  $('#btnHint').addEventListener('click', matchHint);
+  $('#btnReveal').addEventListener('click', ()=> confirmDialog('揭示答案？','揭示后本局不计成绩。', matchReveal));
+  $('#btnRestart').addEventListener('click', ()=> confirmDialog('重新开始？','会重新随机生成一局。', ()=> startGame(lastDiff)));
+  $('#btnBackMatch').addEventListener('click', ()=> confirmDialog('返回难度选择？','进度不保存。', ()=>{ stopTimer(); showScreen('screenHome'); }));
+
+  // 分拣模式
+  $('#btnHintSort').addEventListener('click', sortHint);
+  $('#btnRevealSort').addEventListener('click', ()=> confirmDialog('揭示答案？','揭示后本局不计成绩。', sortReveal));
+  $('#btnRestartSort').addEventListener('click', ()=> confirmDialog('重新开始？','会重新随机生成一局。', ()=>startGame('hard')));
+  $('#btnBackSort').addEventListener('click', ()=> confirmDialog('返回难度选择？','进度不保存。', ()=>{ stopTimer(); showScreen('screenHome'); }));
+
+  // 庆祝层
+  $('#celNext').addEventListener('click', ()=>{
+    $('#celebrate').classList.remove('show');
+    stopConfetti();
+    startGame(lastDiff);
+  });
+  $('#celHome').addEventListener('click', ()=>{
+    $('#celebrate').classList.remove('show');
+    stopConfetti();
+    stopTimer();
+    showScreen('screenHome');
+  });
+
+  // 警告弹层
+  $('#warnCancel').addEventListener('click', ()=> $('#warnModal').classList.remove('show'));
+  $('#warnOk').addEventListener('click', ()=>{
+    $('#warnModal').classList.remove('show');
+    if(warnCallback){ warnCallback(); warnCallback=null; }
+  });
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', ()=>{
+  bindEvents();
+  // 首次进入显示规则
+  setTimeout(()=>$('#ruleModal').classList.add('show'), 350);
+});
+
+// 窗口缩放
+window.addEventListener('resize', ()=>{
+  const c = $('#confettiCanvas');
+  if(c){ c.width=window.innerWidth; c.height=window.innerHeight; }
+  // 配对模式重新布局
+  if($('#screenMatch').classList.contains('active') && currentMatch){
+    // 保留已配对状态重新渲染
+    const oldMatched = matchedPairs.slice();
+    const oldSel = selectedFace;
+    renderMatchBoard(currentMatch);
+    // 恢复已配对状态
+    oldMatched.forEach(p=>{
+      const fa=$(`.face[data-idx="${p[0]}"]`), fb=$(`.face[data-idx="${p[1]}"]`);
+      if(fa&&fb){ fa.classList.add('matched'); fb.classList.add('matched'); drawLink(p[0],p[1]); }
+    });
+    matchedPairs = oldMatched;
+    updateMatchProgress();
+  }
+});
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g024", "name": "\u5c55\u5f00\u56fe\u4fa6\u63a2 \u00b7 \u5bfb\u627e\u5bf9\u5e94\u9762 \u00b7 \u7b2c12\u8bb2 \u6709\u8da3\u7684\u7acb\u4f53\u56fe\u5f62\uff08\u4e0b\uff09", "file": "g024.html", "jiaocan": "\u301024\u3011\u7b2c12\u8bb2 \u6709\u8da3\u7684\u7acb\u4f53\u56fe\u5f62\uff08\u4e0b\uff09", "unit": "\u7b2c12\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>等式魔法天平 · 农场称重闯关（第20讲 等式代换·上）</title>
+<style>
+/* =========================================================
+   等式魔法天平 · 农场称重闯关
+   学段：小学（三上 第20讲 等式代换·上）
+   核心玩法：把水果 / 砝码拖到大天平右盘，天平实时倾斜，
+             两边一样重即"平衡"，平衡的一刻就完成了一次等量代换。
+   全部为内联 CSS + JS，零外部依赖，单文件自包含。
+   ========================================================= */
+
+/* ---------- 全局变量（配色每局随机更换，见 JS 中 PALETTES） ---------- */
+:root{
+  --bg:#FFF3E0; --panel:#FFFFFF; --ink:#4A2C1A;
+  --accent:#FF8A3D; --accent2:#FFC94D; --soft:#FFE7CF;
+  --good:#1FA05C; --warn:#E2582C;
+}
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:20px; line-height:1.5;
+  transition:background .5s;
+}
+#app{ max-width:1080px; margin:0 auto; padding:10px 12px 30px; }
+
+/* ---------- 顶栏 ---------- */
+#topbar{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px;
+  padding:10px 14px; background:var(--panel); border:4px solid var(--ink);
+  border-radius:18px; box-shadow:0 5px 0 rgba(0,0,0,.14); position:sticky; top:6px; z-index:50;
+}
+#brand{ font-size:26px; font-weight:900; letter-spacing:1px; }
+#brand small{ font-size:16px; font-weight:700; color:var(--accent); margin-left:6px; }
+#hud{ display:flex; gap:10px; flex-wrap:wrap; margin-left:auto; font-weight:800; font-size:18px; }
+#hud span{
+  background:var(--soft); border:3px solid var(--ink); border-radius:12px; padding:2px 12px; white-space:nowrap;
+}
+#toolbar{ display:flex; gap:8px; flex-wrap:wrap; width:100%; }
+.tbtn{
+  font-size:18px; font-weight:900; padding:8px 16px; border-radius:14px; cursor:pointer;
+  border:3px solid var(--ink); background:var(--accent2); color:var(--ink);
+  box-shadow:0 4px 0 var(--ink); transition:transform .08s, box-shadow .08s;
+}
+.tbtn:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--ink); }
+.tbtn.warm{ background:var(--accent); color:#fff; }
+
+/* ---------- 屏幕切换 ---------- */
+.screen{ margin-top:14px; }
+.hidden{ display:none !important; }
+
+/* ---------- 难度选择屏 ---------- */
+#screen-diff h1{ text-align:center; font-size:34px; font-weight:900; margin:18px 0 6px; }
+.diff-tip{
+  max-width:760px; margin:0 auto 18px; background:var(--panel); border:4px dashed var(--accent);
+  border-radius:16px; padding:12px 18px; font-size:19px; text-align:center;
+}
+#diff-cards{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+.diff-card{
+  flex:1 1 240px; max-width:300px; cursor:pointer; text-align:left;
+  background:var(--panel); border:4px solid var(--ink); border-radius:20px; padding:18px 16px;
+  box-shadow:0 6px 0 var(--ink); transition:transform .1s;
+}
+.diff-card:active{ transform:translateY(4px); box-shadow:0 2px 0 var(--ink); }
+.diff-card .dc-name{ font-size:26px; font-weight:900; color:var(--accent); }
+.diff-card .dc-stars{ font-size:20px; margin:6px 0; }
+.diff-card .dc-desc{ font-size:17px; }
+.diff-card .dc-note{ font-size:14px; margin-top:8px; color:#8a6d3b; font-weight:700; }
+
+/* ---------- 游戏屏：故事条 ---------- */
+#story-bar{
+  background:var(--panel); border:4px solid var(--ink); border-radius:16px;
+  padding:10px 16px; font-size:19px; box-shadow:0 4px 0 rgba(0,0,0,.12);
+}
+#story-bar b{ color:var(--accent); }
+#story-src{ display:inline-block; font-size:13px; background:var(--soft); border:2px solid var(--ink);
+  border-radius:8px; padding:0 8px; margin-left:8px; vertical-align:middle; }
+
+/* ---------- 线索天平区 + 关系册 ---------- */
+#clue-zone{ display:flex; gap:10px; margin-top:10px; align-items:stretch; flex-wrap:wrap; }
+#clue-list{ display:flex; gap:10px; flex-wrap:wrap; }
+.clue{
+  background:var(--panel); border:3px solid var(--ink); border-radius:14px;
+  padding:8px 10px; text-align:center; box-shadow:0 3px 0 rgba(0,0,0,.12); min-width:150px;
+}
+.clue-row{ display:flex; align-items:center; justify-content:center; gap:6px; font-size:24px; }
+.clue-side{ min-width:44px; font-size:24px; letter-spacing:-2px; }
+.clue-scale{ font-size:26px; }
+.clue-cap{ font-size:15px; font-weight:800; margin-top:2px; color:var(--accent); }
+#eq-book{
+  flex:1 1 200px; min-width:210px; background:var(--soft); border:3px solid var(--ink);
+  border-radius:14px; padding:6px 12px;
+}
+#eq-book b{ font-size:16px; }
+#eq-list{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+.eq-chip{
+  background:var(--panel); border:3px solid var(--good); color:var(--good);
+  font-weight:900; font-size:15px; border-radius:10px; padding:2px 10px;
+  animation:pop .4s;
+}
+
+/* ---------- 轮次目标条 ---------- */
+#round-bar{
+  margin-top:10px; background:var(--ink); color:#fff; border-radius:14px;
+  padding:10px 16px; font-size:21px; font-weight:800; display:flex; flex-wrap:wrap; gap:4px 16px; align-items:center;
+}
+#round-ind{ background:var(--accent); border-radius:10px; padding:0 12px; font-size:17px; white-space:nowrap; }
+
+/* ---------- 大天平 ---------- */
+#balance-outer{
+  margin-top:10px; background:var(--panel); border:4px solid var(--ink); border-radius:20px;
+  padding:6px 6px 0; box-shadow:0 5px 0 rgba(0,0,0,.14);
+}
+#balance{ position:relative; height:clamp(280px,42vh,380px); user-select:none; }
+#beam{
+  position:absolute; left:50%; height:16px; background:var(--accent);
+  border:3px solid var(--ink); border-radius:10px; z-index:3;
+}
+.pan-wrap{ position:absolute; z-index:4; transform:translateX(-50%); width:190px; text-align:center; }
+.string{ width:6px; height:56px; background:var(--ink); margin:0 auto; border-radius:3px; }
+.pan{
+  min-height:96px; background:var(--soft); border:4px solid var(--ink);
+  border-radius:14px 14px 46px 46px; padding:8px 6px 12px; margin:0 auto; width:190px;
+}
+.pan.locked{ background:repeating-linear-gradient(45deg,var(--soft),var(--soft) 10px,#00000008 10px,#00000008 20px); }
+.pan.drop-hot{ background:var(--accent2); box-shadow:0 0 0 6px var(--accent2) inset; }
+.pan-title{ font-size:13px; font-weight:900; color:#8a6d3b; }
+.pan-empty{ color:#b09a7a; font-size:16px; font-weight:800; padding-top:22px; }
+.pgroup{
+  display:inline-flex; align-items:center; gap:3px; background:#fff; border:2px solid var(--ink);
+  border-radius:10px; padding:1px 6px; margin:2px; font-size:22px; font-weight:900; animation:pop .3s;
+}
+.pg-rm{
+  width:24px; height:24px; border-radius:50%; border:2px solid var(--ink); background:var(--warn);
+  color:#fff; font-size:15px; font-weight:900; cursor:pointer; line-height:1;
+}
+.pchips{ display:flex; flex-wrap:wrap; gap:4px; justify-content:center; margin-top:2px; }
+.chip-tok{
+  display:inline-block; min-width:46px; text-align:center; background:var(--ink); color:#ffe9a8;
+  border-radius:50% 50% 50% 50% / 44% 44% 56% 56%; font-size:15px; font-weight:900;
+  padding:3px 6px; border:2px solid #000; animation:pop .3s;
+}
+.chip-tok.rm{ cursor:pointer; background:var(--warn); color:#fff; }
+.psum{ width:100%; font-size:14px; font-weight:900; color:var(--accent); }
+#pivot-cap{
+  position:absolute; left:50%; width:40px; height:40px; background:var(--accent2);
+  border:3px solid var(--ink); border-radius:50%; transform:translate(-50%,-50%); z-index:5;
+}
+#pivot-post{
+  position:absolute; left:50%; transform:translateX(-50%); width:14px;
+  background:var(--ink); border-radius:6px; z-index:2;
+}
+#pivot-base{
+  position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
+  width:min(52%,340px); height:18px; background:var(--accent2);
+  border:3px solid var(--ink); border-radius:10px; z-index:2;
+}
+#balance.balanced #pan-r{ border-color:var(--good); box-shadow:0 0 0 6px #1fa05c44; }
+#tilt-hint{
+  text-align:center; font-size:20px; font-weight:900; padding:8px 0 12px; color:var(--ink);
+}
+#tilt-hint .h-eq{ color:var(--good); }
+
+/* ---------- 货架 ---------- */
+#shelf-zone{ margin-top:10px; }
+#shelf{
+  display:flex; gap:12px; flex-wrap:wrap; background:var(--panel);
+  border:4px solid var(--ink); border-radius:18px; padding:12px; box-shadow:0 5px 0 rgba(0,0,0,.14);
+}
+.scard{
+  touch-action:none; cursor:grab; user-select:none; text-align:center;
+  background:var(--soft); border:3px solid var(--ink); border-radius:14px;
+  padding:8px 14px; box-shadow:0 4px 0 var(--ink); min-width:96px;
+}
+.scard:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--ink); }
+.sc-emoji{ font-size:42px; line-height:1.1; }
+.sc-name{ font-size:16px; font-weight:900; }
+.sc-sub{ font-size:13px; font-weight:800; color:var(--accent); }
+#shelf-tip{ text-align:center; font-size:15px; font-weight:700; color:#8a6d3b; margin-top:8px; }
+
+/* ---------- 结算屏 ---------- */
+#screen-final{ text-align:center; }
+#final-title{ font-size:40px; font-weight:900; margin:26px 0 8px; }
+#final-stars{ font-size:44px; letter-spacing:6px; }
+#final-stats{
+  display:inline-block; background:var(--panel); border:4px solid var(--ink); border-radius:18px;
+  padding:14px 30px; margin:14px 0; font-size:21px; font-weight:800; text-align:left;
+}
+#final-stats div{ margin:4px 0; }
+.bigbtn{
+  font-size:24px; font-weight:900; padding:14px 30px; margin:8px 10px; cursor:pointer;
+  border:4px solid var(--ink); border-radius:18px; background:var(--accent); color:#fff;
+  box-shadow:0 6px 0 var(--ink);
+}
+.bigbtn.alt{ background:var(--accent2); color:var(--ink); }
+.bigbtn:active{ transform:translateY(4px); box-shadow:0 2px 0 var(--ink); }
+
+/* ---------- 弹窗 ---------- */
+#modal-mask{
+  position:fixed; inset:0; background:rgba(30,15,0,.45); z-index:200;
+  display:flex; align-items:center; justify-content:center; padding:16px;
+}
+#modal-box{
+  background:var(--panel); border:5px solid var(--ink); border-radius:22px;
+  max-width:640px; width:100%; max-height:84vh; overflow:auto; padding:22px 24px;
+  box-shadow:0 10px 0 rgba(0,0,0,.25); animation:pop .35s;
+}
+#modal-box h2{ font-size:28px; font-weight:900; color:var(--accent); margin-bottom:10px; }
+#modal-body{ font-size:19px; }
+#modal-body .m-eq{
+  display:block; background:var(--soft); border:3px dashed var(--accent); border-radius:12px;
+  font-size:24px; font-weight:900; text-align:center; padding:8px; margin:12px 0;
+}
+#modal-body .m-star{ font-size:34px; text-align:center; letter-spacing:4px; margin:8px 0; }
+#modal-body ul{ padding-left:24px; }
+#modal-body li{ margin:6px 0; }
+#modal-btns{ text-align:center; margin-top:16px; }
+#modal-btns button{
+  font-size:20px; font-weight:900; padding:10px 24px; margin:4px 6px; cursor:pointer;
+  border:3px solid var(--ink); border-radius:14px; background:var(--accent2); color:var(--ink);
+  box-shadow:0 4px 0 var(--ink);
+}
+#modal-btns button:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--ink); }
+
+/* ---------- 拖拽跟随的"小手"预览 ---------- */
+#drag-ghost{
+  position:fixed; z-index:300; pointer-events:none; transform:translate(-50%,-60%) scale(1.15);
+  font-size:46px; font-weight:900; filter:drop-shadow(0 6px 6px rgba(0,0,0,.3));
+}
+
+/* ---------- 庆祝特效画布 ---------- */
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:150; }
+
+/* ---------- 通用小动画 ---------- */
+@keyframes pop{ 0%{ transform:scale(.3); opacity:0; } 70%{ transform:scale(1.15); } 100%{ transform:scale(1); opacity:1; } }
+@keyframes floatUp{ 0%{ transform:translateY(0); opacity:1; } 100%{ transform:translateY(-60px); opacity:0; } }
+
+/* ---------- 移动端适配 ---------- */
+@media (max-width:640px){
+  body{ font-size:17px; }
+  #brand{ font-size:20px; }
+  #hud{ font-size:15px; margin-left:0; }
+  .tbtn{ font-size:15px; padding:6px 10px; }
+  #round-bar{ font-size:17px; }
+  .pan-wrap,.pan{ width:150px; }
+  .sc-emoji{ font-size:34px; }
+  #final-title{ font-size:30px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== 顶部栏：标题 / 计时 / 步数 / 功能按钮 ===== -->
+  <header id="topbar">
+    <div id="brand">⚖️ 等式魔法天平<small>农场称重闯关 · 等式代换</small></div>
+    <div id="hud">
+      <span id="hud-level">未开始</span>
+      <span id="hud-timer">⏱ 00:00</span>
+      <span id="hud-steps">👣 0 步</span>
+    </div>
+    <nav id="toolbar">
+      <button class="tbtn" id="btn-rules">规则说明</button>
+      <button class="tbtn warm" id="btn-reveal">揭示答案</button>
+      <button class="tbtn" id="btn-restart">重新开始</button>
+      <button class="tbtn" id="btn-back">返回难度</button>
+    </nav>
+  </header>
+
+  <!-- ===== 难度选择屏 ===== -->
+  <section id="screen-diff" class="screen">
+    <h1>选择闯关难度</h1>
+    <div class="diff-tip">
+      小知识：<b>等量代换</b>——把一个量用另一个<b>相等的量</b>来代替，关系依然成立。<br>
+      如果 a=b，b=c，那么 a=c。聪明的曹冲称象用的就是它！<br>
+      玩法：观察上方"线索天平"里的关系，把货架上的水果、砝码<b>拖到</b>大天平右盘，让天平<b>平衡</b>！
+    </div>
+    <div id="diff-cards">
+      <button class="diff-card" data-diff="初级">
+        <div class="dc-name">初级 · 果园小当家</div>
+        <div class="dc-stars">⭐ 关卡轻松</div>
+        <div class="dc-desc">例题级：一步代换，称一称、换一换就能发现关系。</div>
+        <div class="dc-note">随机抽取 3 关（共 4 关题库）</div>
+      </button>
+      <button class="diff-card" data-diff="中级">
+        <div class="dc-name">中级 · 农场称重乐</div>
+        <div class="dc-stars">⭐⭐ 步步推进</div>
+        <div class="dc-desc">练习级：两三步链条，先找中间量，再一步步代换。</div>
+        <div class="dc-note">随机抽取 3 关（共 5 关题库）</div>
+      </button>
+      <button class="diff-card" data-diff="高级">
+        <div class="dc-name">高级 · 魔法天平大师</div>
+        <div class="dc-stars">⭐⭐⭐ 智慧挑战</div>
+        <div class="dc-desc">变式综合：传递长链、和倍差倍、整体代换一起上阵。</div>
+        <div class="dc-note">随机抽取 3 关（共 6 关题库）</div>
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== 游戏屏 ===== -->
+  <section id="screen-game" class="screen hidden">
+    <div id="story-bar"></div>
+    <div id="clue-zone">
+      <div id="clue-list"></div>
+      <div id="eq-book"><b>📖 我的代换关系册</b><div id="eq-list"><span style="font-size:14px;color:#8a6d3b">平衡一次天平，就点亮一条等式！</span></div></div>
+    </div>
+    <div id="round-bar"><span id="round-ind"></span><span id="round-goal"></span></div>
+    <div id="balance-outer">
+      <div id="balance">
+        <div id="beam"></div>
+        <div id="pan-wrap-l" class="pan-wrap"><div class="string"></div><div id="pan-l" class="pan locked"><div class="pan-title">左盘 · 任务物品</div></div></div>
+        <div id="pan-wrap-r" class="pan-wrap"><div class="string"></div><div id="pan-r" class="pan"><div class="pan-title">右盘 · 拖到这里</div></div></div>
+        <div id="pivot-post"></div><div id="pivot-base"></div><div id="pivot-cap"></div>
+      </div>
+      <div id="tilt-hint">拖动物品，让天平两边一样重吧！</div>
+    </div>
+    <div id="shelf-zone">
+      <div id="shelf"></div>
+      <div id="shelf-tip">把货架上的水果、砝码<b>拖</b>到大天平右盘（轻点卡片也能放上）；点物品上的"−"或轻点砝码可取回。</div>
+    </div>
+  </section>
+
+  <!-- ===== 结算屏 ===== -->
+  <section id="screen-final" class="screen hidden">
+    <div id="final-title">🎉 全部通关！你是等式代换小大师！</div>
+    <div id="final-stars"></div>
+    <div id="final-stats"></div>
+    <div>
+      <button class="bigbtn" id="btn-again">再玩一次（换新题目与配色）</button>
+      <button class="bigbtn alt" id="btn-back2">返回难度选择</button>
+    </div>
+  </section>
+
+  <!-- ===== 通用弹窗 ===== -->
+  <div id="modal-mask" class="hidden"><div id="modal-box"><h2 id="modal-title"></h2><div id="modal-body"></div><div id="modal-btns"></div></div></div>
+
+  <!-- 拖拽预览 + 彩纸画布 -->
+  <div id="drag-ghost" class="hidden"></div>
+  <canvas id="fx"></canvas>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+ * 等式魔法天平 · 农场称重闯关
+ * 一、PALETTES   配色色板（每局随机）
+ * 二、POOLS      关卡题库（全部改编自本讲 docx 题目，含少量同构变式）
+ * 三、状态与流程 难度选择→抽关→多轮称重→结算
+ * 四、大天平     实时倾斜渲染（requestAnimationFrame 缓动）
+ * 五、拖拽系统   Pointer Events，兼容鼠标与触摸
+ * 六、彩纸烟花   Canvas 粒子庆祝
+ * ========================================================= */
+
+/* ---------------- 一、配色色板：每局随机选一 ---------------- */
+const PALETTES = [
+  {bg:"#FFF3E0",ink:"#4A2C1A",accent:"#FF8A3D",accent2:"#FFC94D",soft:"#FFE7CF"},
+  {bg:"#E8F8F0",ink:"#143D2E",accent:"#159A6C",accent2:"#7CDDC4",soft:"#D8F3E7"},
+  {bg:"#E9F3FF",ink:"#16375C",accent:"#2D7DE1",accent2:"#8CC6FF",soft:"#DCEBFB"},
+  {bg:"#FDEBF3",ink:"#5C2440",accent:"#E85D9E",accent2:"#FFB3D4",soft:"#FBDCEA"},
+  {bg:"#FFFBE0",ink:"#5C4A12",accent:"#DEA800",accent2:"#FFE45C",soft:"#FBF3C6"},
+  {bg:"#F3EDFF",ink:"#35246B",accent:"#7C5CE0",accent2:"#B9A4FF",soft:"#E8E0FF"}
+];
+function applyRandomPalette(){
+  const p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
+  const r = document.documentElement.style;
+  r.setProperty("--bg",p.bg);   r.setProperty("--ink",p.ink);
+  r.setProperty("--accent",p.accent); r.setProperty("--accent2",p.accent2);
+  r.setProperty("--soft",p.soft);
+}
+
+/* ---------------- 二、关卡题库 ----------------
+ * 说明：物品的"隐藏重量"由本讲题目中的数量关系换算而来（内部全为整数），
+ * 线索天平展示的每一条关系都与 docx 原题一致；每局从池中随机抽样。
+ * 物品格式：{e:'🍎',n:3} 表示 3 个苹果；{c:60} 表示一枚 60（单位）的砝码。
+ * ------------------------------------------------ */
+const POOLS = {
+"初级": [
+  { /* —— 练习2：1苹果=2梨，1梨=3桃 —— */
+    title:"果园小当家", src:"改编自 练习2",
+    names:{'🍎':'苹果','🍐':'梨','🍑':'桃'}, weights:{'🍎':12,'🍐':6,'🍑':2}, unit:"个",
+    story:"水果店门口摆着两台小天平：<b>1个苹果</b>和<b>2个梨</b>一样重，<b>1个梨</b>和<b>3个桃</b>一样重。小掌柜，用桃子把大天平称平衡吧！",
+    clues:[
+      {left:[{e:'🍎',n:1}],right:[{e:'🍐',n:2}],cap:"1个苹果 = 2个梨"},
+      {left:[{e:'🍐',n:1}],right:[{e:'🍑',n:3}],cap:"1个梨 = 3个桃"}
+    ],
+    rounds:[
+      {goal:"右盘只放桃子：多少个桃子和 1个苹果 一样重？",
+       left:[{e:'🍎',n:1}],fruits:['🍑'],chips:null,stack:false,
+       eq:"1个苹果 = 6个桃",
+       reveal:"代换链：1个苹果 = 2个梨 = 2×3个桃 = 6个桃。把桃子换成苹果，关系照样成立！",
+       solution:[{e:'🍑',n:6}]}
+    ]
+  },
+  { /* —— 例1：4个◯=60克，△=2个◯ —— */
+    title:"圆片与三角", src:"改编自 例题1",
+    names:{'🔴':'圆片◯','🔺':'三角△'}, weights:{'🔴':15,'🔺':30}, unit:"克",
+    story:"魔法桌上有一堆圆片◯和三角△：<b>1个三角</b>和<b>2个圆片</b>一样重。先称出圆片的总重量，再换出三角的重量！",
+    clues:[
+      {left:[{e:'🔺',n:1}],right:[{e:'🔴',n:2}],cap:"1个△ = 2个◯"}
+    ],
+    rounds:[
+      {goal:"第一轮·称一称：左盘 4个圆片 共有多重？只许用砝码！",
+       left:[{e:'🔴',n:4}],fruits:[],chips:[10,20,50],stack:false,
+       eq:"◯+◯+◯+◯ = 60克",
+       reveal:"加砝码直到平衡：4个圆片共重 60 克，所以 1个圆片 = 60÷4 = 15克。",
+       solution:[{c:50},{c:10}]},
+      {goal:"第二轮·换一换：1个三角 和几个圆片一样重？",
+       left:[{e:'🔺',n:1}],fruits:['🔴'],chips:null,stack:false,
+       eq:"△ = ◯+◯ = 30克",
+       reveal:"线索说 1个△ = 2个◯；每个◯重15克，所以 △ = 15×2 = 30克。",
+       solution:[{e:'🔴',n:2}]}
+    ]
+  },
+  { /* —— 练习16：2梨=4桃，柚子+1梨=7桃 —— */
+    title:"柚子换桃子", src:"改编自 练习16",
+    names:{'🍈':'柚子','🍐':'梨','🍑':'桃'}, weights:{'🍈':50,'🍐':20,'🍑':10}, unit:"个",
+    story:"果园里：<b>2个梨</b>和<b>4个桃</b>一样重；<b>1个柚子加1个梨</b>正好和<b>7个桃</b>一样重。柚子没有直接和桃子比过，你来称一称！",
+    clues:[
+      {left:[{e:'🍐',n:2}],right:[{e:'🍑',n:4}],cap:"2个梨 = 4个桃"},
+      {left:[{e:'🍈',n:1},{e:'🍐',n:1}],right:[{e:'🍑',n:7}],cap:"1柚子+1梨 = 7桃"}
+    ],
+    rounds:[
+      {goal:"右盘只放桃子：多少个桃子和 1个柚子 一样重？",
+       left:[{e:'🍈',n:1}],fruits:['🍑'],chips:null,stack:false,
+       eq:"1个柚子 = 5个桃",
+       reveal:"1柚子+1梨=7桃，而1梨=2桃，所以 1柚子 = 7桃−2桃 = 5桃。减一减，也是代换！",
+       solution:[{e:'🍑',n:5}]}
+    ]
+  },
+  { /* —— 自创变式（与练习2同构） —— */
+    title:"菠萝与樱桃", src:"自创变式（练习2同题型）",
+    names:{'🍍':'菠萝','🍊':'桔子','🍒':'樱桃'}, weights:{'🍍':36,'🍊':12,'🍒':3}, unit:"个",
+    story:"热带水果摊：<b>1个菠萝</b>和<b>3个桔子</b>一样重，<b>1个桔子</b>和<b>4个樱桃</b>一样重。菠萝等于多少个樱桃呢？",
+    clues:[
+      {left:[{e:'🍍',n:1}],right:[{e:'🍊',n:3}],cap:"1个菠萝 = 3个桔子"},
+      {left:[{e:'🍊',n:1}],right:[{e:'🍒',n:4}],cap:"1个桔子 = 4个樱桃"}
+    ],
+    rounds:[
+      {goal:"右盘只放樱桃：多少个樱桃和 1个菠萝 一样重？",
+       left:[{e:'🍍',n:1}],fruits:['🍒'],chips:null,stack:false,
+       eq:"1个菠萝 = 12个樱桃",
+       reveal:"代换链：1菠萝 = 3桔子 = 3×4个樱桃 = 12个樱桃。",
+       solution:[{e:'🍒',n:12}]}
+    ]
+  }
+],
+"中级": [
+  { /* —— 练习3前半：1羊=4狗，1狗=3兔 —— */
+    title:"农场小羊", src:"改编自 练习3",
+    names:{'🐑':'小羊','🐕':'小狗','🐇':'白兔'}, weights:{'🐑':36,'🐕':9,'🐇':3}, unit:"只",
+    story:"农场里小羊说：\"<b>4只小狗</b>和我一样重。\"小狗说：\"<b>3只白兔</b>和我一样重。\"那么 1只小羊 等于几只白兔？",
+    clues:[
+      {left:[{e:'🐑',n:1}],right:[{e:'🐕',n:4}],cap:"1只小羊 = 4只小狗"},
+      {left:[{e:'🐕',n:1}],right:[{e:'🐇',n:3}],cap:"1只小狗 = 3只白兔"}
+    ],
+    rounds:[
+      {goal:"右盘只放白兔：多少只白兔和 1只小羊 一样重？",
+       left:[{e:'🐑',n:1}],fruits:['🐇'],chips:null,stack:true,
+       eq:"1只小羊 = 12只白兔",
+       reveal:"链条：1羊 = 4狗 = 4×3只兔 = 12只兔。一环扣一环，这就是等式的传递！",
+       solution:[{e:'🐇',n:12}]}
+    ]
+  },
+  { /* —— 练习1：柿子135克（曹冲称象式称重） —— */
+    title:"曹冲称象·柿子篇", src:"改编自 练习1",
+    names:{'🍅':'柿子','🍎':'苹果','🍐':'梨'}, weights:{'🍅':135,'🍎':45,'🍐':30}, unit:"克",
+    story:"玩具店的水果模型：<b>1个柿子</b>=<b>3个苹果</b>，<b>2个苹果</b>=<b>3个梨</b>，而<b>2个梨</b>正好重<b>60克</b>。像曹冲一样一步步称，称出柿子的重量！",
+    clues:[
+      {left:[{e:'🍅',n:1}],right:[{e:'🍎',n:3}],cap:"1柿子 = 3苹果"},
+      {left:[{e:'🍎',n:2}],right:[{e:'🍐',n:3}],cap:"2苹果 = 3梨"},
+      {left:[{e:'🍐',n:2}],right:[{c:60}],cap:"2梨 = 60克"}
+    ],
+    rounds:[
+      {goal:"第一轮·只用砝码：2个梨 一共有多重？",
+       left:[{e:'🍐',n:2}],fruits:[],chips:[5,10,20,50,100],stack:false,
+       eq:"2梨 = 60克（1梨 = 30克）",
+       reveal:"砝码加到平衡：2个梨共重60克，所以 1个梨 = 60÷2 = 30克。",
+       solution:[{c:50},{c:10}]},
+      {goal:"第二轮·用苹果：1个柿子 = 几个苹果？",
+       left:[{e:'🍅',n:1}],fruits:['🍎'],chips:null,stack:false,
+       eq:"1柿子 = 3苹果",
+       reveal:"线索天平直接告诉我们：1个柿子 = 3个苹果。放上去验证一下吧！",
+       solution:[{e:'🍎',n:3}]},
+      {goal:"第三轮·只用砝码：1个柿子 到底有多重？",
+       left:[{e:'🍅',n:1}],fruits:[],chips:[5,10,20,50,100],stack:false,
+       eq:"1柿子 = 135克",
+       reveal:"1柿子 = 3苹果 = 4个半梨？不着急，用克数算：1苹果 = 45克（因为2苹果=3梨=90克），所以 1柿子 = 3×45 = 135克。",
+       solution:[{c:100},{c:20},{c:10},{c:5}]}
+    ]
+  },
+  { /* —— 练习12：3牛=9羊，2羊=10鸡，3鸡=6兔 —— */
+    title:"热闹的牲口大街", src:"改编自 练习12",
+    names:{'🐂':'牛','🐑':'羊','🐔':'鸡','🐇':'白兔'}, weights:{'🐂':90,'🐑':30,'🐔':6,'🐇':3}, unit:"元",
+    story:"按价钱换算：<b>3头牛</b>=<b>9只羊</b>，<b>2只羊</b>=<b>10只鸡</b>，<b>3只鸡</b>=<b>6只白兔</b>。那么 <b>5头牛</b>的价钱等于几只羊？",
+    clues:[
+      {left:[{e:'🐂',n:3}],right:[{e:'🐑',n:9}],cap:"3头牛 = 9只羊（价钱）"},
+      {left:[{e:'🐑',n:2}],right:[{e:'🐔',n:10}],cap:"2只羊 = 10只鸡（价钱）"},
+      {left:[{e:'🐔',n:3}],right:[{e:'🐇',n:6}],cap:"3只鸡 = 6只白兔（价钱）"}
+    ],
+    rounds:[
+      {goal:"右盘只放羊：多少只羊的价钱 = 5头牛的价钱？",
+       left:[{e:'🐂',n:5}],fruits:['🐑'],chips:null,stack:true,
+       eq:"5头牛 = 15只羊（价钱）",
+       reveal:"3头牛=9只羊，所以1头牛=3只羊；5头牛 = 5×3 = 15只羊。继续换下去：15只羊 = 75只鸡 = 150只白兔的价钱。",
+       solution:[{e:'🐑',n:15}]}
+    ]
+  },
+  { /* —— 练习11：5西瓜=15香瓜，4香瓜=16桃 —— */
+    title:"瓜田飘香", src:"改编自 练习11",
+    names:{'🍉':'西瓜','🍈':'香瓜','🍑':'桃'}, weights:{'🍉':36,'🍈':12,'🍑':3}, unit:"个",
+    story:"瓜田里约定：<b>5个西瓜</b>换<b>15个香瓜</b>，<b>4个香瓜</b>换<b>16个桃</b>。那么 <b>8个西瓜</b>能换多少个香瓜？",
+    clues:[
+      {left:[{e:'🍉',n:5}],right:[{e:'🍈',n:15}],cap:"5西瓜 = 15香瓜"},
+      {left:[{e:'🍈',n:4}],right:[{e:'🍑',n:16}],cap:"4香瓜 = 16桃"}
+    ],
+    rounds:[
+      {goal:"右盘只放香瓜：多少个香瓜 = 8个西瓜？",
+       left:[{e:'🍉',n:8}],fruits:['🍈'],chips:null,stack:true,
+       eq:"8西瓜 = 24香瓜（= 96个桃）",
+       reveal:"5西瓜=15香瓜 → 1西瓜=3香瓜；8西瓜 = 8×3 = 24个香瓜（继续换下去就是 24×4 = 96个桃）。",
+       solution:[{e:'🍈',n:24}]}
+    ]
+  },
+  { /* —— 练习5：4米+8面=400千克，1米=2面 —— */
+    title:"粮仓大运输", src:"改编自 练习5",
+    names:{'🍚':'大米','🌾':'面粉'}, weights:{'🍚':50,'🌾':25}, unit:"千克",
+    story:"牛牛妈买来<b>4袋大米</b>和<b>8袋面粉</b>，共重<b>400千克</b>。已知 <b>1袋大米</b>和 <b>2袋面粉</b>一样重。一袋大米到底多重？",
+    clues:[
+      {left:[{e:'🍚',n:4},{e:'🌾',n:8}],right:[{c:400}],cap:"4大米+8面粉 = 400千克"}
+    ],
+    rounds:[
+      {goal:"第一轮·用面粉换：1袋大米 = 几袋面粉？",
+       left:[{e:'🍚',n:1}],fruits:['🌾'],chips:null,stack:false,
+       eq:"1袋大米 = 2袋面粉",
+       reveal:"题目直接告诉我们：1袋大米 = 2袋面粉。放上去验证！",
+       solution:[{e:'🌾',n:2}]},
+      {goal:"第二轮·用面粉换：4袋大米 = 几袋面粉？",
+       left:[{e:'🍚',n:4}],fruits:['🌾'],chips:null,stack:true,
+       eq:"4袋大米 = 8袋面粉",
+       reveal:"1袋大米=2袋面粉，所以4袋大米 = 4×2 = 8袋面粉。",
+       solution:[{e:'🌾',n:8}]},
+      {goal:"第三轮·只用砝码：所有货物换成面粉是 8+8=16袋，共400千克。那 1袋大米 有多重？",
+       left:[{e:'🍚',n:1}],fruits:[],chips:[5,10,20,50,100,200],stack:false,
+       eq:"1袋大米 = 50千克",
+       reveal:"16袋面粉=400千克 → 1袋面粉=25千克 → 1袋大米 = 2×25 = 50千克。称一称验证！",
+       solution:[{c:50}]}
+    ]
+  }
+],
+"高级": [
+  { /* —— 练习3全链：1羊=4狗=12兔=24鸡 —— */
+    title:"牧场传递长链", src:"改编自 练习3",
+    names:{'🐑':'小羊','🐕':'小狗','🐇':'白兔','🐔':'小鸡'}, weights:{'🐑':120,'🐕':30,'🐇':10,'🐔':5}, unit:"只",
+    story:"小羊说：\"<b>4只小狗</b>和我一样重。\"小狗说：\"<b>3只白兔</b>和我一样重。\"白兔说：\"<b>2只小鸡</b>和我一样重。\"那么 1只小羊 等于多少只小鸡？",
+    clues:[
+      {left:[{e:'🐑',n:1}],right:[{e:'🐕',n:4}],cap:"1羊 = 4狗"},
+      {left:[{e:'🐕',n:1}],right:[{e:'🐇',n:3}],cap:"1狗 = 3兔"},
+      {left:[{e:'🐇',n:1}],right:[{e:'🐔',n:2}],cap:"1兔 = 2鸡"}
+    ],
+    rounds:[
+      {goal:"右盘只放小鸡：多少只小鸡和 1只小羊 一样重？",
+       left:[{e:'🐑',n:1}],fruits:['🐔'],chips:null,stack:true,
+       eq:"1只小羊 = 24只小鸡",
+       reveal:"链条：1羊 = 4狗 = 4×3只兔 = 12只兔 = 12×2只鸡 = 24只鸡。环环相扣，一传到底！",
+       solution:[{e:'🐔',n:24}]}
+    ]
+  },
+  { /* —— 例3 和倍：共240，桃是苹果2倍 —— */
+    title:"和倍装箱", src:"改编自 例题3",
+    names:{'🍎':'一筐苹果','🍑':'一筐桃子'}, weights:{'🍎':80,'🍑':160}, unit:"千克",
+    story:"果仓里：<b>一筐苹果</b>和<b>一筐桃子</b>共重 <b>240千克</b>，而且一筐桃子的重量是一筐苹果的 <b>2倍</b>。把筐搬上秤，找出一筐苹果的重量！",
+    clues:[
+      {left:[{e:'🍎',n:1},{e:'🍑',n:1}],right:[{c:240}],cap:"苹果筐+桃子筐 = 240千克"},
+      {left:[{e:'🍑',n:1}],right:[{e:'🍎',n:2}],cap:"桃子筐 = 2个苹果筐"}
+    ],
+    rounds:[
+      {goal:"右盘放苹果筐、桃子筐（也可以只放苹果筐）：怎样和 240千克 平衡？",
+       left:[{c:240}],fruits:['🍎','🍑'],chips:null,stack:false,
+       eq:"1桃筐+1苹果筐 = 240千克（或 3个苹果筐 = 240千克）",
+       reveal:"把桃子筐看成 2 个苹果筐：240千克 = 3 个苹果筐 → 一筐苹果 = 240÷3 = 80千克，一筐桃子 = 160千克。",
+       solution:[{e:'🍎',n:1},{e:'🍑',n:1}]}
+    ]
+  },
+  { /* —— 练习7 差倍：花生-白薯=280，花生是白薯15倍 —— */
+    title:"差倍菜园", src:"改编自 练习7",
+    names:{'🥜':'花生','🍠':'白薯'}, weights:{'🥜':300,'🍠':20}, unit:"棵",
+    story:"生物课上同学们种花生和白薯：花生比白薯<b>多 280 棵</b>，花生棵数正好是白薯的 <b>15 倍</b>。先称出差，再换出倍！",
+    clues:[
+      {left:[{e:'🥜',n:1}],right:[{e:'🍠',n:1},{c:280}],cap:"1份花生 = 1份白薯 + 280棵"}
+    ],
+    rounds:[
+      {goal:"第一轮·只用白薯：多出来的 280棵 相当于几棵白薯？",
+       left:[{c:280}],fruits:['🍠'],chips:null,stack:true,
+       eq:"280棵 = 14棵白薯",
+       reveal:"280棵 ÷ 20棵 = 14：多出来的部分正好是 14 份白薯。称一称验证！",
+       solution:[{e:'🍠',n:14}]},
+      {goal:"第二轮·只用白薯：1份花生 = 几份白薯？",
+       left:[{e:'🥜',n:1}],fruits:['🍠'],chips:null,stack:true,
+       eq:"1份花生 = 15棵白薯",
+       reveal:"花生 = 白薯 + 280棵 = 1份 + 14份 = 15份白薯；所以白薯 = 280÷(15−1) = 20棵，花生 = 300棵。",
+       solution:[{e:'🍠',n:15}]}
+    ]
+  },
+  { /* —— 练习13：a+b=30,b+c=35,a+c=25 → a=10 —— */
+    title:"三色球谜", src:"改编自 练习13",
+    names:{'🔴':'红球','🔵':'蓝球','🟢':'绿球'}, weights:{'🔴':10,'🔵':20,'🟢':15}, unit:"克",
+    story:"三个彩球：<b>红+蓝 = 30克</b>，<b>蓝+绿 = 35克</b>，<b>红+绿 = 25克</b>。先一起称，再单个称，找出红球的重量！",
+    clues:[
+      {left:[{e:'🔴',n:1},{e:'🔵',n:1}],right:[{c:30}],cap:"红+蓝 = 30克"},
+      {left:[{e:'🔵',n:1},{e:'🟢',n:1}],right:[{c:35}],cap:"蓝+绿 = 35克"},
+      {left:[{e:'🔴',n:1},{e:'🟢',n:1}],right:[{c:25}],cap:"红+绿 = 25克"}
+    ],
+    rounds:[
+      {goal:"第一轮·只用砝码：三个球一起有多重？",
+       left:[{e:'🔴',n:1},{e:'🔵',n:1},{e:'🟢',n:1}],fruits:[],chips:[5,10,20,50],stack:false,
+       eq:"红+蓝+绿 = 45克",
+       reveal:"把三条等式相加：2×(红+蓝+绿) = 30+35+25 = 90，所以三个球共重 90÷2 = 45克。",
+       solution:[{c:20},{c:20},{c:5}]},
+      {goal:"第二轮·只用砝码：红球单独有多重？",
+       left:[{e:'🔴',n:1}],fruits:[],chips:[5,10,20,50],stack:false,
+       eq:"红球 = 10克",
+       reveal:"红 = (红+蓝+绿) − (蓝+绿) = 45 − 35 = 10克。整体减去一部分，妙！",
+       solution:[{c:10}]}
+    ]
+  },
+  { /* —— 例2 整体代换：5签+6红=135角，2签=3红 —— */
+    title:"文具店采购", src:"改编自 例题2",
+    names:{'🖊':'签字笔','🖍':'红笔'}, weights:{'🖊':15,'🖍':10}, unit:"角",
+    story:"丁丁买了 <b>5支签字笔</b>和 <b>6支红笔</b>，一共用了 <b>13元5角（135角）</b>；<b>2支签字笔</b>的价钱 = <b>3支红笔</b>的价钱。把它们换成同一种笔再算！",
+    clues:[
+      {left:[{e:'🖊',n:5},{e:'🖍',n:6}],right:[{c:135}],cap:"5签字笔+6红笔 = 135角"},
+      {left:[{e:'🖊',n:2}],right:[{e:'🖍',n:3}],cap:"2签字笔 = 3红笔"}
+    ],
+    rounds:[
+      {goal:"第一轮·换成签字笔：6支红笔 = 几支签字笔？",
+       left:[{e:'🖍',n:6}],fruits:['🖊'],chips:null,stack:false,
+       eq:"6红笔 = 4签字笔",
+       reveal:"2签字笔=3红笔 → 6红笔 = 2×2 = 4支签字笔（把6红笔分成2组，每组3支换2支签字笔）。",
+       solution:[{e:'🖊',n:4}]},
+      {goal:"第二轮·只用砝码：5+4=9支签字笔一共多少钱？",
+       left:[{e:'🖊',n:9}],fruits:[],chips:[5,10,20,50,100],stack:false,
+       eq:"9签字笔 = 135角",
+       reveal:"5签字笔+6红笔 = 5签字笔+4签字笔 = 9支签字笔 = 135角。",
+       solution:[{c:100},{c:20},{c:10},{c:5}]},
+      {goal:"第三轮·只用砝码：1支签字笔多少钱？",
+       left:[{e:'🖊',n:1}],fruits:[],chips:[5,10,20,50,100],stack:false,
+       eq:"签字笔 = 15角（1元5角）",
+       reveal:"135÷9 = 15角 = 1元5角。",
+       solution:[{c:10},{c:5}]},
+      {goal:"第四轮·只用砝码：1支红笔多少钱？",
+       left:[{e:'🖍',n:1}],fruits:[],chips:[5,10,20,50,100],stack:false,
+       eq:"红笔 = 10角（1元）",
+       reveal:"2签字笔=3红笔 → 3红笔 = 30角 → 1红笔 = 10角 = 1元。",
+       solution:[{c:10}]}
+    ]
+  },
+  { /* —— 练习15：四小动物三三合称 → A=4千克 —— */
+    title:"四只小动物", src:"改编自 练习15",
+    names:{'🐰':'A兔','🐹':'B鼠','🐱':'C猫','🐶':'D狗'}, weights:{'🐰':4,'🐹':1,'🐱':2,'🐶':5}, unit:"千克",
+    story:"四只小动物三只三只地一起称：<b>A+B+C=7千克</b>，<b>A+B+D=10千克</b>，<b>A+C+D=11千克</b>，<b>B+C+D=8千克</b>。A兔单独有多重？",
+    clues:[
+      {left:[{e:'🐰',n:1},{e:'🐹',n:1},{e:'🐱',n:1}],right:[{c:7}],cap:"A+B+C = 7千克"},
+      {left:[{e:'🐰',n:1},{e:'🐹',n:1},{e:'🐶',n:1}],right:[{c:10}],cap:"A+B+D = 10千克"},
+      {left:[{e:'🐰',n:1},{e:'🐱',n:1},{e:'🐶',n:1}],right:[{c:11}],cap:"A+C+D = 11千克"},
+      {left:[{e:'🐹',n:1},{e:'🐱',n:1},{e:'🐶',n:1}],right:[{c:8}],cap:"B+C+D = 8千克"}
+    ],
+    rounds:[
+      {goal:"只用砝码：A兔 单独有多重？",
+       left:[{e:'🐰',n:1}],fruits:[],chips:[1,2,5,10],stack:false,
+       eq:"A兔 = 4千克",
+       reveal:"四条等式相加：3×(A+B+C+D) = 36 → A+B+C+D = 12；A = 12 − (B+C+D) = 12−8 = 4千克。",
+       solution:[{c:2},{c:2}]}
+    ]
+  }
+]
+};
+
+/* ---------------- 三、全局状态与流程 ---------------- */
+const S = {
+  diff:null,          // 当前难度
+  levels:[],          // 本局抽样出的关卡
+  li:0, ri:0,         // 关索引 / 轮索引
+  placed:{},          // 右盘水果 {emoji:数量}
+  chipsOn:[],         // 右盘砝码面值数组
+  steps:0,            // 步数
+  reveals:0,          // 本关使用提示次数
+  sessionReveals:0,   // 全程提示次数
+  stars:[],           // 每关星级
+  lock:true,          // 天平锁定（结算中禁止操作）
+  eqGot:[],           // 本关已点亮等式
+  sec:0,              // 计时秒数
+  timerId:null,
+  roundActive:false,  // 当前轮是否进行中
+  revealUsedThisRound:false,
+  revealing:false     // 演示动画进行中
+};
+
+const $ = (id)=>document.getElementById(id);
+const screens = {diff:$("screen-diff"),game:$("screen-game"),final:$("screen-final")};
+function showScreen(name){
+  Object.keys(screens).forEach((k)=>{ screens[k].classList.toggle("hidden", k!==name); });
+}
+
+/* ---------- 计时器 ---------- */
+function startTimer(){
+  stopTimer();
+  S.timerId = setInterval(()=>{
+    S.sec += 1;
+    $("hud-timer").textContent = "⏱ " + fmt(S.sec);
+  },1000);
+}
+function stopTimer(){ if(S.timerId){ clearInterval(S.timerId); S.timerId = null; } }
+function fmt(s){
+  const m = Math.floor(s/60), ss = s%60;
+  return (m<10?"0":"")+m+":"+(ss<10?"0":"")+ss;
+}
+
+/* ---------- 抽样工具：洗牌后取前 n 个 ---------- */
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    const t = a[i]; a[i]=a[j]; a[j]=t;
+  }
+  return a;
+}
+
+/* ---------- 开始一局 ---------- */
+function startSession(diff){
+  S.diff = diff;
+  S.levels = shuffle(POOLS[diff]).slice(0,3);   // 反重复：每局随机抽 3 关
+  S.li = 0; S.steps = 0; S.sessionReveals = 0; S.stars = []; S.sec = 0;
+  applyRandomPalette();                          // 反重复：每局随机换配色
+  $("hud-steps").textContent = "👣 0 步";
+  $("hud-timer").textContent = "⏱ 00:00";
+  startTimer();
+  showScreen("game");
+  loadLevel(0);
+}
+
+/* ---------- 载入第 i 关 ---------- */
+function loadLevel(i){
+  S.li = i; S.ri = 0; S.reveals = 0; S.eqGot = [];
+  const lv = S.levels[i];
+  $("hud-level").textContent = diffName(S.diff) + " · 第" + (i+1) + "/" + S.levels.length + "关";
+  $("story-bar").innerHTML = "🧑‍🌾 <b>第" + (i+1) + "关 · " + lv.title + "</b>：" + lv.story +
+    '<span id="story-src">' + lv.src + '</span>';
+  renderClues(lv);
+  renderEqBook();
+  loadRound(0);
+}
+
+function diffName(d){ return d; }
+
+/* ---------- 渲染线索天平 ---------- */
+function sideHTML(items, lv){
+  // 把一组物品渲染成紧凑的 HTML（水果 emoji ×n / 砝码）
+  let out = "";
+  (items||[]).forEach((it)=>{
+    if(it.e){
+      out += '<div class="pgroup">'+ it.e +'<span style="font-size:14px">×'+it.n+'</span></div>';
+    }else if(typeof it.c === "number"){
+      out += '<span class="chip-tok">'+it.c+lv.unit+'</span>';
+    }
+  });
+  return out;
+}
+function renderClues(lv){
+  const box = $("clue-list");
+  box.innerHTML = "";
+  lv.clues.forEach((cl)=>{
+    const d = document.createElement("div");
+    d.className = "clue";
+    d.innerHTML = '<div class="clue-row"><span class="clue-side">'+sideHTML(cl.left,lv)+'</span>'+
+                  '<span class="clue-scale">⚖️</span>'+
+                  '<span class="clue-side">'+sideHTML(cl.right,lv)+'</span></div>'+
+                  '<div class="clue-cap">'+cl.cap+'</div>';
+    box.appendChild(d);
+  });
+}
+
+/* ---------- 关系册（已点亮的等式） ---------- */
+function renderEqBook(){
+  const box = $("eq-list");
+  box.innerHTML = "";
+  if(S.eqGot.length===0){
+    box.innerHTML = '<span style="font-size:14px;color:#8a6d3b">平衡一次天平，就点亮一条等式！</span>';
+    return;
+  }
+  S.eqGot.forEach((eq)=>{
+    const s = document.createElement("span");
+    s.className = "eq-chip";
+    s.textContent = eq;
+    box.appendChild(s);
+  });
+}
+
+/* ---------- 载入第 r 轮 ---------- */
+function loadRound(r){
+  S.ri = r;
+  S.placed = {}; S.chipsOn = [];
+  S.lock = false; S.roundActive = true;
+  S.revealUsedThisRound = false; S.revealing = false;
+  const lv = curLevel(), rd = lv.rounds[r];
+  $("round-ind").textContent = "第" + (r+1) + "/" + lv.rounds.length + "轮";
+  $("round-goal").textContent = "🎯 " + rd.goal;
+  renderShelf(lv, rd);
+  renderPans(lv, rd);
+  refreshBalance();
+}
+
+function curLevel(){ return S.levels[S.li]; }
+function curRound(){ return curLevel().rounds[S.ri]; }
+
+/* ---------- 货架 ---------- */
+function renderShelf(lv, rd){
+  const sh = $("shelf");
+  sh.innerHTML = "";
+  (rd.fruits||[]).forEach((e)=>{
+    sh.appendChild(makeCard({emoji:e, label:lv.names[e], sub:"＋1", n:1, lv}));
+    if(rd.stack){ sh.appendChild(makeCard({emoji:e, label:lv.names[e], sub:"＋5", n:5, lv})); }
+  });
+  (rd.chips||[]).forEach((v)=>{
+    sh.appendChild(makeCard({emoji:"🧱", label:v+lv.unit+"砝码", sub:"＋"+v+lv.unit, chip:v, lv}));
+  });
+  if((rd.fruits||[]).length+(rd.chips||[]).length===0){
+    sh.innerHTML = '<div style="font-size:18px;font-weight:800;color:#8a6d3b">本轮流派特殊：请看目标提示 🤔</div>';
+  }
+}
+function makeCard(o){
+  const d = document.createElement("div");
+  d.className = "scard";
+  d.innerHTML = '<div class="sc-emoji">'+(typeof o.chip === "number" ? "🧱" : o.emoji)+'</div>'+
+                '<div class="sc-name">'+o.label+'</div><div class="sc-sub">'+o.sub+'</div>';
+  bindDrag(d, o);     // 绑定拖拽 + 轻点
+  return d;
+}
+
+/* ---------- 左右盘渲染 ---------- */
+function renderPans(lv, rd){
+  // 左盘：任务物品（锁定）
+  const pl = $("pan-l");
+  pl.innerHTML = '<div class="pan-title">左盘 · 任务物品</div>' + sideHTML(rd.left, lv);
+  refreshRightPan();
+}
+function refreshRightPan(){
+  const lv = curLevel();
+  const pr = $("pan-r");
+  let html = '<div class="pan-title">右盘 · 拖到这里</div>';
+  let any = false;
+  Object.keys(S.placed).forEach((e)=>{
+    const n = S.placed[e];
+    if(n>0){
+      any = true;
+      html += '<div class="pgroup" data-e="'+e+'">'+e+'<span style="font-size:14px">×'+n+'</span>'+
+              '<button class="pg-rm" data-e="'+e+'" title="取回一个">−</button></div>';
+    }
+  });
+  if(S.chipsOn.length>0){
+    any = true;
+    html += '<div class="pchips">';
+    S.chipsOn.forEach((v,i)=>{
+      html += '<span class="chip-tok rm" data-i="'+i+'" title="取回砝码">'+v+lv.unit+'</span>';
+    });
+    const tot = S.chipsOn.reduce((a,b)=>a+b,0);
+    html += '<span class="psum">砝码共 '+tot+lv.unit+'</span></div>';
+  }
+  if(!any){ html += '<div class="pan-empty">空空的，拖点东西进来吧</div>'; }
+  pr.innerHTML = html;
+  // 绑定取回事件
+  pr.querySelectorAll(".pg-rm").forEach((b)=>{
+    b.addEventListener("click", (ev)=>{ ev.stopPropagation(); removeFruit(b.dataset.e); });
+  });
+  pr.querySelectorAll(".chip-tok.rm").forEach((t)=>{
+    t.addEventListener("click", (ev)=>{ ev.stopPropagation(); removeChip(parseInt(t.dataset.i,10)); });
+  });
+}
+
+/* ---------- 重量计算 ---------- */
+function leftWeight(){
+  const lv = curLevel(), rd = curRound();
+  let w = 0;
+  rd.left.forEach((it)=>{
+    if(it.e){ w += it.n * lv.weights[it.e]; }
+    else if(typeof it.c === "number"){ w += it.c; }
+  });
+  return w;
+}
+function rightWeight(){
+  const lv = curLevel();
+  let w = 0;
+  Object.keys(S.placed).forEach((e)=>{ w += S.placed[e]*lv.weights[e]; });
+  S.chipsOn.forEach((v)=>{ w += v; });
+  return w;
+}
+
+/* ---------- 增删物品（步数统计） ---------- */
+function addFruit(e, n){
+  if(S.lock) return;
+  S.placed[e] = (S.placed[e]||0) + n;
+  bump(); refreshRightPan(); refreshBalance();
+}
+function addChip(v){
+  if(S.lock) return;
+  S.chipsOn.push(v);
+  bump(); refreshRightPan(); refreshBalance();
+}
+function removeFruit(e){
+  if(S.lock) return;
+  if(S.placed[e]){ S.placed[e] -= 1; if(S.placed[e]<=0) delete S.placed[e]; }
+  bump(); refreshRightPan(); refreshBalance();
+}
+function removeChip(i){
+  if(S.lock) return;
+  S.chipsOn.splice(i,1);
+  bump(); refreshRightPan(); refreshBalance();
+}
+function bump(){ S.steps += 1; $("hud-steps").textContent = "👣 " + S.steps + " 步"; }
+
+/* ---------------- 四、大天平：实时倾斜渲染 ---------------- */
+let angleCur = 0, angleTarget = 0;
+function refreshBalance(){
+  // 依据两边重量差计算目标倾角（右重右沉）
+  const lw = leftWeight(), rw = rightWeight();
+  const d = rw - lw;
+  if(d === 0 && (rw>0)){
+    angleTarget = 0;
+    onBalanced();                       // 平衡 → 过关判定
+    return;
+  }
+  const mag = Math.min(1, Math.abs(d) / Math.max(20, Math.max(lw,rw)*0.22));
+  angleTarget = (d>0?1:-1) * (2 + 12*mag);
+  updateHint(d);
+  $("balance").classList.remove("balanced");
+}
+function updateHint(d){
+  const lv = curLevel();
+  if(d === 0){ $("tilt-hint").innerHTML = '<span class="h-eq">⚖️ 平衡啦！</span>'; return; }
+  let side, mag;
+  if(d < 0){ side = "⬅️ 左盘更重"; } else { side = "右盘更重 ➡️"; }
+  const a = Math.abs(d), big = Math.max(20, Math.max(leftWeight(),rightWeight())*0.22);
+  if(a > big) { mag = "差得有点多，大胆加（或减）！"; }
+  else if(a > big*0.4){ mag = "接近啦，再加一点试试！"; }
+  else { mag = "只差一点点了，微调一下！"; }
+  $("tilt-hint").innerHTML = side + " · " + mag + '<span style="font-size:14px;color:#8a6d3b">（右盘砝码合计随时可看，水果重量要靠线索推哦）</span>';
+}
+function balanceLoop(){
+  angleCur += (angleTarget - angleCur) * 0.16;
+  if(Math.abs(angleTarget-angleCur) < 0.03) angleCur = angleTarget;
+  renderBalance(angleCur);
+  requestAnimationFrame(balanceLoop);
+}
+function renderBalance(a){
+  const zone = $("balance");
+  const cw = zone.clientWidth, ch = zone.clientHeight;
+  const beamW = Math.min(cw*0.74, 560), L = beamW/2;
+  const cx = cw/2, cy = Math.min(70, ch*0.22);
+  const rad = a*Math.PI/180;
+  const beam = $("beam");
+  beam.style.width = beamW + "px";
+  beam.style.top = cy + "px";
+  beam.style.transform = "translate(-50%,-50%) rotate(" + a + "deg)";
+  const rx = cx + L*Math.cos(rad), ry = cy + L*Math.sin(rad);
+  const lx = cx - L*Math.cos(rad), ly = cy - L*Math.sin(rad);
+  const wr = $("pan-wrap-r"), wl = $("pan-wrap-l");
+  wr.style.left = rx+"px"; wr.style.top = ry+"px";
+  wl.style.left = lx+"px"; wl.style.top = ly+"px";
+  const post = $("pivot-post");
+  post.style.top = cy+"px";
+  post.style.height = (ch - cy - 12) + "px";
+  $("pivot-cap").style.top = cy + "px";
+}
+window.addEventListener("resize", ()=>{ renderBalance(angleCur); });
+
+/* ---------- 平衡 → 本轮成功 ---------- */
+function onBalanced(){
+  if(!S.roundActive || S.lock){ return; }
+  S.lock = true; S.roundActive = false;
+  $("balance").classList.add("balanced");
+  updateHint(0);
+  const lv = curLevel(), rd = curRound();
+  // 点亮关系册
+  if(S.eqGot.indexOf(rd.eq) < 0){ S.eqGot.push(rd.eq); renderEqBook(); }
+  const starTxt = S.revealUsedThisRound ? "" : " 自己称出来的，真棒！";
+  confettiBurst(window.innerWidth*0.5, window.innerHeight*0.42, 60);
+  showModal({
+    title:"⚖️ 平衡啦！" + (S.revealUsedThisRound ? "（观看了演示）" : ""),
+    body:'<span class="m-eq">✨ ' + rd.eq + '</span>' +
+         '<p><b>代换思路：</b>' + rd.reveal + starTxt + '</p>',
+    buttons:[{text: S.ri+1 < lv.rounds.length ? "继续下一轮 →" : "完成本关 🎉", fn: nextStep}]
+  });
+}
+function nextStep(){
+  hideModal();
+  const lv = curLevel();
+  if(S.ri+1 < lv.rounds.length){
+    loadRound(S.ri+1);
+  }else{
+    levelDone();
+  }
+}
+
+/* ---------- 本关结算：星级 + 庆祝 ---------- */
+function levelDone(){
+  const lv = curLevel();
+  let star = 3;
+  if(S.reveals > 0){ star = 2; }
+  if(S.reveals >= lv.rounds.length){ star = 1; }
+  S.stars.push(star);
+  confettiBurst(window.innerWidth*0.3, window.innerHeight*0.3, 90);
+  confettiBurst(window.innerWidth*0.7, window.innerHeight*0.3, 90);
+  const last = S.li+1 >= S.levels.length;
+  showModal({
+    title:"🎉 第" + (S.li+1) + "关 · " + lv.title + " 通关！",
+    body:'<div class="m-star">' + "⭐".repeat(star) + "☆".repeat(3-star) + '</div>' +
+         '<p>你已经点亮的关系：' + S.eqGot.map((e)=>"【"+e+"】").join(" ") + '</p>' +
+         '<p style="margin-top:8px">用时 ' + fmt(S.sec) + ' · 共 ' + S.steps + ' 步操作</p>',
+    buttons:[{text: last ? "查看总成绩 🏆" : "下一关 →", fn: ()=>{
+      hideModal();
+      if(last){ showFinal(); } else { loadLevel(S.li+1); }
+    }}]
+  });
+}
+
+/* ---------- 总结算屏（烟花庆祝） ---------- */
+function showFinal(){
+  stopTimer();
+  showScreen("final");
+  const total = S.stars.reduce((a,b)=>a+b,0);
+  $("final-stars").textContent = "⭐".repeat(total) + "☆".repeat(9-total);
+  let rows = "";
+  S.levels.forEach((lv,i)=>{
+    rows += "<div>" + (i+1) + ". " + lv.title + "（" + lv.src + "）—— " +
+            "⭐".repeat(S.stars[i]) + "☆".repeat(3-S.stars[i]) + "</div>";
+  });
+  $("final-stats").innerHTML = rows +
+    "<div style='border-top:3px dashed var(--ink);margin-top:8px;padding-top:8px'>总用时 " + fmt(S.sec) +
+    " · 总步数 " + S.steps + " · 提示 " + S.sessionReveals + " 次</div>";
+  fireworks(2600);
+}
+
+/* ---------------- 五、拖拽系统（Pointer Events，鼠标/触摸通用） ---------------- */
+const ghost = $("drag-ghost");
+let dragCtx = null;   // {card, x, y, moved, t0, payload}
+function bindDrag(el, payload){
+  el.addEventListener("pointerdown", (ev)=>{
+    if(S.lock){ return; }
+    ev.preventDefault();
+    dragCtx = {x:ev.clientX, y:ev.clientY, moved:false, t0:Date.now(), payload};
+    try{ el.setPointerCapture(ev.pointerId); }catch(e){ /* 个别环境无法捕获指针，拖拽仍可继续 */ }
+  });
+  el.addEventListener("pointermove", (ev)=>{
+    if(!dragCtx){ return; }
+    const dx = ev.clientX - dragCtx.x, dy = ev.clientY - dragCtx.y;
+    if(!dragCtx.moved && Math.abs(dx)+Math.abs(dy) > 10){
+      dragCtx.moved = true;
+      ghost.classList.remove("hidden");
+      ghost.textContent = (typeof dragCtx.payload.chip === "number")
+        ? dragCtx.payload.chip + curLevel().unit
+        : dragCtx.payload.emoji + (dragCtx.payload.n>1 ? "×"+dragCtx.payload.n : "");
+    }
+    if(dragCtx.moved){
+      ghost.style.left = ev.clientX + "px";
+      ghost.style.top = ev.clientY + "px";
+      const r = $("pan-r").getBoundingClientRect();
+      const hot = ev.clientX>r.left && ev.clientX<r.right && ev.clientY>r.top && ev.clientY<r.bottom;
+      $("pan-r").classList.toggle("drop-hot", hot);
+    }
+  });
+  el.addEventListener("pointerup", (ev)=>{
+    if(!dragCtx){ return; }
+    const ctx = dragCtx; dragCtx = null;
+    ghost.classList.add("hidden");
+    $("pan-r").classList.remove("drop-hot");
+    const r = $("pan-r").getBoundingClientRect();
+    const inside = ev.clientX>r.left && ev.clientX<r.right && ev.clientY>r.top && ev.clientY<r.bottom;
+    if(ctx.moved){
+      if(inside){ commit(ctx.payload); }
+    }else if(Date.now()-ctx.t0 < 400){
+      commit(ctx.payload);          // 轻点 = 放上
+    }
+  });
+  el.addEventListener("pointercancel", ()=>{
+    dragCtx = null; ghost.classList.add("hidden"); $("pan-r").classList.remove("drop-hot");
+  });
+}
+function commit(p){
+  if(typeof p.chip === "number"){ addChip(p.chip); }
+  else { addFruit(p.emoji, p.n||1); }
+}
+
+/* ---------------- 六、彩纸与烟花（Canvas 粒子） ---------------- */
+const fx = $("fx"), fctx = fx.getContext("2d");
+let parts = [], fxRun = false;
+function fxResize(){ fx.width = window.innerWidth; fx.height = window.innerHeight; }
+window.addEventListener("resize", fxResize); fxResize();
+function confettiBurst(x,y,n){
+  const cols = ["#FF8A3D","#FFC94D","#19B37B","#2D7DE1","#E85D9E","#7C5CE0"];
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = 2+Math.random()*6;
+    parts.push({
+      x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-3,
+      g:0.16, life:60+Math.random()*40, r:4+Math.random()*5,
+      c:cols[Math.floor(Math.random()*cols.length)], rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3
+    });
+  }
+  if(!fxRun){ fxRun = true; fxLoop(); }
+}
+function fxLoop(){
+  fctx.clearRect(0,0,fx.width,fx.height);
+  parts = parts.filter((p)=>p.life>0);
+  parts.forEach((p)=>{
+    p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life -= 1; p.rot += p.vr;
+    fctx.save();
+    fctx.translate(p.x,p.y); fctx.rotate(p.rot);
+    fctx.fillStyle = p.c;
+    fctx.globalAlpha = Math.max(0, Math.min(1, p.life/40));
+    fctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*1.6);
+    fctx.restore();
+  });
+  if(parts.length>0){ requestAnimationFrame(fxLoop); }
+  else { fxRun = false; fctx.clearRect(0,0,fx.width,fx.height); }
+}
+function fireworks(dur){
+  const t0 = Date.now();
+  const iv = setInterval(()=>{
+    confettiBurst(window.innerWidth*(0.15+Math.random()*0.7),
+                  window.innerHeight*(0.15+Math.random()*0.4), 70);
+    if(Date.now()-t0 > dur){ clearInterval(iv); }
+  }, 320);
+}
+
+/* ---------------- 弹窗系统 ---------------- */
+function showModal(o){
+  $("modal-title").textContent = o.title;
+  $("modal-body").innerHTML = o.body;
+  const bx = $("modal-btns");
+  bx.innerHTML = "";
+  o.buttons.forEach((b)=>{
+    const el = document.createElement("button");
+    el.textContent = b.text;
+    el.addEventListener("click", b.fn);
+    bx.appendChild(el);
+  });
+  $("modal-mask").classList.remove("hidden");
+}
+function hideModal(){ $("modal-mask").classList.add("hidden"); }
+
+/* ---------------- 顶栏按钮 ---------------- */
+$("btn-rules").addEventListener("click", showRules);
+function showRules(){
+  showModal({
+    title:"📖 规则说明",
+    body:
+      '<ul>'+
+      '<li>🎯 <b>目标</b>：让<b>大天平两边一样重</b>——平衡的一刻，就完成了一次<b>等量代换</b>！</li>'+
+      '<li>🔍 上方的<b>线索天平</b>藏着物品之间的重量/数量/价钱关系，先读懂它们。</li>'+
+      '<li>🤚 把货架上的水果、砝码<b>拖到右盘</b>（轻点卡片也能放上）；点"−"或轻点砝码可取回。</li>'+
+      '<li>⚖️ 天平会<b>实时倾斜</b>：哪边重往哪边沉，看倾斜方向和提示调整数量。</li>'+
+      '<li>关卡可能有<b>多轮</b>任务，全部平衡就能点亮关系册、赢得星星⭐。</li>'+
+      '<li>卡住了可以点<b>揭示答案</b>看自动演示（会少得星星哦）。</li>'+
+      '</ul>'+
+      '<p style="margin-top:10px"><b>小知识：</b>等量代换——把一个量用另一个相等的量来代替，关系依然成立。如果 a=b，b=c，那么 a=c。曹冲称象用的就是它！</p>',
+    buttons:[{text:"知道啦，开始！", fn: hideModal}]
+  });
+}
+
+/* 揭示答案：自动演示标准解法 */
+$("btn-reveal").addEventListener("click", ()=>{
+  if(!S.roundActive || S.lock || S.revealing){ return; }
+  const lv = curLevel(), rd = curRound();
+  showModal({
+    title:"💡 要看演示吗？",
+    body:"<p>魔法天平会自动摆出答案，但这一轮的星星会变成观星模式哦～</p>",
+    buttons:[
+      {text:"看我自己来！", fn: hideModal},
+      {text:"看演示", fn: ()=>{ hideModal(); playReveal(); }}
+    ]
+  });
+});
+function playReveal(){
+  const rd = curRound();
+  S.revealing = true; S.revealUsedThisRound = true;
+  S.reveals += 1; S.sessionReveals += 1;
+  // 清空右盘后逐步摆放标准解
+  S.placed = {}; S.chipsOn = []; refreshRightPan(); refreshBalance();
+  const acts = [];
+  rd.solution.forEach((g)=>{
+    if(g.e){
+      let n = g.n;
+      while(n>0){ const k = Math.min(5,n); acts.push({e:g.e, n:k}); n -= k; }
+    }else{ acts.push({c:g.c}); }
+  });
+  let i = 0;
+  const step = ()=>{
+    if(i >= acts.length){
+      S.revealing = false;
+      refreshBalance();          // 摆完必然平衡 → 触发结算
+      return;
+    }
+    const a = acts[i]; i += 1;
+    if(a.e){ S.placed[a.e] = (S.placed[a.e]||0) + a.n; }
+    else { S.chipsOn.push(a.c); }
+    refreshRightPan(); updateTiltOnly();
+    setTimeout(step, 420);
+  };
+  step();
+}
+function updateTiltOnly(){
+  // 演示期间只更新倾斜视觉，不触发过关弹窗
+  const lw = leftWeight(), rw = rightWeight(), d = rw-lw;
+  const mag = Math.min(1, Math.abs(d)/Math.max(20, Math.max(lw,rw)*0.22));
+  angleTarget = d===0 ? 0 : (d>0?1:-1)*(2+12*mag);
+  if(d!==0){ updateHint(d); }
+}
+
+/* 重新开始：重打本关 */
+$("btn-restart").addEventListener("click", ()=>{
+  if(!S.diff){ return; }
+  showModal({
+    title:"🔄 重新开始本关？",
+    body:"<p>会清空当前关的托盘和已点亮的星星记录（计时和步数保留）。</p>",
+    buttons:[
+      {text:"取消", fn: hideModal},
+      {text:"重新开始", fn: ()=>{ hideModal(); loadLevel(S.li); }}
+    ]
+  });
+});
+
+/* 返回难度选择 */
+$("btn-back").addEventListener("click", backToDiff);
+function backToDiff(){
+  stopTimer();
+  hideModal();
+  showScreen("diff");
+  $("hud-level").textContent = "未开始";
+}
+
+/* 难度卡片点击 */
+document.querySelectorAll(".diff-card").forEach((c)=>{
+  c.addEventListener("click", ()=>{ startSession(c.dataset.diff); });
+});
+
+/* 结算屏按钮 */
+$("btn-again").addEventListener("click", ()=>{ startSession(S.diff); });       // 再玩一次：重新抽关+换配色
+$("btn-back2").addEventListener("click", backToDiff);
+
+/* ---------------- 启动 ---------------- */
+applyRandomPalette();
+balanceLoop();
+showRules();      // 进入先弹规则（G6），之后随时点"规则说明"再看
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3a/g039", "name": "\u7b49\u5f0f\u9b54\u6cd5\u5929\u5e73 \u00b7 \u519c\u573a\u79f0\u91cd\u95ef\u5173\uff08\u7b2c20\u8bb2 \u7b49\u5f0f\u4ee3\u6362\u00b7\u4e0a\uff09", "file": "g039.html", "jiaocan": "\u301039\u3011\u7b2c20\u8bb2 \u7b49\u5f0f\u4ee3\u6362\uff08\u4e0a\uff09", "unit": "\u7b2c20\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

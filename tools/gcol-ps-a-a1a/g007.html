@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>图形探险岛 · 有趣的平面图形（上）</title>
+<style>
+/* ============================================================
+   图形探险岛 —— 第4讲 有趣的平面图形（上）互动游戏
+   单文件自包含：纯内联 CSS + JS，无任何外部依赖
+   核心玩法：拖拽分拣图形 / 钉子板点阵围图形 / 平移魔法拖动
+   三档难度：初级=图形分拣站，中级=魔法钉子板，高级=双星挑战
+   ============================================================ */
+
+/* ---------- 全局变量：每局随机换主色（配色随机化） ---------- */
+:root{
+  --c-main:#1d6fb8;        /* 主色 */
+  --c-main-dark:#155a9c;   /* 主色加深 */
+  --c-bg:#eaf4fc;          /* 页面底色 */
+  --c-accent:#ff9f43;      /* 强调色 */
+  --c-ink:#26304a;         /* 正文墨色（高对比，适合投影） */
+  --c-card:#ffffff;        /* 卡片底色 */
+}
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ width:100%; min-height:100%; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;
+  background:var(--c-bg); color:var(--c-ink);
+  font-size:18px; line-height:1.5; overflow-x:hidden;
+}
+
+/* ---------- 顶栏（右上角计时器 + 步数） ---------- */
+#topbar{
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+  padding:10px 16px; background:var(--c-main); color:#fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.18); position:sticky; top:0; z-index:50;
+}
+#topbar .tb-title{ font-size:22px; font-weight:700; letter-spacing:1px; }
+#topbar .tb-level{ font-size:16px; background:rgba(255,255,255,.22); padding:3px 12px; border-radius:14px; }
+#topbar .tb-right{ margin-left:auto; display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.tb-stat{
+  background:rgba(255,255,255,.92); color:var(--c-ink);
+  border-radius:10px; padding:4px 12px; font-size:17px; font-weight:700; white-space:nowrap;
+}
+.tb-btn{
+  border:none; cursor:pointer; border-radius:10px; padding:6px 14px;
+  font-size:16px; font-weight:700; background:#ffffff; color:var(--c-main-dark);
+  transition:transform .12s, box-shadow .12s; white-space:nowrap;
+}
+.tb-btn:hover{ transform:translateY(-2px); box-shadow:0 4px 8px rgba(0,0,0,.25); }
+.tb-btn:active{ transform:translateY(0); }
+.tb-btn.warn{ background:var(--c-accent); color:#fff; }
+
+/* ---------- 主舞台 ---------- */
+#stage{ max-width:1020px; margin:0 auto; padding:14px 12px 40px; }
+.screen{ display:none; }
+.screen.on{ display:block; }
+
+/* ---------- 首页：难度选择（三档难度） ---------- */
+.home-hero{ text-align:center; padding:26px 10px 8px; }
+.home-hero h1{ font-size:38px; color:var(--c-main-dark); letter-spacing:2px; }
+.home-hero .sub{ font-size:19px; margin-top:8px; color:#5a6a8a; }
+.home-hero .tip{ margin-top:10px; font-size:16px; color:#8a93a8; }
+.level-cards{ display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:26px; }
+.level-card{
+  flex:1 1 260px; max-width:300px; background:var(--c-card); border-radius:20px;
+  border:3px solid var(--c-main); padding:24px 18px 20px; text-align:center; cursor:pointer;
+  transition:transform .15s, box-shadow .15s; box-shadow:0 4px 12px rgba(0,0,0,.10);
+}
+.level-card:hover{ transform:translateY(-6px) scale(1.02); box-shadow:0 10px 22px rgba(0,0,0,.18); }
+.level-card .lv-name{ font-size:24px; font-weight:800; color:var(--c-main-dark); }
+.level-card .lv-stars{ font-size:22px; color:var(--c-accent); margin:8px 0; letter-spacing:3px; }
+.level-card .lv-desc{ font-size:16px; color:#5a6a8a; min-height:72px; }
+.level-card .lv-go{
+  display:inline-block; margin-top:10px; background:var(--c-main); color:#fff;
+  padding:8px 26px; border-radius:16px; font-size:18px; font-weight:700;
+}
+.home-knowledge{
+  margin:30px auto 0; max-width:820px; background:var(--c-card); border-radius:16px;
+  border:2px dashed var(--c-main); padding:16px 20px; font-size:16px; color:#4a5a7a;
+}
+.home-knowledge b{ color:var(--c-main-dark); }
+
+/* ---------- 游戏区通用 ---------- */
+#game-banner{
+  background:var(--c-card); border-left:10px solid var(--c-accent);
+  border-radius:12px; padding:12px 16px; margin-bottom:12px;
+  font-size:19px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+#game-banner .small{ display:block; font-size:16px; font-weight:400; color:#6a7590; margin-top:4px; }
+#game-area{ background:var(--c-card); border-radius:18px; padding:16px; box-shadow:0 3px 12px rgba(0,0,0,.08); }
+#progress-row{ display:flex; align-items:center; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap; }
+#progress-row .pr-label{ font-size:16px; color:#6a7590; }
+.prog-dot{
+  width:22px; height:22px; border-radius:50%; background:#d7dfeb; border:3px solid #b8c4d6;
+  transition:all .25s;
+}
+.prog-dot.now{ border-color:var(--c-accent); transform:scale(1.25); box-shadow:0 0 0 4px rgba(255,159,67,.25); }
+.prog-dot.done{ background:var(--c-main); border-color:var(--c-main-dark); }
+
+/* ---------- 初级：分拣站 ---------- */
+.shelf{
+  display:flex; flex-wrap:wrap; gap:16px; justify-content:center;
+  padding:14px; min-height:150px; background:#f4f7fb; border-radius:14px; margin-bottom:16px;
+}
+.piece{
+  width:118px; height:118px; background:#fff; border:3px solid #9fb2cc; border-radius:14px;
+  display:flex; align-items:center; justify-content:center; position:relative;
+  cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none;
+  transition:box-shadow .15s, border-color .15s;
+  animation:idleFloat 3.2s ease-in-out infinite;
+}
+.piece:nth-child(2n){ animation-delay:.7s; }
+.piece:nth-child(3n){ animation-delay:1.3s; }
+@keyframes idleFloat{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-4px);} }
+.piece:hover{ border-color:var(--c-accent); box-shadow:0 5px 14px rgba(0,0,0,.16); }
+.piece .badge{
+  position:absolute; top:4px; left:6px; background:var(--c-main); color:#fff;
+  font-size:15px; font-weight:800; border-radius:8px; padding:1px 8px;
+}
+.piece svg{ width:96px; height:96px; pointer-events:none; }
+.piece.dragging{ opacity:.35; animation:none; }
+.piece.mini{ width:78px; height:78px; animation:none; cursor:default; }
+.piece.mini svg{ width:62px; height:62px; }
+.piece.mini.good{ border-color:#3fae5a; background:#e8f9ee; }
+.piece.shake{ animation:shakeX .4s; }
+@keyframes shakeX{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-7px);} 50%{transform:translateX(7px);} 75%{transform:translateX(-5px);} }
+.ghost-float{
+  position:fixed; z-index:400; pointer-events:none; opacity:.95;
+  transform:rotate(-4deg) scale(1.08); box-shadow:0 12px 26px rgba(0,0,0,.28); border-radius:14px;
+}
+.dropbox-row{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+.dropbox{
+  flex:1 1 180px; max-width:250px; min-height:150px; border-radius:16px;
+  border:3px dashed #9fb2cc; background:#f7faff; padding:10px; text-align:center;
+  transition:border-color .15s, background .15s, box-shadow .15s;
+}
+.dropbox.hoverHi{ border-color:var(--c-accent); background:#fff6ea; box-shadow:0 0 0 4px rgba(255,159,67,.25); }
+.dropbox .box-name{
+  font-size:18px; font-weight:800; color:var(--c-main-dark);
+  background:#eaf1fa; border-radius:10px; padding:4px 6px; margin-bottom:8px;
+}
+.dropbox .box-content{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; min-height:78px; align-content:flex-start; }
+.dropbox.celebrate{ border-color:#3fae5a; background:#eafbef; }
+.dropbox .reveal-ghost{ opacity:.38; }
+.sparkle{ position:absolute; inset:0; pointer-events:none; }
+.sparkle::before, .sparkle::after{
+  content:"★"; position:absolute; color:var(--c-accent); font-size:26px; opacity:0;
+  animation:starPop .8s ease-out forwards;
+}
+.sparkle::before{ left:16%; top:12%; }
+.sparkle::after{ right:14%; bottom:10%; animation-delay:.18s; }
+@keyframes starPop{ 0%{ opacity:0; transform:scale(.2) rotate(-30deg);} 60%{ opacity:1; transform:scale(1.25) rotate(8deg);} 100%{ opacity:0; transform:scale(1.5) rotate(16deg);} }
+
+/* ---------- 中/高级：钉子板 ---------- */
+.mission-card{
+  display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-bottom:12px;
+  background:#f4f7fb; border-radius:14px; padding:12px 16px;
+}
+.mission-card .mc-title{ font-size:20px; font-weight:800; color:var(--c-main-dark); }
+.mission-card .mc-desc{ font-size:17px; color:#4a5a7a; flex:1 1 260px; }
+.mission-card .mc-count{ font-size:17px; font-weight:700; color:#fff; background:var(--c-accent); border-radius:12px; padding:3px 14px; }
+.geoboard-wrap{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; justify-content:center; }
+#geoboard{ background:#fdfaf3; border-radius:14px; border:3px solid #d9c89a; touch-action:none; }
+.gb-dot{ fill:#8a6d3b; }
+.gb-poly-current{ fill:rgba(29,111,184,.18); stroke:var(--c-main-dark); stroke-width:5; stroke-linejoin:round; }
+.gb-poly-preview{ fill:none; stroke:#7a93b8; stroke-width:4; stroke-dasharray:9 7; stroke-linejoin:round; }
+.gb-poly-lock{ fill:rgba(63,174,90,.20); stroke:#2e8b57; stroke-width:6; stroke-linejoin:round; }
+.gb-poly-demo{ fill:rgba(255,159,67,.15); stroke:#e07b1a; stroke-width:5; stroke-dasharray:10 7; stroke-linejoin:round; }
+.gb-tools{ display:flex; flex-direction:column; gap:10px; min-width:150px; }
+.gb-btn{
+  border:none; border-radius:12px; padding:10px 12px; font-size:17px; font-weight:700; cursor:pointer;
+  background:var(--c-main); color:#fff; transition:transform .12s;
+}
+.gb-btn:hover{ transform:translateY(-2px); }
+.gb-btn.gray{ background:#7c8aa5; }
+.gb-btn.orange{ background:var(--c-accent); }
+.gb-feedback{
+  margin-top:12px; min-height:56px; border-radius:12px; padding:10px 16px;
+  font-size:18px; font-weight:700; background:#f4f7fb; color:#4a5a7a; text-align:center;
+}
+.gb-feedback.good{ background:#e8f9ee; color:#2e7d46; }
+.gb-feedback.bad{ background:#fdeeee; color:#b03a3a; }
+
+/* ---------- 高级：平移魔法 ---------- */
+.shift-caption{ font-size:17px; color:#5a6a8a; text-align:center; margin-bottom:8px; }
+#shiftBoard{ width:100%; border-radius:14px; background:linear-gradient(180deg,#f2f8ff 0%,#e8f2e4 100%); border:3px solid #c3d4e8; touch-action:none; }
+.slot-outline{ fill:none; stroke:#7c8aa5; stroke-width:4; stroke-dasharray:10 8; stroke-linejoin:round; }
+.slot-outline.hintHi{ stroke:var(--c-accent); stroke-width:6; animation:slotPulse 1s ease-in-out infinite; }
+@keyframes slotPulse{ 0%,100%{ opacity:.55;} 50%{ opacity:1;} }
+.slot-filled{ fill:rgba(63,174,90,.25); stroke:#2e8b57; stroke-width:5; stroke-linejoin:round; }
+.drag-piece{ cursor:grab; }
+.drag-piece.wobble{ animation:shakeX .4s; }
+.shift-label{ font-size:19px; font-weight:800; fill:var(--c-main-dark); }
+
+/* ---------- 弹窗：规则说明 ---------- */
+.modal-mask{
+  position:fixed; inset:0; background:rgba(20,28,48,.55); z-index:600;
+  display:none; align-items:center; justify-content:center; padding:16px;
+}
+.modal-mask.on{ display:flex; }
+.modal{
+  background:#fff; border-radius:20px; max-width:640px; width:100%; max-height:86vh; overflow:auto;
+  padding:26px 26px 20px; box-shadow:0 18px 50px rgba(0,0,0,.35);
+}
+.modal h2{ font-size:26px; color:var(--c-main-dark); margin-bottom:12px; text-align:center; }
+.modal .rule-body{ font-size:17px; color:#3a4666; }
+.modal .rule-body ul{ padding-left:22px; margin:8px 0; }
+.modal .rule-body li{ margin:7px 0; }
+.modal .rule-body b{ color:var(--c-main-dark); }
+.modal .modal-btn-row{ text-align:center; margin-top:18px; }
+.modal .big-btn{
+  border:none; border-radius:16px; background:var(--c-main); color:#fff;
+  font-size:21px; font-weight:800; padding:12px 42px; cursor:pointer; transition:transform .12s;
+}
+.modal .big-btn:hover{ transform:translateY(-2px); }
+
+/* ---------- 胜利庆祝（彩纸 + 星星） ---------- */
+#winOverlay{
+  position:fixed; inset:0; z-index:700; display:none; align-items:center; justify-content:center;
+  background:rgba(18,26,46,.62); padding:16px;
+}
+#winOverlay.on{ display:flex; }
+.win-card{
+  background:#fff; border-radius:24px; padding:34px 34px 26px; text-align:center; z-index:701;
+  box-shadow:0 22px 60px rgba(0,0,0,.4); max-width:520px; width:100%;
+  animation:winIn .5s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes winIn{ 0%{ transform:scale(.5) rotate(-6deg); opacity:0;} 100%{ transform:scale(1) rotate(0); opacity:1;} }
+.win-card h2{ font-size:34px; color:var(--c-main-dark); }
+.win-stars{ font-size:42px; color:var(--c-accent); margin:10px 0; letter-spacing:8px; animation:starBlink 1.2s ease-in-out infinite; }
+@keyframes starBlink{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.12);} }
+.win-card .win-stats{ font-size:19px; color:#4a5a7a; margin-bottom:18px; }
+.win-card .win-btns{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+.win-card .win-btns button{
+  border:none; border-radius:14px; font-size:19px; font-weight:800; padding:11px 28px; cursor:pointer;
+}
+.win-card .btn-replay{ background:var(--c-accent); color:#fff; }
+.win-card .btn-home{ background:var(--c-main); color:#fff; }
+#confettiCanvas{ position:fixed; inset:0; z-index:700; pointer-events:none; }
+
+/* ---------- 提示条 ---------- */
+#toast{
+  position:fixed; left:50%; bottom:34px; transform:translateX(-50%) translateY(20px);
+  background:rgba(38,48,74,.94); color:#fff; font-size:18px; font-weight:700;
+  border-radius:14px; padding:10px 24px; z-index:800; opacity:0; pointer-events:none;
+  transition:opacity .25s, transform .25s; max-width:88vw; text-align:center;
+}
+#toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ---------- 响应式（移动端可玩） ---------- */
+@media (max-width:720px){
+  #topbar .tb-title{ font-size:18px; }
+  .tb-stat{ font-size:15px; padding:3px 9px; }
+  .tb-btn{ font-size:14px; padding:5px 10px; }
+  .home-hero h1{ font-size:28px; }
+  .piece{ width:88px; height:88px; }
+  .piece svg{ width:72px; height:72px; }
+  .piece .badge{ font-size:13px; }
+  .dropbox{ flex:1 1 44%; max-width:none; min-height:130px; }
+  .shelf{ gap:10px; padding:10px; }
+  .geoboard-wrap{ justify-content:center; }
+  .gb-tools{ flex-direction:row; flex-wrap:wrap; justify-content:center; width:100%; }
+  #game-banner{ font-size:17px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ======================= 顶栏 ======================= -->
+<header id="topbar">
+  <span class="tb-title">图形探险岛</span>
+  <span class="tb-level" id="tbLevel">有趣的平面图形（上）</span>
+  <div class="tb-right">
+    <span class="tb-stat">用时 <span id="tbTime">00:00</span></span>
+    <span class="tb-stat">步数 <span id="tbSteps">0</span></span>
+    <button class="tb-btn" id="btnRules">规则</button>
+    <button class="tb-btn warn" id="btnReveal">揭示答案</button>
+    <button class="tb-btn" id="btnRestart">重新开始</button>
+    <button class="tb-btn" id="btnHome">返回难度选择</button>
+  </div>
+</header>
+
+<main id="stage">
+
+  <!-- ======================= 首页：难度选择 ======================= -->
+  <section class="screen on" id="screen-home">
+    <div class="home-hero">
+      <h1>图形探险岛</h1>
+      <div class="sub">第4讲 · 有趣的平面图形（上）—— 认一认、围一围、移一移</div>
+      <div class="tip">每次进入都会换新颜色，图形和任务也会重新洗牌，玩多少次都不重样！</div>
+    </div>
+    <div class="level-cards">
+      <div class="level-card" data-level="easy">
+        <div class="lv-name">初级 · 图形分拣站</div>
+        <div class="lv-stars">★☆☆</div>
+        <div class="lv-desc">把圆形、椭圆、扇形和三角形家族的成员，亲手送回各自的家。拖一拖、放一放，眼力大考验！</div>
+        <span class="lv-go">出发</span>
+      </div>
+      <div class="level-card" data-level="mid">
+        <div class="lv-name">中级 · 魔法钉子板</div>
+        <div class="lv-stars">★★☆</div>
+        <div class="lv-desc">在钉子板上按顺序点亮点阵，围出等腰、直角、钝角三角形和长方形、梯形，围对才能过关！</div>
+        <span class="lv-go">出发</span>
+      </div>
+      <div class="level-card" data-level="hard">
+        <div class="lv-name">高级 · 双星挑战</div>
+        <div class="lv-stars">★★★</div>
+        <div class="lv-desc">一块钉子板要围出两个图形！还有平移魔法：拖着小图形去找只靠平移就能到达的家。</div>
+        <span class="lv-go">出发</span>
+      </div>
+    </div>
+    <div class="home-knowledge">
+      <b>小知识角：</b>等腰三角形有两条边相等；等边三角形是特殊的等腰三角形。
+      按角分，三角形有锐角、直角、钝角三角形。梯形只有一组对边平行，长方形四个角都是直角。
+      平移只改变位置，不改变方向、大小和形状。
+    </div>
+  </section>
+
+  <!-- ======================= 游戏屏 ======================= -->
+  <section class="screen" id="screen-game">
+    <div id="game-banner"><span id="gbTitle">任务</span><span class="small" id="gbSub">说明</span></div>
+    <div id="game-area"></div>
+    <div id="progress-row"><span class="pr-label">进度</span><span id="progDots" style="display:flex;gap:8px;"></span></div>
+  </section>
+
+</main>
+
+<!-- ======================= 规则弹窗 ======================= -->
+<div class="modal-mask" id="rulesMask">
+  <div class="modal">
+    <h2 id="rulesTitle">游戏规则</h2>
+    <div class="rule-body" id="rulesBody"></div>
+    <div class="modal-btn-row"><button class="big-btn" id="rulesGo">开始挑战</button></div>
+  </div>
+</div>
+
+<!-- ======================= 胜利庆祝 ======================= -->
+<div id="winOverlay">
+  <div class="win-card">
+    <h2 id="winTitle">太棒了，全部通关！</h2>
+    <div class="win-stars">★★★</div>
+    <div class="win-stats" id="winStats"></div>
+    <div class="win-btns">
+      <button class="btn-replay" id="winReplay">再玩一次</button>
+      <button class="btn-home" id="winHome">返回难度选择</button>
+    </div>
+  </div>
+</div>
+<canvas id="confettiCanvas"></canvas>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   工具函数
+   ============================================================ */
+var $ = function(s){ return document.querySelector(s); };
+
+/* 洗牌（返回新数组，不打乱原数组） */
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i=a.length-1; i>0; i--){
+    var j = Math.floor(Math.random()*(i+1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+/* 从数组随机取 n 个 */
+function sample(arr, n){ return shuffle(arr).slice(0, n); }
+/* 随机取一个 */
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* 底部提示条 */
+var toastTimer = null;
+function toast(msg){
+  var t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  if(toastTimer){ clearTimeout(toastTimer); }
+  toastTimer = setTimeout(function(){ t.classList.remove('on'); }, 1900);
+}
+
+/* 随机表扬语 */
+function praise(){
+  return pick(['太棒了！','真厉害！','你真是小图形大师！','完美！','掌声送给你！','又对了一个，继续加油！']);
+}
+
+/* ============================================================
+   配色随机化：预设色板，每局随机选一套主色
+   ============================================================ */
+var PALETTES = [
+  { name:'海洋蓝', main:'#1d6fb8', dark:'#155a9c', bg:'#eaf4fc', accent:'#ff9f43' },
+  { name:'森林绿', main:'#2e8b57', dark:'#1f7043', bg:'#edf9f0', accent:'#ff7043' },
+  { name:'阳光橙', main:'#e07b1a', dark:'#b85f08', bg:'#fdf3e7', accent:'#3d8bfd' },
+  { name:'葡萄紫', main:'#7b5ea7', dark:'#5f4685', bg:'#f4f0fa', accent:'#f6b93b' },
+  { name:'樱桃红', main:'#d04848', dark:'#a83232', bg:'#fdeeee', accent:'#2ec4b6' },
+  { name:'青碧色', main:'#0e9aa7', dark:'#0a7b86', bg:'#e8f7f8', accent:'#f95d6a' }
+];
+function applyPalette(){
+  var p = pick(PALETTES);
+  var r = document.documentElement.style;
+  r.setProperty('--c-main', p.main);
+  r.setProperty('--c-main-dark', p.dark);
+  r.setProperty('--c-bg', p.bg);
+  r.setProperty('--c-accent', p.accent);
+}
+
+/* ============================================================
+   计时器与步数（顶栏实时显示）
+   ============================================================ */
+var G = {
+  level:null,        /* 当前难度：easy/mid/hard */
+  seq:[],            /* 本局的关卡序列 */
+  idx:0,             /* 当前进行到第几个 */
+  started:false,     /* 是否已开始（规则弹窗关闭后才开始） */
+  running:false,     /* 计时是否进行中 */
+  timeSec:0,
+  steps:0,
+  timerId:null
+};
+function fmtTime(s){
+  var m = Math.floor(s/60), ss = s%60;
+  return (m<10?'0':'')+m+':'+(ss<10?'0':'')+ss;
+}
+function startTimer(){
+  if(G.timerId){ clearInterval(G.timerId); }
+  G.running = true;
+  G.timerId = setInterval(function(){
+    if(G.running){
+      G.timeSec++;
+      $('#tbTime').textContent = fmtTime(G.timeSec);
+    }
+  }, 1000);
+}
+function stopTimer(){ G.running = false; if(G.timerId){ clearInterval(G.timerId); G.timerId = null; } }
+function addStep(){ G.steps++; $('#tbSteps').textContent = String(G.steps); }
+function resetCounters(){
+  G.timeSec = 0; G.steps = 0;
+  $('#tbTime').textContent = '00:00';
+  $('#tbSteps').textContent = '0';
+}
+
+/* ============================================================
+   屏幕切换
+   ============================================================ */
+function showScreen(id){
+  var list = document.querySelectorAll('.screen');
+  for(var i=0;i<list.length;i++){ list[i].classList.remove('on'); }
+  $(id).classList.add('on');
+}
+
+/* ============================================================
+   SVG 图形库（完整重绘教材图形，笔画粗、对比度高、间距充足）
+   ============================================================ */
+var STROKE = '#333a4f';
+function svgWrap(inner, w, h){
+  return '<svg viewBox="0 0 '+(w||120)+' '+(h||100)+'" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';
+}
+/* 多边形 */
+function poly(pts, fill, sw){
+  var p = pts.map(function(q){ return q[0]+','+q[1]; }).join(' ');
+  return '<polygon points="'+p+'" fill="'+(fill||'#fff')+'" stroke="'+STROKE+'" stroke-width="'+(sw||4)+'" stroke-linejoin="round"/>';
+}
+/* 直角标记：在顶点 V 处沿 VA、VB 方向画小方块（静态图用，返回字符串） */
+function rightMark(A, V, B, size){
+  var s = size || 11;
+  var ux = A[0]-V[0], uy = A[1]-V[1];
+  var vx = B[0]-V[0], vy = B[1]-V[1];
+  var lu = Math.sqrt(ux*ux+uy*uy), lv = Math.sqrt(vx*vx+vy*vy);
+  ux = ux/lu*s; uy = uy/lu*s; vx = vx/lv*s; vy = vy/lv*s;
+  var x1 = V[0]+ux, y1 = V[1]+uy;
+  var x2 = V[0]+ux+vx, y2 = V[1]+uy+vy;
+  var x3 = V[0]+vx, y3 = V[1]+vy;
+  return '<path d="M'+x1+' '+y1+' L'+x2+' '+y2+' L'+x3+' '+y3+'" fill="none" stroke="'+STROKE+'" stroke-width="3"/>';
+}
+
+/* ---- 静态图形集合（初级分拣用；三角形坐标均经几何核验） ---- */
+var FIGS = {
+  /* 曲线家族（例2 知识点） */
+  disc:  function(){ return svgWrap('<circle cx="60" cy="50" r="35" fill="#fff" stroke="'+STROKE+'" stroke-width="4"/>'); },
+  ellipseH: function(){ return svgWrap('<ellipse cx="60" cy="52" rx="46" ry="25" fill="#fff" stroke="'+STROKE+'" stroke-width="4"/>'); },
+  ellipseV: function(){ return svgWrap('<ellipse cx="60" cy="50" rx="24" ry="40" fill="#fff" stroke="'+STROKE+'" stroke-width="4"/>'); },
+  sectorA: function(){
+    return svgWrap('<path d="M58,60 L21,44 A41,41 0 0 1 95,44 Z" fill="#fff" stroke="'+STROKE+'" stroke-width="4" stroke-linejoin="round"/>');
+  },
+  sectorB: function(){
+    return svgWrap('<path d="M50,64 L9,56 A43,43 0 0 1 57,20 Z" fill="#fff" stroke="'+STROKE+'" stroke-width="4" stroke-linejoin="round"/>');
+  },
+  /* 练习2 六个三角形（锐角2/钝角2/直角2，其中3个等腰） */
+  tri1: function(){ return svgWrap(poly([[60,8],[26,86],[94,86]])); },              /* 等腰锐角 */
+  tri2: function(){ return svgWrap(poly([[20,14],[100,14],[60,50]])); },            /* 等腰钝角 */
+  tri3: function(){ return svgWrap(poly([[100,12],[100,84],[22,84]]) + rightMark([100,12],[100,84],[22,84])); }, /* 不等边直角 */
+  tri4: function(){ return svgWrap(poly([[20,86],[100,86],[60,50]])); },            /* 等腰钝角（顶点朝上） */
+  tri5: function(){ return svgWrap(poly([[18,88],[58,10],[102,76]])); },            /* 不等边锐角 */
+  tri6: function(){ return svgWrap(poly([[16,10],[16,76],[64,76]]) + rightMark([16,10],[16,76],[64,76])); },      /* 不等边直角（小） */
+  /* 练习3 同款四个三角形 + 一个近等边（等腰） */
+  triA: function(){ return svgWrap(poly([[18,12],[18,84],[86,84]]) + rightMark([18,12],[18,84],[86,84])); },      /* 不等边直角 */
+  triB: function(){ return svgWrap(poly([[14,16],[90,10],[104,84]])); },            /* 不等边钝角 */
+  triC: function(){ return svgWrap(poly([[60,8],[24,86],[96,86]])); },              /* 等腰锐角 */
+  triD: function(){ return svgWrap(poly([[20,86],[100,86],[60,50]])); },            /* 等腰钝角 */
+  triE: function(){ return svgWrap(poly([[60,17],[20,86],[100,86]])); },            /* 近等边（等腰） */
+  /* 生活中的物品（例1 / 练习1 / 练习4） */
+  coin: function(){
+    return svgWrap(
+      '<circle cx="60" cy="50" r="38" fill="#ffe9a8" stroke="'+STROKE+'" stroke-width="4"/>'+
+      '<circle cx="60" cy="50" r="29" fill="none" stroke="'+STROKE+'" stroke-width="2.5" stroke-dasharray="6 5"/>'+
+      '<text x="60" y="58" text-anchor="middle" font-size="24" font-weight="bold" fill="'+STROKE+'">1元</text>');
+  },
+  mirror: function(){
+    return svgWrap(
+      '<circle cx="60" cy="40" r="26" fill="#e3f2fd" stroke="'+STROKE+'" stroke-width="4"/>'+
+      '<path d="M44,62 L36,84 M76,62 L84,84 M28,86 L92,86" stroke="'+STROKE+'" stroke-width="5" fill="none" stroke-linecap="round"/>');
+  },
+  button: function(){
+    var holes = [[52,42],[68,42],[52,58],[68,58]].map(function(p){
+      return '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="4" fill="'+STROKE+'"/>';
+    }).join('');
+    return svgWrap('<circle cx="60" cy="50" r="32" fill="#ffd9e6" stroke="'+STROKE+'" stroke-width="4"/>'+holes);
+  },
+  ruler: function(){
+    return svgWrap(
+      '<path d="M22,12 L22,86 L94,86 Z M38,34 L38,70 L78,70 Z" fill="#cfe8ff" fill-rule="evenodd" stroke="'+STROKE+'" stroke-width="4" stroke-linejoin="round"/>'+
+      '<path d="M30,60 L30,78 M30,78 L46,78" stroke="'+STROKE+'" stroke-width="3" fill="none"/>');
+  },
+  envelope: function(){
+    return svgWrap(
+      '<rect x="20" y="28" width="80" height="48" rx="4" fill="#fff6d9" stroke="'+STROKE+'" stroke-width="4"/>'+
+      '<path d="M22,32 L60,62 L98,32" fill="none" stroke="'+STROKE+'" stroke-width="3.5"/>');
+  },
+  cookie: function(){
+    var chips = [[44,42],[70,38],[56,58],[80,60]].map(function(p){
+      return '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="4.5" fill="#8a5a2b"/>';
+    }).join('');
+    return svgWrap('<rect x="24" y="26" width="72" height="50" rx="10" fill="#e8c68e" stroke="'+STROKE+'" stroke-width="4"/>'+chips);
+  },
+  /* 四边形家族（练习9 知识点） */
+  trapIso: function(){ return svgWrap(poly([[30,20],[90,20],[108,82],[12,82]])); },
+  trapRight: function(){
+    return svgWrap(poly([[22,16],[64,16],[96,84],[22,84]]) +
+      rightMark([22,84],[22,16],[64,16]) + rightMark([22,16],[22,84],[96,84]));
+  },
+  rectShape: function(){
+    return svgWrap(poly([[24,26],[96,26],[96,80],[24,80]]) +
+      rightMark([24,80],[24,26],[96,26]) + rightMark([96,26],[96,80],[24,80]));
+  },
+  paraShape: function(){ return svgWrap(poly([[34,26],[92,26],[108,82],[50,82]])); },
+  irregularQuad: function(){ return svgWrap(poly([[20,18],[78,10],[100,70],[30,88]])); },
+  pentagon: function(){ return svgWrap(poly([[60,10],[102,42],[88,88],[32,88],[18,42]])); }
+};
+
+/* ============================================================
+   几何计算（钉子板判定核心：整数格点坐标运算，精确无误差）
+   ============================================================ */
+function vecCross(a, b){ return a[0]*b[1] - a[1]*b[0]; }
+function dist2(a, b){
+  var dx = a[0]-b[0], dy = a[1]-b[1];
+  return dx*dx + dy*dy;
+}
+function segIntersect(p1,p2,p3,p4){
+  /* 判断线段 p1p2 与 p3p4 是否规范相交 */
+  function dir(a,b,c){ return vecCross([b[0]-a[0], b[1]-a[1]], [c[0]-a[0], c[1]-a[1]]); }
+  var d1 = dir(p3,p4,p1), d2 = dir(p3,p4,p2), d3 = dir(p1,p2,p3), d4 = dir(p1,p2,p4);
+  if(((d1>0&&d2<0)||(d1<0&&d2>0)) && ((d3>0&&d4<0)||(d3<0&&d4>0))){ return true; }
+  return false;
+}
+function isSimplePolygon(pts){
+  var n = pts.length;
+  for(var i=0;i<n;i++){
+    for(var j=i+1;j<n;j++){
+      if(Math.abs(i-j)<=1 || Math.abs(i-j)>=n-1){ continue; } /* 相邻边跳过 */
+      if(segIntersect(pts[i], pts[(i+1)%n], pts[j], pts[(j+1)%n])){ return false; }
+    }
+  }
+  return true;
+}
+function area2(pts){
+  var s = 0;
+  for(var i=0;i<pts.length;i++){
+    var a = pts[i], b = pts[(i+1)%pts.length];
+    s += a[0]*b[1] - a[1]*b[0];
+  }
+  return s; /* 有向面积×2，用绝对值判断图形是否退化 */
+}
+/* 多边形分类：返回描述与性质标记 */
+function classifyPoly(pts){
+  var n = pts.length;
+  var res = { n:n, isSimple:false, triBySide:'', triByAngle:'', quadKind:'', hasRight:false, isConvex:true, tooSmall:false };
+  if(n < 3){ return res; }
+  res.isSimple = isSimplePolygon(pts);
+  if(Math.abs(area2(pts)) < 4){ res.tooSmall = true; return res; }
+
+  /* 凸性判断：相邻边叉积是否同号 */
+  var sign = 0;
+  for(var k=0;k<n;k++){
+    var a = pts[k], b = pts[(k+1)%n], c = pts[(k+2)%n];
+    var cr = vecCross([b[0]-a[0], b[1]-a[1]], [c[0]-b[0], c[1]-b[1]]);
+    if(cr !== 0){
+      if(sign === 0){ sign = cr; }
+      else if((cr>0) !== (sign>0)){ res.isConvex = false; }
+    }
+  }
+
+  if(n === 3){
+    /* 三角形：按边分 + 按角分（角度用向量点积符号精确判断） */
+    var d2ab = dist2(pts[0],pts[1]), d2bc = dist2(pts[1],pts[2]), d2ca = dist2(pts[2],pts[0]);
+    if(d2ab===d2bc && d2bc===d2ca){ res.triBySide = '等边'; }
+    else if(d2ab===d2bc || d2bc===d2ca || d2ab===d2ca){ res.triBySide = '等腰'; }
+    else{ res.triBySide = '不等边'; }
+    var angs = [];
+    for(var w=0; w<3; w++){
+      var O2 = pts[w], P2 = pts[(w+1)%3], Q2 = pts[(w+2)%3];
+      var dd = (P2[0]-O2[0])*(Q2[0]-O2[0]) + (P2[1]-O2[1])*(Q2[1]-O2[1]);
+      if(dd === 0){ res.hasRight = true; }
+      angs.push(dd < 0 ? 'o' : (dd === 0 ? 'r' : 'a'));
+    }
+    if(angs.indexOf('o') >= 0){ res.triByAngle = '钝角'; }
+    else if(angs.indexOf('r') >= 0){ res.triByAngle = '直角'; }
+    else{ res.triByAngle = '锐角'; }
+    res.desc = res.triBySide + res.triByAngle + '三角形';
+  }
+  else if(n === 4){
+    /* 四边形判定：平行 / 对角线互相平分 / 直角 / 等边 */
+    var par1 = vecCross(edgeVec(pts,0), edgeVec(pts,2)) === 0;
+    var par2 = vecCross(edgeVec(pts,1), edgeVec(pts,3)) === 0;
+    var dia = (pts[0][0]+pts[2][0] === pts[1][0]+pts[3][0]) && (pts[0][1]+pts[2][1] === pts[1][1]+pts[3][1]);
+    var sidesEq = dist2(pts[0],pts[1])===dist2(pts[1],pts[2]) &&
+                  dist2(pts[1],pts[2])===dist2(pts[2],pts[3]) &&
+                  dist2(pts[2],pts[3])===dist2(pts[3],pts[0]);
+    var right = false;
+    for(var u=0;u<4;u++){
+      var Vo = pts[u], Po = pts[(u+1)%4], Qo = pts[(u+3)%4];
+      if((Po[0]-Vo[0])*(Qo[0]-Vo[0]) + (Po[1]-Vo[1])*(Qo[1]-Vo[1]) === 0){ right = true; }
+    }
+    res.hasRight = right;
+    if(dia && par1 && par2 && res.isConvex){
+      if(right){ res.quadKind = sidesEq ? '正方形' : '长方形'; }
+      else{ res.quadKind = sidesEq ? '菱形' : '平行四边形'; }
+    }
+    else if((par1 !== par2) && res.isConvex){
+      var legsEq = dist2(pts[1],pts[2]) === dist2(pts[3],pts[0]);
+      if(right){ res.quadKind = '直角梯形'; }
+      else{ res.quadKind = legsEq ? '等腰梯形' : '梯形'; }
+    }
+    else{
+      res.quadKind = res.isConvex ? '一般四边形' : '凹四边形';
+    }
+    res.desc = res.quadKind;
+  }
+  else{
+    res.desc = n + '边形';
+  }
+  return res;
+}
+/* 第 i 条边的方向向量 */
+function edgeVec(pts, i){
+  return [pts[(i+1)%pts.length][0]-pts[i][0], pts[(i+1)%pts.length][1]-pts[i][1]];
+}
+
+/* ============================================================
+   钉子板任务定义（中级 / 高级共用）
+   ============================================================ */
+var MISSIONS = {
+  '等腰三角形': {
+    desc: '围出一个等腰三角形（有两条边相等）',
+    need: 3,
+    sample: [[1,5],[5,5],[3,1]],
+    ok: function(c){ return c.n===3 && c.triBySide!=='不等边'; },
+    hint: function(c){
+      if(c.n!==3){ return '这个任务要围三角形（3 个顶点），你围的是 ' + c.n + ' 边形哦。'; }
+      return '你围的是「' + c.desc + '」。等腰三角形需要两条边一样长——让其中两条边拉得一样长试试！';
+    }
+  },
+  '直角三角形': {
+    desc: '围出一个直角三角形（有一个角是直角）',
+    need: 3,
+    sample: [[1,1],[1,5],[4,5]],
+    ok: function(c){ return c.n===3 && c.triByAngle==='直角'; },
+    hint: function(c){
+      if(c.n!==3){ return '这个任务要围三角形（3 个顶点），你围的是 ' + c.n + ' 边形哦。'; }
+      return '你围的是「' + c.desc + '」。直角三角形需要一个角正好是直角——横竖两条边正好能围出直角哦！';
+    }
+  },
+  '锐角三角形': {
+    desc: '围出一个锐角三角形（三个角都是锐角）',
+    need: 3,
+    sample: [[1,4],[3,1],[5,5]],
+    ok: function(c){ return c.n===3 && c.triByAngle==='锐角'; },
+    hint: function(c){
+      if(c.n!==3){ return '这个任务要围三角形（3 个顶点），你围的是 ' + c.n + ' 边形哦。'; }
+      return '你围的是「' + c.desc + '」。三个角都要小小的（小于直角），把又扁又钝的角调整一下吧！';
+    }
+  },
+  '钝角三角形': {
+    desc: '围出一个钝角三角形（有一个角是钝角）',
+    need: 3,
+    sample: [[1,2],[2,5],[6,5]],
+    ok: function(c){ return c.n===3 && c.triByAngle==='钝角'; },
+    hint: function(c){
+      if(c.n!==3){ return '这个任务要围三角形（3 个顶点），你围的是 ' + c.n + ' 边形哦。'; }
+      return '你围的是「' + c.desc + '」。需要一个大于直角的钝角——把一个顶点往里挪，让那个角变"胖"一点！';
+    }
+  },
+  '长方形': {
+    desc: '围出一个长方形（四个角都是直角）',
+    need: 4,
+    sample: [[1,1],[5,1],[5,4],[1,4]],
+    ok: function(c){ return c.n===4 && (c.quadKind==='长方形' || c.quadKind==='正方形'); },
+    hint: function(c){
+      if(c.n!==4){ return '这个任务要围四边形（4 个顶点），你围的是 ' + c.n + ' 边形哦。'; }
+      if(c.quadKind==='平行四边形' || c.quadKind==='菱形'){ return '你围的是「' + c.quadKind + '」。它的角是斜的，把顶点扶正，让四个角都变成直角就是长方形啦！'; }
+      return '你围的是「' + c.desc + '」。长方形要四个角都是直角——横边和竖边对齐着围。';
+    }
+  },
+  '梯形': {
+    desc: '围出一个梯形（只有一组对边平行）',
+    need: 4,
+    sample: [[1,5],[3,3],[5,3],[6,5]],
+    ok: function(c){ return c.n===4 && (c.quadKind==='梯形' || c.quadKind==='等腰梯形' || c.quadKind==='直角梯形'); },
+    hint: function(c){
+      if(c.n!==4){ return '这个任务要围四边形（4 个顶点），你围的是 ' + c.n + ' 边形哦。'; }
+      if(c.quadKind==='平行四边形' || c.quadKind==='长方形' || c.quadKind==='正方形' || c.quadKind==='菱形'){
+        return '你围的是「' + c.quadKind + '」，它有两组对边平行。梯形只有一组对边平行——把其中一条边错开一格试试！';
+      }
+      return '你围的是「' + c.desc + '」。让上下两条边一样平（平行），左右两条边不平行，就是梯形。';
+    }
+  }
+};
+/* 高级：双任务组合（源自练习5 / 练习6 / 练习9：一块板围两个图形） */
+var HARD_DUALS = [
+  { tasks:['等腰三角形','直角三角形'] },
+  { tasks:['锐角三角形','钝角三角形'] },
+  { tasks:['长方形','梯形'] }
+];
+/* 高级双任务的样例解（9×7 板上两图互不重叠） */
+var DUAL_SAMPLES = {
+  '等腰三角形': [[1,5],[5,5],[3,1]],
+  '直角三角形': [[6,1],[6,5],[8,5]],
+  '锐角三角形': [[1,4],[3,1],[5,5]],
+  '钝角三角形': [[5,1],[6,4],[8,4]],
+  '长方形': [[1,2],[5,2],[5,5],[1,5]],
+  '梯形': [[5,6],[6,3],[8,3],[8,6]]
+};
+
+/* ============================================================
+   初级：分拣站轮次池（源自例1/例2/练习1/练习2/练习3/练习9）
+   home 为所属箱子的编号（即该图形在本轮的归类）
+   ============================================================ */
+var EASY_POOL = [
+  {
+    id:'curve', title:'圆 · 椭圆 · 扇形 分拣',
+    brief:'圆形、椭圆、扇形长得有点像，看清楚它们的样子，把每个图形送回自己的家！',
+    sub:'小提示：椭圆像被轻轻压扁的圆，扇形像圆披萨切下来的一角。不是这三类的放进"其他图形"箱。',
+    boxes:['圆形','椭圆','扇形','其他图形'],
+    shapes:[
+      { draw:FIGS.disc,     home:0 },
+      { draw:FIGS.ellipseH, home:1 },
+      { draw:FIGS.ellipseV, home:1 },
+      { draw:FIGS.sectorA,  home:2 },
+      { draw:FIGS.sectorB,  home:2 },
+      { draw:FIGS.tri5,     home:3 }
+    ]
+  },
+  {
+    id:'triAngle', title:'三角形按角分一分',
+    brief:'把 6 个三角形按"角"分一分，送进锐角、钝角、直角三个家（源自练习2）。',
+    sub:'小提示：三个角都是锐角是锐角三角形；有一个钝角是钝角三角形；有一个直角是直角三角形。',
+    boxes:['锐角三角形','钝角三角形','直角三角形'],
+    shapes:[
+      { draw:FIGS.tri1, home:0 },
+      { draw:FIGS.tri2, home:1 },
+      { draw:FIGS.tri3, home:2 },
+      { draw:FIGS.tri4, home:1 },
+      { draw:FIGS.tri5, home:0 },
+      { draw:FIGS.tri6, home:2 }
+    ]
+  },
+  {
+    id:'triSide', title:'找等腰三角形',
+    brief:'田田要找出所有等腰三角形，请你帮帮她（源自练习3）！等腰的送进"等腰三角形"，其他送进"其他三角形"。',
+    sub:'小提示：有两条边相等的三角形是等腰三角形；等边三角形是特殊的等腰三角形哦。',
+    boxes:['等腰三角形','其他三角形'],
+    shapes:[
+      { draw:FIGS.triA, home:1 },
+      { draw:FIGS.triB, home:1 },
+      { draw:FIGS.triC, home:0 },
+      { draw:FIGS.triD, home:0 },
+      { draw:FIGS.triE, home:0 }
+    ]
+  },
+  {
+    id:'findCircle', title:'物品里找圆形',
+    brief:'下面的物品上能找到圆形吗？能找到的放进"能找到圆形"，找不到的放进"没有圆形"（源自例1/练习1）。',
+    sub:'小提示：圆形是平平的、边缘光滑没有棱角的平面图形，硬币、镜子、纽扣上都有它。',
+    boxes:['能找到圆形','没有圆形'],
+    shapes:[
+      { draw:FIGS.coin,     home:0 },
+      { draw:FIGS.mirror,   home:0 },
+      { draw:FIGS.button,   home:0 },
+      { draw:FIGS.ruler,    home:1 },
+      { draw:FIGS.envelope, home:1 },
+      { draw:FIGS.cookie,   home:1 }
+    ]
+  },
+  {
+    id:'quad', title:'梯形分拣站',
+    brief:'梯形只有一组对边平行。把梯形找出来送回"梯形"的家，其他图形放进"其他图形"（源自练习9知识点）。',
+    sub:'小提示：看看每个图形有没有一组边平行、另一组边不平行。三角形、长方形、平行四边形都不是梯形。',
+    boxes:['梯形','其他图形'],
+    shapes:[
+      { draw:FIGS.trapIso,       home:0 },
+      { draw:FIGS.trapRight,     home:0 },
+      { draw:FIGS.rectShape,     home:1 },
+      { draw:FIGS.paraShape,     home:1 },
+      { draw:FIGS.irregularQuad, home:1 },
+      { draw:FIGS.tri1,          home:1 }
+    ]
+  }
+];
+
+/* ============================================================
+   通用：制作图形卡片 + 指针拖拽（鼠标/触摸通吃）
+   ============================================================ */
+function makePiece(shapeDef, num){
+  var el = document.createElement('div');
+  el.className = 'piece';
+  el.innerHTML = '<span class="badge">' + num + '</span>' + shapeDef.draw();
+  return el;
+}
+/* 拖拽 pieceEl：松手时回调 onDrop(hitBoxEl 或 null, ghostEl, pieceEl, flyBack函数) */
+function attachDrag(pieceEl, homeIndex, onCorrect){
+  pieceEl.addEventListener('pointerdown', function(ev){
+    ev.preventDefault();
+    var rect = pieceEl.getBoundingClientRect();
+    var ghost = pieceEl.cloneNode(true);
+    ghost.classList.add('ghost-float');
+    ghost.classList.remove('mini','dragging');
+    ghost.style.width = rect.width+'px';
+    ghost.style.height = rect.height+'px';
+    ghost.style.left = rect.left+'px';
+    ghost.style.top = rect.top+'px';
+    ghost.style.background = '#fff';
+    ghost.style.border = '3px solid #9fb2cc';
+    ghost.style.display = 'flex';
+    ghost.style.alignItems = 'center';
+    ghost.style.justifyContent = 'center';
+    ghost.style.position = 'fixed';
+    document.body.appendChild(ghost);
+    pieceEl.classList.add('dragging');
+
+    var ox = ev.clientX - rect.left, oy = ev.clientY - rect.top;
+    function clearHover(){
+      var all = document.querySelectorAll('.dropbox');
+      for(var i=0;i<all.length;i++){ all[i].classList.remove('hoverHi'); }
+    }
+    function onMove(e){
+      ghost.style.left = (e.clientX - ox)+'px';
+      ghost.style.top = (e.clientY - oy)+'px';
+      clearHover();
+      var hit = document.elementFromPoint(e.clientX, e.clientY);
+      var box = hit ? hit.closest('.dropbox') : null;
+      if(box){ box.classList.add('hoverHi'); }
+    }
+    function finish(e, cancelled){
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onCancel);
+      clearHover();
+      if(cancelled){
+        ghost.remove();
+        pieceEl.classList.remove('dragging');
+        return;
+      }
+      var hit = document.elementFromPoint(e.clientX, e.clientY);
+      var box = hit ? hit.closest('.dropbox') : null;
+      addStep();
+      if(box && parseInt(box.dataset.boxIndex,10) === homeIndex){
+        /* 放对：落入箱子 */
+        ghost.remove();
+        pieceEl.classList.remove('dragging');
+        pieceEl.classList.add('mini','good');
+        box.querySelector('.box-content').appendChild(pieceEl);
+        var sp = document.createElement('div');
+        sp.className = 'sparkle';
+        pieceEl.appendChild(sp);
+        setTimeout(function(){ sp.remove(); }, 900);
+        box.classList.add('celebrate');
+        setTimeout(function(){ box.classList.remove('celebrate'); }, 800);
+        /* 移除该卡片对应的揭示幽灵 */
+        var numTxt = pieceEl.querySelector('.badge').textContent;
+        var ghosts = box.querySelectorAll('.reveal-ghost');
+        for(var g=0; g<ghosts.length; g++){
+          if(ghosts[g].dataset.forNum === numTxt){ ghosts[g].remove(); }
+        }
+        onCorrect();
+      }else{
+        /* 放错或没放进箱子：飞回原位 */
+        ghost.style.transition = 'transform .28s ease';
+        var dx = rect.left - parseFloat(ghost.style.left);
+        var dy = rect.top - parseFloat(ghost.style.top);
+        ghost.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(0deg) scale(1)';
+        setTimeout(function(){
+          ghost.remove();
+          pieceEl.classList.remove('dragging');
+        }, 290);
+        pieceEl.classList.add('shake');
+        setTimeout(function(){ pieceEl.classList.remove('shake'); }, 450);
+        if(box){ toast('再看看它的样子，这个家不太合适哦～'); }
+        else{ toast('要把它拖进下面的箱子里才算数哦！'); }
+      }
+    }
+    function onUp(e){ finish(e, false); }
+    function onCancel(e){ finish(e, true); }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onCancel);
+  });
+}
+
+/* ============================================================
+   初级关卡逻辑
+   ============================================================ */
+var easyState = { round:null, placed:0, total:0, revealed:false };
+
+function renderEasyRound(round){
+  easyState.round = round;
+  easyState.placed = 0;
+  easyState.total = round.shapes.length;
+  easyState.revealed = false;
+
+  var area = $('#game-area');
+  area.innerHTML = '<div class="shelf" id="easyShelf"></div><div class="dropbox-row" id="easyBoxes"></div>';
+
+  /* 卡片顺序随机打乱（反重复），并记录编号→图形的映射供揭示答案使用 */
+  var shapes = shuffle(round.shapes);
+  easyState.roundShapes = shapes;
+  var shelf = $('#easyShelf');
+  shapes.forEach(function(sd){
+    var p = makePiece(sd, shapes.indexOf(sd)+1);
+    shelf.appendChild(p);
+    attachDrag(p, sd.home, function(){
+      easyState.placed++;
+      toast(praise() + '（' + easyState.placed + '/' + easyState.total + '）');
+      if(easyState.placed >= easyState.total){
+        setTimeout(nextUnit, 950);
+      }
+    });
+  });
+
+  var row = $('#easyBoxes');
+  round.boxes.forEach(function(name, bi){
+    var d = document.createElement('div');
+    d.className = 'dropbox';
+    d.dataset.boxIndex = String(bi);
+    d.innerHTML = '<div class="box-name">' + name + '</div><div class="box-content"></div>';
+    row.appendChild(d);
+  });
+}
+
+/* 初级揭示答案：在每个未放置卡片的正确箱子里显示半透明幽灵 */
+function revealEasy(){
+  var round = easyState.round;
+  if(!round){ return; }
+  if(easyState.revealed){ toast('答案已经亮出来啦，照着放就可以！'); return; }
+  easyState.revealed = true;
+  var boxes = document.querySelectorAll('#easyBoxes .dropbox');
+  /* 架子上还没放进箱子的卡片 */
+  var remaining = document.querySelectorAll('#easyShelf .piece:not(.dragging)');
+  if(remaining.length === 0){ toast('这一轮已经完成啦！'); return; }
+  remaining.forEach(function(piece){
+    var numTxt = piece.querySelector('.badge').textContent;
+    var idx = parseInt(numTxt,10) - 1;
+    var sd = easyState.roundShapes[idx];
+    var ghost = makePiece(sd, numTxt);
+    ghost.classList.add('mini','reveal-ghost');
+    ghost.dataset.forNum = numTxt;
+    boxes[sd.home].querySelector('.box-content').appendChild(ghost);
+  });
+  toast('看！半透明的图形就是它们的家，拖过去放好！');
+}
+
+/* ============================================================
+   钉子板引擎（中级 / 高级共用）
+   ============================================================ */
+var GB = {
+  svg:null, cols:7, rows:7, spacing:60, margin:44,
+  pts:[],           /* 当前正在围的顶点（格点坐标） */
+  lockedFigures:[], /* 已完成的图形 */
+  demoPts:null,     /* 揭示答案的演示图形 */
+  onSubmit:null     /* 提交回调（由关卡提供） */
+};
+var SVGNS = 'http://www.w3.org/2000/svg';
+function gbBuild(holder, cols, rows, onSubmit){
+  GB.cols = cols; GB.rows = rows; GB.pts = []; GB.lockedFigures = []; GB.demoPts = null; GB.onSubmit = onSubmit;
+  var w = GB.margin*2 + (cols-1)*GB.spacing;
+  var h = GB.margin*2 + (rows-1)*GB.spacing;
+  var html = '';
+  html += '<div class="geoboard-wrap">';
+  html += '<svg id="geoboard" viewBox="0 0 '+w+' '+h+'" width="'+Math.min(w, 520)+'" style="max-width:100%;height:auto"></svg>';
+  html += '<div class="gb-tools">';
+  html += '<button class="gb-btn orange" id="gbDone">围好啦</button>';
+  html += '<button class="gb-btn gray" id="gbUndo">撤销一点</button>';
+  html += '<button class="gb-btn gray" id="gbClear">全部清空</button>';
+  html += '</div>';
+  html += '</div>';
+  html += '<div class="gb-feedback" id="gbFeedback">按顺序点亮点阵，围出任务要求的图形，首尾相接后点"围好啦"。</div>';
+  holder.innerHTML = html;
+
+  var svg = $('#geoboard');
+  GB.svg = svg;
+
+  /* 图层：锁定图形层 / 演示层 / 当前多边形层 / 预览层 / 点层 / 命中层 */
+  var layerNames = ['lyLocked','lyDemo','lyCurrent','lyPreview','lyDots','lyHits'];
+  layerNames.forEach(function(name){
+    var g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('id', name);
+    svg.appendChild(g);
+  });
+
+  /* 画点阵 + 命中区域 */
+  for(var r=0; r<rows; r++){
+    for(var c=0; c<cols; c++){
+      (function(cc, rr){
+        var dot = document.createElementNS(SVGNS, 'circle');
+        dot.setAttribute('cx', GB.margin + cc*GB.spacing);
+        dot.setAttribute('cy', GB.margin + rr*GB.spacing);
+        dot.setAttribute('r', 7);
+        dot.setAttribute('class', 'gb-dot');
+        $('#lyDots').appendChild(dot);
+
+        var hit = document.createElementNS(SVGNS, 'circle');
+        hit.setAttribute('cx', GB.margin + cc*GB.spacing);
+        hit.setAttribute('cy', GB.margin + rr*GB.spacing);
+        hit.setAttribute('r', 20);
+        hit.setAttribute('fill', 'transparent');
+        hit.setAttribute('style', 'cursor:pointer;');
+        hit.addEventListener('pointerdown', function(ev){
+          ev.preventDefault();
+          gbAddVertex([cc, rr]);
+        });
+        $('#lyHits').appendChild(hit);
+      })(c, r);
+    }
+  }
+
+  /* 预览橡皮筋跟随指针（真实拖拽式反馈） */
+  svg.addEventListener('pointermove', function(ev){
+    if(GB.pts.length === 0){ return; }
+    var p = gbClientToGrid(ev.clientX, ev.clientY);
+    var last = GB.pts[GB.pts.length-1];
+    var lx = GB.margin + last[0]*GB.spacing, ly = GB.margin + last[1]*GB.spacing;
+    var first = GB.pts[0];
+    var fxr = GB.margin + first[0]*GB.spacing, fyr = GB.margin + first[1]*GB.spacing;
+    var line = $('#previewLine');
+    if(!line){
+      line = document.createElementNS(SVGNS, 'polyline');
+      line.setAttribute('id', 'previewLine');
+      line.setAttribute('class', 'gb-poly-preview');
+      $('#lyPreview').appendChild(line);
+    }
+    /* 吸附提示：靠近起点时虚线连回起点（可闭合） */
+    if(GB.pts.length >= 3 && Math.abs(p[0]-first[0])<=0.55 && Math.abs(p[1]-first[1])<=0.55){
+      line.setAttribute('points', lx+','+ly+' '+fxr+','+fyr);
+    }else{
+      line.setAttribute('points', lx+','+ly+' '+(GB.margin + p[0]*GB.spacing)+','+(GB.margin + p[1]*GB.spacing));
+    }
+  });
+  svg.addEventListener('pointerleave', function(){
+    var line = $('#previewLine');
+    if(line){ line.setAttribute('points', ''); }
+  });
+
+  $('#gbDone').addEventListener('click', function(){ gbSubmit(); });
+  $('#gbUndo').addEventListener('click', function(){ GB.pts.pop(); gbRedraw(); });
+  $('#gbClear').addEventListener('click', function(){ GB.pts = []; gbRedraw(); });
+  gbRedraw();
+}
+/* 屏幕坐标 → 网格坐标（可为小数） */
+function gbClientToGrid(cx, cy){
+  var rect = GB.svg.getBoundingClientRect();
+  var total = GB.margin*2 + (GB.cols-1)*GB.spacing;
+  var scale = rect.width / total;
+  var x = (cx - rect.left) / scale;
+  var y = (cy - rect.top) / scale;
+  return [ (x - GB.margin)/GB.spacing, (y - GB.margin)/GB.spacing ];
+}
+function gbAddVertex(pt){
+  if(GB.demoPts){ GB.demoPts = null; gbRedraw(); } /* 动手即清除演示图 */
+  var n = GB.pts.length;
+  if(n > 0){
+    var last = GB.pts[n-1];
+    if(last[0]===pt[0] && last[1]===pt[1]){ return; } /* 重复点忽略 */
+  }
+  if(n >= 3 && GB.pts[0][0]===pt[0] && GB.pts[0][1]===pt[1]){
+    gbSubmit(); /* 点击起点 = 闭合 */
+    return;
+  }
+  if(n >= 8){ toast('顶点太多啦，这个任务用不了这么多点哦。'); return; }
+  GB.pts.push(pt);
+  gbRedraw();
+}
+function gbPolyPoints(pts){
+  return pts.map(function(p){
+    return (GB.margin + p[0]*GB.spacing) + ',' + (GB.margin + p[1]*GB.spacing);
+  }).join(' ');
+}
+function gbRedraw(){
+  var cur = $('#gbCurrent');
+  if(!cur){
+    cur = document.createElementNS(SVGNS, 'polygon');
+    cur.setAttribute('id', 'gbCurrent');
+    cur.setAttribute('class', 'gb-poly-current');
+    $('#lyCurrent').appendChild(cur);
+  }
+  cur.setAttribute('points', GB.pts.length >= 2 ? gbPolyPoints(GB.pts) : '');
+  var line = $('#previewLine');
+  if(line && GB.pts.length === 0){ line.setAttribute('points', ''); }
+  gbRedrawLocked();
+}
+function gbRedrawLocked(){
+  var layer = $('#lyLocked');
+  while(layer.firstChild){ layer.removeChild(layer.firstChild); }
+  GB.lockedFigures.forEach(function(fig){
+    var p = document.createElementNS(SVGNS, 'polygon');
+    p.setAttribute('points', gbPolyPoints(fig.pts));
+    p.setAttribute('class', 'gb-poly-lock');
+    layer.appendChild(p);
+    /* 直角处画小方块标记 */
+    fig.pts.forEach(function(v, i){
+      var prev = fig.pts[(i+fig.pts.length-1)%fig.pts.length];
+      var next = fig.pts[(i+1)%fig.pts.length];
+      var d = (prev[0]-v[0])*(next[0]-v[0]) + (prev[1]-v[1])*(next[1]-v[1]);
+      if(d === 0){
+        var V = [GB.margin+v[0]*GB.spacing, GB.margin+v[1]*GB.spacing];
+        var P = [GB.margin+prev[0]*GB.spacing, GB.margin+prev[1]*GB.spacing];
+        var Q = [GB.margin+next[0]*GB.spacing, GB.margin+next[1]*GB.spacing];
+        var path = document.createElementNS(SVGNS, 'path');
+        path.setAttribute('d', rightMarkPath(P, V, Q, 12));
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#2e8b57');
+        path.setAttribute('stroke-width', 3);
+        layer.appendChild(path);
+      }
+    });
+  });
+  /* 演示（揭示答案）图形层 */
+  var demoLayer = $('#lyDemo');
+  while(demoLayer.firstChild){ demoLayer.removeChild(demoLayer.firstChild); }
+  if(GB.demoPts){
+    var d = document.createElementNS(SVGNS, 'polygon');
+    d.setAttribute('points', gbPolyPoints(GB.demoPts));
+    d.setAttribute('class', 'gb-poly-demo');
+    demoLayer.appendChild(d);
+  }
+}
+function rightMarkPath(A, V, B, s){
+  var ux = A[0]-V[0], uy = A[1]-V[1];
+  var vx = B[0]-V[0], vy = B[1]-V[1];
+  var lu = Math.sqrt(ux*ux+uy*uy), lv = Math.sqrt(vx*vx+vy*vy);
+  ux = ux/lu*s; uy = uy/lu*s; vx = vx/lv*s; vy = vy/lv*s;
+  return 'M'+(V[0]+ux)+' '+(V[1]+uy)+' L'+(V[0]+ux+vx)+' '+(V[1]+uy+vy)+' L'+(V[0]+vx)+' '+(V[1]+vy);
+}
+function gbSubmit(){
+  if(GB.pts.length < 3){ toast('至少要点亮 3 个点才能围出图形哦！'); return; }
+  addStep();
+  GB.onSubmit(GB.pts.slice());
+}
+function gbFeedback(msg, kind){
+  var f = $('#gbFeedback');
+  f.textContent = msg;
+  f.className = 'gb-feedback ' + (kind || '');
+}
+function gbShowDemo(pts){
+  GB.demoPts = pts;
+  gbRedraw();
+}
+
+/* ============================================================
+   中级关卡逻辑：4 个钉子板任务（随机抽取）
+   ============================================================ */
+var midState = { mission:null, missionName:'' };
+
+function renderMidMission(name){
+  var m = MISSIONS[name];
+  midState.mission = m;
+  midState.missionName = name;
+
+  var area = $('#game-area');
+  area.innerHTML =
+    '<div class="mission-card">' +
+      '<div class="mc-title">魔法钉子板</div>' +
+      '<div class="mc-desc">本关任务：<b>' + name + '</b> —— ' + m.desc + '</div>' +
+      '<div class="mc-count">第 ' + (G.idx+1) + ' / ' + G.seq.length + ' 关</div>' +
+    '</div>';
+  var holder = document.createElement('div');
+  holder.id = 'gbHolder';
+  area.appendChild(holder);
+
+  gbBuild(holder, 7, 7, function(pts){
+    var cls = classifyPoly(pts);
+    if(!cls.isSimple){ gbFeedback('线条交叉啦！请沿着图形的边按顺序围一圈，再点"围好啦"。', 'bad'); GB.pts = []; gbRedraw(); return; }
+    if(cls.tooSmall){ gbFeedback('这个图形太小啦，围一个大一点的吧！', 'bad'); GB.pts = []; gbRedraw(); return; }
+    if(m.ok(cls)){
+      gbFeedback('围对啦！你围出的是「' + cls.desc + '」' + praise(), 'good');
+      toast(praise());
+      GB.lockedFigures.push({ pts: pts });
+      GB.pts = [];
+      gbRedraw();
+      setTimeout(nextUnit, 1200);
+    }else{
+      gbFeedback(m.hint(cls), 'bad');
+      GB.pts = [];
+      gbRedraw();
+    }
+  });
+}
+function revealMid(){
+  var m = midState.mission;
+  if(!m){ return; }
+  gbShowDemo(m.sample.slice());
+  gbFeedback('看虚线示范：这样围就是一个「' + midState.missionName + '」，你也可以围出不一样的哦！');
+  toast('示范亮出来啦！照着样子围，或者围一个你自己的！');
+}
+
+/* ============================================================
+   高级关卡：双任务钉子板（9×7，源自练习5/6/9 一板多图）
+   ============================================================ */
+var hardDualState = { tasks:[], taskIdx:0 };
+
+function renderHardDual(unit){
+  hardDualState.tasks = unit.tasks;
+  hardDualState.taskIdx = 0;
+
+  var area = $('#game-area');
+  area.innerHTML =
+    '<div class="mission-card">' +
+      '<div class="mc-title">双星挑战 · 一板两图</div>' +
+      '<div class="mc-desc" id="hdDesc"></div>' +
+      '<div class="mc-count">第 ' + (G.idx+1) + ' / ' + G.seq.length + ' 关</div>' +
+    '</div>';
+  var holder = document.createElement('div');
+  holder.id = 'gbHolder';
+  area.appendChild(holder);
+  gbBuild(holder, 9, 7, function(pts){
+    var taskName = hardDualState.tasks[hardDualState.taskIdx];
+    var m = MISSIONS[taskName];
+    var cls = classifyPoly(pts);
+    if(!cls.isSimple){ gbFeedback('线条交叉啦！请沿着图形的边按顺序围一圈，再点"围好啦"。', 'bad'); GB.pts = []; gbRedraw(); return; }
+    if(cls.tooSmall){ gbFeedback('这个图形太小啦，围一个大一点的吧！', 'bad'); GB.pts = []; gbRedraw(); return; }
+    if(m.ok(cls)){
+      GB.lockedFigures.push({ pts: pts });
+      GB.pts = [];
+      hardDualState.taskIdx++;
+      if(hardDualState.taskIdx >= hardDualState.tasks.length){
+        gbFeedback('两个图形都围对啦！' + praise(), 'good');
+        toast(praise() + ' 双星达成！');
+        setTimeout(nextUnit, 1300);
+      }else{
+        gbRedraw();
+        updateHardDualDesc();
+        gbFeedback('第一个围对啦！接着围第二个：' + hardDualState.tasks[hardDualState.taskIdx], 'good');
+      }
+    }else{
+      gbFeedback(m.hint(cls), 'bad');
+      GB.pts = [];
+      gbRedraw();
+    }
+  });
+  updateHardDualDesc();
+  gbFeedback('先围第一个图形：' + hardDualState.tasks[0] + '。围好后自动锁定，再围第二个！');
+}
+function updateHardDualDesc(){
+  var donePart = hardDualState.tasks.slice(0, hardDualState.taskIdx).map(function(t){ return '✓' + t; }).join(' ');
+  var restPart = hardDualState.tasks.slice(hardDualState.taskIdx).map(function(t){ return '【' + t + '】'; }).join(' 和 ');
+  $('#hdDesc').innerHTML = '一块板上围出两个图形：' + (donePart ? donePart + ' ' : '') + restPart;
+}
+function revealHardDual(){
+  var taskName = hardDualState.tasks[hardDualState.taskIdx];
+  if(!taskName){ return; }
+  gbShowDemo(DUAL_SAMPLES[taskName].slice());
+  gbFeedback('虚线是「' + taskName + '」的示范，先照着围第一个，再围第二个！');
+  toast('示范亮出来啦！两个图形都要围哦！');
+}
+
+/* ============================================================
+   高级关卡：平移魔法（源自知识点"平移"，练习16 思想）
+   拖动小图形（方向锁定），找到只靠平移就能到达的虚线家
+   ============================================================ */
+var SHIFT_SHAPES = [
+  /* mirrorOK=true 表示该图形左右不对称，可以用"镜像"做干扰项；
+     左右对称的图形（火箭、房子）镜像后外观不变，改用旋转 90°/180° 做干扰项 */
+  { name:'小鱼', cx:63, cy:49, mirrorOK:true, make:function(){
+      return '<polygon points="14,50 38,26 74,20 96,40 112,28 112,70 96,58 74,78 38,72" fill="#ffd66b" stroke="#333a4f" stroke-width="4" stroke-linejoin="round"/>' +
+             '<circle cx="34" cy="40" r="4.5" fill="#333a4f"/>';
+    }, outline:'14,50 38,26 74,20 96,40 112,28 112,70 96,58 74,78 38,72' },
+  { name:'火箭', cx:60, cy:49, mirrorOK:false, make:function(){
+      return '<polygon points="60,6 84,30 70,30 70,68 84,68 60,92 36,68 50,68 50,30 36,30" fill="#a5d8ff" stroke="#333a4f" stroke-width="4" stroke-linejoin="round"/>' +
+             '<circle cx="60" cy="44" r="7" fill="#ff9f43" stroke="#333a4f" stroke-width="3"/>';
+    }, outline:'60,6 84,30 70,30 70,68 84,68 60,92 36,68 50,68 50,30 36,30' },
+  { name:'房子', cx:60, cy:55, mirrorOK:false, make:function(){
+      return '<polygon points="30,50 60,20 90,50 90,90 30,90" fill="#ffe0b2" stroke="#333a4f" stroke-width="4" stroke-linejoin="round"/>' +
+             '<rect x="52" y="62" width="16" height="28" fill="#8a6d3b" stroke="#333a4f" stroke-width="3"/>';
+    }, outline:'30,50 60,20 90,50 90,90 30,90' }
+];
+var shiftState = { shape:null, slots:[], okIndex:0, done:false };
+
+function renderShiftRound(){
+  var area = $('#game-area');
+  var shape = pick(SHIFT_SHAPES);
+  shiftState.shape = shape;
+  shiftState.done = false;
+
+  /* 三个虚线家的位置：互不重叠、间距充足（源自练习16"平移重合"思想） */
+  var centers = shuffle([[500,105],[730,135],[590,330]]);
+  var okIndex = Math.floor(Math.random()*3);
+  /* 干扰项：不对称图形用旋转+镜像；对称图形用旋转90°+旋转180°（镜像后外观不变） */
+  var others = shuffle(shape.mirrorOK ? ['rotate','mirror'] : ['rotate','rotate90']);
+  var si = 0;
+  var slots = [];
+  for(var i=0;i<3;i++){
+    var kind;
+    if(i === okIndex){ kind = 'translate'; }
+    else{ kind = others[si]; si++; }
+    slots.push({
+      cx: centers[i][0], cy: centers[i][1], kind: kind,
+      ox: centers[i][0]-160, oy: centers[i][1]-230   /* 相对源图形中心(160,230)的平移量 */
+    });
+  }
+  shiftState.slots = slots;
+  shiftState.okIndex = okIndex;
+
+  area.innerHTML =
+    '<div class="shift-caption">小' + shape.name + '想回家，但只能用<b>平移</b>走过去：位置可以变，方向、大小、形状都不能变。把它拖进正确的虚线家吧！</div>' +
+    '<svg id="shiftBoard" viewBox="0 0 900 460"></svg>' +
+    '<div class="gb-feedback" id="shiftFeedback">拖动左边的图形试试看：三个虚线家里，只有一个能靠平移到达！</div>';
+
+  var svg = $('#shiftBoard');
+
+  /* 三个虚线家（正确家=平移，其余为旋转/镜像，平移无法到达）
+     轮廓多边形使用图形原始坐标（中心在 cx,cy），因此平移量需补上
+     源图形中心(160,230)与原始中心(cx,cy)之间的偏移，保证家正好落在预定位置 */
+  slots.forEach(function(s, i2){
+    var DX = s.ox + 160 - shape.cx;
+    var DY = s.oy + 230 - shape.cy;
+    var outer = document.createElementNS(SVGNS, 'g');
+    if(s.kind === 'rotate'){
+      outer.setAttribute('transform', 'translate(' + DX + ',' + DY + ') rotate(180 ' + shape.cx + ' ' + shape.cy + ')');
+    }else if(s.kind === 'rotate90'){
+      outer.setAttribute('transform', 'translate(' + DX + ',' + DY + ') rotate(90 ' + shape.cx + ' ' + shape.cy + ')');
+    }else if(s.kind === 'mirror'){
+      outer.setAttribute('transform', 'translate(' + (DX + 2*shape.cx) + ',' + DY + ') scale(-1,1)');
+    }else{
+      outer.setAttribute('transform', 'translate(' + DX + ',' + DY + ')');
+    }
+    var outline = document.createElementNS(SVGNS, 'polygon');
+    outline.setAttribute('class', 'slot-outline');
+    outline.setAttribute('points', shape.outline);
+    outline.dataset.slotIndex = String(i2);
+    outer.appendChild(outline);
+    svg.appendChild(outer);
+  });
+
+  /* 源图形（可拖动，方向锁定 = 只能平移） */
+  var pieceWrap = document.createElementNS(SVGNS, 'g');
+  pieceWrap.setAttribute('transform', 'translate(' + (160-shape.cx) + ',' + (230-shape.cy) + ')');
+  var piece = document.createElementNS(SVGNS, 'g');
+  piece.setAttribute('class', 'drag-piece');
+  piece.setAttribute('id', 'shiftPiece');
+  piece.style.transform = 'translate(0px,0px)';
+  piece.innerHTML = shape.make();
+  pieceWrap.appendChild(piece);
+  svg.appendChild(pieceWrap);
+
+  /* "拖我"提示 */
+  var label = document.createElementNS(SVGNS, 'text');
+  label.setAttribute('x', 160);
+  label.setAttribute('y', 366);
+  label.setAttribute('text-anchor', 'middle');
+  label.setAttribute('class', 'shift-label');
+  label.textContent = '拖动我去平移';
+  svg.appendChild(label);
+  var arrow = document.createElementNS(SVGNS, 'text');
+  arrow.setAttribute('x', 160);
+  arrow.setAttribute('y', 340);
+  arrow.setAttribute('text-anchor', 'middle');
+  arrow.setAttribute('class', 'shift-label');
+  arrow.textContent = '↓';
+  svg.appendChild(arrow);
+
+  /* 拖动逻辑：指针 → SVG 用户坐标（监听挂到 document，拖得再快也不丢） */
+  var dragging = false, startX = 0, startY = 0, curX = 0, curY = 0;
+  function svgPointFromEvent(e){
+    var pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    var m = svg.getScreenCTM();
+    if(!m){ return { x:0, y:0 }; }
+    return pt.matrixTransform(m.inverse());
+  }
+  function onDocMove(ev){
+    if(!dragging){ return; }
+    var p = svgPointFromEvent(ev);
+    curX = p.x - startX; curY = p.y - startY;
+    piece.style.transform = 'translate(' + curX + 'px,' + curY + 'px)';
+  }
+  function endDrag(){
+    if(!dragging){ return; }
+    dragging = false;
+    document.removeEventListener('pointermove', onDocMove);
+    document.removeEventListener('pointerup', onDocUp);
+    document.removeEventListener('pointercancel', onDocCancel);
+    addStep();
+    var hit = -1;
+    for(var i=0;i<slots.length;i++){
+      if(Math.abs(curX - slots[i].ox) < 42 && Math.abs(curY - slots[i].oy) < 42){ hit = i; break; }
+    }
+    if(hit === shiftState.okIndex){
+      /* 平移到位：精确吸附 */
+      curX = slots[hit].ox; curY = slots[hit].oy;
+      piece.style.transform = 'translate(' + curX + 'px,' + curY + 'px)';
+      shiftState.done = true;
+      var okSlot = svg.querySelectorAll('.slot-outline')[hit];
+      okSlot.setAttribute('class', 'slot-filled');
+      $('#shiftFeedback').textContent = '平移成功！位置变了，方向一点没变——这就是平移！' + praise();
+      $('#shiftFeedback').className = 'gb-feedback good';
+      toast(praise());
+      setTimeout(nextUnit, 1250);
+    }else{
+      /* 回到出发点 */
+      piece.style.transition = 'transform .3s ease';
+      curX = 0; curY = 0;
+      piece.style.transform = 'translate(0px,0px)';
+      piece.classList.add('wobble');
+      setTimeout(function(){ piece.classList.remove('wobble'); }, 450);
+      if(hit >= 0){
+        $('#shiftFeedback').textContent = '这个家的朝向不一样——平移不会改变方向，它到不了这里哦！再找找别的家。';
+        $('#shiftFeedback').className = 'gb-feedback bad';
+      }else{
+        $('#shiftFeedback').textContent = '要拖到虚线家上面再松手哦！记住：平移时方向和大小都不能变。';
+        $('#shiftFeedback').className = 'gb-feedback';
+      }
+    }
+  }
+  function onDocUp(){ endDrag(); }
+  function onDocCancel(){
+    if(!dragging){ return; }
+    dragging = false;
+    document.removeEventListener('pointermove', onDocMove);
+    document.removeEventListener('pointerup', onDocUp);
+    document.removeEventListener('pointercancel', onDocCancel);
+    piece.style.transition = 'transform .3s ease';
+    curX = 0; curY = 0;
+    piece.style.transform = 'translate(0px,0px)';
+  }
+  piece.addEventListener('pointerdown', function(ev){
+    ev.preventDefault();
+    if(shiftState.done){ return; }
+    dragging = true;
+    var p = svgPointFromEvent(ev);
+    startX = p.x - curX; startY = p.y - curY;
+    piece.style.transition = 'none';
+    document.addEventListener('pointermove', onDocMove);
+    document.addEventListener('pointerup', onDocUp);
+    document.addEventListener('pointercancel', onDocCancel);
+  });
+}
+function revealShift(){
+  var svg = $('#shiftBoard');
+  if(!svg){ return; }
+  var outlines = svg.querySelectorAll('.slot-outline');
+  var ok = outlines[shiftState.okIndex];
+  if(ok){
+    ok.setAttribute('class', 'slot-outline hintHi');
+    toast('亮起来的虚线家，就是小图形平移能到的家！');
+    var fb = $('#shiftFeedback');
+    if(fb){
+      fb.textContent = '看！发亮的虚线家和左边的图形方向一模一样——只有它靠平移就能到达。';
+      fb.className = 'gb-feedback';
+    }
+  }
+}
+
+/* ============================================================
+   关卡流程控制
+   ============================================================ */
+var revealCurrent = function(){ toast('还没开始呢！'); };
+function setBanner(title, sub){
+  $('#gbTitle').textContent = title;
+  $('#gbSub').textContent = sub || '';
+}
+function renderProgress(){
+  var holder = $('#progDots');
+  holder.innerHTML = '';
+  for(var i=0;i<G.seq.length;i++){
+    var d = document.createElement('span');
+    d.className = 'prog-dot' + (i < G.idx ? ' done' : (i === G.idx ? ' now' : ''));
+    holder.appendChild(d);
+  }
+}
+function renderUnit(){
+  var unit = G.seq[G.idx];
+  renderProgress();
+  if(G.level === 'easy'){
+    setBanner('第 ' + (G.idx+1) + ' 关 · ' + unit.round.title, unit.round.sub);
+    renderEasyRound(unit.round);
+    revealCurrent = revealEasy;
+  }else if(G.level === 'mid'){
+    setBanner('第 ' + (G.idx+1) + ' 关 · 围出「' + unit + '」', MISSIONS[unit].desc + ' 围对自动进入下一关！');
+    renderMidMission(unit);
+    revealCurrent = revealMid;
+  }else if(G.level === 'hard'){
+    if(unit.kind === 'dual'){
+      setBanner('第 ' + (G.idx+1) + ' 关 · 一板两图', '在一块钉子板上先后围出：' + unit.tasks.join(' 和 ') + '（源自练习5/练习9）');
+      renderHardDual(unit);
+      revealCurrent = revealHardDual;
+    }else{
+      setBanner('第 ' + (G.idx+1) + ' 关 · 平移魔法', '平移：位置改变，方向、大小、形状都不变。拖动图形，找到平移能到达的家！');
+      renderShiftRound();
+      revealCurrent = revealShift;
+    }
+  }
+}
+function nextUnit(){
+  G.idx++;
+  if(G.idx >= G.seq.length){
+    winLevel();
+  }else{
+    renderUnit();
+  }
+}
+function startLevel(level){
+  applyPalette();
+  resetCounters();
+  G.level = level;
+  G.idx = 0;
+  G.started = false;
+  hideWin();
+  showScreen('#screen-game');
+  $('#tbLevel').textContent = ({
+    easy:'初级 · 图形分拣站',
+    mid:'中级 · 魔法钉子板',
+    hard:'高级 · 双星挑战'
+  })[level];
+
+  /* 组装本局关卡序列（反重复机制：随机抽样 + 洗牌） */
+  if(level === 'easy'){
+    var rounds = sample(EASY_POOL, 3);
+    G.seq = rounds.map(function(r){
+      /* 保存本轮卡片顺序，供揭示答案按编号索引 */
+      var roundShapes = shuffle(r.shapes);
+      return { round:{
+        id:r.id, title:r.title, brief:r.brief, sub:r.sub, boxes:r.boxes,
+        shapes:roundShapes, original:r.shapes
+      } };
+    });
+  }else if(level === 'mid'){
+    var pool = ['等腰三角形','直角三角形','锐角三角形','钝角三角形','长方形','梯形'];
+    G.seq = sample(pool, 4);
+  }else{
+    var duals = sample(HARD_DUALS, 2).map(function(d){ return { kind:'dual', tasks: d.tasks.slice() }; });
+    G.seq = duals.concat([{ kind:'shift' }, { kind:'shift' }]);
+  }
+  renderProgress();
+  setBanner('准备出发', '先看看规则，然后开始挑战！');
+  $('#game-area').innerHTML = '<div style="text-align:center;padding:40px 10px;font-size:20px;color:#6a7590;">规则即将展示……</div>';
+  revealCurrent = function(){ toast('还没开始呢，先看规则吧！'); };
+  openRules(level, true);
+}
+
+/* ============================================================
+   规则说明面板（进入时弹出，可随时再看）
+   ============================================================ */
+var RULES = {
+  easy: {
+    title:'初级 · 图形分拣站 规则',
+    body:
+      '<ul>' +
+      '<li>上面晾着一排<b>图形卡片</b>，下面是几个<b>魔法箱（家）</b>。</li>' +
+      '<li>用手指或鼠标<b>把每张卡片拖进正确的家</b>：放对了会亮星星，放错了会弹回去。</li>' +
+      '<li>把一轮里所有卡片都送回家，就能进入下一关，一共 3 关。</li>' +
+      '<li><b>知识锦囊：</b>椭圆像被压扁的圆；扇形像圆披萨的一角；等腰三角形有两条边相等；等边三角形是特殊的等腰三角形。</li>' +
+      '<li>卡住了可以点顶栏的<b>「揭示答案」</b>，正确答案会半透明地亮出来。</li>' +
+      '</ul>'
+  },
+  mid: {
+    title:'中级 · 魔法钉子板 规则',
+    body:
+      '<ul>' +
+      '<li>像玩钉子板一样，<b>按顺序点亮点阵</b>，皮筋会自动连起来。</li>' +
+      '<li>绕着想要的图形点一圈（3 个点围三角形、4 个点围四边形），回到起点或点<b>「围好啦」</b>完成。</li>' +
+      '<li>围出的图形符合任务要求（如等腰三角形、梯形）就通关；不符合会告诉你围出的是什么、差在哪里。</li>' +
+      '<li><b>知识锦囊：</b>直角三角形有一个直角；钝角三角形有一个钝角；锐角三角形三个角都是锐角；长方形四个角都是直角；梯形只有一组对边平行。</li>' +
+      '<li>「撤销一点」退回一个点，「全部清空」重新开始围。</li>' +
+      '</ul>'
+  },
+  hard: {
+    title:'高级 · 双星挑战 规则',
+    body:
+      '<ul>' +
+      '<li><b>一板两图：</b>在一块钉子板上先围第一个图形，围对会锁定，接着围第二个，两个都围对才过关。</li>' +
+      '<li><b>平移魔法：</b>拖动小图形，把它放进正确的虚线家。注意——只有<b>方向一模一样</b>的家才能靠平移到达！</li>' +
+      '<li><b>知识锦囊：</b>平移只改变位置，不改变方向、大小和形状；旋转会改变方向，所以转过的、翻转的家都到不了。</li>' +
+      '<li>每关都可以点顶栏的<b>「揭示答案」</b>看示范。</li>' +
+      '</ul>'
+  }
+};
+function openRules(level, firstTime){
+  stopTimer();
+  $('#rulesTitle').textContent = RULES[level].title;
+  $('#rulesBody').innerHTML = RULES[level].body;
+  $('#rulesGo').textContent = firstTime ? '开始挑战' : '继续游戏';
+  $('#rulesMask').classList.add('on');
+}
+$('#rulesGo').addEventListener('click', function(){
+  $('#rulesMask').classList.remove('on');
+  if(!G.started){
+    G.started = true;
+    startTimer();
+    renderUnit();
+  }else{
+    startTimer();
+  }
+});
+
+/* ============================================================
+   胜利庆祝（彩纸 + 星星，Canvas 实现）
+   ============================================================ */
+function winLevel(){
+  stopTimer();
+  var names = { easy:'初级 · 图形分拣站', mid:'中级 · 魔法钉子板', hard:'高级 · 双星挑战' };
+  $('#winStats').innerHTML = '完成难度：' + names[G.level] +
+    '<br>用时 <b>' + fmtTime(G.timeSec) + '</b> · 共 <b>' + G.steps + '</b> 步';
+  $('#winOverlay').classList.add('on');
+  runConfetti();
+}
+function hideWin(){ $('#winOverlay').classList.remove('on'); stopConfetti(); }
+$('#winReplay').addEventListener('click', function(){ hideWin(); startLevel(G.level); });
+$('#winHome').addEventListener('click', function(){ hideWin(); stopTimer(); showScreen('#screen-home'); });
+
+/* 彩纸粒子动画 */
+var confettiRaf = null;
+function runConfetti(){
+  var cv = $('#confettiCanvas');
+  var ctx = cv.getContext('2d');
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  var style = getComputedStyle(document.documentElement);
+  var colors = [
+    style.getPropertyValue('--c-main').trim() || '#1d6fb8',
+    style.getPropertyValue('--c-accent').trim() || '#ff9f43',
+    '#ffd66b', '#7ddb8a', '#ff8fa3', '#8fd3ff'
+  ];
+  var parts = [];
+  for(var i=0;i<130;i++){
+    parts.push({
+      x: Math.random()*cv.width,
+      y: -30 - Math.random()*cv.height*0.5,
+      w: 8 + Math.random()*10,
+      h: 10 + Math.random()*12,
+      c: colors[Math.floor(Math.random()*colors.length)],
+      vy: 2.2 + Math.random()*3.2,
+      vx: -1.4 + Math.random()*2.8,
+      rot: Math.random()*Math.PI*2,
+      vr: -0.12 + Math.random()*0.24,
+      shape: Math.random() < 0.3 ? 'circle' : 'rect'
+    });
+  }
+  var frame = 0;
+  function step(){
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for(var j=0;j<parts.length;j++){
+      var p = parts[j];
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if(p.y > cv.height + 40){ p.y = -30; p.x = Math.random()*cv.width; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      if(p.shape === 'circle'){
+        ctx.beginPath(); ctx.arc(0, 0, p.w/2, 0, Math.PI*2); ctx.fill();
+      }else{
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      }
+      ctx.restore();
+    }
+    frame++;
+    if(frame < 420){ confettiRaf = requestAnimationFrame(step); }
+    else{ ctx.clearRect(0, 0, cv.width, cv.height); }
+  }
+  if(confettiRaf){ cancelAnimationFrame(confettiRaf); }
+  step();
+}
+function stopConfetti(){
+  if(confettiRaf){ cancelAnimationFrame(confettiRaf); confettiRaf = null; }
+  var cv = $('#confettiCanvas');
+  if(cv){
+    var ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+  }
+}
+
+/* ============================================================
+   顶栏按钮：揭示答案 / 规则 / 重新开始 / 返回难度选择
+   ============================================================ */
+$('#btnReveal').addEventListener('click', function(){
+  if(G.started){ revealCurrent(); }
+  else{ toast('先选择难度开始游戏吧！'); }
+});
+$('#btnRules').addEventListener('click', function(){
+  if(G.level){ openRules(G.level, !G.started); }
+  else{ toast('先选择一个难度吧！'); }
+});
+$('#btnRestart').addEventListener('click', function(){
+  if(G.level){ toast('重新开始，颜色和题目都会刷新哦！'); startLevel(G.level); }
+  else{ toast('先选择一个难度吧！'); }
+});
+$('#btnHome').addEventListener('click', function(){
+  stopTimer();
+  showScreen('#screen-home');
+});
+
+/* 首页卡片点击 → 开始对应难度 */
+document.querySelectorAll('.level-card').forEach(function(card){
+  card.addEventListener('click', function(){ startLevel(card.dataset.level); });
+});
+
+/* ============================================================
+   初始化
+   ============================================================ */
+(function init(){
+  applyPalette();
+  resetCounters();
+})();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a1a/g007", "name": "\u56fe\u5f62\u63a2\u9669\u5c9b \u00b7 \u6709\u8da3\u7684\u5e73\u9762\u56fe\u5f62\uff08\u4e0a\uff09", "file": "g007.html", "jiaocan": "\u30107\u3011\u7b2c4\u8bb2 \u6709\u8da3\u7684\u5e73\u9762\u56fe\u5f62\uff08\u4e0a\uff09", "unit": "\u7b2c4\u8bb2", "grade": "1\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b71\u5e74\u7ea7\u4e0a\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a1a"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

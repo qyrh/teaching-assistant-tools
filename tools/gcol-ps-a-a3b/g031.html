@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>标数法（上）· 彩虹街区大冒险</title>
+<style>
+/* ================= 全局与配色变量（每局随机换色板） ================= */
+:root{ --c1:#ff7a1a; --c2:#ffb347; --bg:#fff7ec; --ink:#4a2c12; }
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; }
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;
+  background:var(--bg); color:var(--ink);
+  transition:background .6s;
+}
+#app{ max-width:1100px; margin:0 auto; padding:10px 14px 30px; }
+
+/* ================= 顶栏：标题 + 计时 + 步数 + 规则 ================= */
+header{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; justify-content:space-between; padding:6px 0 10px; }
+.brand{ display:flex; align-items:center; gap:10px; }
+.logo{ font-size:40px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.2)); }
+.brand h1{ font-size:clamp(19px,3.2vw,28px); margin:0; letter-spacing:1px; }
+.brand p{ margin:2px 0 0; font-size:14px; opacity:.75; }
+.hud{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.pill{
+  background:#fff; border:3px solid var(--c1); border-radius:14px;
+  padding:6px 14px; font-weight:900; font-size:18px; white-space:nowrap;
+  box-shadow:0 3px 0 rgba(0,0,0,.08);
+}
+.pill.big{ font-size:20px; background:var(--c1); color:#fff; }
+
+/* ================= 按钮 ================= */
+.btn{
+  font-family:inherit; font-size:18px; font-weight:800; cursor:pointer;
+  background:#fff; color:var(--ink); border:3px solid var(--ink);
+  border-radius:14px; padding:10px 18px; box-shadow:0 4px 0 rgba(0,0,0,.15);
+  transition:transform .08s;
+}
+.btn:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.15); }
+.btn.primary{ background:var(--c1); color:#fff; }
+.btn.small{ font-size:15px; padding:7px 12px; }
+.btn.disabled{ opacity:.45; pointer-events:none; }
+
+/* ================= 屏幕切换 ================= */
+.screen{ display:none; }
+.screen.on{ display:block; animation:fadeIn .35s; }
+
+/* ================= 难度选择菜单 ================= */
+.lead{ font-size:17px; line-height:1.7; background:#fff; border:3px dashed var(--c1); border-radius:18px; padding:14px 18px; }
+.lvgrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-top:16px; }
+.lvcard{
+  background:#fff; border:4px solid var(--c1); border-radius:22px; padding:20px 18px;
+  cursor:pointer; text-align:center; transition:transform .15s, box-shadow .15s;
+  box-shadow:0 6px 0 rgba(0,0,0,.1);
+}
+.lvcard:hover{ transform:translateY(-5px) scale(1.02); box-shadow:0 12px 20px rgba(0,0,0,.15); }
+.lvtag{ display:inline-block; background:var(--c1); color:#fff; font-weight:900; font-size:17px; border-radius:999px; padding:4px 16px; letter-spacing:2px; }
+.lvcard h2{ margin:10px 0 6px; font-size:23px; }
+.lvcard p{ margin:0 0 12px; font-size:15px; line-height:1.6; opacity:.85; }
+.go{ color:var(--c1); font-weight:900; font-size:17px; }
+
+/* ================= 游戏区 ================= */
+.hudbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:4px 0 8px; }
+.goal{ font-size:17px; font-weight:700; margin:0 0 10px; line-height:1.6; }
+.boards{ display:flex; flex-wrap:wrap; gap:18px; justify-content:center; align-items:flex-start; }
+.bwrap{ background:#fff; border:4px solid var(--c1); border-radius:22px; padding:12px 12px 8px; box-shadow:0 8px 0 rgba(0,0,0,.08); flex:0 1 640px; max-width:640px; }
+#boards.duo .bwrap{ flex:0 1 430px; max-width:430px; }
+.btitle{ text-align:center; font-weight:900; font-size:18px; margin:0 0 6px; }
+.board{ position:relative; width:100%; }
+.board svg{ display:block; width:100%; height:auto; }
+.legend{ text-align:center; font-size:15px; opacity:.85; margin:10px 0 6px; font-weight:700; }
+
+/* 街道连线 */
+.street{ stroke:#b7aecb; stroke-width:4; }
+.street.diag{ stroke:var(--c1); stroke-width:4; stroke-dasharray:10 7; opacity:.85; }
+.brokenline{ stroke:#e05656; stroke-width:4; stroke-dasharray:8 8; opacity:.8; }
+
+/* 路口节点 */
+.node{
+  position:absolute; transform:translate(-50%,-50%);
+  width:clamp(36px,10%,54px); aspect-ratio:1/1; border-radius:50%;
+  border:3px dashed #b8b0c8; background:rgba(255,255,255,.95);
+  display:flex; align-items:center; justify-content:center;
+  font-weight:900; font-size:clamp(15px,2.6vw,22px);
+  cursor:pointer; z-index:5; user-select:none; touch-action:manipulation;
+}
+.node .qmark{ color:#b0a8c2; }
+.node.filled{ border-style:solid; border-color:var(--c1); background:var(--c1); color:#fff; box-shadow:0 3px 8px rgba(0,0,0,.22); }
+.node.src{ border-style:solid; border-color:var(--ink); background:var(--c2); }
+.node.dst{ border-width:4px; border-color:var(--c1); background:#fff; }
+.node.blocknode{ border-color:#e05656; color:#e05656; }
+.node.blocknode.filled{ background:#9aa3ad; border-color:#6b7280; color:#fff; }
+.node .emoji{ font-size:clamp(15px,2.6vw,22px); }
+.node .tag{ position:absolute; top:-14px; right:-12px; font-size:15px; background:#fff; border:2px solid var(--c1); border-radius:50%; padding:0 3px; line-height:1.3; }
+.node.ready::after{
+  content:""; position:absolute; inset:-9px; border:3px solid var(--c2);
+  border-radius:50%; animation:pulse 1.1s infinite;
+}
+.node.next{ box-shadow:0 0 0 6px rgba(255,179,71,.65); animation:bob .7s infinite; z-index:6; }
+.node.hover{ transform:translate(-50%,-50%) scale(1.18); z-index:7; }
+.node.shake{ animation:shake .4s; }
+.walker{
+  position:absolute; transform:translate(-50%,-80%); z-index:8;
+  font-size:clamp(24px,4.4vw,34px); filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));
+  transition:left .35s ease, top .35s ease; pointer-events:none;
+}
+
+/* 数字牌托盘 */
+.tray{
+  display:flex; flex-wrap:wrap; gap:12px; justify-content:center; align-items:center;
+  background:#fff; border:3px solid var(--ink); border-radius:20px;
+  padding:12px; margin:12px 0; min-height:86px;
+}
+.tray.hidden{ display:none; }
+.chip{
+  position:relative; width:58px; height:58px; border-radius:16px;
+  background:var(--c1); color:#fff; border:3px solid rgba(0,0,0,.15);
+  font-size:25px; font-weight:900; display:flex; align-items:center; justify-content:center;
+  cursor:grab; touch-action:none; box-shadow:0 4px 0 rgba(0,0,0,.18); user-select:none;
+}
+.chip.zero{ background:#9aa3ad; }
+.chip .cc{
+  position:absolute; right:-8px; top:-10px; background:var(--ink); color:#fff;
+  font-size:12px; font-weight:900; border-radius:10px; padding:1px 6px;
+}
+.chip.ghost{ position:fixed; z-index:90; pointer-events:none; opacity:.95; transform:translate(-50%,-60%) scale(1.12); margin:0; }
+
+/* 行走条 / 机器 / 提示面板 */
+.panel{
+  background:#fff; border:4px solid var(--c1); border-radius:20px;
+  padding:12px 16px; margin:10px 0; display:flex; flex-wrap:wrap; gap:12px;
+  align-items:center; justify-content:center; font-weight:800; font-size:17px;
+}
+.panel.hidden{ display:none; }
+.mslot{
+  width:74px; height:74px; border:4px dashed var(--c1); border-radius:18px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:26px; font-weight:900; cursor:pointer; touch-action:manipulation; background:#fff;
+}
+.mslot .mlab{ font-size:11px; font-weight:800; opacity:.7; }
+.mslot.filled{ background:var(--c2); border-style:solid; }
+.mslot.hover{ transform:scale(1.1); }
+.mx{ font-size:32px; font-weight:900; }
+.mres{ font-size:30px; font-weight:900; color:var(--c1); min-width:70px; text-align:center; }
+.gear{ display:inline-block; font-size:26px; }
+.gear.spin{ animation:spin 1s linear infinite; display:inline-block; }
+.controls{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:14px; }
+
+/* 加法来源提示 */
+.sumtip{
+  position:absolute; transform:translate(-50%,-50%); z-index:9;
+  background:#fff; border:3px solid var(--c2); border-radius:12px;
+  padding:2px 9px; font-weight:900; font-size:16px; color:var(--c1);
+  pointer-events:none; animation:floatUp 1.35s forwards;
+}
+.sumtip.bigr{ font-size:18px; }
+
+/* 弹窗 */
+.modal{ position:fixed; inset:0; background:rgba(30,20,10,.5); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
+.modal.on{ display:flex; }
+.mcard{
+  background:#fff; border:5px solid var(--c1); border-radius:26px;
+  padding:24px 26px; max-width:600px; width:96%; text-align:center;
+  animation:pop .35s; max-height:92vh; overflow:auto;
+}
+.mcard h2{ margin:6px 0 10px; font-size:26px; }
+.mcard p{ font-size:18px; line-height:1.7; margin:8px 0; }
+.stars{ font-size:42px; letter-spacing:8px; min-height:48px; }
+.rlist{ text-align:left; font-size:16.5px; line-height:1.85; padding-left:20px; margin:10px 0; }
+.rlist b{ color:var(--c1); }
+.btnrow{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+.demo{ width:100%; max-width:420px; margin:8px auto; display:block; }
+
+/* 提示气泡与庆祝画布 */
+#toast{
+  position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px);
+  background:var(--ink); color:#fff; font-size:17px; font-weight:800;
+  border-radius:999px; padding:10px 22px; opacity:0; transition:all .3s; z-index:110;
+  pointer-events:none; max-width:92vw; text-align:center;
+}
+#toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+#fx{ position:fixed; inset:0; pointer-events:none; z-index:80; }
+
+footer{ text-align:center; font-size:13px; opacity:.6; margin-top:18px; }
+
+/* ================= 动画 ================= */
+@keyframes pulse{ 0%{ box-shadow:0 0 0 0 rgba(255,179,71,.7);} 100%{ box-shadow:0 0 0 12px rgba(255,179,71,0);} }
+@keyframes bob{ 0%,100%{ transform:translate(-50%,-50%);} 50%{ transform:translate(-50%,-62%);} }
+@keyframes shake{ 0%,100%{ transform:translate(-50%,-50%);} 25%{ transform:translate(-58%,-50%);} 75%{ transform:translate(-42%,-50%);} }
+@keyframes pop{ 0%{ transform:scale(.7); opacity:0;} 100%{ transform:scale(1); opacity:1;} }
+@keyframes fadeIn{ from{ opacity:0;} to{ opacity:1;} }
+@keyframes floatUp{ 0%{ opacity:0; transform:translate(-50%,-30%);} 20%{ opacity:1;} 80%{ opacity:1;} 100%{ opacity:0; transform:translate(-50%,-140%);} }
+@keyframes spin{ from{ transform:rotate(0);} to{ transform:rotate(360deg);} }
+
+@media (max-width:640px){
+  .brand h1{ font-size:19px; }
+  .pill{ font-size:15px; padding:5px 10px; }
+  .chip{ width:50px; height:50px; font-size:21px; }
+  .goal,.panel{ font-size:15.5px; }
+  .btn{ font-size:16px; padding:9px 14px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ===== 顶栏 ===== -->
+  <header>
+    <div class="brand">
+      <span class="logo">🌈</span>
+      <div>
+        <h1>标数法 · 彩虹街区大冒险</h1>
+        <p>第16讲（上）· 给每个路口标上路线数，再护送小朋友去公园</p>
+      </div>
+    </div>
+    <div class="hud">
+      <span class="pill" id="tTime">⏱ 00:00</span>
+      <span class="pill" id="tSteps">👣 0 步</span>
+      <button class="btn small" id="btnRules">规则说明</button>
+    </div>
+  </header>
+
+  <!-- ===== 难度选择 ===== -->
+  <section id="scrMenu" class="screen on">
+    <p class="lead">
+      小朋友想知道：从 <b>🏠 家</b> 到 <b>🏞️ 公园</b>，只许向右、向上走，最短路线一共有多少条？
+      用<b>标数法</b>就能数清楚！把数字牌<b>拖</b>到路口上，把每个路口“能走到的走法数”标出来，
+      再亲自护送小朋友走一趟。每次开始，地图和配色都会重新抽取哦！
+    </p>
+    <div class="lvgrid">
+      <div class="lvcard" data-diff="easy">
+        <span class="lvtag">初 级</span>
+        <h2>上学小路 · 热身出发</h2>
+        <p>基础标数法：只能向右、向上，一步一步点亮所有路口，适合第一次玩</p>
+        <span class="go">开始挑战 →</span>
+      </div>
+      <div class="lvcard" data-diff="mid">
+        <span class="lvtag">中 级</span>
+        <h2>街区新貌 · 进阶闯关</h2>
+        <p>变形标数法：路上出现 🚧 施工路口和维修断路，要学会标 0、绕着走</p>
+        <span class="go">开始挑战 →</span>
+      </div>
+      <div class="lvcard" data-diff="hard">
+        <span class="lvtag">高 级</span>
+        <h2>勇者试炼 · 综合冒险</h2>
+        <p>斜坡飞桥 ↗、必经独木桥 🌉（乘法机器登场）、施工综合挑战，全面出击</p>
+        <span class="go">开始挑战 →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 游戏主界面 ===== -->
+  <section id="scrGame" class="screen">
+    <div class="hudbar">
+      <span class="pill big" id="hudLevel">关卡</span>
+      <span class="pill" id="hudProg">第 1 / 2 关</span>
+    </div>
+    <p class="goal" id="hudGoal"></p>
+    <div id="boards" class="boards"></div>
+    <p class="legend" id="legend"></p>
+    <div id="tray" class="tray"></div>
+    <div id="walkbar" class="panel hidden">
+      <span id="walkTip">点击亮起的相邻路口，护送小朋友去 🏞️！（走错可以回退）</span>
+      <button class="btn" id="btnUndo">↩ 回退一步</button>
+    </div>
+    <div id="machine" class="panel hidden">
+      <span class="gear" id="gear1">⚙️</span>
+      <div class="mslot" id="slot1"><span class="mlab">第一段</span><span class="mval">?</span></div>
+      <span class="mx">×</span>
+      <div class="mslot" id="slot2"><span class="mlab">第二段</span><span class="mval">?</span></div>
+      <span class="mx">=</span>
+      <span class="mres" id="mres">?</span>
+      <span class="gear" id="gear2">⚙️</span>
+      <button class="btn primary" id="btnLever" disabled="disabled">启动机器</button>
+    </div>
+    <div class="controls">
+      <button class="btn primary" id="btnReveal">💡 揭示答案</button>
+      <button class="btn" id="btnRestart">🔄 重新开始</button>
+      <button class="btn" id="btnBack">🏠 返回难度选择</button>
+    </div>
+  </section>
+
+  <footer>第16讲 标数法（上）· 课堂互动游戏 · 每局关卡与配色随机抽取</footer>
+</div>
+
+<!-- ===== 规则弹窗 ===== -->
+<div class="modal" id="modalRules">
+  <div class="mcard">
+    <h2>🌈 玩法规则</h2>
+    <ul class="rlist">
+      <li><b>拖一拖：</b>把下方托盘里的数字牌<b>拖</b>到路口圆圈上。起点 🏠 永远标 <b>1</b>。</li>
+      <li><b>标数口诀：</b>每个路口的数 = 所有能<b>直接走到它</b>的相邻路口的数<b>相加</b>（只能沿箭头方向走）。带光圈的路口表示“相邻来源都标好了，可以先标我”。</li>
+      <li><b>🚧 施工路口：</b>要标 <b>0</b>，而且路线不能穿过它；画 <b>⨯</b> 的路段不通，标数时不加、行走时也不能走。</li>
+      <li><b>🌉 必经之桥：</b>分两段分别标数，再把两个结果拖进<b>乘法机器</b>相乘，就得到总条数。</li>
+      <li><b>走一走：</b>标完数后，点击亮起的相邻路口，护送小朋友从 🏠 走到 🏞️。终点头顶的数，就是最短路线的总条数！</li>
+      <li>拖错了没关系，数字牌会自己弹回托盘；点亮所有路口就能看到烟花庆祝 🎉</li>
+    </ul>
+    <!-- 迷你示例图：3×2 路口的标数过程 -->
+    <svg class="demo" viewBox="0 0 380 225" aria-label="标数法示例">
+      <defs>
+        <marker id="rah" markerWidth="7" markerHeight="7" refX="5.2" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#a89fc0"></polygon>
+        </marker>
+      </defs>
+      <g stroke="#a89fc0" stroke-width="3.5" marker-end="url(#rah)">
+        <line x1="72" y1="180" x2="168" y2="180"></line>
+        <line x1="212" y1="180" x2="308" y2="180"></line>
+        <line x1="50" y1="158" x2="50" y2="82"></line>
+        <line x1="50" y1="60" x2="168" y2="60"></line>
+        <line x1="212" y1="60" x2="308" y2="60"></line>
+        <line x1="190" y1="158" x2="190" y2="82"></line>
+        <line x1="330" y1="158" x2="330" y2="82"></line>
+      </g>
+      <g font-size="19" font-weight="900" text-anchor="middle">
+        <circle cx="50" cy="180" r="23" fill="#c98a3a"></circle><text x="50" y="187" fill="#fff">1</text>
+        <circle cx="190" cy="180" r="23" fill="#c98a3a"></circle><text x="190" y="187" fill="#fff">1</text>
+        <circle cx="330" cy="180" r="23" fill="#c98a3a"></circle><text x="330" y="187" fill="#fff">1</text>
+        <circle cx="50" cy="60" r="23" fill="#c98a3a"></circle><text x="50" y="67" fill="#fff">1</text>
+        <circle cx="190" cy="60" r="25" fill="#e0742a"></circle><text x="190" y="67" fill="#fff">2</text>
+        <circle cx="330" cy="60" r="23" fill="#a0a0a0"></circle><text x="330" y="67" fill="#fff">?</text>
+      </g>
+      <g font-size="16" font-weight="900" fill="#e0742a" text-anchor="middle">
+        <text x="128" y="168">1</text>
+        <text x="128" y="98">1</text>
+        <text x="190" y="128" fill="#7a5a1e">1+1=2</text>
+      </g>
+      <text x="190" y="218" font-size="15" text-anchor="middle" fill="#7a5a1e" font-weight="700">每个路口的数 = 从下面、左边走来的数相加</text>
+    </svg>
+    <div class="btnrow">
+      <button class="btn primary" id="btnRulesOk">知道啦，开始！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 单关完成弹窗 ===== -->
+<div class="modal" id="modalWin">
+  <div class="mcard">
+    <div class="stars" id="winStars"></div>
+    <h2 id="winTitle">抵达公园！</h2>
+    <p id="winText"></p>
+    <div class="btnrow">
+      <button class="btn primary" id="btnNext">下一关 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 整局完成弹窗 ===== -->
+<div class="modal" id="modalSession">
+  <div class="mcard">
+    <div class="stars" id="sesStars"></div>
+    <h2>本轮全部通关！🎉</h2>
+    <p id="sesText"></p>
+    <div class="btnrow">
+      <button class="btn primary" id="btnAgain">🔁 再来一局（换地图换配色）</button>
+      <button class="btn" id="btnBack2">🏠 返回难度选择</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<canvas id="fx"></canvas>
+
+<script>
+'use strict';
+/* =====================================================================
+ * 标数法 · 彩虹街区大冒险（第16讲 上）
+ * 核心玩法与“标数法”深度绑定：
+ *   1) 拖数字牌给路口标数（操作即 DP 递推的构造过程）
+ *   2) 护送小朋友沿最短路线行走（路线的可视化验证）
+ *   3) 必经之桥用“乘法机器”把两段标数相乘（乘法原理）
+ * 关卡答案全部由内置标数引擎实时计算，保证每道题自洽。
+ * ===================================================================== */
+
+/* ---------------- 1. 小工具 ---------------- */
+function $(s){ return document.querySelector(s); }
+function $$(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
+function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function rand(n){ return Math.floor(Math.random()*n); }
+function pick(a){ return a[rand(a.length)]; }
+function key(x,y){ return x+','+y; }
+function fmtTime(sec){ var m=Math.floor(sec/60), s=sec%60; var mm=m<10?'0'+m:''+m, ss=s<10?'0'+s:''+s; return mm+':'+ss; }
+function later(fn,ms){ var id=setTimeout(function(){ var i=S.cur.timeouts.indexOf(id); if(i>=0)S.cur.timeouts.splice(i,1); fn(); },ms); if(S.cur) S.cur.timeouts.push(id); return id; }
+
+/* ---------------- 2. 随机色板（G8 配色随机化） ---------------- */
+var PALETTES=[
+  {name:'阳光橙', c1:'#ff7a1a', c2:'#ffb347', bg:'#fff7ec', ink:'#4a2c12'},
+  {name:'海洋蓝', c1:'#1877d9', c2:'#6cc0f8', bg:'#eef7ff', ink:'#123a5c'},
+  {name:'森林绿', c1:'#1f9d55', c2:'#8fdba9', bg:'#effbf3', ink:'#1c4a2e'},
+  {name:'樱花粉', c1:'#e0447c', c2:'#ffa8c6', bg:'#fff0f6', ink:'#5c1f38'},
+  {name:'星空紫', c1:'#7a3ff0', c2:'#bda6fb', bg:'#f5f0ff', ink:'#2e1a5c'},
+  {name:'蜜桃黄', c1:'#e09e00', c2:'#ffd25e', bg:'#fffbe9', ink:'#5c4200'}
+];
+function applyPalette(){
+  var p=pick(PALETTES);
+  var r=document.documentElement.style;
+  r.setProperty('--c1',p.c1); r.setProperty('--c2',p.c2);
+  r.setProperty('--bg',p.bg); r.setProperty('--ink',p.ink);
+}
+
+/* ---------------- 3. 标数引擎（本游戏的心脏） ----------------
+ * 每个路口的数 = 能直接走到它的相邻路口的数之和；
+ * 起点标 1；施工路口标 0；断路（有向边拆除）不贡献。
+ * moves 只允许 dx>=0, dy>=0，按 x+y 升序即为拓扑序。
+ */
+var STD_MOVES=[[1,0],[0,1]];              // 向右、向上
+var DIAG_MOVES=[[1,0],[0,1],[1,1]];       // 向右、向上、右上斜坡
+function computeLabels(W,H,moves,blocks,brokenEdges){
+  var blockSet={}, e;
+  for(var i=0;i<blocks.length;i++) blockSet[key(blocks[i][0],blocks[i][1])]=true;
+  var edgeSet={};
+  for(i=0;i<brokenEdges.length;i++){ e=brokenEdges[i]; edgeSet[key(e.fx,e.fy)+'>'+key(e.tx,e.ty)]=true; }
+  var labels={}, nodes=[];
+  for(var y=0;y<H;y++) for(var x=0;x<W;x++) nodes.push([x,y]);
+  nodes.sort(function(a,b){ return (a[0]+a[1])-(b[0]+b[1]); });
+  for(i=0;i<nodes.length;i++){
+    var nx=nodes[i][0], ny=nodes[i][1], k=key(nx,ny);
+    if(nx===0&&ny===0){ labels[k]=1; continue; }          // 起点标 1
+    if(blockSet[k]){ labels[k]=0; continue; }             // 施工路口标 0
+    var s=0;
+    for(var m=0;m<moves.length;m++){
+      var px=nx-moves[m][0], py=ny-moves[m][1];
+      if(px<0||py<0) continue;
+      if(edgeSet[key(px,py)+'>'+k]) continue;             // 断路不加
+      s+=labels[key(px,py)]||0;
+    }
+    labels[k]=s;
+  }
+  return {labels:labels, blockSet:blockSet, edgeSet:edgeSet};
+}
+/* 能否从 (sx,sy) 单调走到 (tx,ty)（考虑施工与断路），BFS 判断 */
+function canReach(bd,sx,sy,tx,ty){
+  if(sx===tx&&sy===ty) return true;
+  var seen={}; seen[key(sx,sy)]=true; var st=[[sx,sy]];
+  while(st.length){
+    var c=st.pop();
+    for(var m=0;m<bd.moves.length;m++){
+      var ax=c[0]+bd.moves[m][0], ay=c[1]+bd.moves[m][1];
+      if(ax>tx||ay>ty) continue;
+      var ak=key(ax,ay);
+      if(seen[ak]) continue;
+      if(bd.blockSet[ak]) continue;
+      if(bd.edgeSet[key(c[0],c[1])+'>'+ak]) continue;
+      if(ax===tx&&ay===ty) return true;
+      seen[ak]=true; st.push([ax,ay]);
+    }
+  }
+  return false;
+}
+/* 从 (sx,sy) 随机抽出一条能到 (tx,ty) 的合法路线（揭示答案用） */
+function sampleRoute(bd){
+  var route=[[0,0]], c=[0,0];
+  while(c[0]!==bd.W-1||c[1]!==bd.H-1){
+    var cand=[];
+    for(var m=0;m<bd.moves.length;m++){
+      var ax=c[0]+bd.moves[m][0], ay=c[1]+bd.moves[m][1];
+      if(ax>bd.W-1||ay>bd.H-1) continue;
+      if(bd.blockSet[key(ax,ay)]) continue;
+      if(bd.edgeSet[key(c[0],c[1])+'>'+key(ax,ay)]) continue;
+      if(canReach(bd,ax,ay,bd.W-1,bd.H-1)) cand.push([ax,ay]);
+    }
+    c=pick(cand); route.push(c);
+  }
+  return route;
+}
+
+/* ---------------- 4. 关卡生成（每局随机抽样 + 随机障碍） ---------------- */
+function basicLevels(){
+  return [
+    {kind:'basic', W:3,H:3, moves:STD_MOVES, blocks:[], edges:[], name:'上学小路'},
+    {kind:'basic', W:4,H:3, moves:STD_MOVES, blocks:[], edges:[], name:'公园晨光'},
+    {kind:'basic', W:5,H:3, moves:STD_MOVES, blocks:[], edges:[], name:'林荫大道'},
+    {kind:'basic', W:4,H:4, moves:STD_MOVES, blocks:[], edges:[], name:'街角花园'}
+  ];
+}
+function binom(a,b){ var r=1; for(var i=0;i<b;i++) r=r*(a-i)/(i+1); return Math.round(r); }
+/* 生成“施工路口”关卡：随机放 🚧，要求答案仍 >=8 且明显小于无障碍答案 */
+function makeBlockLevel(){
+  var sizes=[[5,4],[4,4],[5,3]];
+  for(var t=0;t<80;t++){
+    var sz=pick(sizes), W=sz[0], H=sz[1];
+    var x=1+rand(W-2), y=1+rand(H-2);
+    var full=binom(W-1+H-1, W-1);
+    var L=computeLabels(W,H,STD_MOVES,[[x,y]],[]);
+    var v=L.labels[key(W-1,H-1)];
+    if(v>=8 && v<=full-4){
+      return {kind:'block', W:W,H:H, moves:STD_MOVES, blocks:[[x,y]], edges:[], name:'施工大挑战'};
+    }
+  }
+  return {kind:'block', W:5,H:4, moves:STD_MOVES, blocks:[[2,1]], edges:[], name:'施工大挑战'};
+}
+/* 生成“维修断路”关卡：随机拆 1~2 条有向路段 */
+function makeEdgeLevel(){
+  var sizes=[[4,4],[5,4]];
+  for(var t=0;t<80;t++){
+    var sz=pick(sizes), W=sz[0], H=sz[1];
+    var full=binom(W-1+H-1, W-1);
+    var nEdges=1+rand(2), edges=[], used={};
+    for(var e=0;e<nEdges;e++){
+      var mv=pick(STD_MOVES);
+      var fx=rand(W-1), fy=rand(H-1);                 // 起点：非最右列/最高行
+      if(fx===0&&fy===0){ fx=1; }
+      var tx=fx+mv[0], ty=fy+mv[1];
+      if(tx>=W||ty>=H) continue;
+      if(tx===W-1&&ty===H-1) continue;
+      var ek=key(fx,fy)+'>'+key(tx,ty);
+      if(used[ek]) continue; used[ek]=true;
+      edges.push({fx:fx,fy:fy,tx:tx,ty:ty});
+    }
+    if(edges.length<1) continue;
+    var L=computeLabels(W,H,STD_MOVES,[],edges);
+    var v=L.labels[key(W-1,H-1)];
+    if(v>=8 && v<=full-3){
+      return {kind:'edges', W:W,H:H, moves:STD_MOVES, blocks:[], edges:edges, name:'绕行街区'};
+    }
+  }
+  return {kind:'edges', W:4,H:4, moves:STD_MOVES, blocks:[], edges:[{fx:1,fy:0,tx:2,ty:0},{fx:0,fy:1,tx:1,ty:1}], name:'绕行街区'};
+}
+/* 高级：斜坡飞桥（向右 / 向上 / 斜走） */
+function makeDiagLevel(){
+  return {kind:'diag', W:4,H:3, moves:DIAG_MOVES, blocks:[], edges:[], name:'斜坡飞桥'};
+}
+/* 高级：必经独木桥（两段标数 + 乘法机器） */
+function makeMustLevel(){
+  var opts=[[3,3],[4,3],[3,4],[5,3],[4,4]];
+  for(var t=0;t<80;t++){
+    var a=pick(opts), b=pick(opts);
+    var v1=binom(a[0]-1+a[1]-1, a[0]-1), v2=binom(b[0]-1+b[1]-1, b[0]-1);
+    if(v1*v2<=100 && v1>=4 && v2>=4){
+      return {kind:'must', name:'必经之桥', g1:{W:a[0],H:a[1]}, g2:{W:b[0],H:b[1]}};
+    }
+  }
+  return {kind:'must', name:'必经之桥', g1:{W:3,H:3}, g2:{W:4,H:3}};
+}
+/* 高级：综合挑战（施工路口 + 维修断路同时出现） */
+function makeComboLevel(){
+  for(var t=0;t<120;t++){
+    var W=5,H=4, x=1+rand(3), y=1+rand(2);
+    var mv=pick(STD_MOVES), fx=1+rand(W-2), fy=rand(H-1);
+    var tx=fx+mv[0], ty=fy+mv[1];
+    if(tx>=W||ty>=H) continue;
+    if(tx===x&&ty===y) continue;
+    var full=binom(W-1+H-1,W-1);
+    var L=computeLabels(W,H,STD_MOVES,[[x,y]],[{fx:fx,fy:fy,tx:tx,ty:ty}]);
+    var v=L.labels[key(W-1,H-1)];
+    if(v>=8 && v<=full-5){
+      return {kind:'combo', W:W,H:H, moves:STD_MOVES, blocks:[[x,y]], edges:[{fx:fx,fy:fy,tx:tx,ty:ty}], name:'综合大道'};
+    }
+  }
+  return {kind:'combo', W:5,H:4, moves:STD_MOVES, blocks:[[2,1]], edges:[{fx:1,fy:0,tx:2,ty:0}], name:'综合大道'};
+}
+
+/* 关卡目标与图例文案 */
+var GOALS={
+  basic:'从 🏠 到 🏞️ 只能<b>向右或向上</b>走。把数字牌拖到路口上标数：每个路口 = 相邻来路之和，起点标 1。标完再护送小朋友走一趟！',
+  block:'路上有 🚧 施工路口：<b>施工路口要标 0</b>，任何路线都不能穿过它！绕开施工，数出最短路线。',
+  edges:'画 <b>⨯</b> 的路段正在维修不能通行：标数时<b>不要加它</b>，行走时也不能走。绕行一下吧！',
+  diag:'本关有<b>斜坡桥 ↗</b>：向右、向上、沿 ↗ 斜走都算一步！三条来路的数都要相加哦。',
+  must:'必须经过独木桥 🌉！先标<b>第一段（家→桥）</b>，再标<b>第二段（桥→公园，桥上重新标 1）</b>，最后把两个结果拖进乘法机器。',
+  combo:'🚧 施工路口标 0，⨯ 维修路段不通——综合运用标数口诀，完成勇者试炼！'
+};
+var LEGENDS={
+  basic:'箭头 = 允许的方向（→ 向右 / ↑ 向上）· 终点的数就是最短路线总条数',
+  block:'🚧 施工路口标 0 · 路线不能穿过施工路口',
+  edges:'⨯ 标记的路段不通 · 标数不加、行走不走',
+  diag:'→ 向右 · ↑ 向上 · ↗ 斜坡桥（都算一步）',
+  must:'两段分别标数（桥上重新标 1）· 乘法机器：第一段 × 第二段 = 总条数',
+  combo:'🚧 标 0 · ⨯ 不通 · 带光圈的路口可以先标'
+};
+
+/* ---------------- 5. 全局状态 ---------------- */
+var S={
+  difficulty:'', puzzles:[], idx:0, cur:null,
+  steps:0, sec:0, timerId:null, totalStars:0
+};
+
+/* ---------------- 6. 计时器与步数（G7 右上角实时显示） ---------------- */
+function startTimer(){
+  stopTimer(); S.sec=0; refreshHud();
+  S.timerId=setInterval(function(){ S.sec++; refreshHud(); },1000);
+}
+function stopTimer(){ if(S.timerId){ clearInterval(S.timerId); S.timerId=null; } }
+function refreshHud(){
+  $('#tTime').textContent='⏱ '+fmtTime(S.sec);
+  $('#tSteps').textContent='👣 '+S.steps+' 步';
+}
+function addStep(){ S.steps++; refreshHud(); }
+
+/* ---------------- 7. 音效（WebAudio 小提示音，无外部资源） ---------------- */
+var AC=null;
+function tone(freq,dur,delay,type,vol){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    var t=AC.currentTime+(delay||0);
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type=type||'sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol||0.12,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t); o.stop(t+dur+0.05);
+  }catch(err){ /* 音频不可用时静音，不影响游戏 */ }
+}
+function sGood(){ tone(660,0.12); tone(880,0.15,0.09); }
+function sBad(){ tone(190,0.2,0,'square',0.06); }
+function sWin(){ tone(523,0.18); tone(659,0.18,0.12); tone(784,0.18,0.24); tone(1047,0.3,0.36); }
+
+/* ---------------- 8. 提示气泡 ---------------- */
+var toastId=null;
+function toast(msg){
+  var t=$('#toast'); t.textContent=msg; t.classList.add('on');
+  if(toastId) clearTimeout(toastId);
+  toastId=setTimeout(function(){ t.classList.remove('on'); },2200);
+}
+
+/* ---------------- 9. 棋盘构建与渲染 ---------------- */
+var CELL=100, MARG=66;
+function mkBoard(cfg,L,titleText,srcEmoji,dstEmoji){
+  var bd={
+    W:cfg.W, H:cfg.H, moves:cfg.moves,
+    labels:L.labels, blockSet:L.blockSet, edgeSet:L.edgeSet,
+    filled:{}, nodeEls:{}, timeouts:[],
+    title:titleText, srcEmoji:srcEmoji, dstEmoji:dstEmoji,
+    srcKey:key(0,0), dstKey:key(cfg.W-1,cfg.H-1)
+  };
+  bd.totalW=(cfg.W-1)*CELL+MARG*2;
+  bd.totalH=(cfg.H-1)*CELL+MARG*2;
+  return bd;
+}
+/* 逻辑坐标 -> SVG 坐标（y 轴翻转） */
+function lp(bd,x,y){ return [MARG+x*CELL, bd.totalH-(MARG+y*CELL)]; }
+/* 逻辑坐标 -> 百分比（HTML 节点定位用，随宽度自适应） */
+function pct(bd,x,y){
+  var p=lp(bd,x,y);
+  return [p[0]/bd.totalW*100, p[1]/bd.totalH*100];
+}
+
+function buildBoardDOM(bi,bd){
+  var wrap=document.createElement('div'); wrap.className='bwrap';
+  if(bd.title){
+    var tt=document.createElement('p'); tt.className='btitle'; tt.textContent=bd.title;
+    wrap.appendChild(tt);
+  }
+  var board=document.createElement('div'); board.className='board';
+  /* --- SVG 街道层 --- */
+  var svg='<svg viewBox="0 0 '+bd.totalW+' '+bd.totalH+'" preserveAspectRatio="xMidYMid meet">';
+  svg+='<defs><marker id="ah'+bi+'" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">'
+     +'<polygon points="0 0, 8 4, 0 8" fill="#b7aecb"></polygon></marker>'
+     +'<marker id="ahd'+bi+'" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">'
+     +'<polygon points="0 0, 8 4, 0 8" fill="var(--c1)"></polygon></marker></defs>';
+  for(var y=0;y<bd.H;y++){
+    for(var x=0;x<bd.W;x++){
+      for(var m=0;m<bd.moves.length;m++){
+        var nx2=x+bd.moves[m][0], ny2=y+bd.moves[m][1];
+        if(nx2>=bd.W||ny2>=bd.H) continue;
+        var a=lp(bd,x,y), b=lp(bd,nx2,ny2);
+        var isDiag=(bd.moves[m][0]===1&&bd.moves[m][1]===1);
+        var broken=bd.edgeSet[key(x,y)+'>'+key(nx2,ny2)];
+        var midx=(a[0]+b[0])/2, midy=(a[1]+b[1])/2;
+        var cls=isDiag?'street diag':'street';
+        var marker=isDiag?('url(#ahd'+bi+')'):('url(#ah'+bi+')');
+        if(broken){
+          /* 断路：红色虚线 + 中间画 ⨯ */
+          svg+='<line class="street brokenline" x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'"></line>';
+          svg+='<circle cx="'+midx+'" cy="'+midy+'" r="15" fill="#fff" stroke="#e05656" stroke-width="3"></circle>';
+          svg+='<line x1="'+(midx-8)+'" y1="'+(midy-8)+'" x2="'+(midx+8)+'" y2="'+(midy+8)+'" stroke="#e05656" stroke-width="4" stroke-linecap="round"></line>';
+          svg+='<line x1="'+(midx-8)+'" y1="'+(midy+8)+'" x2="'+(midx+8)+'" y2="'+(midy-8)+'" stroke="#e05656" stroke-width="4" stroke-linecap="round"></line>';
+        }else{
+          svg+='<line class="'+cls+'" x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" marker-end="'+marker+'"></line>';
+        }
+      }
+    }
+  }
+  svg+='<polyline id="route'+bi+'" fill="none" stroke="var(--c1)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0" points=""></polyline>';
+  svg+='<g id="flash'+bi+'"></g>';
+  svg+='</svg>';
+  board.innerHTML=svg;
+  /* --- HTML 路口层 --- */
+  var layer=document.createElement('div');
+  for(y=0;y<bd.H;y++){
+    for(x=0;x<bd.W;x++){
+      layer.appendChild(nodeDiv(bd,x,y));
+    }
+  }
+  board.appendChild(layer);
+  wrap.appendChild(board);
+  bd.el=board; bd.svg=board.querySelector('svg');
+  return wrap;
+}
+function nodeDiv(bd,x,y){
+  var d=document.createElement('div');
+  d.className='node'; d.dataset.x=x; d.dataset.y=y;
+  var k=key(x,y), p=pct(bd,x,y);
+  d.style.left=p[0]+'%'; d.style.top=p[1]+'%';
+  if(k===bd.srcKey){
+    /* 起点永远预先标好 1（家 / 桥），并视为已填 */
+    bd.filled[k]=true;
+    d.classList.add('filled','src');
+    d.innerHTML='<span class="emoji">'+bd.srcEmoji+'</span><span class="num" style="font-size:12px;position:absolute;bottom:-4px;right:2px">1</span>';
+    d.title='起点：永远标 1';
+  }else if(bd.blockSet[k]){
+    d.classList.add('blocknode');
+    d.innerHTML='<span class="emoji">🚧</span>';
+    d.title='施工路口：要标 0';
+  }else if(k===bd.dstKey){
+    d.classList.add('dst');
+    d.innerHTML='<span class="qmark">?</span><span class="tag">'+bd.dstEmoji+'</span>';
+    d.title='终点：它的数 = 最短路线总条数';
+  }else{
+    d.innerHTML='<span class="qmark">?</span>';
+  }
+  d.addEventListener('click', onNodeClick);
+  bd.nodeEls[k]=d;
+  return d;
+}
+function fillNodeEl(bd,el,val,isBlocked){
+  bd.filled[key(el.dataset.x,el.dataset.y)]=true;
+  el.classList.add('filled'); el.classList.remove('ready');
+  var html='<span class="num">'+val+'</span>';
+  if(el.classList.contains('dst')) html+='<span class="tag">'+bd.dstEmoji+'</span>';
+  if(el.classList.contains('src')) html='<span class="emoji">'+bd.srcEmoji+'</span><span class="num" style="font-size:13px;position:absolute;bottom:-4px;right:2px">1</span>';
+  el.innerHTML=html;
+  if(isBlocked) el.title='施工路口：标 0';
+}
+/* 某路口的全部“来路”（存在且未被拆的入边） */
+function inNeighbors(bd,x,y){
+  var res=[];
+  for(var m=0;m<bd.moves.length;m++){
+    var px=x-bd.moves[m][0], py=y-bd.moves[m][1];
+    if(px<0||py<0) continue;
+    if(bd.edgeSet[key(px,py)+'>'+key(x,y)]) continue;
+    res.push([px,py]);
+  }
+  return res;
+}
+/* 刷新“可先标”光圈：所有来路都已标好 的未标路口 */
+function updateReady(){
+  for(var bi=0;bi<S.cur.boards.length;bi++){
+    var bd=S.cur.boards[bi];
+    for(var y=0;y<bd.H;y++){
+      for(var x=0;x<bd.W;x++){
+        var k=key(x,y), el=bd.nodeEls[k];
+        if(!el||bd.filled[k]||k===bd.srcKey) continue;
+        var ns=inNeighbors(bd,x,y), ok=true;
+        for(var i=0;i<ns.length;i++){ if(!bd.filled[key(ns[i][0],ns[i][1])]){ ok=false; break; } }
+        if(ok) el.classList.add('ready'); else el.classList.remove('ready');
+      }
+    }
+  }
+}
+function allFilled(){
+  for(var bi=0;bi<S.cur.boards.length;bi++){
+    var bd=S.cur.boards[bi];
+    for(var y=0;y<bd.H;y++) for(var x=0;x<bd.W;x++){
+      if(!bd.filled[key(x,y)]) return false;
+    }
+  }
+  return true;
+}
+
+/* ---------------- 10. 数字牌托盘 ---------------- */
+var trayData={};
+function buildTray(mode){
+  var tray=$('#tray'); tray.innerHTML=''; tray.classList.remove('hidden');
+  trayData={};
+  var vals=[];
+  if(mode==='label'){
+    for(var bi=0;bi<S.cur.boards.length;bi++){
+      var bd=S.cur.boards[bi];
+      for(var y=0;y<bd.H;y++) for(var x=0;x<bd.W;x++){
+        if(key(x,y)===bd.srcKey) continue;
+        vals.push(bd.labels[key(x,y)]);
+      }
+    }
+    var needed={};
+    vals.forEach(function(v){ needed[v]=true; });
+    /* 干扰牌：取若干“像但不对”的数（不在正确值集合里；
+       只有当 0 本身是某个路口的正确值时，才允许出现 0 干扰牌） */
+    var distract=[], tries=0;
+    while(distract.length<3&&tries<60){
+      tries++;
+      var base=pick(vals);
+      var cand=pick([base+1,base+2,base-1,base*2]);
+      if(cand>=(needed[0]?0:1)&&!needed[cand]&&distract.indexOf(cand)<0) distract.push(cand);
+    }
+    vals=vals.concat(distract);
+  }else{
+    /* 乘法机器阶段：正确值 v1、v2 + 干扰值 */
+    var v1=S.cur.machine.v1, v2=S.cur.machine.v2;
+    vals=[v1,v2];
+    var pool=[v1+1,v2+1,v1+v2,v1+2,v2-1];
+    shuffle(pool);
+    for(var q=0;q<pool.length&&vals.length<5;q++){
+      if(pool[q]!==v1&&pool[q]!==v2&&pool[q]>0) vals.push(pool[q]);
+    }
+  }
+  shuffle(vals);
+  vals.forEach(function(v){ trayData[v]=(trayData[v]||0)+1; });
+  Object.keys(trayData).forEach(function(vs){
+    var v=parseInt(vs,10);
+    var chip=document.createElement('div');
+    chip.className='chip'+(v===0?' zero':'');
+    chip.dataset.value=v;
+    chip.innerHTML='<span>'+v+'</span>';
+    if(trayData[v]>1){
+      var cc=document.createElement('span'); cc.className='cc'; cc.textContent='×'+trayData[v];
+      chip.appendChild(cc);
+    }
+    chip.addEventListener('pointerdown', onChipDown);
+    tray.appendChild(chip);
+  });
+}
+function trayTake(v){
+  if(!trayData[v]) return;
+  trayData[v]--;
+  var chip=null, chips=$$('#tray .chip');
+  for(var i=0;i<chips.length;i++){ if(parseInt(chips[i].dataset.value,10)===v){ chip=chips[i]; break; } }
+  if(!chip) return;
+  if(trayData[v]<=0){ chip.remove(); }
+  else{
+    var cc=chip.querySelector('.cc');
+    if(cc) cc.textContent='×'+trayData[v];
+  }
+}
+function trayGive(v){
+  trayData[v]=(trayData[v]||0)+1;
+  var chips=$$('#tray .chip'), chip=null;
+  for(var i=0;i<chips.length;i++){ if(parseInt(chips[i].dataset.value,10)===v){ chip=chips[i]; break; } }
+  if(chip){
+    var cc=chip.querySelector('.cc');
+    if(!cc){ cc=document.createElement('span'); cc.className='cc'; chip.appendChild(cc); }
+    cc.textContent='×'+trayData[v];
+  }else{
+    chip=document.createElement('div');
+    chip.className='chip'+(v===0?' zero':''); chip.dataset.value=v;
+    chip.innerHTML='<span>'+v+'</span>';
+    chip.addEventListener('pointerdown', onChipDown);
+    $('#tray').appendChild(chip);
+  }
+}
+
+/* ---------------- 11. 拖拽系统（pointer 事件，鼠标/触摸通吃） ---------------- */
+var drag=null;
+function onChipDown(e){
+  if(S.cur&&S.cur.busy) return;
+  if(!e.isPrimary) return;
+  e.preventDefault();
+  var chip=e.currentTarget;
+  var v=parseInt(chip.dataset.value,10);
+  var ghost=chip.cloneNode(true);
+  ghost.classList.add('ghost');
+  ghost.style.left=e.clientX+'px'; ghost.style.top=e.clientY+'px';
+  if(ghost.querySelector('.cc')) ghost.querySelector('.cc').remove();
+  document.body.appendChild(ghost);
+  drag={value:v, ghost:ghost};
+  document.addEventListener('pointermove', onDragMove);
+  document.addEventListener('pointerup', onDragUp);
+  document.addEventListener('pointercancel', onDragCancel);
+  onDragMove(e);
+}
+function onDragMove(e){
+  if(!drag) return;
+  drag.ghost.style.left=e.clientX+'px'; drag.ghost.style.top=e.clientY+'px';
+  var t=findDropTarget(e.clientX,e.clientY);
+  $$('.node.hover,.mslot.hover').forEach(function(el){ el.classList.remove('hover'); });
+  if(t) t.el.classList.add('hover');
+}
+function onDragCancel(){
+  if(!drag) return;
+  drag.ghost.remove();
+  $$('.node.hover,.mslot.hover').forEach(function(el){ el.classList.remove('hover'); });
+  drag=null;
+  document.removeEventListener('pointermove', onDragMove);
+  document.removeEventListener('pointerup', onDragUp);
+  document.removeEventListener('pointercancel', onDragCancel);
+}
+function onDragUp(e){
+  if(!drag) return;
+  var v=drag.value;
+  onDragCancel();          /* 清理幽灵牌与监听 */
+  var t=findDropTarget(e.clientX,e.clientY);
+  if(!t) return;           /* 没拖到任何目标：数字牌自动留在托盘 */
+  if(t.type==='node') tryDropNode(t.el,v);
+  else tryDropSlot(t.el,v);
+}
+/* 命中检测：找距离最近且在阈值内的路口或机器凹槽 */
+function findDropTarget(cx,cy){
+  var best=null, bestRatio=1;
+  function consider(el,type){
+    var r=el.getBoundingClientRect();
+    var d=Math.hypot(cx-(r.left+r.width/2), cy-(r.top+r.height/2));
+    var th=r.width*1.35;
+    var ratio=d/th;
+    if(ratio<bestRatio){ bestRatio=ratio; best={el:el,type:type}; }
+  }
+  $$('.node').forEach(function(nd){ consider(nd,'node'); });
+  if(S.cur&&S.cur.phase==='machine'){ consider($('#slot1'),'slot'); consider($('#slot2'),'slot'); }
+  return bestRatio<1?best:null;
+}
+
+/* ---------------- 12. 落牌判定与“加法来源”动画 ---------------- */
+function tryDropNode(el,v){
+  var bd=S.cur.boards[parseInt(el.dataset.b||'0',10)];
+  bd=bd||S.cur.boards[0];
+  var x=parseInt(el.dataset.x,10), y=parseInt(el.dataset.y,10);
+  var k=key(x,y);
+  if(k===bd.srcKey){ toast('起点已经标好 1 啦！'); return; }
+  if(bd.filled[k]){ toast('这个路口已经标好啦，换一个试试～'); return; }
+  addStep();
+  var correct=bd.labels[k];
+  if(v!==correct){
+    S.cur.wrongDrops++;
+    el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+    sBad();
+    if(bd.blockSet[k]) toast('🚧 施工路口要标 0 哦！');
+    else toast('再想想：把能直接走到这个路口的相邻数加起来！');
+    return;
+  }
+  fillNodeEl(bd,el,v,bd.blockSet[k]);
+  trayTake(v);
+  sGood();
+  showSumFlash(bd,x,y,v,bd.blockSet[k]);
+  updateReady();
+  if(allFilled()){
+    S.cur.busy=true;
+    later(function(){
+      S.cur.busy=false;
+      if(S.cur.cfg.kind==='must') enterMachine(); else enterWalk();
+    },900);
+  }
+}
+/* 展示“从哪加来”的闪线与小气泡 */
+function showSumFlash(bd,x,y,v,isBlocked){
+  /* 找到该棋盘的闪光层（id 为 flash0 / flash1） */
+  var flash=null, groups=bd.svg.querySelectorAll('g');
+  for(var i=0;i<groups.length;i++){ if(groups[i].id&&groups[i].id.indexOf('flash')===0){ flash=groups[i]; break; } }
+  var a=lp(bd,x,y), lines='', texts='';
+  var bdEl=bd.el;
+  if(isBlocked){
+    texts+='<div class="sumtip bigr" style="left:'+pct(bd,x,y)[0]+'%;top:'+(pct(bd,x,y)[1]-9)+'%">施工路口 → 0</div>';
+  }else{
+    var ns=inNeighbors(bd,x,y);
+    for(i=0;i<ns.length;i++){
+      var pk=key(ns[i][0],ns[i][1]);
+      if(!bd.filled[pk]) continue;
+      var b=lp(bd,ns[i][0],ns[i][1]);
+      lines+='<line x1="'+b[0]+'" y1="'+b[1]+'" x2="'+a[0]+'" y2="'+a[1]+'" stroke="var(--c2)" stroke-width="6" stroke-linecap="round" opacity="0.9"></line>';
+      texts+='<div class="sumtip" style="left:'+pct(bd,ns[i][0],ns[i][1])[0]+'%;top:'+(pct(bd,ns[i][0],ns[i][1])[1]-8)+'%">+'+bd.labels[pk]+'</div>';
+    }
+    texts+='<div class="sumtip bigr" style="left:'+pct(bd,x,y)[0]+'%;top:'+(pct(bd,x,y)[1]-10)+'%">='+v+'</div>';
+  }
+  if(flash) flash.innerHTML=lines;
+  var holder=document.createElement('div');
+  holder.innerHTML=texts;
+  while(holder.firstChild) bdEl.appendChild(holder.firstChild);
+  setTimeout(function(){
+    if(flash) flash.innerHTML='';
+    $$('.sumtip').forEach(function(t){ t.remove(); });
+  },1400);
+}
+/* 点击未标路口：给免费“来源提示”（闪线 + 相邻已标数） */
+function onNodeClick(e){
+  if(!S.cur||S.cur.busy) return;
+  var el=e.currentTarget;
+  var bd=S.cur.boards[0];
+  var bis=$$('.board').indexOf(el.closest('.board'));
+  if(bis>=0&&S.cur.boards[bis]) bd=S.cur.boards[bis];
+  var x=parseInt(el.dataset.x,10), y=parseInt(el.dataset.y,10), k=key(x,y);
+  if(S.cur.phase==='walk'){ tryWalkStep(el); return; }
+  if(S.cur.phase!=='label') return;
+  if(k===bd.srcKey){ toast('起点永远标 1，从这里出发！'); return; }
+  if(!bd.filled[k]){
+    var ns=inNeighbors(bd,x,y), parts=[];
+    for(var i=0;i<ns.length;i++){
+      var pk=key(ns[i][0],ns[i][1]);
+      parts.push(bd.filled[pk]?bd.labels[pk]:'?');
+    }
+    tone(500,0.08);
+    if(bd.blockSet[k]) toast('🚧 施工路口：直接标 0！');
+    else toast('这个路口 = '+parts.join(' + '));
+    showSumFlash(bd,x,y,bd.labels[k],bd.blockSet[k]&&!bd.filled[k]);
+  }else{
+    toast('它已经标好啦：'+bd.labels[k]);
+  }
+}
+
+/* ---------------- 13. 护送行走阶段 ---------------- */
+function enterWalk(){
+  var cur=S.cur;
+  cur.phase='walk';
+  cur.walk={path:[[0,0]]};
+  $('#tray').classList.add('hidden');
+  $('#walkbar').classList.remove('hidden');
+  var bd=cur.boards[0];
+  var walker=document.createElement('div');
+  walker.className='walker'; walker.id='walker'; walker.textContent='🧒';
+  bd.el.appendChild(walker);
+  bd.walker=walker;
+  var p=pct(bd,0,0);
+  walker.style.left=p[0]+'%'; walker.style.top=p[1]+'%';
+  bd.el.querySelector('polyline').setAttribute('points',lp(bd,0,0).join(','));
+  bd.el.querySelector('polyline').setAttribute('opacity','0.85');
+  toast('所有路口点亮！现在护送小朋友去 🏞️');
+  tone(700,0.1);
+  markNext();
+}
+function legalSteps(bd,x,y){
+  var res=[];
+  for(var m=0;m<bd.moves.length;m++){
+    var nx=x+bd.moves[m][0], ny=y+bd.moves[m][1];
+    if(nx>=bd.W||ny>=bd.H) continue;
+    if(bd.blockSet[key(nx,ny)]) continue;
+    if(bd.edgeSet[key(x,y)+'>'+key(nx,ny)]) continue;
+    res.push([nx,ny]);
+  }
+  return res;
+}
+function markNext(){
+  var cur=S.cur, bd=cur.boards[0];
+  $$('.node.next').forEach(function(n){ n.classList.remove('next'); });
+  var c=cur.walk.path[cur.walk.path.length-1];
+  if(c[0]===bd.W-1&&c[1]===bd.H-1){ finishWalk(); return; }
+  var steps=legalSteps(bd,c[0],c[1]);
+  for(var i=0;i<steps.length;i++){
+    bd.nodeEls[key(steps[i][0],steps[i][1])].classList.add('next');
+  }
+  $('#btnUndo').classList.toggle('disabled', cur.walk.path.length<=1);
+  var alive=false;
+  for(i=0;i<steps.length;i++){
+    if(canReach(bd,steps[i][0],steps[i][1],bd.W-1,bd.H-1)){ alive=true; break; }
+  }
+  if(!alive) toast('前面的路被挡住啦，点「回退一步」换条路吧！');
+}
+function tryWalkStep(el){
+  var cur=S.cur, bd=cur.boards[0];
+  if(!el.classList.contains('next')){ toast('要走相邻的路口哦，点亮起的那些！'); return; }
+  var x=parseInt(el.dataset.x,10), y=parseInt(el.dataset.y,10);
+  walkTo(x,y);
+}
+function walkTo(x,y){
+  var cur=S.cur, bd=cur.boards[0];
+  cur.walk.path.push([x,y]);
+  addStep();
+  var p=pct(bd,x,y);
+  bd.walker.style.left=p[0]+'%'; bd.walker.style.top=p[1]+'%';
+  var pts=[];
+  for(var i=0;i<cur.walk.path.length;i++){
+    var q=lp(bd,cur.walk.path[i][0],cur.walk.path[i][1]);
+    pts.push(q[0]+','+q[1]);
+  }
+  bd.el.querySelector('polyline').setAttribute('points',pts.join(' '));
+  tone(520+cur.walk.path.length*20,0.07);
+  later(markNext,380);
+}
+function undoStep(){
+  var cur=S.cur, bd=cur.boards[0];
+  if(cur.phase!=='walk'||cur.walk.path.length<=1) return;
+  cur.walk.path.pop();
+  var c=cur.walk.path[cur.walk.path.length-1];
+  var p=pct(bd,c[0],c[1]);
+  bd.walker.style.left=p[0]+'%'; bd.walker.style.top=p[1]+'%';
+  var pts=[];
+  for(var i=0;i<cur.walk.path.length;i++){
+    var q=lp(bd,cur.walk.path[i][0],cur.walk.path[i][1]);
+    pts.push(q[0]+','+q[1]);
+  }
+  bd.el.querySelector('polyline').setAttribute('points',pts.join(' '));
+  toast('回退一步，换条路走！');
+  markNext();
+}
+function finishWalk(){
+  var cur=S.cur;
+  cur.phase='done';
+  var bd=cur.boards[0];
+  var B=bd.labels[key(bd.W-1,bd.H-1)];
+  later(function(){ winPuzzle(B,null); },600);
+}
+
+/* ---------------- 14. 乘法机器阶段（必经之桥） ---------------- */
+function enterMachine(){
+  var cur=S.cur;
+  cur.phase='machine';
+  $('#tray').classList.remove('hidden');
+  buildTray('machine');
+  $('#machine').classList.remove('hidden');
+  toast('两段都标好啦！把两个结果拖进乘法机器的凹槽！');
+}
+function tryDropSlot(el,v){
+  if(S.cur.phase!=='machine') return;
+  var idx=(el.id==='slot1')?1:2;
+  var m=S.cur.machine;
+  var prev=(idx===1)?m.s1:m.s2;
+  if(prev!==null&&prev!==0) trayGive(prev);   /* 换牌：旧牌回到托盘 */
+  addStep();
+  if(idx===1) m.s1=v; else m.s2=v;
+  el.classList.add('filled');
+  el.querySelector('.mval').textContent=v;
+  trayTake(v);
+  tone(600,0.08);
+  $('#btnLever').disabled=!(m.s1>0&&m.s2>0);
+}
+function pullLever(){
+  var cur=S.cur, m=cur.machine;
+  if(m.s1<=0||m.s2<=0){ toast('先把两个数都放进凹槽！'); return; }
+  addStep();
+  if(m.s1===m.v1&&m.s2===m.v2){
+    cur.busy=true;
+    $('#gear1').classList.add('spin'); $('#gear2').classList.add('spin');
+    tone(300,0.3,0,'sawtooth',0.08);
+    later(function(){
+      $('#gear1').classList.remove('spin'); $('#gear2').classList.remove('spin');
+      $('#mres').textContent=m.v1*m.v2;
+      sWin();
+      later(function(){ cur.busy=false; winPuzzle(m.v1*m.v2,{v1:m.v1,v2:m.v2}); },900);
+    },1000);
+  }else{
+    S.cur.wrongDrops++;
+    sBad();
+    toast('还没配对成功：再看看两段终点各标的是几？');
+    $('#slot1').classList.add('shake'); $('#slot2').classList.add('shake');
+    setTimeout(function(){ $('#slot1').classList.remove('shake'); $('#slot2').classList.remove('shake'); },450);
+  }
+}
+
+/* ---------------- 15. 揭示答案 / 重新开始 / 返回（G4） ---------------- */
+function revealAnswer(){
+  var cur=S.cur;
+  if(!cur||cur.busy) return;
+  if(cur.phase==='done') return;
+  cur.busy=true; cur.revealed=true;
+  toast('看仔细咯：每个数都是相邻来路相加得到的！');
+  /* 阶段一：把没标的路口按顺序全部点亮 */
+  var delay=200;
+  for(var bi=0;bi<cur.boards.length;bi++){
+    var bd=cur.boards[bi];
+    for(var y=0;y<bd.H;y++){
+      for(var x=0;x<bd.W;x++){
+        var k=key(x,y);
+        if(bd.filled[k]||k===bd.srcKey) continue;
+        (function(bd2,el2,vv,blk,d){
+          later(function(){
+            fillNodeEl(bd2,el2,vv,blk);
+            el2.style.boxShadow='0 0 0 8px rgba(255,215,0,.8)';
+            tone(500+vv*10,0.06);
+          },d);
+        })(bd,bd.nodeEls[k],bd.labels[k],bd.blockSet[k],delay);
+        delay+=160;
+      }
+    }
+  }
+  updateReady();
+  later(function(){ afterRevealFilled(); },delay+600);
+}
+function afterRevealFilled(){
+  var cur=S.cur;
+  $('#tray').classList.add('hidden');
+  if(cur.cfg.kind==='must'){
+    /* 直接把正确值装进机器并启动 */
+    var m=cur.machine;
+    $('#machine').classList.remove('hidden');
+    $('#slot1').classList.add('filled'); $('#slot1 .mval').textContent=m.v1;
+    $('#slot2').classList.add('filled'); $('#slot2 .mval').textContent=m.v2;
+    cur.phase='machine';
+    later(function(){ $('#mres').textContent=m.v1*m.v2; winPuzzle(m.v1*m.v2,{v1:m.v1,v2:m.v2}); },1200);
+  }else{
+    /* 自动演示一条最短路线（若已在行走中，先清掉旧角色和旧路线） */
+    cur.phase='walk';
+    cur.walk={path:[[0,0]]};
+    var bd=cur.boards[0];
+    var oldWalker=bd.el.querySelector('.walker');
+    if(oldWalker) oldWalker.remove();
+    var walker=document.createElement('div');
+    walker.className='walker'; walker.textContent='🧒';
+    bd.el.appendChild(walker); bd.walker=walker;
+    var p=pct(bd,0,0);
+    walker.style.left=p[0]+'%'; walker.style.top=p[1]+'%';
+    var poly=bd.el.querySelector('polyline');
+    poly.setAttribute('opacity','0.85');
+    poly.setAttribute('points',lp(bd,0,0).join(','));
+    var route=sampleRoute(bd), d=500;
+    for(var i=1;i<route.length;i++){
+      (function(step,delay){
+        later(function(){
+          cur.walk.path.push(step);
+          var pp=pct(bd,step[0],step[1]);
+          walker.style.left=pp[0]+'%'; walker.style.top=pp[1]+'%';
+          var pts=[];
+          for(var q=0;q<cur.walk.path.length;q++){
+            var z=lp(bd,cur.walk.path[q][0],cur.walk.path[q][1]);
+            pts.push(z[0]+','+z[1]);
+          }
+          bd.el.querySelector('polyline').setAttribute('points',pts.join(' '));
+          tone(520+i*25,0.06);
+        },delay);
+      })(route[i],d);
+      d+=420;
+    }
+    later(function(){
+      cur.phase='done';
+      winPuzzle(bd.labels[key(bd.W-1,bd.H-1)],null);
+    },d+500);
+  }
+}
+function restartPuzzle(){
+  if(S.cur){
+    for(var i=0;i<S.cur.timeouts.length;i++) clearTimeout(S.cur.timeouts[i]);
+  }
+  startPuzzle(S.idx);
+  toast('重新开始本关，数字牌重新洗牌！');
+}
+function backToMenu(){
+  if(S.cur){
+    for(var j=0;j<S.cur.timeouts.length;j++) clearTimeout(S.cur.timeouts[j]);
+  }
+  stopTimer();
+  $('#scrGame').classList.remove('on');
+  $('#scrMenu').classList.add('on');
+  closeModals();
+}
+
+/* ---------------- 16. 关卡流程控制 ---------------- */
+function buildSession(diff){
+  applyPalette();
+  S.difficulty=diff;
+  var ps=[];
+  if(diff==='easy'){
+    ps=shuffle(basicLevels()).slice(0,2);
+  }else if(diff==='mid'){
+    ps=shuffle([makeBlockLevel(),makeEdgeLevel(),makeBlockLevel()]);
+    ps=ps.slice(0,2);
+  }else{
+    ps=shuffle([makeDiagLevel(),makeMustLevel(),makeComboLevel()]);
+  }
+  S.puzzles=ps;
+  S.steps=0; S.totalStars=0;
+  startTimer();
+  $('#scrMenu').classList.remove('on');
+  $('#scrGame').classList.add('on');
+  startPuzzle(0);
+}
+function startPuzzle(i){
+  S.idx=i;
+  var cfg=S.puzzles[i];
+  var cur={cfg:cfg, phase:'label', revealed:false, wrongDrops:0, busy:false, boards:[], machine:null, walk:null, timeouts:[]};
+  if(cfg.kind==='must'){
+    var L1=computeLabels(cfg.g1.W,cfg.g1.H,STD_MOVES,[],[]);
+    var L2=computeLabels(cfg.g2.W,cfg.g2.H,STD_MOVES,[],[]);
+    cur.boards=[
+      mkBoard({W:cfg.g1.W,H:cfg.g1.H,moves:STD_MOVES},L1,'第一段 · 🏠 家 → 🌉 桥','🏠','🌉'),
+      mkBoard({W:cfg.g2.W,H:cfg.g2.H,moves:STD_MOVES},L2,'第二段 · 🌉 桥 → 🏞️ 公园（桥上重新标 1）','🌉','🏞️')
+    ];
+    cur.machine={v1:L1.labels[key(cfg.g1.W-1,cfg.g1.H-1)], v2:L2.labels[key(cfg.g2.W-1,cfg.g2.H-1)], s1:0, s2:0};
+  }else{
+    var L=computeLabels(cfg.W,cfg.H,cfg.moves,cfg.blocks||[],cfg.edges||[]);
+    cur.boards=[mkBoard(cfg,L,'','🏠','🏞️')];
+  }
+  S.cur=cur;
+  renderPuzzle();
+}
+function renderPuzzle(){
+  var cur=S.cur, cfg=cur.cfg;
+  var boardsEl=$('#boards');
+  boardsEl.innerHTML='';
+  boardsEl.classList.toggle('duo',cur.boards.length>1);
+  for(var bi=0;bi<cur.boards.length;bi++){
+    boardsEl.appendChild(buildBoardDOM(bi,cur.boards[bi]));
+  }
+  /* 给每个节点标记所属棋盘（两块棋盘时的落牌判定要用） */
+  $$('.board').forEach(function(b,bi2){
+    b.querySelectorAll('.node').forEach(function(nd){ nd.dataset.b=bi2; });
+  });
+  $('#hudLevel').textContent=cfg.name+' · '+({easy:'初级',mid:'中级',hard:'高级'})[S.difficulty];
+  $('#hudProg').textContent='第 '+(S.idx+1)+' / '+S.puzzles.length+' 关';
+  $('#hudGoal').innerHTML=GOALS[cfg.kind]||'';
+  $('#legend').textContent=LEGENDS[cfg.kind]||'';
+  $('#walkbar').classList.add('hidden');
+  $('#machine').classList.add('hidden');
+  $('#slot1').classList.remove('filled'); $('#slot1 .mval').textContent='?';
+  $('#slot2').classList.remove('filled'); $('#slot2 .mval').textContent='?';
+  $('#mres').textContent='?';
+  $('#btnLever').disabled=true;
+  buildTray('label');
+  updateReady();
+  closeModals();
+}
+function winPuzzle(finalVal,mult){
+  var cur=S.cur;
+  var stars=0;
+  if(!cur.revealed){
+    stars=cur.wrongDrops===0?3:(cur.wrongDrops<=2?2:1);
+    S.totalStars+=stars;
+  }
+  $('#winStars').textContent=cur.revealed?'👀 已看答案':('⭐'.repeat(stars)||'⭐');
+  var txt;
+  if(mult){
+    txt='第一段 '+mult.v1+' 条 × 第二段 '+mult.v2+' 条 = <b>'+finalVal+'</b> 条最短路线！这就是<b>乘法原理</b>：必经之桥把路线分成了两段。';
+  }else{
+    txt='终点 🏞️ 头顶的标数是 <b>'+finalVal+'</b>，所以最短路线一共有 <b>'+finalVal+'</b> 条！你自己标出来的数，就是答案。';
+  }
+  $('#winText').innerHTML=txt;
+  $('#winTitle').textContent=cur.revealed?'答案已揭示':'抵达公园！🎉';
+  $('#btnNext').textContent=(S.idx+1<S.puzzles.length)?'下一关 →':'查看本轮成果 →';
+  $('#modalWin').classList.add('on');
+  celebrate(finalVal>=20?160:90);
+  sWin();
+}
+function nextPuzzle(){
+  closeModals();
+  if(S.idx+1<S.puzzles.length){
+    startPuzzle(S.idx+1);
+  }else{
+    /* 整局结束 */
+    $('#sesStars').textContent='⭐'.repeat(S.totalStars)||'⭐';
+    $('#sesText').innerHTML='难度：'+({easy:'初级',mid:'中级',hard:'高级'})[S.difficulty]
+      +'　⭐ 共 '+S.totalStars+' 颗星星　⏱ 用时 '+fmtTime(S.sec)
+      +'　👣 操作 '+S.steps+' 步<br>再来一局会抽取<b>新的地图和配色</b>，看看你能不能全部拿满三星！';
+    $('#modalSession').classList.add('on');
+    celebrate(220);
+    stopTimer();
+  }
+}
+function closeModals(){
+  $$('.modal').forEach(function(m){ m.classList.remove('on'); });
+}
+
+/* ---------------- 17. 庆祝动画：彩纸 + 星星（Canvas，G5） ---------------- */
+var fxc=$('#fx'), fctx=fxc.getContext('2d'), parts=[], fxRun=false;
+function fxResize(){ fxc.width=innerWidth; fxc.height=innerHeight; }
+window.addEventListener('resize',fxResize); fxResize();
+function celebrate(n){
+  var colors=[getCss('--c1'),getCss('--c2'),'#ffd700','#ff5e7e','#7ad96e','#6cc0f8'];
+  for(var i=0;i<n;i++){
+    parts.push({
+      x:Math.random()*fxc.width, y:-30-Math.random()*fxc.height*0.4,
+      vx:(Math.random()-0.5)*3, vy:2+Math.random()*3.5,
+      rot:Math.random()*Math.PI*2, vr:(Math.random()-0.5)*0.3,
+      color:colors[rand(colors.length)],
+      size:6+Math.random()*9,
+      shape:pick(['rect','circle','star']),
+      life:150+rand(80)
+    });
+  }
+  if(!fxRun){ fxRun=true; requestAnimationFrame(fxTick); }
+}
+function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function drawStar(c,s){
+  c.beginPath();
+  for(var i=0;i<5;i++){
+    var a1=i*4*Math.PI/5-Math.PI/2, a2=(i+1)*4*Math.PI/5-Math.PI/2;
+    c.lineTo(Math.cos(a1)*s,Math.sin(a1)*s);
+    c.lineTo(Math.cos(a2)*s*0.45,Math.sin(a2)*s*0.45);
+  }
+  c.closePath(); c.fill();
+}
+function fxTick(){
+  fctx.clearRect(0,0,fxc.width,fxc.height);
+  for(var i=parts.length-1;i>=0;i--){
+    var p=parts[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.rot+=p.vr; p.life--;
+    if(p.life<=0||p.y>fxc.height+40){ parts.splice(i,1); continue; }
+    fctx.save();
+    fctx.translate(p.x,p.y); fctx.rotate(p.rot);
+    fctx.fillStyle=p.color; fctx.globalAlpha=Math.min(1,p.life/40);
+    if(p.shape==='rect'){ fctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6); }
+    else if(p.shape==='circle'){ fctx.beginPath(); fctx.arc(0,0,p.size*0.42,0,Math.PI*2); fctx.fill(); }
+    else{ drawStar(fctx,p.size*0.6); }
+    fctx.restore();
+  }
+  if(parts.length>0){ requestAnimationFrame(fxTick); }
+  else{ fxRun=false; fctx.clearRect(0,0,fxc.width,fxc.height); }
+}
+
+/* ---------------- 18. 事件绑定与启动 ---------------- */
+function init(){
+  applyPalette();
+  $$('.lvcard').forEach(function(c){
+    c.addEventListener('click',function(){ buildSession(c.dataset.diff); });
+  });
+  $('#btnRules').addEventListener('click',function(){ $('#modalRules').classList.add('on'); });
+  $('#btnRulesOk').addEventListener('click',closeModals);
+  $('#btnReveal').addEventListener('click',revealAnswer);
+  $('#btnRestart').addEventListener('click',restartPuzzle);
+  $('#btnBack').addEventListener('click',backToMenu);
+  $('#btnBack2').addEventListener('click',backToMenu);
+  $('#btnAgain').addEventListener('click',function(){ closeModals(); buildSession(S.difficulty); });
+  $('#btnUndo').addEventListener('click',undoStep);
+  $('#btnLever').addEventListener('click',pullLever);
+  $('#btnNext').addEventListener('click',nextPuzzle);
+  /* 首次进入弹出规则说明（G6），随时可再打开 */
+  setTimeout(function(){ $('#modalRules').classList.add('on'); },400);
+  refreshHud();
+  /* 调试钩子：供自动化冒烟测试读取标数结果（不影响游戏本身） */
+  window.__gameDebug={
+    version:'1.0',
+    state:function(){ return S; }
+  };
+}
+init();
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3b/g031", "name": "\u6807\u6570\u6cd5\uff08\u4e0a\uff09\u00b7 \u5f69\u8679\u8857\u533a\u5927\u5192\u9669", "file": "g031.html", "jiaocan": "\u301031\u3011\u7b2c16\u8bb2 \u6807\u6570\u6cd5\uff08\u4e0a\uff09", "unit": "\u7b2c16\u8bb2", "grade": "3\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>

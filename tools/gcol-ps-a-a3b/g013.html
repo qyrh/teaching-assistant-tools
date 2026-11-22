@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>星光方阵工坊 · 第7讲 方阵（上）</title>
+<style>
+/* ============ 全局主题变量（每局从色板随机注入，实现配色随机化） ============ */
+:root{
+  --bg:#eef6ff; --panel:#d9ebff; --line:#9cc3f0; --prim:#1565c0; --acc:#f57c00;
+  --lit:#1e88e5; --litbg:#d3e7fd; --ink:#12253c; --chip:#f2f8ff; --boardcell:#ffffff;
+  --cs:40px;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; }
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Heiti SC",sans-serif;
+  font-size:18px; min-height:100vh; transition:background .5s;
+}
+b{ color:var(--prim); }
+.hidden{ display:none !important; }
+
+/* ============ 顶栏 ============ */
+header{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  padding:10px 16px; background:var(--panel); border-bottom:4px solid var(--prim);
+  position:sticky; top:0; z-index:20;
+}
+#hTitle{ font-size:26px; font-weight:900; letter-spacing:2px; }
+#hTitle small{ font-size:15px; font-weight:600; opacity:.75; letter-spacing:0; }
+#hInfo{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.hud{
+  background:var(--chip); border:3px solid var(--line); border-radius:14px;
+  padding:6px 14px; font-size:20px; font-weight:800;
+}
+.hud span{ color:var(--prim); font-size:22px; }
+#hBadge{
+  background:var(--acc); color:#fff; border-radius:14px; padding:6px 16px;
+  font-size:20px; font-weight:900;
+}
+
+/* ============ 难度选择页 ============ */
+#screen-select{ max-width:1020px; margin:0 auto; padding:26px 16px 40px; text-align:center; }
+#selHead h1{ font-size:40px; margin:8px 0 4px; color:var(--prim); letter-spacing:4px; }
+#selHead p{ font-size:20px; margin:4px 0 18px; }
+#selCards{ display:flex; gap:20px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+.diffCard{
+  width:280px; background:var(--chip); border:4px solid var(--line); border-radius:22px;
+  padding:20px 16px; cursor:pointer; transition:transform .15s, box-shadow .15s;
+}
+.diffCard:hover{ transform:translateY(-6px); box-shadow:0 10px 24px rgba(0,0,0,.18); }
+.diffCard .lv{ font-size:34px; font-weight:900; color:var(--prim); }
+.diffCard .nm{ font-size:22px; font-weight:800; margin:6px 0; }
+.diffCard .ds{ font-size:16px; line-height:1.6; opacity:.85; min-height:78px; }
+.diffCard .go{
+  display:inline-block; margin-top:10px; background:var(--acc); color:#fff;
+  border-radius:14px; padding:8px 22px; font-size:19px; font-weight:800;
+}
+.miniIcon{ font-size:52px; line-height:1; }
+#selTip{ margin-top:26px; font-size:16px; opacity:.8; }
+
+/* ============ 游戏主界面 ============ */
+#screen-game{ max-width:1180px; margin:0 auto; padding:14px 12px 20px; }
+main{ display:flex; gap:16px; align-items:flex-start; justify-content:center; }
+#taskPanel{
+  width:330px; flex:0 0 330px; background:var(--panel); border:4px solid var(--line);
+  border-radius:20px; padding:16px;
+}
+#taskKind{ font-size:24px; font-weight:900; color:var(--acc); }
+#taskMethod{
+  display:inline-block; background:var(--prim); color:#fff; border-radius:10px;
+  font-size:14px; padding:3px 10px; margin:6px 0; font-weight:700;
+}
+#taskGoal{ font-size:20px; line-height:1.7; margin:8px 0 10px; }
+#taskChips{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 10px; }
+.chip{
+  background:var(--chip); border:3px solid var(--acc); color:var(--ink);
+  border-radius:12px; padding:4px 12px; font-size:18px; font-weight:800;
+}
+#progStars{ font-size:30px; letter-spacing:6px; margin:6px 0; color:var(--acc); }
+#progStars .cur{ color:var(--prim); font-size:24px; letter-spacing:0; font-weight:900; }
+#hintBox{
+  background:var(--chip); border-left:8px solid var(--acc); border-radius:8px;
+  padding:10px 12px; font-size:17px; line-height:1.65; margin:10px 0;
+}
+#taskBtns{ display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+
+/* ============ 棋盘区 ============ */
+#boardWrap{ flex:1 1 auto; text-align:center; min-width:300px; }
+#boardOuter{
+  display:inline-block; background:var(--panel); border:6px solid var(--prim);
+  border-radius:18px; padding:10px; box-shadow:0 8px 20px rgba(0,0,0,.12);
+}
+#board{
+  display:grid; gap:3px; touch-action:none; margin:0 auto; user-select:none;
+}
+.cell{
+  width:var(--cs); height:var(--cs); background:var(--boardcell);
+  border:2px solid var(--line); border-radius:7px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.cell .d{ font-size:calc(var(--cs) * .62); opacity:0; transition:transform .12s; }
+.cell.lit{ background:var(--litbg); border-color:var(--lit); }
+.cell.lit .d{ opacity:1; color:var(--lit); text-shadow:0 0 6px var(--lit); transform:scale(1.12); }
+.cell.locked{ background:#dde5f2; border-color:#8fa3c4; cursor:not-allowed; }
+.cell.locked .d{ opacity:1; color:#5b6c8f; }
+.cell.ghost{ border-color:var(--acc); background:#fff3d6; }
+.cell.ghost .d{ opacity:.55; color:var(--acc); }
+.cell.wrong{ border-color:#e53935; background:#ffe1de; }
+.cell.cheer{ animation:cheer .55s ease; }
+@keyframes cheer{
+  0%{ transform:scale(1); } 40%{ transform:scale(1.35) rotate(12deg); }
+  70%{ transform:scale(.92) rotate(-8deg); } 100%{ transform:scale(1); }
+}
+#boardTip{ font-size:16px; margin-top:8px; opacity:.85; }
+#stats{
+  margin:0 auto 10px; max-width:560px; background:var(--panel); border:3px solid var(--line); border-radius:14px;
+  padding:10px 14px; font-size:20px; font-weight:800; text-align:center;
+}
+#statsMain{ font-size:22px; }
+#statsHint{ font-size:18px; color:var(--acc); margin-top:4px; font-weight:700; }
+
+/* ============ 按钮 ============ */
+.btn{
+  border:none; border-radius:14px; padding:12px 18px; font-size:19px; font-weight:900;
+  cursor:pointer; color:#fff; background:var(--prim); letter-spacing:1px;
+  transition:filter .15s, transform .1s;
+}
+.btn:hover{ filter:brightness(1.12); }
+.btn:active{ transform:scale(.96); }
+.btn.acc{ background:var(--acc); }
+.btn.gray{ background:#607d8b; }
+footer{ text-align:center; margin:16px 0 30px; }
+footer .btn{ margin:4px 6px; }
+
+/* ============ 弹窗 ============ */
+.modal{
+  position:fixed; inset:0; z-index:60; background:rgba(15,20,45,.5);
+  display:flex; align-items:center; justify-content:center; padding:14px;
+}
+.card{
+  background:#fffdf8; color:#333; border-radius:22px; border:5px solid var(--prim);
+  max-width:680px; width:100%; max-height:88vh; overflow:auto; padding:22px 26px;
+  box-shadow:0 14px 40px rgba(0,0,0,.3);
+}
+.card h2{ margin:2px 0 10px; font-size:30px; color:var(--prim); letter-spacing:2px; }
+.card h3{ margin:14px 0 6px; font-size:21px; color:var(--acc); }
+.card p, .card li{ font-size:18px; line-height:1.75; }
+.card ol, .card ul{ margin:6px 0; padding-left:26px; }
+.card .btn{ margin-top:14px; }
+.formula{
+  background:var(--chip); border:3px dashed var(--acc); border-radius:12px;
+  padding:8px 14px; font-size:19px; font-weight:800; color:var(--ink); margin:6px 0;
+}
+#winStars{ font-size:44px; color:#f9a825; letter-spacing:8px; margin:6px 0; }
+#finalStars{ font-size:38px; color:#f9a825; letter-spacing:4px; margin:6px 0; }
+.center{ text-align:center; }
+
+/* ============ 庆祝特效画布 ============ */
+#fx{ position:fixed; inset:0; z-index:50; pointer-events:none; }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 900px){
+  main{ flex-direction:column; align-items:stretch; }
+  #taskPanel{ width:100%; flex:none; }
+  #hTitle{ font-size:20px; }
+  #hTitle small{ display:none; }
+  .hud{ font-size:16px; padding:4px 10px; }
+  .hud span{ font-size:18px; }
+  #hBadge{ font-size:16px; padding:4px 12px; }
+  .card h2{ font-size:24px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 庆祝特效（彩纸/星星）画布 -->
+<canvas id="fx"></canvas>
+
+<!-- ============ 顶栏 ============ -->
+<header>
+  <div id="hTitle">★ 星光方阵工坊 <small>第7讲 方阵（上）· 实心方阵 / 由层求边 / 加一行一列</small></div>
+  <div id="hInfo">
+    <div id="hBadge" class="hidden">初级</div>
+    <div class="hud">时间 <span id="hudTime">00:00</span></div>
+    <div class="hud">步数 <span id="hudSteps">0</span></div>
+  </div>
+</header>
+
+<!-- ============ 难度选择页 ============ -->
+<div id="screen-select">
+  <div id="selHead">
+    <h1>星 光 方 阵 工 坊</h1>
+    <p>星光小镇的庆典就要开始啦！你是首席<b>方阵设计师</b>，<br>
+    在网格上动手摆一摆：点亮实心方阵、围出正方形一圈、加一层、加一行一列……<br>
+    摆着摆着，方阵的奥秘就全明白啦！</p>
+  </div>
+  <div id="selCards">
+    <div class="diffCard" data-diff="1">
+      <div class="miniIcon">▦</div>
+      <div class="lv">初级</div>
+      <div class="nm">星光小广场</div>
+      <div class="ds">边数 4~6 的小方阵：<br>认识实心方阵、正方形一圈、<br>外面加一层、加一行一列。</div>
+      <div class="go">开始闯关</div>
+    </div>
+    <div class="diffCard" data-diff="2">
+      <div class="miniIcon">◎</div>
+      <div class="lv">中级</div>
+      <div class="nm">彩虹花园</div>
+      <div class="ds">边数 6~9：<br>由一圈总数反求每边、<br>数一数加一行一列、收掉一行一列。</div>
+      <div class="go">开始闯关</div>
+    </div>
+    <div class="diffCard" data-diff="3">
+      <div class="miniIcon">✦</div>
+      <div class="lv">高级</div>
+      <div class="nm">星空庆典</div>
+      <div class="ds">边数 8~11 的综合挑战：<br>空心方阵（两层、三层）、<br>大阵加层、巧加一行一列。</div>
+      <div class="go">开始闯关</div>
+    </div>
+  </div>
+  <div id="selTip">每次进入都会随机换颜色、随机换关卡哦！先看看右上角的时间，和小伙伴比一比谁更快！</div>
+</div>
+
+<!-- ============ 游戏页 ============ -->
+<div id="screen-game" class="hidden">
+  <main>
+    <!-- 左：任务卡 -->
+    <aside id="taskPanel">
+      <div id="taskKind">点亮实心方阵</div>
+      <div id="taskMethod">好方法</div>
+      <div id="taskGoal">（任务）</div>
+      <div id="taskChips"></div>
+      <div id="progStars">☆☆☆☆</div>
+      <div id="hintBox" class="hidden"></div>
+      <div id="taskBtns">
+        <button class="btn acc" id="btnHint">小 提 示</button>
+        <button class="btn gray" id="btnClear">清 空 重 摆</button>
+        <button class="btn" id="btnReveal">揭 示 答 案</button>
+      </div>
+    </aside>
+    <!-- 中：棋盘 -->
+    <section id="boardWrap">
+      <div id="stats">
+        <div id="statsMain">开始摆一摆吧！</div>
+        <div id="statsHint">点一点或按住拖动</div>
+      </div>
+      <div id="boardOuter"><div id="board"></div></div>
+      <div id="boardTip">点一下格子＝放一枚 · 再点＝收回 · 按住拖动可以连刷（灰蓝色是锁住的原方阵）</div>
+    </section>
+  </main>
+  <footer>
+    <button class="btn gray" id="btnRules">规 则 说 明</button>
+    <button class="btn gray" id="btnSound">音效：开</button>
+    <button class="btn acc" id="btnRestart">重 新 开 始</button>
+    <button class="btn gray" id="btnBack">返 回 难 度 选 择</button>
+  </footer>
+</div>
+
+<!-- ============ 规则说明弹窗 ============ -->
+<div id="modalRules" class="modal hidden">
+  <div class="card">
+    <h2>🎮 怎么玩 · 星光方阵工坊</h2>
+    <h3>动手操作</h3>
+    <ol>
+      <li><b>点一下</b>格子＝放一枚棋子；再点一下＝收回。</li>
+      <li><b>按住拖动</b>＝连续摆放（像刷颜料一样），手指数到哪里摆到哪里。</li>
+      <li><b>灰蓝色</b>棋子是已经摆好的原方阵，锁住不动。</li>
+      <li>照左边任务卡把方阵<b>摆对形状</b>就过关，过关就能看到公式揭秘！</li>
+      <li>每个难度 4 关；可以看小提示或揭示答案（看过揭秘的关得 1 颗星）。</li>
+    </ol>
+    <h3>方阵小锦囊（第7讲 方阵·上）</h3>
+    <div class="formula">实心方阵总数 ＝ 每边 × 每边</div>
+    <div class="formula">一圈（一层）＝ 每边×4 − 4 ｜ 相邻两边差 2，相邻两层差 8</div>
+    <div class="formula">知一圈求每边 ＝ (一圈数 + 4) ÷ 4</div>
+    <div class="formula">加一行一列 ＝ 每边×2 + 1 ｜ 原来每边 ＝ (新增数 − 1) ÷ 2</div>
+    <div class="formula">空心方阵总数 ＝ (最外每边 − 层数) × 层数 × 4</div>
+    <p>右上角有<b>计时</b>和<b>步数</b>，又快又准就能拿满星星！准备好了吗？</p>
+    <div class="center"><button class="btn" id="btnRulesClose">明 白 啦，出 发 ！</button></div>
+  </div>
+</div>
+
+<!-- ============ 过关揭秘弹窗 ============ -->
+<div id="modalWin" class="modal hidden">
+  <div class="card center">
+    <h2 id="winTitle">第 1 关 · 点亮成功！</h2>
+    <div id="winStars">★★★</div>
+    <div class="formula" id="winMethod">好方法</div>
+    <ul id="winLines" style="text-align:left"></ul>
+    <p id="winNote" style="font-size:16px;opacity:.75"></p>
+    <button class="btn acc" id="btnNext">下 一 关 →</button>
+  </div>
+</div>
+
+<!-- ============ 全部通关弹窗 ============ -->
+<div id="modalFinal" class="modal hidden">
+  <div class="card center">
+    <h2>🎉 庆典方阵 全部点亮！</h2>
+    <div id="finalStars">★★★★</div>
+    <p id="finalStats" style="font-size:21px;font-weight:800"></p>
+    <p>你已经掌握了：实心方阵、由层求边、加一行一列和空心方阵。<br>
+    下次换个难度，颜色和关卡都会重新随机，再来一次吧！</p>
+    <button class="btn acc" id="btnAgain">再 玩 一 次（重新抽关）</button>
+    <button class="btn gray" id="btnFinalBack">返 回 难 度 选 择</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ==================================================================
+   星光方阵工坊 —— 第7讲 方阵（上）互动游戏
+   核心玩法：学生在网格画布上点按/拖刷摆放棋子，
+   亲手构造 实心方阵 / 正方形一圈 / 加一层 / 加一行一列 / 空心方阵，
+   操作过程本身就是解题过程（非选择题）。
+   ================================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+function $(id){ return document.getElementById(id); }
+/* 洗牌（返回新数组） */
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+/* 随机取一个元素 */
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+/* 格子坐标 → 字符串键 */
+function key(r, c){ return r + ',' + c; }
+/* 两个 Set 是否相等 */
+function setEq(a, b){
+  if(a.size !== b.size){ return false; }
+  for(const v of a){ if(!b.has(v)){ return false; } }
+  return true;
+}
+/* 生成 off 偏移处 n×n 区域的全部格子 */
+function squareSet(off, n){
+  const s = new Set();
+  for(let r = off; r < off + n; r++){
+    for(let c = off; c < off + n; c++){ s.add(key(r, c)); }
+  }
+  return s;
+}
+/* 生成 off 偏移处 n×n 正方形的最外一圈格子 */
+function ringSet(off, n){
+  const s = new Set();
+  for(let i = 0; i < n; i++){
+    s.add(key(off, off + i));                 /* 上边 */
+    s.add(key(off + n - 1, off + i));         /* 下边 */
+    s.add(key(off + i, off));                 /* 左边 */
+    s.add(key(off + i, off + n - 1));         /* 右边 */
+  }
+  return s;
+}
+/* 求格子集合的外框信息 */
+function frameOf(set){
+  if(set.size === 0){ return null; }
+  let minR = 99, maxR = -1, minC = 99, maxC = -1;
+  for(const k of set){
+    const p = k.split(','); const r = +p[0], c = +p[1];
+    if(r < minR){ minR = r; } if(r > maxR){ maxR = r; }
+    if(c < minC){ minC = c; } if(c > maxC){ maxC = c; }
+  }
+  return { minR:minR, maxR:maxR, minC:minC, maxC:maxC,
+           w:maxC - minC + 1, h:maxR - minR + 1 };
+}
+
+/* ---------------- 随机色板（G8 配色随机化） ---------------- */
+const PALETTES = [
+  { name:'樱花粉', bg:'#fff5f7', panel:'#ffe3ec', line:'#f3b7c9', prim:'#d81b60', acc:'#ef6c00', lit:'#e91e63', litbg:'#ffd6e3', ink:'#42172b', chip:'#fff0f5' },
+  { name:'草地绿', bg:'#f3fbf3', panel:'#def5de', line:'#a5d8a5', prim:'#2e7d32', acc:'#ef6c00', lit:'#388e3c', litbg:'#d2f0d2', ink:'#1c2e1c', chip:'#f0faf0' },
+  { name:'海洋蓝', bg:'#eef6ff', panel:'#d9ebff', line:'#9cc3f0', prim:'#1565c0', acc:'#f57c00', lit:'#1e88e5', litbg:'#d3e7fd', ink:'#12253c', chip:'#f2f8ff' },
+  { name:'阳光橙', bg:'#fff8ec', panel:'#ffe9c9', line:'#f0c078', prim:'#e65100', acc:'#0277bd', lit:'#ef6c00', litbg:'#ffe2b8', ink:'#3c2a10', chip:'#fff4e3' },
+  { name:'紫罗兰', bg:'#f8f2ff', panel:'#e9ddff', line:'#c3aaf0', prim:'#6a1b9a', acc:'#d81b60', lit:'#8e24aa', litbg:'#e9d9f7', ink:'#2c1a40', chip:'#f5efff' },
+  { name:'湖光青', bg:'#ecfbfa', panel:'#d3f3f1', line:'#8fd8d2', prim:'#00796b', acc:'#f4511e', lit:'#00897b', litbg:'#d0f0ec', ink:'#12332f', chip:'#f0fbfa' }
+];
+/* 随机应用一套色板 */
+function applyPalette(){
+  const p = pick(PALETTES);
+  const s = document.documentElement.style;
+  s.setProperty('--bg', p.bg);       s.setProperty('--panel', p.panel);
+  s.setProperty('--line', p.line);   s.setProperty('--prim', p.prim);
+  s.setProperty('--acc', p.acc);     s.setProperty('--lit', p.lit);
+  s.setProperty('--litbg', p.litbg); s.setProperty('--ink', p.ink);
+  s.setProperty('--chip', p.chip);
+}
+
+/* ---------------- 随机情境（反重复：题目包装随机换） ---------------- */
+const CTXS = [
+  { item:'星灯', unit:'盏', place:'星光广场' },
+  { item:'花',   unit:'盆', place:'彩虹花园' },
+  { item:'小旗', unit:'面', place:'彩旗大道' },
+  { item:'队员', unit:'名', place:'庆典操场' }
+];
+
+/* ==================================================================
+   关卡构造器：每种关卡都返回统一结构
+   { kind, ctx, size, locked, init, solution, title, methodTag,
+     goal, chips, hint, revealLines[], win(lit), feedback(lit) }
+   win()      ：判定当前摆放是否达成任务（通关条件）
+   feedback()：实时统计与引导提示
+   ================================================================== */
+
+/* ---- 关卡类型 1：摆实心方阵（知每边 或 知总数） ---- */
+function mkSolid(given, val, ctx){
+  const e = (given === 'edge') ? val : Math.round(Math.sqrt(val));
+  const total = e * e;
+  const size = Math.min(13, Math.max(6, e + 2));
+  const off = Math.floor((size - e) / 2);
+  const goal = (given === 'edge')
+    ? `在${ctx.place}摆一个<b>实心方阵</b>：每边 ${e} ${ctx.unit}${ctx.item}，中间也要全部摆满哦！`
+    : `${ctx.place}收到了 <b>${total} ${ctx.unit}${ctx.item}</b>，要恰好摆成一个实心方阵。每边摆几${ctx.unit}呢？动手摆出来！`;
+  const hint = (given === 'edge')
+    ? `先铺满最上面一行 ${e} ${ctx.unit}，再一行一行往下铺，铺满 ${e} 行。`
+    : `想一想：${total} ＝ 几 × 几？先摆一行试试，看看统计里的外框提示。`;
+  const lines = (given === 'edge')
+    ? [`实心方阵总数 ＝ 每边 × 每边 ＝ ${e} × ${e} ＝ ${total}（${ctx.unit}）`,
+       `这就是"知边求总数"：边 × 边。`]
+    : [`${total} ＝ ${e} × ${e}，所以每边摆 ${e} ${ctx.unit}。`,
+       `知总数求边：想哪两个相同的数相乘正好是 ${total}。`];
+  return {
+    kind:'solid', ctx:ctx, size:size, locked:new Set(), init:new Set(),
+    solution:squareSet(off, e),
+    title:'点亮实心方阵',
+    methodTag:'好方法一 · 实心方阵的认识',
+    goal:goal,
+    chips:[ given === 'edge' ? `每边 ${e} ${ctx.unit}` : `总共 ${total} ${ctx.unit}` ],
+    hint:hint, revealLines:lines,
+    win:function(lit){
+      const f = frameOf(lit);
+      if(!f || f.w !== f.h || lit.size !== f.w * f.h){ return false; }
+      return (given === 'edge') ? (f.w === e) : (f.w * f.w === total);
+    },
+    feedback:function(lit){
+      const f = frameOf(lit);
+      if(!f){ return { main:`已摆 0 ${ctx.unit}`, hint:'开始摆一摆吧！点一点或按住拖动' }; }
+      const main = `已摆 ${lit.size} ${ctx.unit} · 外框 ${f.w}×${f.h}`;
+      if(f.w !== f.h){ return { main:main, hint:`外框是 ${f.w}×${f.h}，还不是正方形哦` }; }
+      if(lit.size < f.w * f.h){ return { main:main, hint:`正方形里还差 ${f.w * f.h - lit.size} 格没点亮` }; }
+      const s = f.w;
+      if(given === 'edge' && s !== e){ return { main:main, hint:`这是每边 ${s} 的方阵，任务是每边 ${e}，换个大小试试` }; }
+      if(given === 'total' && s * s !== total){ return { main:main, hint:`这是 ${s}×${s}＝${s*s}，任务要正好 ${total} ${ctx.unit}` }; }
+      return { main:main, hint:'形状达成！' };
+    }
+  };
+}
+
+/* ---- 关卡类型 2：围正方形一圈（知每边 或 知一圈总数反求每边） ---- */
+function mkRing(given, val, ctx){
+  const e = (given === 'edge') ? val : (val + 4) / 4;
+  const total = 4 * e - 4;
+  const size = Math.min(13, Math.max(6, e + 2));
+  const off = Math.floor((size - e) / 2);
+  const goal = (given === 'edge')
+    ? `在${ctx.place}只摆<b>最外面一圈</b>：每边 ${e} ${ctx.unit}${ctx.item}的正方形一圈，中间要留空！`
+    : `${ctx.place}要用 <b>${total} ${ctx.unit}${ctx.item}</b>围成正方形的一圈，每边摆几${ctx.unit}？摆摆看！`;
+  const hint = (given === 'edge')
+    ? `4 个角上的棋子同时属于两条边，会数重复。一圈 ＝ ${e}×4 − 4。`
+    : `试试不同的边长：摆好一圈后看统计，一圈正好 ${total} ${ctx.unit} 才算过关。`;
+  const lines = (given === 'edge')
+    ? [`最外一圈 ＝ 每边×4 − 4 ＝ ${e}×4 − 4 ＝ ${total}（${ctx.unit}）`,
+       `4 个角各被两条边共用，所以要从 ${e}×4 里减去 4。`]
+    : [`知一圈求每边：(${total} ＋ 4) ÷ 4 ＝ ${e}，每边 ${e} ${ctx.unit}。`,
+       `一圈 ＝ 每边×4 − 4，反过来用就是 每边 ＝ (一圈数＋4) ÷ 4。`];
+  return {
+    kind:'ring', ctx:ctx, size:size, locked:new Set(), init:new Set(),
+    solution:ringSet(off, e),
+    title:'围出正方形一圈',
+    methodTag: given === 'edge' ? '好方法一 · 每层数 ＝ 每边×4−4' : '好方法二 · 实心方阵由层求边',
+    goal:goal,
+    chips:[ given === 'edge' ? `每边 ${e} ${ctx.unit}` : `一圈共 ${total} ${ctx.unit}`, '中间留空' ],
+    hint:hint, revealLines:lines,
+    win:function(lit){
+      const f = frameOf(lit);
+      if(!f || f.w !== f.h){ return false; }
+      const s = f.w;
+      for(let r = f.minR; r <= f.maxR; r++){
+        for(let c = f.minC; c <= f.maxC; c++){
+          const border = (r === f.minR || r === f.maxR || c === f.minC || c === f.maxC);
+          if(border !== lit.has(key(r, c))){ return false; } /* 边上必须全亮，内部必须全空 */
+        }
+      }
+      return (given === 'edge') ? (s === e) : (4 * s - 4 === total);
+    },
+    feedback:function(lit){
+      const f = frameOf(lit);
+      if(!f){ return { main:`已摆 0 ${ctx.unit}`, hint:'开始围一圈吧！先摆最上面一条边' }; }
+      const main = `已摆 ${lit.size} ${ctx.unit} · 外框 ${f.w}×${f.h}`;
+      if(f.w !== f.h){ return { main:main, hint:`外框是 ${f.w}×${f.h}，先围成正方形` }; }
+      let miss = 0, extra = 0;
+      for(let r = f.minR; r <= f.maxR; r++){
+        for(let c = f.minC; c <= f.maxC; c++){
+          const border = (r === f.minR || r === f.maxR || c === f.minC || c === f.maxC);
+          if(border && !lit.has(key(r, c))){ miss++; }
+          if(!border && lit.has(key(r, c))){ extra++; }
+        }
+      }
+      if(extra > 0){ return { main:main, hint:`里面有 ${extra} 枚要收掉（只摆最外一圈）` }; }
+      if(miss > 0){ return { main:main, hint:`这一圈还差 ${miss} 枚` }; }
+      const s = f.w;
+      if(given === 'edge' && s !== e){ return { main:main, hint:`这是每边 ${s} 的一圈，任务是每边 ${e}` }; }
+      if(given === 'total' && 4 * s - 4 !== total){ return { main:main, hint:`每边 ${s} 的一圈是 ${4*s-4} ${ctx.unit}，再换个边长试试` }; }
+      return { main:main, hint:'一圈达成！' };
+    }
+  };
+}
+
+/* ---- 关卡类型 3：空心方阵（k 层，最外每边 e） ---- */
+function mkHollow(layers, e, ctx){
+  const size = Math.min(13, Math.max(6, e + 2));
+  const off = Math.floor((size - e) / 2);
+  const sums = [];
+  let sum = 0;
+  for(let i = 0; i < layers; i++){
+    const side = e - 2 * i, cnt = 4 * side - 4;
+    sums.push(`${side}×4−4＝${cnt}`); sum += cnt;
+  }
+  const goal = `在${ctx.place}搭一个 <b>${layers} 层空心方阵</b>：最外每边 ${e} ${ctx.unit}${ctx.item}，一层套一层，中间留空！`;
+  const hint = `从最外圈摆起：每向内一圈，每边少 2、总数少 8。`;
+  const lines = [
+    `${layers} 层空心方阵，最外每边 ${e}：${sums.join(' ＋ ')} ＝ ${sum}（${ctx.unit}）`,
+    `好办法：(最外每边 − 层数) × 层数 × 4 ＝ (${e} − ${layers}) × ${layers} × 4 ＝ ${(e - layers) * layers * 4}`,
+    `相邻两层相差 8，一层一层加起来也一样！`
+  ];
+  const solution = new Set();
+  for(let i = 0; i < layers; i++){
+    const rg = ringSet(off + i, e - 2 * i);
+    for(const k of rg){ solution.add(k); }
+  }
+  return {
+    kind:'hollow', ctx:ctx, size:size, locked:new Set(), init:new Set(),
+    solution:solution,
+    title:'搭建空心方阵',
+    methodTag:'知识加油站 · 空心方阵',
+    goal:goal,
+    chips:[ `最外每边 ${e} ${ctx.unit}`, `${layers} 层`, `中间留空` ],
+    hint:hint, revealLines:lines,
+    win:function(lit){
+      const f = frameOf(lit);
+      if(!f || f.w !== f.h || f.w !== e){ return false; }
+      for(let r = f.minR; r <= f.maxR; r++){
+        for(let c = f.minC; c <= f.maxC; c++){
+          const d = Math.min(r - f.minR, f.maxR - r, c - f.minC, f.maxC - c);
+          const need = d < layers;
+          if(need !== lit.has(key(r, c))){ return false; } /* 前 layers 圈全亮，里面全空 */
+        }
+      }
+      return true;
+    },
+    feedback:function(lit){
+      const f = frameOf(lit);
+      if(!f){ return { main:`已摆 0 ${ctx.unit}`, hint:'从最外圈开始摆起吧！' }; }
+      const main = `已摆 ${lit.size} ${ctx.unit} · 外框 ${f.w}×${f.h}`;
+      if(f.w !== f.h){ return { main:main, hint:`外框是 ${f.w}×${f.h}，先摆成正方形` }; }
+      if(f.w !== e){ return { main:main, hint:`最外每边要是 ${e}，现在外框是 ${f.w}` }; }
+      let miss = 0, extra = 0;
+      for(let r = f.minR; r <= f.maxR; r++){
+        for(let c = f.minC; c <= f.maxC; c++){
+          const d = Math.min(r - f.minR, f.maxR - r, c - f.minC, f.maxC - c);
+          const need = d < layers;
+          if(need && !lit.has(key(r, c))){ miss++; }
+          if(!need && lit.has(key(r, c))){ extra++; }
+        }
+      }
+      if(extra > 0){ return { main:main, hint:`中间留空处多摆了 ${extra} 枚，收掉它们` }; }
+      if(miss > 0){ return { main:main, hint:`还差 ${miss} 枚就是完整的 ${layers} 层空心阵` }; }
+      return { main:main, hint:'空心方阵达成！' };
+    }
+  };
+}
+
+/* ---- 关卡类型 4：外面加一层（锁定的 b×b 原阵 + 新一圈） ---- */
+function mkAddLayer(b, ctx){
+  const size = Math.min(13, Math.max(6, b + 4));
+  const off = Math.max(1, Math.floor((size - b) / 2));
+  const locked = squareSet(off, b);
+  const need = 4 * b + 4;                    /* 新一圈 ＝ (b+2)×4−4 */
+  const ring = ringSet(off - 1, b + 2);      /* 紧贴原阵外圈的一圈 */
+  const goal = `${ctx.place}已经有一个每边 ${b} 的<b>实心方阵</b>（灰蓝色、锁住不动）。请在它<b>外面紧贴着加一整层</b>，变成更大的方阵！`;
+  const hint = `新的一圈要上下左右都包住原阵。想想一共要摆几枚？相邻两层相差 8 哦。`;
+  const lines = [
+    `加一层：新的一圈 ＝ (${b + 2} − 1) × 4 ＝ ${need}（${ctx.unit}）`,
+    `也可以想：原阵最外圈 ${b}×4−4＝${4*b-4}，相邻两层差 8，所以 ${4*b-4}＋8＝${need}。`,
+    `加完后变成每边 ${b + 2} 的实心方阵，共 ${b + 2}×${b + 2}＝${(b+2)*(b+2)}。`
+  ];
+  return {
+    kind:'addlayer', ctx:ctx, size:size, locked:locked, init:new Set(),
+    solution:ring,
+    title:'外面加一层',
+    methodTag:'好方法一 · 加一层与相邻两层差 8',
+    goal:goal,
+    chips:[ `原阵每边 ${b}`, `紧贴加一层` ],
+    hint:hint, revealLines:lines,
+    win:function(lit){ return setEq(lit, ring); },
+    feedback:function(lit){
+      let hit = 0;
+      for(const k of lit){ if(ring.has(k)){ hit++; } }
+      const wrong = lit.size - hit;
+      const main = `新摆 ${lit.size} ${ctx.unit} · 这一圈需要 ${need} ${ctx.unit}`;
+      if(lit.size === 0){ return { main:main, hint:'在原方阵外面，紧贴着摆一圈' }; }
+      if(wrong > 0){ return { main:main, hint:`有 ${wrong} 枚位置不对，要紧贴原来的方阵` }; }
+      if(hit < need){ return { main:main, hint:`新的一层已摆 ${hit} / ${need} 枚` }; }
+      return { main:main, hint:'加层达成！' };
+    }
+  };
+}
+
+/* ---- 关卡类型 5：加一行一列（L 形，四种方位任选） ---- */
+function mkAddRowCol(b, ctx){
+  const size = Math.min(13, Math.max(6, b + 3));
+  const off = Math.max(1, Math.floor((size - b) / 2));
+  const locked = squareSet(off, b);
+  const need = 2 * b + 1;
+  /* 四个方位的 L 形候选（新方阵比原阵多一行一列） */
+  const cands = [];
+  const dirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+  for(let t = 0; t < dirs.length; t++){
+    const dr = dirs[t][0], dc = dirs[t][1];
+    const r0 = (dr === 1) ? off : off - 1;       /* 新方阵的行范围 */
+    const c0 = (dc === 1) ? off : off - 1;       /* 新方阵的列范围 */
+    const s = new Set();
+    for(let i = 0; i <= b; i++){
+      for(let j = 0; j <= b; j++){
+        const kk = key(r0 + i, c0 + j);
+        if(!locked.has(kk)){ s.add(kk); }        /* 新 (b+1)×(b+1) 中去掉原阵就是 L 形 */
+      }
+    }
+    cands.push(s);
+  }
+  const goal = `场上是每边 ${b} 的<b>实心方阵</b>（灰蓝色、锁住不动）。请添上<b>新的一行和一列</b>，让横竖各增加一排，变成每边 ${b + 1} 的大方阵！`;
+  const hint = `新的一行＋新的一列像字母"L"。角上只需要 1 枚（两条边共用）。`;
+  const lines = [
+    `加一行一列共 ${b}＋${b}＋1 ＝ ${need}（${ctx.unit}），角上 1 枚两边共用。`,
+    `反过来想：原来每边 ＝ (${need} − 1) ÷ 2 ＝ ${b}，原方阵 ${b}×${b}＝${b*b}。`,
+    `现在变成每边 ${b + 1} 的方阵，共 ${b + 1}×${b + 1}＝${(b+1)*(b+1)}。`
+  ];
+  return {
+    kind:'addrowcol', ctx:ctx, size:size, locked:locked, init:new Set(),
+    solution:cands[0],
+    title:'巧加一行一列',
+    methodTag:'好方法三 · 加一行一列',
+    goal:goal,
+    chips:[ `原阵每边 ${b}`, `横竖各加一排` ],
+    hint:hint, revealLines:lines,
+    win:function(lit){
+      for(let t = 0; t < cands.length; t++){ if(setEq(lit, cands[t])){ return true; } }
+      return false;
+    },
+    feedback:function(lit){
+      let best = 0;
+      for(let t = 0; t < cands.length; t++){
+        let h = 0;
+        for(const k of cands[t]){ if(lit.has(k)){ h++; } }
+        if(h > best){ best = h; }
+      }
+      const wrong = Math.max(0, lit.size - best);
+      const main = `新摆 ${lit.size} ${ctx.unit} · 一行一列需要 ${need} ${ctx.unit}`;
+      if(lit.size === 0){ return { main:main, hint:'沿着原方阵的边，摆出"L"形的一行一列' }; }
+      if(wrong > 0){ return { main:main, hint:`有 ${wrong} 枚位置不对（要能和原阵拼成大方阵）` }; }
+      if(best < need){ return { main:main, hint:`摆对 ${best} / ${need} 枚` }; }
+      return { main:main, hint:'L 形达成！' };
+    }
+  };
+}
+
+/* ---- 关卡类型 6：收掉一行一列（反向操作：从整阵里点掉 L 形） ---- */
+function mkRemoveL(s, ctx){
+  const size = Math.min(13, Math.max(6, s + 2));
+  const off = Math.floor((size - s) / 2);
+  const init = squareSet(off, s);            /* 初始：摆满 s×s */
+  const need = 2 * s - 1;
+  const goal = `场上是每边 ${s} 的<b>实心方阵</b>。请<b>收掉一行一列</b>（点一下亮格就收走），让剩下的正好还是一个<b>完整的方阵</b>！`;
+  const hint = `一行一列共 ${s}＋${s}−1 枚（角上 1 枚两边共用）。剩下的每边会变成 ${s - 1}。`;
+  const lines = [
+    `去掉一行一列 ＝ ${s}×2 − 1 ＝ ${need}（${ctx.unit}），角上那枚两边共用。`,
+    `剩下的是每边 ${s - 1} 的实心方阵：${s - 1}×${s - 1} ＝ ${(s - 1) * (s - 1)}。`,
+    `${s * s} − ${need} ＝ ${(s-1)*(s-1)}，正好对上！`
+  ];
+  /* 标准解：收掉最上边一行＋最左边一列 */
+  const solution = squareSet(off + 1, s - 1);
+  return {
+    kind:'removeL', ctx:ctx, size:size, locked:new Set(), init:init,
+    solution:solution,
+    title:'收掉一行一列',
+    methodTag:'好方法三 · 加一行一列（反过来用）',
+    goal:goal,
+    chips:[ `原阵每边 ${s}`, `剩完整小方阵` ],
+    hint:hint, revealLines:lines,
+    win:function(lit){
+      /* 剩下的格子构成完整的 (s−1)×(s−1) 方阵即过关 */
+      const f = frameOf(lit);
+      if(!f || f.w !== f.h){ return false; }
+      const m = s - 1;
+      if(f.w !== m || lit.size !== m * m){ return false; }
+      for(let r = f.minR; r <= f.maxR; r++){
+        for(let c = f.minC; c <= f.maxC; c++){
+          if(!lit.has(key(r, c))){ return false; }
+        }
+      }
+      return true;
+    },
+    feedback:function(lit){
+      let erased = 0;
+      for(const k of init){ if(!lit.has(k)){ erased++; } }
+      let outside = 0;
+      for(const k of lit){ if(!init.has(k)){ outside++; } }
+      const main = `剩余 ${lit.size} ${ctx.unit} · 已收 ${erased} ${ctx.unit}`;
+      if(outside > 0){ return { main:main, hint:`阵外多摆了 ${outside} 枚，先收掉它们` }; }
+      if(erased === 0){ return { main:main, hint:`点掉一整行和一整列（共 ${need} ${ctx.unit}）` }; }
+      if(erased > need){ return { main:main, hint:`收多了（一行一列只要 ${need} 枚），点空白处放回来` }; }
+      if(erased < need){ return { main:main, hint:`一行一列共 ${need} 枚，还差 ${need - erased} 枚` }; }
+      return { main:main, hint:'再检查一下剩下的是不是完整的小方阵' };
+    }
+  };
+}
+
+/* ---------------- 关卡池（每难度 5 种，每局随机抽 4 种 + 数值随机） ---------------- */
+const POOLS = {
+  1: [
+    function(c){ return mkSolid('edge',  pick([4, 5, 6]), c); },
+    function(c){ return mkRing('edge',   pick([4, 5, 6]), c); },
+    function(c){ return mkAddLayer(      pick([4, 5]), c); },
+    function(c){ return mkAddRowCol(     pick([4, 5]), c); },
+    function(c){ return mkSolid('total', pick([16, 25]), c); }
+  ],
+  2: [
+    function(c){ return mkSolid('total', pick([36, 49]), c); },
+    function(c){ return mkRing('total',  pick([24, 28, 32]), c); },
+    function(c){ return mkAddLayer(      pick([6, 7]), c); },
+    function(c){ return mkAddRowCol(     pick([6, 7]), c); },
+    function(c){ return mkRemoveL(       pick([6, 7]), c); }
+  ],
+  3: [
+    function(c){ return mkSolid('total', pick([64, 81]), c); },
+    function(c){ return mkHollow(2,      pick([7, 8]), c); },
+    function(c){ return mkAddLayer(      pick([8, 9]), c); },
+    function(c){ return mkAddRowCol(     pick([8, 9]), c); },
+    function(c){ return mkHollow(3,      pick([8, 9]), c); }
+  ]
+};
+/* 难度信息 */
+const DIFFS = {
+  1: { label:'初级', name:'星光小广场' },
+  2: { label:'中级', name:'彩虹花园' },
+  3: { label:'高级', name:'星空庆典' }
+};
+
+/* ---------------- 全局状态 ---------------- */
+const G = {
+  diff:1, levels:[], idx:0, stars:[],
+  steps:0, stepsAtLevelStart:0, seconds:0, timerId:0, running:false,
+  lit:new Set(), level:null,
+  painting:false, paintMode:'none', animating:false, winShown:false, revealed:false
+};
+
+/* ---------------- 音效（WebAudio 小提示音，可关） ---------------- */
+let soundOn = true, actx = null;
+function beep(freq, dur, delay){
+  if(!soundOn){ return; }
+  try{
+    if(!actx){ actx = new (window.AudioContext || window.webkitAudioContext)(); }
+    const t0 = actx.currentTime + (delay || 0);
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'triangle'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.18, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }catch(e){ /* 音频不可用时安静运行 */ }
+}
+function sndPlace(){ beep(880, 0.07); }
+function sndErase(){ beep(420, 0.07); }
+function sndWin(){ beep(523, .12); beep(659, .12, .1); beep(784, .12, .2); beep(1046, .2, .3); }
+
+/* ---------------- 庆祝特效（彩纸 + 星星，canvas 实现） ---------------- */
+const FX = { cvs:$('fx'), ctx:null, parts:[], raf:0 };
+FX.ctx = FX.cvs.getContext('2d');
+function fxResize(){
+  FX.cvs.width = window.innerWidth; FX.cvs.height = window.innerHeight;
+}
+window.addEventListener('resize', function(){ fxResize(); fitBoard(); });
+fxResize();
+/* 发射一批彩纸/星星粒子 */
+function burst(n){
+  const colors = ['#f9a825', '#e91e63', '#43a047', '#1e88e5', '#8e24aa', '#ff7043', '#00acc1'];
+  for(let i = 0; i < n; i++){
+    FX.parts.push({
+      x: FX.cvs.width * (0.2 + Math.random() * 0.6),
+      y: FX.cvs.height * (0.25 + Math.random() * 0.2),
+      vx:(Math.random() - 0.5) * 14, vy:-6 - Math.random() * 8,
+      g:0.32, rot:Math.random() * 6.28, vr:(Math.random() - 0.5) * 0.3,
+      size:8 + Math.random() * 10, life:70 + Math.random() * 40,
+      color:pick(colors), star:Math.random() < 0.4
+    });
+  }
+  if(!FX.raf){ FX.raf = requestAnimationFrame(fxLoop); }
+}
+function fxLoop(){
+  const c = FX.ctx;
+  c.clearRect(0, 0, FX.cvs.width, FX.cvs.height);
+  for(let i = FX.parts.length - 1; i >= 0; i--){
+    const p = FX.parts[i];
+    p.x += p.vx; p.y += p.vy; p.vy += p.g; p.rot += p.vr; p.life--;
+    if(p.life <= 0 || p.y > FX.cvs.height + 30){ FX.parts.splice(i, 1); continue; }
+    c.save(); c.translate(p.x, p.y); c.rotate(p.rot);
+    c.fillStyle = p.color; c.globalAlpha = Math.min(1, p.life / 30);
+    if(p.star){
+      c.font = p.size + 'px serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('★', 0, 0);
+    }else{
+      c.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+    }
+    c.restore();
+  }
+  if(FX.parts.length > 0){ FX.raf = requestAnimationFrame(fxLoop); }
+  else{ FX.raf = 0; c.clearRect(0, 0, FX.cvs.width, FX.cvs.height); }
+}
+
+/* ---------------- 计时器 ---------------- */
+function startTimer(){
+  stopTimer();
+  G.running = true;
+  G.timerId = setInterval(function(){
+    if(G.running){ G.seconds++; }
+    const m = Math.floor(G.seconds / 60), s = G.seconds % 60;
+    $('hudTime').textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }, 1000);
+}
+function stopTimer(){ G.running = false; if(G.timerId){ clearInterval(G.timerId); G.timerId = 0; } }
+function updSteps(){ $('hudSteps').textContent = G.steps; }
+
+/* ---------------- 棋盘构建与渲染 ---------------- */
+function fitBoard(){
+  const wrap = $('boardOuter');
+  const n = G.level.size;
+  const w = Math.min(window.innerWidth - 40, wrap.parentElement.clientWidth - 10, 720);
+  const cs = Math.max(24, Math.min(56, Math.floor(w / n) - 3));
+  $('board').style.setProperty('--cs', cs + 'px');
+}
+function buildBoard(){
+  const b = $('board');
+  b.innerHTML = '';
+  const n = G.level.size;
+  b.style.gridTemplateColumns = 'repeat(' + n + ', var(--cs))';
+  for(let r = 0; r < n; r++){
+    for(let c = 0; c < n; c++){
+      const d = document.createElement('div');
+      d.className = 'cell';
+      d.dataset.r = r; d.dataset.c = c;
+      if(G.level.locked.has(key(r, c))){ d.classList.add('locked'); }
+      const sp = document.createElement('span');
+      sp.className = 'd'; sp.textContent = '★';
+      d.appendChild(sp);
+      b.appendChild(d);
+    }
+  }
+  fitBoard();
+  paintAll();
+}
+/* 把一个格子设置/取消点亮状态（isOn 为真表示点亮） */
+function setCell(r, c, isOn){
+  const el = $('board').children[r * G.level.size + c];
+  if(!el){ return; }
+  if(isOn){ el.classList.add('lit'); } else { el.classList.remove('lit'); }
+}
+function paintAll(){
+  const n = G.level.size;
+  for(let r = 0; r < n; r++){
+    for(let c = 0; c < n; c++){ setCell(r, c, G.lit.has(key(r, c))); }
+  }
+}
+
+/* ---------------- 交互：点按 + 拖刷（鼠标与触摸两套事件） ---------------- */
+function cellFromElement(el){
+  if(!el){ return null; }
+  const cell = el.closest ? el.closest('.cell') : null;
+  if(!cell || !cell.dataset.r){ return null; }
+  return { r:+cell.dataset.r, c:+cell.dataset.c, el:cell };
+}
+/* 对一个格子应用当前笔刷（place 放置 / erase 收回） */
+function applyStroke(rc){
+  if(!rc || G.animating || G.winShown){ return; }
+  const k = key(rc.r, rc.c);
+  if(G.level.locked.has(k)){ return; }          /* 锁定的原阵不可动 */
+  if(G.paintMode === 'place' && !G.lit.has(k)){
+    G.lit.add(k); setCell(rc.r, rc.c, true); G.steps++; updSteps(); sndPlace();
+  }else if(G.paintMode === 'erase' && G.lit.has(k)){
+    G.lit.delete(k); setCell(rc.r, rc.c, false); G.steps++; updSteps(); sndErase();
+  }
+  refreshStats();
+  checkWin();
+}
+/* 开始一笔：根据首格状态自动决定这支笔是"放"还是"收" */
+function strokeStart(el){
+  const rc = cellFromElement(el);
+  if(!rc){ return; }
+  const k = key(rc.r, rc.c);
+  if(G.level.locked.has(k)){ G.paintMode = 'none'; beep(220, 0.08); return; }
+  G.painting = true;
+  G.paintMode = G.lit.has(k) ? 'erase' : 'place';
+  applyStroke(rc);
+}
+/* 鼠标事件（桌面端点按 + 拖刷） */
+$('board').addEventListener('mousedown', function(e){
+  if(e.button !== 0){ return; }
+  e.preventDefault();
+  strokeStart(e.target);
+});
+document.addEventListener('mousemove', function(e){
+  if(!G.painting){ return; }
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  applyStroke(cellFromElement(el));
+});
+document.addEventListener('mouseup', function(){ G.painting = false; G.paintMode = 'none'; });
+/* 触摸事件（移动端/电子白板点按 + 拖刷） */
+$('board').addEventListener('touchstart', function(e){
+  e.preventDefault();
+  const t = e.touches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  strokeStart(el);
+}, { passive:false });
+$('board').addEventListener('touchmove', function(e){
+  e.preventDefault();
+  if(!G.painting){ return; }
+  const t = e.touches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  applyStroke(cellFromElement(el));
+}, { passive:false });
+document.addEventListener('touchend', function(){ G.painting = false; G.paintMode = 'none'; });
+
+/* ---------------- 实时统计 ---------------- */
+function refreshStats(){
+  const fb = G.level.feedback(G.lit);
+  $('statsMain').textContent = fb.main;
+  $('statsHint').textContent = fb.hint;
+}
+
+/* ---------------- 通关判定与过关流程 ---------------- */
+function checkWin(){
+  if(G.animating || G.winShown){ return; }
+  if(G.level.win(G.lit)){ winLevel(G.revealed); }
+}
+function cheerCells(){
+  /* 点亮的格子依次欢呼跳动 */
+  const cells = $('board').children;
+  for(let i = 0; i < cells.length; i++){
+    if(cells[i].classList.contains('lit')){
+      const d = (i % 12) * 40;
+      setTimeout(function(el){ return function(){ el.classList.add('cheer'); }; }(cells[i]), d);
+    }
+  }
+}
+function starOf(revealed){
+  if(revealed){ return 1; }
+  const lvSteps = G.steps - G.stepsAtLevelStart;   /* 只算本关的步数 */
+  return (lvSteps <= G.level.solution.size + 10) ? 3 : 2;
+}
+function winLevel(revealed){
+  G.winShown = true;
+  const star = starOf(revealed);
+  G.stars[G.idx] = star;
+  sndWin(); burst(90); cheerCells();
+  refreshStats();
+  setTimeout(function(){ showWinModal(star, revealed); }, 950);
+}
+function showWinModal(star, revealed){
+  $('winTitle').textContent = '第 ' + (G.idx + 1) + ' 关 · 点亮成功！';
+  $('winStars').textContent = '★'.repeat(star) + '☆'.repeat(3 - star);
+  $('winMethod').textContent = G.level.methodTag;
+  const ul = $('winLines'); ul.innerHTML = '';
+  for(let i = 0; i < G.level.revealLines.length; i++){
+    const li = document.createElement('li');
+    li.textContent = G.level.revealLines[i];
+    ul.appendChild(li);
+  }
+  $('winNote').textContent = revealed ? '（本关看了揭秘，得 1 颗星。下一关试着自己摆出来吧！）'
+                                      : (star === 3 ? '又快又准，满分三星！' : '完成得漂亮！更少步数可以拿 3 星哦。');
+  $('btnNext').textContent = (G.idx >= G.levels.length - 1) ? '查 看 结 算 →' : '下 一 关 →';
+  $('modalWin').classList.remove('hidden');
+}
+$('btnNext').addEventListener('click', function(){
+  $('modalWin').classList.add('hidden');
+  if(G.idx >= G.levels.length - 1){ showFinal(); return; }
+  loadLevel(G.idx + 1);
+});
+
+/* ---------------- 结算 ---------------- */
+function showFinal(){
+  stopTimer();
+  let sum = 0;
+  for(let i = 0; i < G.stars.length; i++){ sum += G.stars[i]; }
+  const m = Math.floor(G.seconds / 60), s = G.seconds % 60;
+  $('finalStars').textContent = '★'.repeat(sum) + '☆'.repeat(Math.max(0, G.levels.length * 3 - sum));
+  $('finalStats').innerHTML = '难度：' + DIFFS[G.diff].label + ' · 用时 ' + (m < 10 ? '0' : '') + m + ' 分 ' + (s < 10 ? '0' : '') + s + ' 秒 · 共 ' + G.steps + ' 步 · 星级 ' + sum + ' / ' + (G.levels.length * 3);
+  $('modalFinal').classList.remove('hidden');
+  /* 全屏连发庆祝：彩纸 + 星星 */
+  burst(120);
+  setTimeout(function(){ burst(100); }, 600);
+  setTimeout(function(){ burst(100); }, 1300);
+  setTimeout(function(){ burst(120); }, 2100);
+  sndWin();
+}
+$('btnAgain').addEventListener('click', function(){
+  $('modalFinal').classList.add('hidden');
+  startDiff(G.diff);          /* 同难度重新随机抽关 */
+});
+$('btnFinalBack').addEventListener('click', function(){
+  $('modalFinal').classList.add('hidden');
+  backToSelect();
+});
+
+/* ---------------- 关卡加载 ---------------- */
+function loadLevel(i){
+  G.idx = i;
+  G.level = G.levels[i];
+  G.lit = new Set(G.level.init);
+  G.winShown = false; G.animating = false; G.revealed = false;
+  G.stepsAtLevelStart = G.steps;
+  $('taskKind').textContent = (i + 1) + '/' + G.levels.length + ' · ' + G.level.title;
+  $('taskMethod').textContent = G.level.methodTag;
+  $('taskGoal').innerHTML = G.level.goal;
+  const chips = $('taskChips'); chips.innerHTML = '';
+  for(let t = 0; t < G.level.chips.length; t++){
+    const sp = document.createElement('span');
+    sp.className = 'chip'; sp.textContent = G.level.chips[t];
+    chips.appendChild(sp);
+  }
+  renderProgress();
+  $('hintBox').classList.add('hidden');
+  buildBoard();
+  refreshStats();
+}
+function renderProgress(){
+  let html = '';
+  for(let i = 0; i < G.levels.length; i++){
+    if(i < G.idx){ html += '★'.repeat(1); }
+    else if(i === G.idx){ html += '<span class="cur">[' + (i + 1) + ']</span>'; }
+    else{ html += '☆'; }
+  }
+  $('progStars').innerHTML = html;
+}
+
+/* ---------------- 按钮行为 ---------------- */
+$('btnHint').addEventListener('click', function(){
+  const box = $('hintBox');
+  box.textContent = '💡 ' + G.level.hint;
+  box.classList.remove('hidden');
+});
+$('btnClear').addEventListener('click', function(){
+  if(G.animating){ return; }
+  G.lit = new Set(G.level.init);   /* removeL 关会恢复满阵，其他关清空 */
+  paintAll(); refreshStats();
+  beep(500, 0.08);
+});
+$('btnReveal').addEventListener('click', function(){
+  if(G.animating || G.winShown){ return; }
+  revealSolution();
+});
+/* 揭示答案：动画演示标准摆法，然后以"已揭秘"状态过关 */
+function revealSolution(){
+  G.animating = true; G.revealed = true;
+  G.lit = new Set(G.level.init);
+  paintAll(); refreshStats();
+  /* 演示顺序：按对角线波次排序，看起来像波浪铺开 */
+  const sol = [];
+  for(const k of G.level.solution){ sol.push(k); }
+  sol.sort(function(a, b){
+    const pa = a.split(','), pb = b.split(',');
+    return ((+pa[0]) + (+pa[1])) - ((+pb[0]) + (+pb[1]));
+  });
+  const isRemove = (G.level.kind === 'removeL');
+  /* removeL 关：先把满阵恢复，再依次"收掉"多余格子 */
+  const toErase = [];
+  if(isRemove){
+    for(const k of G.level.init){ if(!G.level.solution.has(k)){ toErase.push(k); } }
+    toErase.sort(function(a, b){
+      const pa = a.split(','), pb = b.split(',');
+      return ((+pa[0]) + (+pa[1])) - ((+pb[0]) + (+pb[1]));
+    });
+  }
+  const seq = isRemove ? toErase : sol;
+  let delay = 120;
+  for(let i = 0; i < seq.length; i++){
+    (function(kk, dd){
+      setTimeout(function(){
+        const p = kk.split(','); const r = +p[0], c = +p[1];
+        if(isRemove){ G.lit.delete(kk); setCell(r, c, false); }
+        else{ G.lit.add(kk); setCell(r, c, true); }
+        if(i % 4 === 0){ beep(700 + (i % 8) * 40, 0.05); }
+        refreshStats();
+      }, dd);
+    })(seq[i], delay);
+    delay += 65;
+  }
+  setTimeout(function(){
+    G.animating = false;
+    checkWin();
+  }, delay + 250);
+}
+$('btnRestart').addEventListener('click', function(){ startDiff(G.diff); });
+$('btnBack').addEventListener('click', backToSelect);
+$('btnRules').addEventListener('click', function(){ $('modalRules').classList.remove('hidden'); });
+$('btnRulesClose').addEventListener('click', function(){ $('modalRules').classList.add('hidden'); });
+$('btnSound').addEventListener('click', function(){
+  soundOn = !soundOn;
+  $('btnSound').textContent = soundOn ? '音效：开' : '音效：关';
+});
+/* 难度卡片点击 */
+const cards = document.querySelectorAll('.diffCard');
+for(let i = 0; i < cards.length; i++){
+  cards[i].addEventListener('click', function(){
+    const d = +this.dataset.diff;
+    startDiff(d);
+  });
+}
+
+/* ---------------- 流程控制 ---------------- */
+function startDiff(d){
+  G.diff = d;
+  applyPalette();                       /* 每局重新随机配色 */
+  const gens = shuffle(POOLS[d]).slice(0, 4);   /* 随机抽 4 种关卡 */
+  G.levels = [];
+  for(let i = 0; i < gens.length; i++){ G.levels.push(gens[i](pick(CTXS))); }
+  G.stars = []; G.steps = 0; G.seconds = 0;
+  updSteps(); $('hudTime').textContent = '00:00';
+  $('hBadge').textContent = DIFFS[d].label + ' · ' + DIFFS[d].name;
+  $('hBadge').classList.remove('hidden');
+  $('screen-select').classList.add('hidden');
+  $('screen-game').classList.remove('hidden');
+  $('modalFinal').classList.add('hidden');
+  $('modalWin').classList.add('hidden');
+  startTimer();
+  loadLevel(0);
+  beep(660, 0.1);
+}
+function backToSelect(){
+  stopTimer();
+  $('screen-game').classList.add('hidden');
+  $('screen-select').classList.remove('hidden');
+  $('hBadge').classList.add('hidden');
+  applyPalette();
+}
+
+/* ---------------- 启动 ---------------- */
+applyPalette();
+/* 进入时先弹出规则说明（之后可随时再看） */
+$('modalRules').classList.remove('hidden');
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-a-a3b/g013", "name": "\u661f\u5149\u65b9\u9635\u5de5\u574a \u00b7 \u7b2c7\u8bb2 \u65b9\u9635\uff08\u4e0a\uff09", "file": "g013.html", "jiaocan": "\u301013\u3011\u7b2c7\u8bb2 \u65b9\u9635\uff08\u4e0a\uff09", "unit": "\u7b2c7\u8bb2", "grade": "3\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "A\uff1a\u5c0f\u6570\u540c\u6b65", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5c0f\u6570\u540c\u6b65\u00b73\u5e74\u7ea7\u4e0b\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-a-a3b"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>
