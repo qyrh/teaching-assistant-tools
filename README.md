@@ -72,3 +72,22 @@ README.md
 | `vertical-calc` | 竖式生成器 | 数学 | 1.0.0 |
 | `square-packing` | 正方形装箱 | 数学 | 1.0.0 |
 | `logic-exam` | 推理题生成器 | 思维 | 1.0.0 |
+| `gcol-*`（61 个） | 教参游戏合集 | 教参游戏 | 1.0.0 |
+
+## 教参游戏合集（gcol-*）
+
+由「教学游戏工坊」产线自动发布：每个丛书系列一个合集工具（`A：小数同步` 按年级拆成 12 个），
+`tools/<gcol-id>/` 下是 `index.html`（筛选页：年级/讲次/搜索）+ `g001.html…`（每个游戏一个文件，
+安装后整包离线）。要点：
+
+- **教参同键关联**：每个游戏的元数据（`教参`/`unit` 讲次/`grade` 年级/`series` 系列/`stage` 学段）
+  与教学助手「教参体系」同一套键（系列+学段+【N】讲次），合集页卡片副标题即教参名，
+  可直接在教学助手教参搜索里按名检索对应讲次备课。机器可读全量索引见仓库根 `games-index.json`
+  （字段：gid/hub/file/name/jiaocan/src/unit/grade/stage/series）。
+- **反馈闭环**：每个游戏右下角 💬 按钮 → 分类+描述 → 「提交」预填 GitHub issue
+  （标题 `[反馈][<合集id>/gNNN v版本] 类别：摘要`）或「复制反馈内容」。工坊定时任务会拉取
+  这类 issue、定位到具体游戏、排重做、重发新版合集并自动关闭 issue（版本号 patch+1，
+  面板显示「更新到 vX」）。
+- **自动更新**：`tool_publisher.py publish --incremental --push` 增量发布（源游戏变化→重注入→
+  合集版本+1→push→自动 close 对应反馈 issue）。
+
