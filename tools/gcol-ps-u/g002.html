@@ -78,7 +78,9 @@ body{
 #puz-head .pk{font-size:17px;font-weight:800;color:var(--p);letter-spacing:1px;}
 #puz-head h2{margin:2px 0 6px;font-size:26px;color:var(--d);}
 #puz-head .q{font-size:20px;margin:0;}
-#cond{display:flex;gap:14px;overflow-x:auto;padding:6px 2px 12px;scrollbar-width:thin;}
+/* 条件区：自动换行，保证任何屏宽下所有已知天平/条件都完整可见（不裁切） */
+#cond{display:flex;flex-wrap:wrap;gap:14px;padding:6px 2px 12px;}
+#cond .fact-chip{flex:1 1 200px;}
 .rel-card{
   flex:0 0 auto;background:#fff;border:3px solid var(--l);border-radius:16px;
   padding:8px 10px 6px;text-align:center;box-shadow:0 3px 8px rgba(0,0,0,.06);
@@ -783,28 +785,29 @@ function renderPuzzle(){
    小天平（条件卡片）SVG 绘制：物品数量一个不少地画出来
    ========================================================================== */
 function miniScale(rel){
-  var s = '<svg width="250" height="128" viewBox="0 0 250 128">';
-  s += '<polygon points="125,26 108,66 142,66" fill="' + PAL.p + '" opacity=".35"/>';
-  s += '<rect x="92" y="66" width="66" height="8" rx="4" fill="' + PAL.d + '"/>';
-  s += '<line x1="35" y1="26" x2="215" y2="26" stroke="' + PAL.d + '" stroke-width="7" stroke-linecap="round"/>';
-  s += '<circle cx="125" cy="26" r="6" fill="' + PAL.d + '"/>';
-  s += panSvgMini(35, 26, rel.l);
-  s += panSvgMini(215, 26, rel.r);
+  var s = '<svg width="260" height="128" viewBox="0 0 260 128">';
+  s += '<polygon points="130,26 114,66 146,66" fill="' + PAL.p + '" opacity=".35"/>';
+  s += '<rect x="98" y="66" width="64" height="8" rx="4" fill="' + PAL.d + '"/>';
+  s += '<line x1="30" y1="26" x2="230" y2="26" stroke="' + PAL.d + '" stroke-width="7" stroke-linecap="round"/>';
+  s += '<circle cx="130" cy="26" r="6" fill="' + PAL.d + '"/>';
+  s += panSvgMini(66, 26, rel.l);
+  s += panSvgMini(194, 26, rel.r);
   s += '</svg>';
   return s;
 }
 function panSvgMini(cx, ey, groups){
   var items = expand(groups);
-  var s = '';
-  s += '<line x1="' + cx + '" y1="' + ey + '" x2="' + (cx - 44) + '" y2="62" stroke="#9aa7b3" stroke-width="2.5"/>';
-  s += '<line x1="' + cx + '" y1="' + ey + '" x2="' + (cx + 44) + '" y2="62" stroke="#9aa7b3" stroke-width="2.5"/>';
-  s += '<rect x="' + (cx - 55) + '" y="62" width="110" height="52" rx="10" fill="' + PAL.l + '" stroke="' + PAL.p + '" stroke-width="3"/>';
   var n = items.length;
-  var fs = n > 3 ? 22 : 28;
-  var gap = n > 3 ? 26 : 32;
+  /* 按物品数量自适应字号与间距，确保全部落在托盘矩形内 */
+  var fs = n <= 2 ? 28 : (n === 3 ? 24 : (n === 4 ? 22 : 18));
+  var gap = n <= 2 ? 34 : (n === 3 ? 30 : (n === 4 ? 26 : 21));
+  var s = '';
+  s += '<line x1="' + cx + '" y1="' + ey + '" x2="' + (cx - 46) + '" y2="60" stroke="#9aa7b3" stroke-width="2.5"/>';
+  s += '<line x1="' + cx + '" y1="' + ey + '" x2="' + (cx + 46) + '" y2="60" stroke="#9aa7b3" stroke-width="2.5"/>';
+  s += '<rect x="' + (cx - 54) + '" y="60" width="108" height="54" rx="10" fill="' + PAL.l + '" stroke="' + PAL.p + '" stroke-width="3"/>';
   var x0 = cx - gap * (n - 1) / 2;
   for(var i = 0; i < n; i++){
-    s += '<text x="' + x0 + '" y="98" font-size="' + fs + '" text-anchor="middle">' + items[i] + '</text>';
+    s += '<text x="' + (x0 + i * gap) + '" y="96" font-size="' + fs + '" text-anchor="middle">' + items[i] + '</text>';
   }
   return s;
 }
@@ -838,19 +841,21 @@ function buildBalance(stage, p){
   panR = addSvg(bsvg, 'g', { 'data-dz':'pan' });
   balLayout();
 
-  /* 货架 */
-  var shelf = document.createElement('div');
-  shelf.className = 'shelfbox';
-  shelf.innerHTML = '<div class="st">🧺 货架：把 <b>' + p.shelf.name + '</b> 拖到右盘（点一下也行），点右盘里的物品可放回</div>' +
-                    '<div class="shelf-item" id="shelf-src"><span class="em">' + p.shelf.e + '</span>' +
-                    '<span class="nm">' + p.shelf.name + '（随便拿）</span><span class="hint">拖我 or 点我</span></div>';
-  stage.appendChild(shelf);
-  var src = shelf.querySelector('#shelf-src');
-  bindDrag(src, {
-    ghost:'<span style="font-size:46px">' + p.shelf.e + '</span>',
-    tap:function(){ addToPan(1); },
-    drop:function(name){ if(name === 'pan'){ addToPan(1); } }
-  });
+  /* 货架（weigh 砝码模式没有 shelf 字段，跳过，随后由 buildWeigh 建砝码架） */
+  if(p.shelf){
+    var shelf = document.createElement('div');
+    shelf.className = 'shelfbox';
+    shelf.innerHTML = '<div class="st">🧺 货架：把 <b>' + p.shelf.name + '</b> 拖到右盘（点一下也行），点右盘里的物品可放回</div>' +
+                      '<div class="shelf-item" id="shelf-src"><span class="em">' + p.shelf.e + '</span>' +
+                      '<span class="nm">' + p.shelf.name + '（随便拿）</span><span class="hint">拖我 or 点我</span></div>';
+    stage.appendChild(shelf);
+    var src = shelf.querySelector('#shelf-src');
+    bindDrag(src, {
+      ghost:'<span style="font-size:46px">' + p.shelf.e + '</span>',
+      tap:function(){ addToPan(1); },
+      drop:function(name){ if(name === 'pan'){ addToPan(1); } }
+    });
+  }
 
   /* 两阶段玩法：第二问面板（先隐藏） */
   if(p.mode === 'two'){
@@ -884,8 +889,13 @@ function addToPan(n){
 }
 function buildWeigh(stage, p){
   buildBalance(stage, p);
-  /* 货架换成砝码排 */
+  /* 建砝码架（weigh 模式没有物品货架） */
   var shelf = stage.querySelector('.shelfbox');
+  if(!shelf){
+    shelf = document.createElement('div');
+    shelf.className = 'shelfbox';
+    stage.appendChild(shelf);
+  }
   shelf.innerHTML = '<div class="st">🏋️ 砝码架：拖一枚砝码放到右盘称一称（点一下也行）</div><div id="wchips"></div>';
   var box = shelf.querySelector('#wchips');
   var chips = shuffle(p.chips);
@@ -972,17 +982,18 @@ function drawPan(g, x, y, items, name, removable){
   while(g.firstChild){ g.removeChild(g.firstChild); }
   var n = items.length;
   var cols = n > 10 ? 6 : 5;
+  var gapIt = n > 10 ? 34 : 38;      /* 6 列时收紧间距，保证物品都在托盘内 */
   var rows = Math.max(1, Math.ceil(n / cols));
   var pw = 210, ph = 26 + rows * 38;
   var py = y + 56;
   addSvg(g, 'line', { x1:x, y1:y, x2:(x - pw / 2 + 18), y2:py, stroke:'#9aa7b3', 'stroke-width':3 });
   addSvg(g, 'line', { x1:x, y1:y, x2:(x + pw / 2 - 18), y2:py, stroke:'#9aa7b3', 'stroke-width':3 });
   addSvg(g, 'rect', { x:(x - pw / 2), y:py, width:pw, height:ph, rx:14, fill:PAL.l, stroke:PAL.p, 'stroke-width':4 });
-  var x0 = x - (Math.min(n, cols) - 1) * 38 / 2;
+  var x0 = x - (Math.min(n, cols) - 1) * gapIt / 2;
   for(var i = 0; i < n; i++){
     var col = i % cols, row = Math.floor(i / cols);
     var t = addSvg(g, 'text', {
-      x:(x0 + col * 38), y:(py + 34 + row * 38), 'font-size':30, 'text-anchor':'middle'
+      x:(x0 + col * gapIt), y:(py + 34 + row * 38), 'font-size':30, 'text-anchor':'middle'
     }, items[i]);
     if(removable){
       t.setAttribute('class', 'item-t');
@@ -1466,7 +1477,8 @@ function strikeOne(arr, e){
 function confettiBurst(){
   var cv = $('fx');
   cv.width = window.innerWidth; cv.height = window.innerHeight;
-  var ctx = cv.getContext('2d');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if(!ctx){ return; }   /* 极少数环境不支持 2D 画布时安静跳过 */
   var colors = [PAL.p, PAL.d, '#ffd34d', '#7bd66e', '#5db4ff', '#ff8fb0'];
   var ps = [];
   for(var i = 0; i < 150; i++){
@@ -1567,7 +1579,7 @@ boot();
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-u/g002", "name": "\u5929\u5e73\u738b\u56fd\u00b7\u7b49\u91cf\u4ee3\u6362\u5927\u95ef\u5173", "file": "g002.html", "jiaocan": "\u30102\u3011\u7b2c2\u8bb2 \u5929\u5e73\u4e0a\u7684\u6570\u5b66\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c12\u8bb2\uff09", "unit": "\u7b2c2\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.1", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
+var M={"id": "gcol-ps-u/g002", "name": "\u5929\u5e73\u738b\u56fd\u00b7\u7b49\u91cf\u4ee3\u6362\u5927\u95ef\u5173", "file": "g002.html", "jiaocan": "\u30102\u3011\u7b2c2\u8bb2 \u5929\u5e73\u4e0a\u7684\u6570\u5b66\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c12\u8bb2\uff09", "unit": "\u7b2c2\u8bb2", "grade": "2\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.2", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
