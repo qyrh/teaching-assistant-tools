@@ -90,4 +90,8 @@ README.md
   面板显示「更新到 vX」）。
 - **自动更新**：`tool_publisher.py publish --incremental --push` 增量发布（源游戏变化→重注入→
   合集版本+1→push→自动 close 对应反馈 issue）。
+- **下载源注意**：本仓库内容已超 jsDelivr 单仓 50MB 上限，`cdn.jsdelivr.net/gh/...` 通道对新文件返回 403。
+  可用的分发地址是 GitHub Pages 直链（随 main 分支推送自动重建）：
+  `https://qyrh.github.io/teaching-assistant-tools/catalog.json`
+  面板「源」里粘贴该直链即可（文件按相对路径取）；或把应用 `DEFAULT_SOURCE` 改为该直链（asar 一行）。
 
