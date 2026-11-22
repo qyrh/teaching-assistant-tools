@@ -102,6 +102,9 @@ header{
 .bigop{display:inline-block; margin:0 10px; font-size:1.25em; font-weight:900; color:var(--pri-deep);}
 .paren{font-size:1.5em; font-weight:900; color:var(--pri);}
 .ell{margin:0 6px; font-weight:900;}
+/* 一个括号整体不拆行：右括号永远和内容在同一行 */
+.grp{display:inline-block; white-space:nowrap; margin:4px 2px;}
+.bterm{display:inline-block; white-space:nowrap; margin:4px 4px; vertical-align:middle;}
 
 /* 原式里的分数块：与托盘碎片同色系，收进水晶后高亮 */
 .xchip{
@@ -127,7 +130,7 @@ header{
   border:4px solid var(--acc); background:linear-gradient(160deg,#FFFDF5,#FFF3CD);
   border-radius:16px;
 }
-#abox-empty-tip{color:#9A7B00; font-size:16px; font-weight:700; text-align:center;}
+#abox-empty-tip{color:#6B4E00; font-size:16px; font-weight:700; text-align:center;}
 .chip{
   display:inline-flex; align-items:center; justify-content:center;
   background:#fff; border:4px solid var(--cc,#888); border-radius:14px;
@@ -211,7 +214,7 @@ header{
 #ansslot{
   margin-top:14px; border:5px dashed var(--acc); border-radius:16px; background:#FFFDF5;
   min-height:86px; display:flex; align-items:center; justify-content:center;
-  font-size:19px; font-weight:800; color:#9A7B00; padding:8px; text-align:center;
+  font-size:19px; font-weight:800; color:#6B4E00; padding:8px; text-align:center;
 }
 #ansslot.zone-hot{background:#FFF3CD;}
 #ansslot .final-ans{font-size:30px; font-weight:900; color:var(--ok);}
@@ -669,14 +672,16 @@ function exprHTML(lv){
           }).join(op)
         + '<span class="paren">）</span>';
     }
-    return grp(lv.groups[0])+'<span class="bigop">×</span>'+grp(lv.groups[1])
-         +'<span class="bigop">−</span>'+grp(lv.groups[2])+'<span class="bigop">×</span>'+grp(lv.groups[3]);
+    /* 运算符与后面的括号绑在一起换行，避免行尾悬挂 */
+    function grpOp(opSym, g){ return '<span class="grp"><span class="bigop">'+opSym+'</span>'+grp(g)+'</span>'; }
+    return '<span class="grp">'+grp(lv.groups[0])+'</span>'+grpOp('×',lv.groups[1])
+         + grpOp('−',lv.groups[2])+grpOp('×',lv.groups[3]);
   }
   /* B 型：1/(2+S) + 1/(1+1/(1+S)) */
   var S = sumHTML(lv);
   var t1 = fracOver('<span class="mint">2</span>'+op+S);
   var t2 = fracOver('<span class="mint">1</span>'+op+fracOver('<span class="mint">1</span>'+op+S));
-  return t1+'<span class="bigop">+</span>'+t2;
+  return '<span class="bterm">'+t1+'</span><span class="bterm"><span class="bigop">+</span>'+t2+'</span>';
 }
 
 /* 换元预览：把“段”改写成 A 的形式
@@ -712,8 +717,9 @@ function previewHTML(lv, boxMap){
   var op='<span class="op">+</span>';
   if(lv.kind==='A'){
     function grp(g){ return '<span class="paren">（</span>'+segDisp(lv,g,boxMap)+'<span class="paren">）</span>'; }
-    return grp(lv.groups[0])+'<span class="bigop">×</span>'+grp(lv.groups[1])
-         +'<span class="bigop">−</span>'+grp(lv.groups[2])+'<span class="bigop">×</span>'+grp(lv.groups[3]);
+    function grpOp(opSym, g){ return '<span class="grp"><span class="bigop">'+opSym+'</span>'+grp(g)+'</span>'; }
+    return '<span class="grp">'+grp(lv.groups[0])+'</span>'+grpOp('×',lv.groups[1])
+         + grpOp('−',lv.groups[2])+grpOp('×',lv.groups[3]);
   }
   var seg = ['one'].concat(sIds(lv));
   var touched = false;
@@ -722,7 +728,7 @@ function previewHTML(lv, boxMap){
   /* 2 + S = 1 + (1 + S) = 1 + a ；1 + 1/(1+S) = 1 + 1/a */
   var t1 = fracOver('<span class="mint">1</span>'+op+segDisp(lv,seg,boxMap));
   var t2 = fracOver('<span class="mint">1</span>'+op+fracOver(segDisp(lv,seg,boxMap)));
-  return t1+'<span class="bigop">+</span>'+t2;
+  return '<span class="bterm">'+t1+'</span><span class="bterm"><span class="bigop">+</span>'+t2+'</span>';
 }
 
 /* ---------- 3. 全局状态 ---------- */
@@ -965,7 +971,10 @@ function renderPhase2A(){
     var t=ph2.tiles[i];
     if(!t.alive || ph2.vortex.indexOf(t)>=0){ continue; }
     var cls = 'tile'+(t.sign<0?' neg':'')+(ph2.pairsLeft===0 && t===ph2.wz ? ' pulse':'');
-    h += '<div class="'+cls+'" data-drag="1" data-tile="'+t.i+'">'+t.label+'</div>';
+    var sgn = t.sign>0? '+' : '−';
+    h += '<div class="'+cls+'" data-drag="1" data-tile="'+t.i+'">'
+       + '<b style="font-size:1.15em;margin-right:4px;color:'+(t.sign>0?'var(--pri-deep)':'var(--warn)')+'">'+sgn+'</b>'
+       + t.label + '</div>';
   }
   h += '</div><div class="subnote">红色（带 −）与蓝色（带 +）中内容相同的一对，互为相反，拖进漩涡同归于零。</div></div>';
   h += '<div class="ph2-col"><span class="panel-title">抵消漩涡</span>'
@@ -1096,9 +1105,9 @@ function renderPhase2B(){
        + '</div>';
     h += '<div style="text-align:center;margin-top:12px;">合体槽（分母都是 1+a）：'
        + '<span style="display:inline-flex;align-items:center;gap:10px;margin-top:8px;">'
-       + '<span class="merge-slot" data-zone="m1">放分子 1</span>'
+       + '<span class="merge-slot" id="m1" data-zone="m1">放分子 1</span>'
        + '<span style="font-size:26px;font-weight:900;">+</span>'
-       + '<span class="merge-slot" data-zone="m2">放分子 a</span>'
+       + '<span class="merge-slot" id="m2" data-zone="m2">放分子 a</span>'
        + '</span></div>';
   }
   else if(ph2.mode==='twins'){
@@ -1403,7 +1412,7 @@ $('modal-rules').hidden=false;
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-f/g005", "name": "\u5206\u6570\u6c34\u6676\u5de5\u574a \u00b7 \u6362\u5143\u6cd5\u95ef\u5173", "file": "g005.html", "jiaocan": "\u301016\u3011\u7b2c16\u8bb2 \u6362\u5143\u6cd5\uff08\u4e13\u9898\u56db \u590d\u6742\u5206\u6570\u8ba1\u7b97\uff09", "unit": "\u7b2c16\u8bb2", "grade": "\u516d\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.1", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
+var M={"id": "gcol-ps-f/g005", "name": "\u5206\u6570\u6c34\u6676\u5de5\u574a \u00b7 \u6362\u5143\u6cd5\u95ef\u5173", "file": "g005.html", "jiaocan": "\u301016\u3011\u7b2c16\u8bb2 \u6362\u5143\u6cd5\uff08\u4e13\u9898\u56db \u590d\u6742\u5206\u6570\u8ba1\u7b97\uff09", "unit": "\u7b2c16\u8bb2", "grade": "\u516d\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.2", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
