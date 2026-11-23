@@ -638,16 +638,18 @@ function endDrag(e, cancelled){
     d.ghost.style.left = d.home.x + 'px';
     d.ghost.style.top  = d.home.y + 'px';
     setTimeout(() => { d.ghost.remove(); }, 260);
-    if (!cancelled) { setMsg('这块积木放在这里不合适哦，再试一试～'); }
+    if (!cancelled) {
+      setMsg((z && z.rejectMsg) ? z.rejectMsg : '这块积木放在这里不合适哦，再试一试～');
+    }
   }
 }
 document.addEventListener('pointerup',    (e) => endDrag(e, false));
 document.addEventListener('pointercancel',(e) => endDrag(e, true));
 
 /* 掉落区注册与查找 */
-function regZone(elm, accepts, drop){
+function regZone(elm, accepts, drop, rejectMsg){
   elm.classList.add('dropzone');
-  G.zones.push({ el: elm, accepts, drop });
+  G.zones.push({ el: elm, accepts, drop, rejectMsg });
 }
 function clearZones(){
   G.zones = [];
@@ -659,6 +661,16 @@ function zoneAt(x, y){
   const z = t.closest('.dropzone');
   if (!z) { return null; }
   return G.zones.find(g => g.el === z) || null;
+}
+/* 袋子准入判断：每个数字只能按它在原数里出现的次数放入（通常各一次） */
+function bagAcceptsDigit(chip, phaseName){
+  const R = G.round;
+  if (!chip || chip.dataset.kind !== 'digit' || G.phase !== phaseName) { return false; }
+  if (G.bagDigits.length >= R.n) { return false; }
+  const v = Number(chip.dataset.val);
+  const have = G.bagDigits.filter(x => x === v).length;
+  const need = R.ds.filter(x => x === v).length;
+  return have < need;
 }
 
 /* ============================================================
@@ -1051,7 +1063,7 @@ function buildGridStage(){
         G.grid.fixed[r].push(false);
         const rr = r, cc = c;            // 闭包记录坐标
         regZone(cell,
-          (chip) => chip.dataset.kind === 'digit' && G.phase === 'explore' && G.grid.values[rr][cc] === null,
+          (chip) => chip.dataset.kind === 'digit' && G.phase === 'explore' && !G.grid.fixed[rr][cc],
           (chip) => gridDrop(cell, chip)
         );
       }
@@ -1111,10 +1123,10 @@ function checkGridRow(r){
   const n = G.round.n;
   const vals = G.grid.values[r];
   if (vals.some(v => v === null)) { return; }
-  const sorted = vals.slice().sort((a, b) => a - b).join(',');
-  const target = G.round.ds.slice().sort((a, b) => a - b).join(',');
-  if (sorted !== target){
-    rowShake(r, '这一行用的数字和排头数不一样哦——轮转伙伴必须由完全相同的数字组成，再想想～');
+  const seq = vals.join('');
+  const isRot = G.round.rots.some(rot => rot.join('') === seq);   // 必须是某个轮转排法
+  if (!isRot){
+    rowShake(r, '这一行不是轮转排法哦——让排头的数字依次往后移动，转出正确的伙伴！');
     return;
   }
   const dup = G.grid.rowDone.some((done, i) => done && i !== r && G.grid.values[i].join('') === vals.join(''));
@@ -1309,8 +1321,9 @@ function renderAssembly(){
   box.appendChild(formula);
 
   regZone(bag,
-    (chip) => chip.dataset.kind === 'digit' && G.bagDigits.length < R.n && G.phase === 'assemble',
-    (chip) => bagDrop(chip)
+    (chip) => bagAcceptsDigit(chip, 'assemble'),
+    (chip) => bagDrop(chip),
+    '这个数字已经在袋子里啦——每个数字只要放一次哦！'
   );
   regZone(slot,
     (chip) => chip.dataset.kind === 'tower' && !G.rPlaced && G.phase === 'assemble',
@@ -1332,13 +1345,16 @@ function bagDrop(chip){
 }
 function updateBagDisplay(){
   const R = G.round;
+  const partial = G.bagDigits.reduce((a, b) => a + b, 0);
+  const full = G.bagDigits.length >= R.n;
   const bagExpr = $('#bag-expr');
   if (bagExpr){
     if (G.bagDigits.length === 0){
       bagExpr.textContent = '等待数字卡…';
     } else {
       let t = G.bagDigits.join(' + ');
-      if (G.bagDigits.length >= R.n){ t += ' = <b>' + R.S + '</b>'; $('.bag').classList.add('sealed'); }
+      t += full ? ' = <b>' + R.S + '</b>' : ' = ' + partial;
+      if (full){ $('.bag').classList.add('sealed'); }
       bagExpr.innerHTML = t;
     }
   }
@@ -1348,7 +1364,8 @@ function updateBagDisplay(){
       wb.textContent = '拖入数字卡';
     } else {
       let t = G.bagDigits.join('+');
-      if (G.bagDigits.length >= R.n){ t += '=' + R.S; $('#wb-s').classList.add('sealed'); }
+      t += full ? '=' + R.S : '=' + partial;
+      if (full){ $('#wb-s').classList.add('sealed'); }
       wb.textContent = t;
     }
   }
@@ -1481,8 +1498,9 @@ function buildWorkbench(){
   box.appendChild(btnWrap);
 
   regZone(cellS,
-    (chip) => chip.dataset.kind === 'digit' && G.bagDigits.length < R.n && G.phase === 'workbench',
-    (chip) => bagDrop(chip)
+    (chip) => bagAcceptsDigit(chip, 'workbench'),
+    (chip) => bagDrop(chip),
+    '这个数字已经在袋子里啦——每个数字只要放一次哦！'
   );
   regZone(cellR,
     (chip) => chip.dataset.kind === 'tower' && !G.rPlaced && G.phase === 'workbench',
@@ -1782,7 +1800,7 @@ fxInit();
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-f/g009", "name": "\u8f6e\u8f6c\u6570\u6469\u5929\u8f6e \u00b7 \u5de7\u7b97\u6311\u6218", "file": "g009.html", "jiaocan": "\u301027\u3011\u7b2c27\u8bb2 \u8f6e\u8f6c\u6570\u6c42\u548c\uff08\u4e13\u9898\u516d \u7279\u6b8a\u6570\u7684\u8ba1\u7b97\uff09", "unit": "\u7b2c27\u8bb2", "grade": "\u56db\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.4", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
+var M={"id": "gcol-ps-f/g009", "name": "\u8f6e\u8f6c\u6570\u6469\u5929\u8f6e \u00b7 \u5de7\u7b97\u6311\u6218", "file": "g009.html", "jiaocan": "\u301027\u3011\u7b2c27\u8bb2 \u8f6e\u8f6c\u6570\u6c42\u548c\uff08\u4e13\u9898\u516d \u7279\u6b8a\u6570\u7684\u8ba1\u7b97\uff09", "unit": "\u7b2c27\u8bb2", "grade": "\u56db\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.5", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
