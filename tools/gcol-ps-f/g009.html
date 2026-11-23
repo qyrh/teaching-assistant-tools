@@ -938,6 +938,8 @@ function attachWheelDrag(wheel){
       a0: angleOf(e.clientX, e.clientY, r.left + r.width / 2, r.top + r.height / 2),
       start: G.wheelAngle, moved: false
     };
+    /* 捕获指针：手指滑出轮盘也能继续拖动 */
+    if (wheel.setPointerCapture){ wheel.setPointerCapture(e.pointerId); }
   });
   wheel.addEventListener('pointermove', (e) => {
     if (!wd || G.phase !== 'explore') { return; }
@@ -987,7 +989,8 @@ function tryCollectReading(){
   if (G.phase !== 'explore') { return; }
   const val = parseInt(currentReading().join(''), 10);
   const idx = G.round.rots.findIndex(r => parseInt(r.join(''), 10) === val);
-  if (idx < 0 || G.collected[idx]) { return; }
+  if (idx < 0) { return; }
+  if (G.collected[idx]) { setMsg('这个排法已经收集过啦，再转一转试试别的排法～'); return; }
   G.collected[idx] = true;
   addStep();
   const items = $$('.shelf-item');
@@ -1046,8 +1049,9 @@ function buildGridStage(){
       } else {
         G.grid.values[r][c] = null;      // 学生要填的格子
         G.grid.fixed[r].push(false);
+        const rr = r, cc = c;            // 闭包记录坐标
         regZone(cell,
-          (chip) => chip.dataset.kind === 'digit' && G.phase === 'explore',
+          (chip) => chip.dataset.kind === 'digit' && G.phase === 'explore' && G.grid.values[rr][cc] === null,
           (chip) => gridDrop(cell, chip)
         );
       }
@@ -1055,6 +1059,18 @@ function buildGridStage(){
     }
   }
   wrap.appendChild(grid);
+  /* 极少数情况：某一行被提示格全部填满，直接标记完成 */
+  let preDone = 0;
+  for (let r = 0; r < n; r++){
+    if (!G.grid.values[r].some(v => v === null)){
+      G.grid.rowDone[r] = true;
+      preDone++;
+      $$('#lgrid .cell').forEach(cell => {
+        if (Number(cell.dataset.r) === r){ cell.classList.add('rowdone'); }
+      });
+    }
+  }
+  if (preDone >= n){ setTimeout(() => gridColumnCheck(), 500); }
 
   const tray = el('div', 'tray');
   tray.style.width = '100%';
@@ -1301,17 +1317,15 @@ function renderAssembly(){
     (chip, d) => towerDrop(chip, d, slot)
   );
 }
-function bagDrop(chip, dispEl){
+function bagDrop(chip){
   const R = G.round;
   G.bagDigits.push(Number(chip.dataset.val));
   addStep();
-  const be = (dispEl && $('#bag-expr')) || $('#bag-expr') || (dispEl ? dispEl.querySelector('.wb-cell-b') : null);
-  const target = dispEl || $('#bag-expr');
-  void be; void target;
   updateBagDisplay();
   if (G.bagDigits.length >= R.n){
-    setMsg('数字和袋子装满啦：' + R.ds.join('+') + ' = ' + R.S + '！接下来挑「1」塔～');
-    checkAsmReady();
+    setMsg('数字和袋子装满啦：' + R.ds.join('+') + ' = ' + R.S + '！');
+    if (G.diff === 'hard') { checkMachineReady(); }
+    else { checkAsmReady(); }
   } else {
     setMsg('收到了数字 ' + chip.dataset.val + '，袋子里的数字和正在变大～');
   }
@@ -1440,6 +1454,7 @@ function buildWorkbench(){
   const trayV = el('div', 'tray');
   trayV.innerHTML = '<div class="tray-title">「÷' + R.d + '」积木（放到更轻松的位置）</div>';
   const chipsV = el('div', 'tray-chips');
+  chipsV.id = 'tray-div-chips';
   const cDiv = el('div', 'chip chip-div drag-chip');
   cDiv.dataset.kind = 'divop';
   cDiv.dataset.val = String(R.d);
@@ -1515,14 +1530,14 @@ function divDrop(chip, drag, sock, which){
     G.divOrder = 0;
     placed.remove();
     if (other){ other.classList.remove('off'); }
-    const trayChips = $('#chip-div');
-    if (!trayChips){
+    if (!$('#chip-div')){
       const c = el('div', 'chip chip-div drag-chip');
       c.dataset.kind = 'divop';
       c.dataset.val = String(R.d);
       c.id = 'chip-div';
       c.textContent = '÷ ' + R.d;
-      chip.parentNode.appendChild(c);
+      const holder = $('#tray-div-chips');
+      if (holder){ holder.appendChild(c); }
     }
     setMsg('把「÷' + R.d + '」积木拿回来了，再选一个位置放放看！');
     checkMachineReady();
@@ -1681,13 +1696,9 @@ function revealRound(){
   G.revealed = true;
   if (G.diff === 'easy'){
     /* 点亮收集墙全部轮转数 */
-    Object.keys(G.collected).forEach(k => { G.collected[k] = true; });
     for (let i = 0; i < G.round.n; i++){ G.collected[i] = true; }
-    const items = $$('.shelf-item');
-    items.forEach((it, i) => { it.textContent = G.round.nums[i]; it.classList.add('lit'); });
-    showBreakdown(true);
-    renderAssembly();
-    $('#assembly').hidden = false;
+    $$('.shelf-item').forEach((it, i) => { it.textContent = G.round.nums[i]; it.classList.add('lit'); });
+    showBreakdown(true);                 // 内部会完成分解表并渲染拼装区
     G.bagDigits = G.round.ds.slice();
     updateBagDisplay();
     G.rPlaced = true;
@@ -1698,9 +1709,7 @@ function revealRound(){
     runFormula(true);
   } else if (G.diff === 'mid'){
     fillGridInstant();
-    showBreakdown(true);
-    renderAssembly();
-    $('#assembly').hidden = false;
+    showBreakdown(true);                 // 内部会完成分解表并渲染拼装区
     G.bagDigits = G.round.ds.slice();
     updateBagDisplay();
     G.rPlaced = true;
@@ -1773,7 +1782,7 @@ fxInit();
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-f/g009", "name": "\u8f6e\u8f6c\u6570\u6469\u5929\u8f6e \u00b7 \u5de7\u7b97\u6311\u6218", "file": "g009.html", "jiaocan": "\u301027\u3011\u7b2c27\u8bb2 \u8f6e\u8f6c\u6570\u6c42\u548c\uff08\u4e13\u9898\u516d \u7279\u6b8a\u6570\u7684\u8ba1\u7b97\uff09", "unit": "\u7b2c27\u8bb2", "grade": "\u56db\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.3", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
+var M={"id": "gcol-ps-f/g009", "name": "\u8f6e\u8f6c\u6570\u6469\u5929\u8f6e \u00b7 \u5de7\u7b97\u6311\u6218", "file": "g009.html", "jiaocan": "\u301027\u3011\u7b2c27\u8bb2 \u8f6e\u8f6c\u6570\u6c42\u548c\uff08\u4e13\u9898\u516d \u7279\u6b8a\u6570\u7684\u8ba1\u7b97\uff09", "unit": "\u7b2c27\u8bb2", "grade": "\u56db\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.4", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
