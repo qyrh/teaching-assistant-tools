@@ -93,7 +93,13 @@ p{margin:.5em 0}
 @media (min-width:1240px){.tb-r{flex-direction:row;align-items:center;gap:18px}}
 .tb-btn{min-height:44px;padding:6px 12px;border-radius:12px;border:3px solid var(--line);background:#fff;color:var(--dark);font-weight:800;font-size:.98rem;white-space:nowrap}
 .tb-btn.hot{border-color:var(--accent);color:var(--accent)}
-@media (max-width:960px){#topbar{position:static}.tb-r{align-items:center;width:100%}.tb-btns{justify-content:center}}
+@media (max-width:960px){
+  #topbar{position:static;flex-direction:column;align-items:stretch;gap:8px;padding:8px 10px}
+  .tb-l{justify-content:center}
+  .tb-r{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;width:100%}
+  .tb-stats{justify-content:center}
+  .tb-btns{flex:1 1 100%;justify-content:center}
+}
 
 /* ---------- 游戏区布局 ---------- */
 #screen-game{
@@ -176,7 +182,7 @@ p{margin:.5em 0}
 .card.tappable{cursor:pointer;border-style:dashed}
 .card.tapped{border-color:var(--ok);background:var(--ok-soft);border-style:solid}
 .card.tapped::after{
-  content:"✓";position:absolute;right:-8px;top:-14px;width:26px;height:26px;border-radius:50%;background:var(--ok);
+  content:"✓";position:absolute;right:-8px;bottom:-15px;width:26px;height:26px;border-radius:50%;background:var(--ok);
   color:#fff;font-size:18px;font-weight:900;line-height:26px;text-align:center;
 }
 .handle{
@@ -301,7 +307,7 @@ summary{font-weight:900;cursor:pointer;color:var(--dark)}
   <div class="modal-box">
     <h2>怎么玩：四步找出隐藏周期</h2>
     <div class="step"><div class="n">1</div><div><b>试路：</b>点「前进」按钮（按住不放可以连续前进），也可以直接点下一个位置。走过的每一个位置都会记录在<b>足迹带</b>上。这一步只是试跑，不计入正式步数。</div></div>
-    <div class="step"><div class="n">2</div><div><b>框周期：</b>拖动足迹带上方的「起点」、下方的「终点」两个小三角（也可以直接点两张卡片），把<b>重复出现的一组</b>框起来，再点「确定周期」。框对了小三角会变绿。如果前面有一小段不循环的“头部”，要从开始重复的地方框起。</div></div>
+    <div class="step"><div class="n">2</div><div><b>框周期：</b>拖动足迹带上方的「起点」、下方的「终点」两个小三角（它们一开始停在最新的一张卡片上，窄屏上把它们拖到屏幕边缘，足迹带会自动跟着滑动；也可以直接点两张卡片），把<b>重复出现的一组</b>框起来，再点「确定周期」。框对了小三角会变绿。如果前面有一小段不循环的“头部”，要从开始重复的地方框起。</div></div>
     <div class="step"><div class="n">3</div><div><b>整组前进：</b>回到起点正式出发！「+1 组」一次前进一个周期。试试最多能走几组？走多了会提示“不够”哦。</div></div>
     <div class="step"><div class="n">4</div><div><b>走余数：</b>剩下的不够一组时，一步一步走完。到达终点时你所在的位置，就是答案！</div></div>
     <div class="think"><b>小锦囊：</b>找到周期长度后，用总数除以周期长度——商是完整周期的个数，余数是除去完整周期后剩下的个数。</div>
@@ -747,7 +753,7 @@ let R = null;                          /* 当前小关的运行时状态 */
 function newRuntime(st) {
   return {
     stage: st, phase: 'explore', L: 1, keys: [st.keyAt(0)],
-    fs: 0, fe: 0, s: 0, p: 0, locked: false,
+    fs: 0, fe: 0, s: 0, p: 0, locked: false, frameTouched: false,
     target: st.target, pos: 0, stack: [], singles: 0, groups: 0, applySingles: 0,
     ops: 0, miss: 0, revealed: false,
     vis: 0, flash: 0, topY: 64,
@@ -919,6 +925,7 @@ function exploreStep() {
   if (R.L >= MAX_STRIP) { setHint('足迹带已经很长啦，先试着找找周期吧！', 'warn'); return; }
   R.L = R.L + 1;
   R.keys.push(R.stage.keyAt(R.L - 1));
+  if (!R.frameTouched) { R.fs = R.L - 1; R.fe = R.L - 1; }      /* 还没动过周期框：让小三角跟着最新一张卡片走，始终看得见 */
   R.ops = R.ops + 1; G.ops = G.ops + 1;
   sfx('step');
   if (R.L === 7 && !G.demo) { setHint('找找看：从哪一张开始，后面的内容又原样出现了一遍？拖动两个小三角把它框起来，再点「确定周期」。', 'info'); }
@@ -1118,6 +1125,7 @@ function completeDay() {
   if (R.L >= MAX_STRIP) { setHint('足迹带已经很长啦，先找找周期吧！', 'warn'); return; }
   R.manualDays = R.manualDays + 1;
   R.keys.push(R.counts.join(',')); R.L = R.L + 1;
+  if (!R.frameTouched) { R.fs = R.L - 1; R.fe = R.L - 1; }
   R.given = [false, false, false, false];
   R.giver = argmax(R.counts);
   R.ops = R.ops + 1; G.ops = G.ops + 1; R.flash = 1;
@@ -1438,7 +1446,7 @@ function renderStrip() {
     if (!R.locked) {
       if (i >= R.fs && i <= R.fe) { cls += ' in-frame'; }
       else if (i > R.fe && i <= R.fe + p) { cls += (R.keys[i] === R.keys[i - p] ? ' match' : ' differ'); }
-      else if (i < R.fs) { cls += ' head'; }
+      else if (i < R.fs && R.frameTouched) { cls += ' head'; }
     } else if (i >= R.s && i <= R.s + R.p - 1) {
       cls += ' locked';
       if (R.phase === 'count') { cls += ' tappable'; if (R.tapped[i]) { cls += ' tapped'; } }
@@ -1528,6 +1536,7 @@ function bindHandle(el, which) {
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* 不支持指针捕获时也能拖 */ }
     el.classList.add('drag');
     cacheRects();
+    R.frameTouched = true;
     R.ops = R.ops + 1; G.ops = G.ops + 1;
     moveHandle(which, e.clientX, e.clientY);
   });
@@ -1542,6 +1551,11 @@ function bindHandle(el, which) {
 }
 function moveHandle(which, cx, cy) {
   const box = $('#strip-box'), br = box.getBoundingClientRect();
+  /* 窄屏上足迹带可以左右滑动：指针拖到边缘附近时自动往那边滚，方便够到远处的卡片 */
+  if (box.scrollWidth > box.clientWidth + 2) {
+    if (cx > br.right - 64) { box.scrollLeft += 16; }
+    else if (cx < br.left + 64) { box.scrollLeft -= 16; }
+  }
   const x = cx - br.left - box.clientLeft + box.scrollLeft, y = cy - br.top - box.clientTop + box.scrollTop;
   const loc = locate(x, y, which), L = R.L;
   if (which === 's') {
@@ -1584,12 +1598,13 @@ function resizeCanvas() {
   const st = R ? R.stage : null;
   let need = 0;
   if (st && st.type === 'walk' && st.scene === 'stations') { need = 780; }
+  if (st && st.type === 'walk' && st.scene === 'houses') { need = 600; }   /* 房子之间要留足间距，窄屏上左右滑动查看 */
   CW = Math.max(visW, need);
   const narrow = CW < 700;
   let h;
   if (st && st.type === 'gems') { h = CW < 560 ? 640 : clamp(Math.min(CW * 0.52, window.innerHeight * 0.46), 330, 420); }
-  else if (st && st.type === 'walk' && st.path === 'ring') { h = narrow ? 450 : clamp(Math.min(CW * 0.55, window.innerHeight * 0.46), 340, 430); }
-  else if (st && st.scene === 'hand') { h = narrow ? 440 : clamp(Math.min(CW * 0.5, window.innerHeight * 0.46), 330, 430); }
+  else if (st && st.type === 'walk' && st.path === 'ring') { h = narrow ? 450 : clamp(Math.min(CW * 0.55, window.innerHeight * 0.52), 340, 440); }
+  else if (st && st.scene === 'hand') { h = narrow ? 440 : 430; }
   else if (st && (st.type === 'report' || st.type === 'phrase')) { h = narrow ? 350 : clamp(Math.min(CW * 0.46, window.innerHeight * 0.42), 290, 380); }
   else { h = narrow ? 350 : clamp(Math.min(CW * 0.5, window.innerHeight * 0.46), 310, 430); }
   CH = Math.round(h);
@@ -1704,17 +1719,18 @@ function lineGeom(st, top) {
   const padX = Math.max(44, CW * 0.05);
   const gap = (CW - padX * 2) / (st.n - 1);
   const y = top + (CH - top) * 0.50;
-  const rN = clamp(gap * 0.40, 17, 30);
+  const rN = st.scene === 'houses' ? clamp(gap * 0.30, 15, 26) : clamp(gap * 0.40, 17, 30);
   const pos = function (i) { return { x: padX + i * gap, y: y }; };
   return { padX: padX, gap: gap, y: y, rN: rN, pos: pos };
 }
 function handGeom(top) {
   const avail = CH - top - 12;
-  const palmW = Math.min(CW * 0.64, 340), palmH = Math.min(avail * 0.36, 130);
+  const palmW = Math.min(CW * 0.64, 340), palmH = Math.min(avail * 0.30, 120);
   const baseY = CH - 12;
   const palmX = CW / 2 - palmW / 2 + palmW * 0.07;
   const fw = palmW * 0.15;
-  const room = Math.max(90, avail - palmH - 88);
+  /* 指尖上方要留出三排数字（1～5、6～9、10、11）的位置 */
+  const room = Math.max(70, avail - palmH - 118);
   const hs = [0.84, 1, 0.9, 0.64].map(function (f) { return room * f; });
   const fingers = [];
   const ang = -Math.PI / 2 - 0.72, tl = room * 0.82;
@@ -1923,19 +1939,22 @@ function drawHandScene(st, top) {
     cx2d.restore();
   }
   txt(st.labels[cur], g.palmX + g.palmW / 2, g.palmY + g.palmH / 2, Math.min(34, g.palmH * 0.34), PAL.dark, 900);
+  /* 书上图的数数路线：1～5 在指尖上方一排（从大拇指数到小指），6～9 折返一排，10、11 再折上去 */
   const t = g.tips, fw = g.fw;
+  const rowA = Math.min(t[1].y, t[2].y, t[3].y, t[4].y) - 30, rowB = rowA - 38, rowC = rowB - 38;
   const nums = [
-    { v: '1', x: t[0].x - 6, y: t[0].y - 24 }, { v: '2', x: t[1].x, y: t[1].y - 22 }, { v: '3', x: t[2].x, y: t[2].y - 22 }, { v: '4', x: t[3].x, y: t[3].y - 22 },
-    { v: '5', x: t[4].x + fw * 0.95, y: t[4].y + 2 }, { v: '6', x: t[4].x + fw * 0.95, y: t[4].y + 36 },
-    { v: '7', x: (t[3].x + t[4].x) / 2, y: Math.min(t[3].y, t[4].y) + 34 }, { v: '8', x: (t[2].x + t[3].x) / 2, y: Math.min(t[2].y, t[3].y) + 34 },
-    { v: '9', x: t[0].x - 14, y: t[0].y + 12 }, { v: '10', x: t[1].x, y: t[1].y - 58 }, { v: '11', x: t[2].x, y: t[2].y - 58 },
-    { v: '……', x: t[3].x + fw * 0.6, y: t[3].y - 58 }
+    { v: '1', x: t[0].x, y: t[0].y - 26 },
+    { v: '2', x: t[1].x, y: rowA }, { v: '3', x: t[2].x, y: rowA }, { v: '4', x: t[3].x, y: rowA }, { v: '5', x: t[4].x, y: rowA },
+    { v: '6', x: t[4].x + fw * 0.42, y: rowB },
+    { v: '7', x: (t[3].x + t[4].x) / 2, y: rowB }, { v: '8', x: (t[2].x + t[3].x) / 2, y: rowB }, { v: '9', x: t[1].x - fw * 0.5, y: rowB },
+    { v: '10', x: t[1].x + fw * 0.15, y: rowC }, { v: '11', x: t[2].x + fw * 0.15, y: rowC },
+    { v: '……', x: t[3].x + fw * 0.15, y: rowC }
   ];
   const count = Math.min(Math.round(R.vis), endIdx) + 1;
   for (let i = 0; i < nums.length - 1; i++) {
     const a = nums[i], b = nums[i + 1];
     const ang = Math.atan2(b.y - a.y, b.x - a.x);
-    lineArrow(a.x + Math.cos(ang) * 15, a.y + Math.sin(ang) * 15, b.x - Math.cos(ang) * 16, b.y - Math.sin(ang) * 16, '#8a96a8', 2.5);
+    lineArrow(a.x + Math.cos(ang) * 15, a.y + Math.sin(ang) * 15, b.x - Math.cos(ang) * 20, b.y - Math.sin(ang) * 20, '#8a96a8', 2.5);
   }
   nums.forEach(function (n, i) {
     const on = count === i + 1;
@@ -2051,14 +2070,14 @@ function drawGemsScene(st, top) {
     cx2d.lineWidth = isGiver ? 5 : 3; cx2d.strokeStyle = isGiver ? PAL.accent : '#9fb3c8'; cx2d.stroke();
     if (isReceiver) {
       if (R.given[j]) {
-        rr(t.x + t.w - 104, t.y + 5, 96, 25, 13); cx2d.fillStyle = PAL.ok; cx2d.fill();
-        txt('已分到 1 颗', t.x + t.w - 56, t.y + 18, 15, '#ffffff', 900);
+        rr(t.x + t.w - 80, t.y + 5, 70, 25, 13); cx2d.fillStyle = PAL.ok; cx2d.fill();
+        txt('已分到', t.x + t.w - 45, t.y + 18, 15, '#ffffff', 900);
       } else {
-        txt('点这里接收', t.x + t.w - 52, t.y + 18, 15, '#52627a', 800);
+        txt('拖到这里', t.x + t.w - 12, t.y + 18, 15, '#52627a', 800, 'right', 'middle');
       }
     }
-    if (isGiver) { txt('今天由我来分', t.x + t.w - 56, t.y + 18, 15, PAL.accent, 900); }
-    txt(tup[j] + ' 颗', t.x + 40, t.y + 16, 18, '#17212e', 900);
+    if (isGiver) { txt('我来分', t.x + t.w - 12, t.y + 18, 15, PAL.accent, 900, 'right', 'middle'); }
+    txt(tup[j] + ' 颗', t.x + 12, t.y + 18, 18, '#17212e', 900, 'left', 'middle');
     gemPositions(lay, j, tup[j]).forEach(function (p) { drawGem(p.x, p.y, lay.g, false); });
   }
   if (gemDrag) {
@@ -2290,6 +2309,7 @@ function bindEvents() {
     if (R.locked || R.phase === 'done') { return; }
     if (e.target.closest('.handle')) { return; }
     if (i < R.fs) { R.fs = i; } else if (i > R.fe) { R.fe = i; } else { R.fs = i; R.fe = i; }
+    R.frameTouched = true;
     R.ops = R.ops + 1; G.ops = G.ops + 1; sfx('step');
     renderStrip();
   });
@@ -2397,7 +2417,7 @@ window.__PG = {
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-u/g003", "name": "\u5bfb\u627e\u9690\u85cf\u5468\u671f \u00b7 \u5468\u671f\u63a2\u9669\u961f\uff08\u7b2c4\u8bb2 \u4e92\u52a8\u6e38\u620f\uff09", "file": "g003.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u5bfb\u627e\u9690\u85cf\u5468\u671f\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c20\u8bb2\uff09", "unit": "\u7b2c4\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.5", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
+var M={"id": "gcol-ps-u/g003", "name": "\u5bfb\u627e\u9690\u85cf\u5468\u671f \u00b7 \u5468\u671f\u63a2\u9669\u961f\uff08\u7b2c4\u8bb2 \u4e92\u52a8\u6e38\u620f\uff09", "file": "g003.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u5bfb\u627e\u9690\u85cf\u5468\u671f\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c20\u8bb2\uff09", "unit": "\u7b2c4\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.6", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
