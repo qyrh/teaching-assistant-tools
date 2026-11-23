@@ -1,1059 +1,1779 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>位值魔法工坊 · 数字拼装大闯关</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>轮转数摩天轮 · 巧算挑战</title>
 <style>
-/* ================= 全局样式（配色通过 CSS 变量随机化，见 JS 中的色板） ================= */
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html,body{ margin:0; padding:0; }
+/* ============================================================
+   轮转数摩天轮 · 巧算挑战（第27讲 轮转数求和）
+   单文件自包含：纯内联 CSS + JS，零外部依赖
+   ============================================================ */
+:root{
+  --p:#1565C0;            /* 主色（随机色板切换） */
+  --a:#FFCA28;            /* 强调色 */
+  --bg:#E3F2FD;           /* 背景色 */
+  --ink:#263238;          /* 正文墨色 */
+  --card:#FFFFFF;
+  --pos0:#E53935;         /* 数位颜色：第1位（最高位） */
+  --pos1:#FB8C00;
+  --pos2:#43A047;
+  --pos3:#1E88E5;
+  --pos4:#8E24AA;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
 body{
-  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
-  background:var(--bg); color:var(--ink);
-  font-size:18px; line-height:1.5;
-  -webkit-user-select:none; user-select:none;
-  -webkit-touch-callout:none;
-}
-#app{ max-width:980px; margin:0 auto; padding:10px 12px 40px; }
-
-/* ---------- 顶部信息栏（计时 / 步数 / 星星） ---------- */
-#hud{
-  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;
-  background:var(--c1); color:#fff; border-radius:14px; padding:8px 16px; margin-bottom:12px;
-  box-shadow:0 4px 0 rgba(0,0,0,.12);
-}
-#hud .hud-title{ font-size:22px; font-weight:800; letter-spacing:1px; }
-#hud .hud-stats{ display:flex; gap:14px; flex-wrap:wrap; font-size:18px; font-weight:700; }
-#hud .hud-pal{ font-size:15px; opacity:.92; }
-
-/* ---------- 通用 ---------- */
-.hidden{ display:none !important; }
-.screen{ animation:fadeIn .35s ease; }
-@keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
-
-.btn{
-  font-size:20px; font-weight:800; padding:10px 20px; border-radius:12px;
-  border:3px solid var(--c1); background:var(--c1); color:#fff; cursor:pointer;
+  font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif;
+  background:linear-gradient(165deg,var(--bg) 0%,#FFFFFF 72%);
+  background-attachment:fixed;
+  color:var(--ink);
+  min-height:100vh;
   touch-action:manipulation;
 }
-.btn:active{ transform:translateY(2px); }
-.btn-ghost{ background:#fff; color:var(--ink); border-color:var(--c2); }
-.btn[disabled]{ opacity:.45; cursor:not-allowed; }
+body.in-menu #topbar{display:none;}
+#app{max-width:1020px;margin:0 auto;padding:12px 14px 46px;}
 
-/* ---------- 难度大厅 ---------- */
-#screen-menu{ text-align:center; padding-top:16px; }
-#screen-menu h1{ font-size:40px; margin:10px 0 4px; color:var(--c1); text-shadow:2px 2px 0 rgba(0,0,0,.08); }
-#screen-menu .subtitle{ font-size:20px; color:var(--ink); opacity:.85; margin:0 0 22px; }
-.diff-cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:22px; }
-.diff-btn{
-  background:#fff; border:4px solid var(--c1); border-radius:18px; padding:20px 12px;
-  cursor:pointer; display:flex; flex-direction:column; gap:8px; align-items:center;
-  box-shadow:0 6px 0 var(--c3); transition:transform .15s;
-  font-family:inherit; color:var(--ink);
+/* ---------- 顶栏 ---------- */
+#topbar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  background:var(--card);border-radius:18px;padding:10px 16px;
+  box-shadow:0 4px 14px rgba(38,50,56,.10);margin-bottom:14px;
 }
-.diff-btn:hover{ transform:translateY(-4px); }
-.diff-btn:active{ transform:translateY(2px); box-shadow:0 2px 0 var(--c3); }
-.diff-tag{ font-size:17px; font-weight:800; color:#fff; background:var(--c2); border-radius:999px; padding:2px 16px; }
-.diff-btn b{ font-size:26px; }
-.diff-btn i{ font-style:normal; font-size:16px; opacity:.8; }
-.menu-tip{ font-size:16px; opacity:.75; margin-top:14px; }
-
-/* ---------- 游戏区 ---------- */
-.game-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
-.game-top .btn{ font-size:17px; padding:6px 14px; }
-#progress-dots{ display:flex; gap:10px; align-items:center; font-size:17px; font-weight:700; }
-.dot{ width:16px; height:16px; border-radius:50%; border:3px solid var(--c2); background:#fff; }
-.dot.cur{ background:var(--c3); border-color:var(--c1); transform:scale(1.2); }
-.dot.done{ background:var(--c1); border-color:var(--c1); }
-
-#puzzle-card{
-  background:#fff; border:3px solid var(--c1); border-radius:16px;
-  padding:14px 18px; margin-bottom:14px; box-shadow:0 4px 0 rgba(0,0,0,.08);
+#logo{font-size:22px;font-weight:800;color:var(--p);display:flex;align-items:center;gap:8px;}
+#logo .wheel-ico{width:30px;height:30px;border-radius:50%;border:4px solid var(--a);
+  border-top-color:var(--p);animation:spin 5s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#stats{display:flex;gap:14px;font-weight:700;font-size:16px;color:var(--ink);flex-wrap:wrap;}
+#stats span{background:var(--bg);padding:4px 12px;border-radius:999px;white-space:nowrap;}
+#tools{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;}
+.tbtn{
+  border:none;border-radius:12px;padding:9px 14px;font-size:16px;font-weight:700;
+  background:var(--bg);color:var(--p);cursor:pointer;min-height:42px;
 }
-.puzzle-meta{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
-#puzzle-name{ font-size:20px; font-weight:800; color:var(--c2); }
-#puzzle-index{ font-size:17px; font-weight:700; opacity:.75; }
-#puzzle-text{ margin:4px 0 10px; font-size:20px; }
-.target-chip{
-  display:inline-block; background:var(--c3); color:#3a2c00; font-size:20px; font-weight:800;
-  padding:6px 18px; border-radius:999px; border:2px solid rgba(0,0,0,.15);
+.tbtn:active{transform:scale(.96);}
+.tbtn.warn{background:#FFF3CD;color:#8a6d00;}
+
+/* ---------- 难度菜单 ---------- */
+#screen-menu{padding-top:16px;}
+.menu-title{font-size:clamp(26px,5vw,40px);font-weight:900;color:var(--p);text-align:center;margin:10px 0 6px;}
+.menu-sub{font-size:18px;text-align:center;color:var(--ink);margin:0 0 22px;}
+.menu-cards{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;}
+.menu-card{
+  flex:1 1 240px;max-width:300px;border:none;border-radius:20px;cursor:pointer;
+  padding:22px 18px;text-align:left;background:var(--card);color:var(--ink);
+  box-shadow:0 6px 16px rgba(38,50,56,.12);border-top:8px solid var(--p);
+  transition:transform .15s ease, box-shadow .15s ease;min-height:190px;
+}
+.menu-card:hover{transform:translateY(-4px);box-shadow:0 10px 22px rgba(38,50,56,.18);}
+.menu-card h3{font-size:24px;margin:0 0 8px;color:var(--p);}
+.menu-card .lv{font-size:15px;font-weight:800;color:#fff;background:var(--p);
+  display:inline-block;padding:3px 12px;border-radius:999px;margin-bottom:10px;}
+.menu-card p{font-size:16px;line-height:1.6;margin:0;}
+.menu-tip{
+  margin:26px auto 0;max-width:760px;background:var(--card);border-radius:18px;
+  padding:16px 20px;box-shadow:0 4px 14px rgba(38,50,56,.08);font-size:17px;line-height:1.8;
+}
+.menu-tip b{color:var(--p);}
+
+/* ---------- 游戏界面通用 ---------- */
+#screen-game{display:flex;flex-direction:column;gap:14px;}
+#taskcard{background:var(--card);border-radius:18px;padding:14px 20px;
+  box-shadow:0 4px 14px rgba(38,50,56,.10);border-left:10px solid var(--a);}
+#task-head{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  font-size:16px;font-weight:700;color:var(--p);}
+#task-goal{color:#8a6d00;}
+#task-expr{font-size:clamp(24px,4.6vw,36px);font-weight:900;letter-spacing:1px;margin-top:6px;word-break:break-all;}
+#task-note{margin-top:8px;font-size:15px;background:#FFF8E1;border-radius:10px;padding:8px 12px;color:#7a5c00;}
+#progress{display:flex;gap:10px;align-items:center;font-weight:700;font-size:16px;}
+.dot{width:38px;height:38px;border-radius:50%;background:var(--card);border:3px solid #cfd8dc;
+  display:flex;align-items:center;justify-content:center;font-size:15px;color:#90a4ae;}
+.dot.current{border-color:var(--p);color:var(--p);box-shadow:0 0 0 4px rgba(21,101,192,.15);}
+.dot.done{border-color:#43A047;background:#E8F5E9;color:#2e7d32;}
+#msg{
+  background:var(--card);border-radius:14px;padding:12px 18px;font-size:18px;font-weight:700;
+  color:var(--p);box-shadow:0 3px 10px rgba(38,50,56,.08);min-height:48px;
+}
+#msg.bump{animation:bump .35s ease;}
+@keyframes bump{0%{transform:scale(.97);}55%{transform:scale(1.02);}100%{transform:scale(1);}}
+
+/* ---------- 探索区（摩天轮 / 方阵） ---------- */
+#stage{display:flex;flex-direction:column;gap:16px;}
+.explore-row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;justify-content:center;}
+.wheel-wrap{position:relative;width:min(340px,88vw);height:min(340px,88vw);padding:34px;flex:0 0 auto;}
+.wheel{
+  position:absolute;inset:34px;border-radius:50%;
+  background:radial-gradient(circle at 50% 42%,#ffffff 0%,#f4f7fa 70%);
+  border:10px solid var(--p);box-shadow:inset 0 0 0 6px var(--a),0 10px 24px rgba(38,50,56,.16);
+  touch-action:none;cursor:grab;
+}
+.wheel:active{cursor:grabbing;}
+.seat{position:absolute;left:50%;top:50%;width:0;height:0;}
+.bub{
+  position:absolute;left:-27px;top:-27px;width:54px;height:54px;border-radius:50%;
+  background:var(--a);color:#4e4000;font-size:27px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;
+  border:3px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.18);
+}
+.hub{
+  position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;
+  background:var(--p);color:#fff;font-size:24px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;border:5px solid #fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.25);pointer-events:none;
+}
+.mark{
+  position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;
+}
+.mark span{
+  position:absolute;left:-30px;top:-14px;width:60px;height:28px;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;
+}
+.mark.pos0 span{background:var(--pos0);}
+.mark.pos1 span{background:var(--pos1);}
+.mark.pos2 span{background:var(--pos2);}
+.mark.pos3 span{background:var(--pos3);}
+.mark.pos4 span{background:var(--pos4);}
+.side{flex:1 1 300px;min-width:280px;display:flex;flex-direction:column;gap:14px;}
+.panel{background:var(--card);border-radius:16px;padding:14px 16px;box-shadow:0 3px 10px rgba(38,50,56,.08);}
+.panel h4{margin:0 0 10px;font-size:17px;color:var(--p);}
+#read-slots{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+.rslot{display:flex;flex-direction:column;align-items:center;gap:5px;}
+.rslot .pl{font-size:14px;font-weight:800;padding:2px 10px;border-radius:999px;color:#fff;}
+.rslot.p0 .pl{background:var(--pos0);}
+.rslot.p1 .pl{background:var(--pos1);}
+.rslot.p2 .pl{background:var(--pos2);}
+.rslot.p3 .pl{background:var(--pos3);}
+.rslot.p4 .pl{background:var(--pos4);}
+.rslot .dv{
+  width:56px;height:64px;border-radius:12px;background:#f4f7fa;border:3px solid #b0bec5;
+  font-size:34px;font-weight:900;display:flex;align-items:center;justify-content:center;
+}
+.rslot .dv.lead0{color:#b0bec5;border-style:dashed;}
+#read-note{font-size:15px;color:#7a5c00;margin-top:8px;min-height:20px;}
+.shelf{display:flex;gap:12px;flex-wrap:wrap;}
+.shelf-item{
+  min-width:86px;text-align:center;padding:10px 12px;border-radius:14px;background:#eceff1;
+  border:3px dashed #b0bec5;font-size:24px;font-weight:900;color:#b0bec5;
+}
+.shelf-item.lit{
+  background:#E8F5E9;border:3px solid #43A047;color:#2e7d32;
+  animation:pop .4s ease;
+}
+@keyframes pop{0%{transform:scale(.6);}60%{transform:scale(1.12);}100%{transform:scale(1);}}
+.wheel-btn-row{display:flex;gap:12px;flex-wrap:wrap;}
+.btn-main{
+  border:none;border-radius:14px;background:var(--p);color:#fff;font-size:19px;font-weight:800;
+  padding:13px 26px;cursor:pointer;box-shadow:0 5px 12px rgba(21,101,192,.3);min-height:50px;
+}
+.btn-main:disabled{background:#b0bec5;box-shadow:none;cursor:not-allowed;}
+.btn-main:not(:disabled):active{transform:scale(.97);}
+
+/* ---------- 中级：轮转方阵 ---------- */
+.lgrid-wrap{display:flex;flex-direction:column;gap:14px;align-items:center;}
+.lgrid{display:grid;gap:10px;}
+.lg-head{display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;border-radius:8px;}
+.lg-corner{display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:var(--p);}
+.cell{
+  width:62px;height:62px;border-radius:12px;background:#f4f7fa;border:3px solid #b0bec5;
+  font-size:30px;font-weight:900;display:flex;align-items:center;justify-content:center;
+  touch-action:none;
+}
+.cell.fixed{background:var(--p);color:#fff;border-color:var(--p);}
+.cell.hint{background:#FFF8E1;border-color:var(--a);color:#7a5c00;}
+.cell.filled{background:#fff;border-color:var(--p);color:var(--ink);}
+.cell .lead0cell{color:#b0bec5;}
+.cell.bad{animation:shake .4s ease;border-color:var(--pos0);background:#FFEBEE;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+.cell.rowdone{border-color:#43A047;}
+.colglow{outline:4px solid var(--a);outline-offset:2px;}
+/* hidden 属性兜底：防止 display:flex 覆盖隐藏 */
+[hidden]{display:none !important;}
+
+/* ---------- 拖拽芯片与托盘 ---------- */
+.tray-row{display:flex;gap:16px;flex-wrap:wrap;}
+.tray{flex:1 1 260px;background:var(--card);border-radius:16px;padding:12px 14px;
+  box-shadow:0 3px 10px rgba(38,50,56,.08);}
+.tray-title{font-size:16px;font-weight:800;color:var(--p);margin-bottom:10px;}
+.tray-chips{display:flex;gap:12px;flex-wrap:wrap;min-height:64px;}
+.chip{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border-radius:14px;font-weight:900;cursor:grab;touch-action:none;user-select:none;
+  -webkit-user-select:none;box-shadow:0 3px 8px rgba(38,50,56,.15);
+}
+.chip-digit{width:56px;height:56px;font-size:28px;background:var(--a);color:#4e4000;border:3px solid #fff;}
+.chip-tower{padding:8px 14px;font-size:22px;background:#E8F5E9;color:#2e7d32;border:3px solid #43A047;flex-direction:column;gap:2px;}
+.chip-tower .tstack{display:flex;flex-direction:column;gap:2px;}
+.chip-tower .tstack i{display:block;width:26px;height:9px;border-radius:3px;background:#43A047;}
+.chip-div{padding:10px 16px;font-size:24px;background:#EDE7F6;color:#4527a0;border:3px solid #8E24AA;}
+.ghost{position:fixed;z-index:999;opacity:.9;pointer-events:none;margin:0;transform:scale(1.06);}
+.dropzone{transition:box-shadow .15s ease, background .15s ease;}
+.dz-hot{outline:4px dashed var(--p);outline-offset:3px;background:#E3F2FD !important;}
+
+/* ---------- 分解表 ---------- */
+#breakdown{background:var(--card);border-radius:18px;padding:16px 18px;box-shadow:0 4px 14px rgba(38,50,56,.10);}
+#breakdown h3{margin:0 0 12px;color:var(--p);font-size:20px;}
+.bk-scroll{overflow-x:auto;padding-bottom:6px;}
+table.bk{border-collapse:separate;border-spacing:8px 6px;}
+table.bk th{font-size:16px;font-weight:800;color:#fff;border-radius:8px;padding:6px 12px;}
+table.bk th.h0{background:var(--pos0);}
+table.bk th.h1{background:var(--pos1);}
+table.bk th.h2{background:var(--pos2);}
+table.bk th.h3{background:var(--pos3);}
+table.bk th.h4{background:var(--pos4);}
+table.bk th.corner{background:#cfd8dc;color:var(--ink);}
+table.bk td{
+  min-width:56px;text-align:center;font-size:26px;font-weight:900;background:#f4f7fa;
+  border-radius:10px;padding:8px 10px;border:3px solid transparent;
+}
+table.bk td.lead0{color:#b0bec5;}
+table.bk td.sumrow{background:#E8F5E9;color:#2e7d32;font-size:22px;}
+table.bk td.on{border-color:var(--a);animation:pop .4s ease;}
+.bk-banner{
+  margin-top:12px;background:#FFF8E1;border:3px solid var(--a);border-radius:14px;
+  padding:12px 16px;font-size:19px;font-weight:800;color:#7a5c00;line-height:1.7;
 }
 
-/* ---------- 位值工坊：槽位 ---------- */
-#workshop{ background:#fff; border:3px dashed var(--c2); border-radius:16px; padding:16px 12px; margin-bottom:14px; }
-#slots-area{ display:flex; justify-content:center; flex-wrap:wrap; gap:18px; margin-bottom:16px; }
+/* ---------- 拼装区 ---------- */
+#assembly{display:flex;flex-direction:column;gap:16px;background:var(--card);
+  border-radius:18px;padding:16px 18px;box-shadow:0 4px 14px rgba(38,50,56,.10);}
+#assembly h3{margin:0;color:var(--p);font-size:20px;}
+.asm-bar{display:flex;gap:16px;align-items:stretch;flex-wrap:wrap;}
+.bag{
+  flex:1 1 220px;min-height:120px;border:4px dashed var(--p);border-radius:18px;
+  background:#F3F8FF;padding:10px 14px;text-align:center;
+}
+.bag-title{font-size:16px;font-weight:800;color:var(--p);margin-bottom:8px;}
+.bag-expr{font-size:26px;font-weight:900;color:var(--ink);min-height:36px;line-height:1.4;word-break:break-all;}
+.bag.sealed{border-style:solid;background:#E8F5E9;border-color:#43A047;}
+.bag.sealed .bag-expr{color:#2e7d32;}
+.asm-op{display:flex;align-items:center;font-size:44px;font-weight:900;color:var(--p);}
 .slot{
-  width:86px; background:var(--bg); border:3px dashed var(--c2); border-radius:14px;
-  text-align:center; padding:8px 4px; cursor:pointer; touch-action:none;
-  transition:transform .12s, box-shadow .12s;
+  flex:1 1 180px;min-height:120px;border:4px dashed #8E24AA;border-radius:18px;
+  background:#F7F3FF;padding:10px 14px;text-align:center;
 }
-.slot .slot-label{ font-size:16px; font-weight:700; opacity:.85; }
-.slot .slot-mult{ font-size:16px; color:var(--c2); font-weight:800; }
-.slot .slot-digit{
-  font-size:36px; font-weight:900; min-height:48px; line-height:48px; margin-top:4px;
-  color:var(--c1);
-}
-.slot.filled{ border-style:solid; background:#fff; box-shadow:0 3px 0 var(--c3); }
-.slot.locked{ border-style:solid; background:#e8e8e8; cursor:default; }
-.slot.drag-over{ transform:scale(1.1); border-color:var(--c1); box-shadow:0 0 0 5px rgba(0,0,0,.08); }
+.slot-title{font-size:16px;font-weight:800;color:#8E24AA;margin-bottom:8px;}
+.slot-body{font-size:24px;font-weight:900;color:var(--ink);min-height:36px;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:center;}
+.slot.filled{border-style:solid;background:#EDE7F6;border-color:#8E24AA;}
+.slot-body .tstack{display:flex;flex-direction:column;gap:3px;}
+.slot-body .tstack i{display:block;width:34px;height:12px;border-radius:4px;background:#8E24AA;}
+.slot-body .lead0{color:#b0bec5;}
+#formula{background:#F3F8FF;border-radius:16px;padding:14px 18px;font-size:clamp(20px,3.6vw,28px);
+  font-weight:900;color:var(--ink);line-height:2;text-align:center;word-break:break-all;}
+#formula .hl{color:var(--p);}
+#formula .vf{font-size:18px;color:#2e7d32;font-weight:800;}
 
-.pool-hint{ text-align:center; font-size:16px; opacity:.8; margin-bottom:10px; }
-#pool-area{ display:flex; justify-content:center; flex-wrap:wrap; gap:12px; }
-.card{
-  width:56px; height:68px; border-radius:12px; background:var(--c1); color:#fff;
-  font-size:32px; font-weight:900; display:flex; align-items:center; justify-content:center;
-  cursor:grab; touch-action:none; border:3px solid rgba(0,0,0,.15);
-  box-shadow:0 4px 0 rgba(0,0,0,.18); transition:transform .12s;
+/* ---------- 高级工作台 ---------- */
+.wb-strip{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;justify-content:center;}
+.wb-cell{
+  flex:1 1 170px;min-height:104px;border:4px dashed var(--p);border-radius:16px;
+  background:#F3F8FF;padding:8px 12px;text-align:center;
 }
-.card.selected{ outline:5px solid var(--c2); transform:translateY(-6px); }
+.wb-cell-t{font-size:15px;font-weight:800;color:var(--p);margin-bottom:6px;}
+.wb-cell-b{font-size:24px;font-weight:900;min-height:32px;word-break:break-all;line-height:1.35;}
+.wb-cell.sealed{border-style:solid;background:#E8F5E9;border-color:#43A047;}
+.wb-op{display:flex;align-items:center;font-size:38px;font-weight:900;color:var(--p);}
+.wb-socket{
+  flex:0 1 130px;min-height:104px;border:4px dashed #8E24AA;border-radius:16px;background:#F7F3FF;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  font-size:15px;font-weight:800;color:#8E24AA;padding:6px;text-align:center;
+}
+.wb-socket .placed{
+  font-size:26px;font-weight:900;color:#4527a0;background:#fff;border-radius:12px;
+  padding:8px 16px;border:3px solid #8E24AA;cursor:pointer;
+}
+.wb-socket.off{opacity:.35;}
+#machine-log{display:flex;flex-direction:column;gap:10px;}
+.mstep{
+  background:#F3F8FF;border-radius:14px;padding:12px 18px;font-size:clamp(20px,3.4vw,26px);
+  font-weight:900;color:var(--ink);border-left:8px solid var(--a);animation:pop .4s ease;word-break:break-all;
+}
+.mstep.final{background:#E8F5E9;border-left-color:#43A047;color:#2e7d32;font-size:clamp(24px,4.4vw,32px);}
 
-/* ---------- 实时魔法算式面板 ---------- */
-#live-panel{
-  background:#fff; border:3px solid var(--c2); border-radius:16px;
-  padding:12px 18px; margin-bottom:14px; box-shadow:0 4px 0 rgba(0,0,0,.06);
-}
-.live-title{ font-size:18px; font-weight:800; color:var(--c2); margin-bottom:6px; }
-.live-line{ display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; font-size:19px; margin:7px 0; }
-.live-eq{ color:#555; }
-.live-val{ font-size:23px; font-weight:900; color:var(--ink); }
-.live-line.hit .live-val{ background:var(--c3); color:#3a2c00; padding:0 10px; border-radius:8px; }
-.live-note{ font-size:17px; color:#b3541e; font-weight:700; margin-top:6px; }
-.live-note.good{ color:#1d7a4f; }
-#perm-grid{ display:grid; grid-template-columns:repeat(3,minmax(100px,1fr)); gap:12px; margin:10px 0; }
-.perm-cell{
-  background:var(--bg); border:2px solid var(--c3); border-radius:12px;
-  text-align:center; padding:6px 4px;
-}
-.perm-label{ font-size:16px; opacity:.75; font-weight:700; }
-.perm-val{ font-size:26px; font-weight:900; color:var(--c1); }
-.flip-box{
-  margin-top:8px; background:var(--bg); border:3px solid var(--c1); border-radius:12px;
-  padding:10px 14px; font-size:19px; font-weight:800; animation:popIn .5s ease;
-}
-@keyframes popIn{ from{transform:scale(.6); opacity:0;} to{transform:scale(1); opacity:1;} }
-
-/* ---------- 天平画布 ---------- */
-#balance-wrap{ text-align:center; margin-bottom:14px; }
-#balance-canvas{ max-width:100%; background:#fff; border:3px solid var(--c2); border-radius:16px; }
-
-/* ---------- 解析面板 ---------- */
-#explain-panel{
-  background:#FFFBEA; border:3px solid var(--c3); border-radius:16px;
-  padding:14px 18px; margin-bottom:14px; animation:fadeIn .4s ease;
-}
-.explain-title{ font-size:20px; font-weight:900; color:#8a6d00; margin-bottom:6px; }
-#explain-panel p{ margin:6px 0; font-size:19px; }
-
-/* ---------- 操作按钮区 ---------- */
-#action-bar{ display:flex; justify-content:center; flex-wrap:wrap; gap:14px; margin-bottom:10px; }
+/* ---------- 下一轮 / 结算 ---------- */
+#nextwrap{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;}
 
 /* ---------- 弹窗 ---------- */
-.modal{
-  position:fixed; inset:0; background:rgba(20,20,30,.5); z-index:50;
-  display:flex; align-items:center; justify-content:center; padding:14px;
+#modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;}
+#modal[hidden]{display:none;}
+.modal-mask{position:absolute;inset:0;background:rgba(38,50,56,.45);}
+.modal-card{
+  position:relative;background:#fff;border-radius:22px;max-width:620px;width:100%;
+  max-height:86vh;overflow-y:auto;padding:24px 26px;box-shadow:0 18px 44px rgba(0,0,0,.28);
+  animation:pop .3s ease;
 }
-.modal-box{
-  background:#fff; border-radius:18px; border:4px solid var(--c1);
-  padding:20px 22px; width:min(600px,94vw); max-height:86vh; overflow:auto;
-  box-shadow:0 10px 30px rgba(0,0,0,.3);
-}
-.modal-box h2{ margin:0 0 10px; font-size:26px; color:var(--c1); }
-.modal-box .rule-block{ font-size:18px; margin:10px 0; }
-.modal-box .rule-block b{ color:var(--c2); }
-.modal-close{ text-align:center; margin-top:14px; }
+.modal-card h2{color:var(--p);font-size:24px;margin:0 0 14px;}
+.modal-card .m-body{font-size:17px;line-height:1.9;}
+.modal-card .m-body ol{padding-left:22px;margin:8px 0;}
+.modal-card .m-body li{margin-bottom:6px;}
+.modal-card .m-body b{color:var(--p);}
+.sol-line{background:#F3F8FF;border-radius:12px;padding:10px 14px;margin:8px 0;font-weight:800;
+  font-size:18px;word-break:break-all;border-left:6px solid var(--a);}
+.modal-btns{display:flex;gap:12px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;}
 
-/* ---------- 通关庆祝 ---------- */
-#win-overlay .modal-box{ text-align:center; }
-#win-stars{ font-size:54px; letter-spacing:8px; color:#f5b301; text-shadow:2px 2px 0 rgba(0,0,0,.15); }
-#win-overlay h2{ font-size:34px; }
-#win-stats{ font-size:20px; font-weight:700; margin:12px 0 18px; line-height:1.8; }
-#win-overlay .win-btns{ display:flex; justify-content:center; gap:14px; flex-wrap:wrap; }
-
-/* ---------- 拖拽幽灵 / 提示气泡 / 彩带 ---------- */
-#drag-ghost{
-  position:fixed; z-index:70; width:56px; height:68px; border-radius:12px;
-  background:var(--c1); color:#fff; font-size:32px; font-weight:900;
-  display:flex; align-items:center; justify-content:center;
-  pointer-events:none; opacity:.92; box-shadow:0 8px 18px rgba(0,0,0,.3);
-  transform:translate(-50%,-60%);
+/* ---------- 庆祝 ---------- */
+#celebrate{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;padding:16px;}
+#celebrate[hidden]{display:none;}
+.cel-mask{position:absolute;inset:0;background:rgba(38,50,56,.5);}
+.cel-card{
+  position:relative;background:#fff;border-radius:26px;padding:34px 30px;text-align:center;
+  max-width:520px;width:100%;box-shadow:0 18px 44px rgba(0,0,0,.3);animation:pop .5s ease;
 }
-#toast{
-  position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
-  background:rgba(25,25,35,.88); color:#fff; font-size:18px; font-weight:700;
-  padding:10px 22px; border-radius:999px; z-index:80; max-width:88vw; text-align:center;
-  animation:toastIn .25s ease;
-}
-@keyframes toastIn{ from{transform:translate(-50%,14px); opacity:0;} to{transform:translate(-50%,0); opacity:1;} }
-#confetti{ position:fixed; inset:0; pointer-events:none; z-index:65; }
+.cel-stars{font-size:56px;letter-spacing:8px;color:#FFB300;text-shadow:0 3px 0 #e6a100;}
+.cel-card h2{color:var(--p);font-size:28px;margin:10px 0 6px;}
+#cel-stats{font-size:19px;font-weight:700;line-height:1.9;}
+.cel-btns{display:flex;gap:14px;justify-content:center;margin-top:20px;flex-wrap:wrap;}
 
-/* ---------- 移动端适配 ---------- */
+/* ---------- 彩纸画布 ---------- */
+#fx{position:fixed;inset:0;z-index:80;pointer-events:none;}
+
 @media (max-width:640px){
-  #screen-menu h1{ font-size:30px; }
-  .diff-cards{ grid-template-columns:1fr; }
-  .slot{ width:70px; }
-  .slot .slot-digit{ font-size:30px; min-height:40px; line-height:40px; }
-  .card{ width:48px; height:58px; font-size:26px; }
-  #puzzle-text{ font-size:18px; }
-  .live-line{ font-size:17px; }
-  .live-val{ font-size:20px; }
-  #perm-grid{ grid-template-columns:repeat(3,1fr); gap:8px; }
-  .perm-val{ font-size:20px; }
+  .cell{width:52px;height:52px;font-size:25px;}
+  .bub{width:46px;height:46px;left:-23px;top:-23px;font-size:23px;}
+  #tools{margin-left:0;width:100%;justify-content:space-between;}
+  .asm-op,.wb-op{width:100%;justify-content:center;}
 }
 </style>
 </head>
-<body>
+<body class="in-menu">
 <div id="app">
-
-  <!-- ============ 顶部信息栏：标题 + 计时/步数/星星（G7） ============ -->
-  <header id="hud">
-    <div class="hud-title">位值魔法工坊</div>
-    <div class="hud-stats">
-      <span id="hud-timer">计时 00:00</span>
-      <span id="hud-steps">步数 0</span>
-      <span id="hud-stars">星星 0/3</span>
-      <span class="hud-pal" id="hud-pal"></span>
+  <!-- ============ 顶栏：标题 + 统计 + 功能按钮 ============ -->
+  <header id="topbar">
+    <div id="logo"><span class="wheel-ico"></span>轮转数摩天轮</div>
+    <div id="stats">
+      <span id="st-time">时间 00:00</span>
+      <span id="st-steps">步数 0</span>
+      <span id="st-stars">星星 0</span>
+    </div>
+    <div id="tools">
+      <button class="tbtn" id="btn-rules">规则说明</button>
+      <button class="tbtn warn" id="btn-reveal">揭示答案</button>
+      <button class="tbtn" id="btn-restart">重新开始</button>
+      <button class="tbtn" id="btn-back">返回难度</button>
     </div>
   </header>
 
-  <!-- ============ 难度大厅（G3：三档难度） ============ -->
-  <section id="screen-menu" class="screen">
-    <h1>位值魔法工坊</h1>
-    <p class="subtitle">拖动数字卡，把数字拼进位值槽，玩着玩着就懂"位值原理"！</p>
-    <div class="diff-cards">
-      <button class="diff-btn" data-diff="1">
-        <span class="diff-tag">初级</span><b>学徒试炼</b>
-        <i>两位数与反转数的和差魔法</i>
-      </button>
-      <button class="diff-btn" data-diff="2">
-        <span class="diff-tag">中级</span><b>大师之路</b>
-        <i>数字塔与六兄弟的挑战</i>
-      </button>
-      <button class="diff-btn" data-diff="3">
-        <span class="diff-tag">高级</span><b>传奇挑战</b>
-        <i>天平平衡与反转镜之谜</i>
-      </button>
-    </div>
-    <button id="btn-rules-menu" class="btn btn-ghost">玩法规则</button>
-    <p class="menu-tip">每一局的关卡和色板都是随机抽取的，玩多少次都不重样！</p>
-  </section>
-
-  <!-- ============ 游戏主界面 ============ -->
-  <section id="screen-game" class="screen hidden">
-    <div class="game-top">
-      <button id="btn-back" class="btn btn-ghost">返回难度选择</button>
-      <div id="progress-dots"></div>
-      <button id="btn-rules" class="btn btn-ghost">规则</button>
-    </div>
-
-    <!-- 题目卡：完整呈现题干条件与目标（G14） -->
-    <div id="puzzle-card">
-      <div class="puzzle-meta">
-        <span id="puzzle-name"></span>
-        <span id="puzzle-index"></span>
+  <main>
+    <!-- ============ 难度选择菜单 ============ -->
+    <section id="screen-menu">
+      <h1 class="menu-title">轮转数摩天轮 · 巧算挑战</h1>
+      <p class="menu-sub">第27讲 · 轮转数求和（专题六 特殊数的计算）</p>
+      <div class="menu-cards">
+        <button class="menu-card" data-diff="easy">
+          <h3>摩天轮启航</h3>
+          <span class="lv">初级</span>
+          <p>三位数轮转家族：转动摩天轮，收集 235、352、523 这样的轮转数，发现每一列藏着的规律，拼出巧算公式！</p>
+        </button>
+        <button class="menu-card" data-diff="mid">
+          <h3>轮转方阵</h3>
+          <span class="lv">中级</span>
+          <p>四位数轮转方阵：拖动数字卡补全方阵，让每一行都是轮转伙伴。小心开头的 0 会藏起来哦！</p>
+        </button>
+        <button class="menu-card" data-diff="hard">
+          <h3>巧算机器</h3>
+          <span class="lv">高级</span>
+          <p>大数目除法挑战：装满数字和袋子、选对「1」塔，再把「÷」积木放到更轻松的位置，启动机器巧算！</p>
+        </button>
       </div>
-      <p id="puzzle-text"></p>
-      <div id="puzzle-target" class="target-chip"></div>
-    </div>
+      <div class="menu-tip">
+        <b>轮转数小秘诀：</b>几个数字轮流当排头，就得到一组轮转数（如 235、352、523）。<br/>
+        转一圈你会发现：<b>每个数字在百位、十位、个位都恰好各出现一次</b>，所以每一列的和都等于数字和。<br/>
+        于是 <b>总和 = 数字和 × 111</b>（三位数乘 111，四位数乘 1111，五位数乘 11111）。
+      </div>
+    </section>
 
-    <!-- 位值工坊：上方为位值槽（放置区），下方为数字卡池 -->
-    <div id="workshop">
-      <div id="slots-area"></div>
-      <div class="pool-hint">数字卡可以重复使用：把卡片拖到上方位值槽；也可以先点卡片、再点位值槽。点槽里的数字可以取下。</div>
-      <div id="pool-area"></div>
-    </div>
-
-    <!-- 实时魔法算式：每放一张卡立即重算，操作过程即思考过程（G1/G2） -->
-    <div id="live-panel"></div>
-
-    <!-- 天平（仅"反转天平"类关卡显示） -->
-    <div id="balance-wrap" class="hidden">
-      <canvas id="balance-canvas" width="380" height="250"></canvas>
-    </div>
-
-    <!-- 解析面板：通关或揭示后显示 -->
-    <div id="explain-panel" class="hidden">
-      <div class="explain-title">位值小课堂 · 解析</div>
-      <div id="explain-body"></div>
-    </div>
-
-    <!-- 操作按钮（G4：揭示答案 / 重新开始 / 返回难度选择） -->
-    <div id="action-bar">
-      <button id="btn-reveal" class="btn">揭示答案</button>
-      <button id="btn-restart" class="btn btn-ghost">重新开始</button>
-      <button id="btn-next" class="btn hidden">下一关 ➜</button>
-    </div>
-  </section>
+    <!-- ============ 游戏主界面 ============ -->
+    <section id="screen-game" hidden>
+      <div id="taskcard">
+        <div id="task-head"><span id="task-title"></span><span id="task-goal"></span></div>
+        <div id="task-expr"></div>
+        <div id="task-note" hidden></div>
+      </div>
+      <div id="progress"></div>
+      <div id="msg" aria-live="polite"></div>
+      <div id="stage"></div>
+      <div id="breakdown" hidden></div>
+      <div id="assembly" hidden></div>
+      <div id="nextwrap" hidden></div>
+    </section>
+  </main>
 </div>
 
-<!-- ============ 规则弹窗（G6：进入时弹出，可随时再看） ============ -->
-<div id="rules-modal" class="modal hidden">
-  <div class="modal-box">
-    <h2>玩法规则 · 位值魔法工坊</h2>
-    <div class="rule-block"><b>位值原理小课堂：</b>数字所在的位子决定它的"位值"。例如 1024 = 1×1000 + 0×100 + 2×10 + 4×1；两位数 ab = 10a + b；反转数 ba = 10b + a，所以 ab + ba = 11×(a+b)，ab − ba = 9×(a−b)；三位数 abc 的六个"换位兄弟"之和 = 222×(a+b+c)。</div>
-    <div class="rule-block"><b>怎么玩：</b>每局随机 3 关。把下方数字卡<b>拖进</b>位值槽（或先点卡片、再点槽位）。每放一张卡，"魔法算式"都会<b>实时</b>算出结果，动脑调整数字，让结果正好命中目标就通关！</div>
-    <div class="rule-block"><b>小提示：</b>点位值槽里的数字可以取下重来；右上角有计时和步数；不揭示答案通关才能赢得星星。</div>
-    <div class="rule-block"><b>关卡种类：</b>双子数（原数+反转数）、数字塔（abcd+abc+ab+a）、六兄弟（六种排列之和）、反转天平（a0b = 倍数×各位数字之和）、三镜之谜（abc+cba）。通关天平关还有"魔法反转镜"彩蛋等你发现！</div>
-    <div class="modal-close"><button id="btn-rules-close" class="btn">开始挑战</button></div>
-  </div>
+<!-- 通用弹窗（规则 / 解法） -->
+<div id="modal" hidden>
+  <div class="modal-mask" data-close="1"></div>
+  <div class="modal-card" id="modal-card"></div>
 </div>
 
-<!-- ============ 全部通关庆祝弹窗（G5） ============ -->
-<div id="win-overlay" class="modal hidden">
-  <div class="modal-box">
-    <div id="win-stars">★★★</div>
-    <h2>全部通关，太厉害啦！</h2>
-    <div id="win-stats"></div>
-    <div class="win-btns">
-      <button id="btn-again" class="btn">再来一局</button>
-      <button id="btn-win-back" class="btn btn-ghost">返回难度选择</button>
+<!-- 通关庆祝 -->
+<div id="celebrate" hidden>
+  <div class="cel-mask"></div>
+  <div class="cel-card">
+    <div class="cel-stars" id="cel-stars">★★★</div>
+    <h2 id="cel-title">恭喜你，轮转巧算小达人！</h2>
+    <p id="cel-stats"></p>
+    <div class="cel-btns">
+      <button class="btn-main" id="btn-again">再玩一次</button>
+      <button class="tbtn" id="btn-tomenu" style="font-size:18px;padding:12px 20px;">返回难度选择</button>
     </div>
   </div>
 </div>
 
-<!-- 拖拽幽灵 / 气泡提示 / 彩带画布 -->
-<div id="drag-ghost" class="hidden"></div>
-<div id="toast" class="hidden"></div>
-<canvas id="confetti"></canvas>
+<canvas id="fx"></canvas>
 
 <script>
-(function(){
 'use strict';
-/* =====================================================================
- * 位值魔法工坊 —— 互动游戏脚本
- * 核心玩法：把数字卡拖进"位值槽"，实时展开位值算式，命中目标即通关。
- * 题源：第30讲《位值原理》教参（两位数反转和差 / 数字塔 / 六排列 / 天平）
- * ===================================================================== */
+/* ============================================================
+   一、基础工具
+   ============================================================ */
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const mod = (x, n) => ((x % n) + n) % n;
+function el(tag, cls, html){
+  const e = document.createElement(tag);
+  if (cls)  { e.className = cls; }
+  if (html) { e.innerHTML = html; }
+  return e;
+}
+function shuffle(arr){
+  const b = arr.slice();
+  for (let i = b.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = b[i]; b[i] = b[j]; b[j] = t;
+  }
+  return b;
+}
+const sample = (arr, k) => shuffle(arr).slice(0, k);
 
-/* ---------- 小工具 ---------- */
-function el(id){ return document.getElementById(id); }
-function q(v){ return (v===null || typeof v === 'undefined') ? '?' : v; }   // 未放置显示 ?
-function pad2(n){ return (n<10?'0':'')+n; }
-
-/* ---------- 色板（G8：每局随机主色，多次游玩不腻） ---------- */
-var PALETTES = [
-  {name:'晴空橙', bg:'#FFF7E8', c1:'#E86A17', c2:'#2E86AB', c3:'#F9C74F', ink:'#39302A'},
-  {name:'薄荷绿', bg:'#EEFBF4', c1:'#1F8A7D', c2:'#D4552F', c3:'#A7D948', ink:'#2B3A34'},
-  {name:'莓果紫', bg:'#F6F1FF', c1:'#6C4FC4', c2:'#E07B39', c3:'#59CD90', ink:'#332B46'},
-  {name:'海洋蓝', bg:'#EAF6FF', c1:'#1668B3', c2:'#F2622E', c3:'#54C6EB', ink:'#17324D'},
-  {name:'樱桃红', bg:'#FFF0F0', c1:'#C62B38', c2:'#2F6E8F', c3:'#FFB703', ink:'#402226'},
-  {name:'柠檬黄', bg:'#FFFDE7', c1:'#B8860B', c2:'#4E7D6C', c3:'#E8985E', ink:'#3A3323'}
+/* ============================================================
+   二、随机色板（每局随机换主色，玩不腻）
+   ============================================================ */
+const PALETTES = [
+  { p:'#E65100', a:'#FFB300', bg:'#FFF3E0' },  // 蜜桃橙
+  { p:'#00695C', a:'#FFB300', bg:'#E0F2F1' },  // 薄荷绿
+  { p:'#1565C0', a:'#FFCA28', bg:'#E3F2FD' },  // 晴空蓝
+  { p:'#5E35B1', a:'#FFA726', bg:'#EDE7F6' },  // 葡萄紫
+  { p:'#AD1457', a:'#26C6DA', bg:'#FCE4EC' },  // 樱花粉
+  { p:'#9E9D24', a:'#E53935', bg:'#F9FBE7' }   // 青柠黄
 ];
+function applyPalette(){
+  const c = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  const r = document.documentElement.style;
+  r.setProperty('--p',  c.p);
+  r.setProperty('--a',  c.a);
+  r.setProperty('--bg', c.bg);
+}
 
-/* ---------- 题库（题干条件完整取自教参，并按反重复机制做成随机抽样池） ----------
- * type: AB=两位数反转(和/差)  B=数字塔  C=六兄弟排列  D=反转天平  F=三镜之谜
- * reveal: 揭示答案时依次放入各槽的数字
- */
-var POOLS = {
-  1:[ /* 初级 · 学徒试炼（例题级） */
-    { id:'a44', type:'AB', op:'sum', target:44, ext:null, name:'双子数 · 和为44',
-      reveal:{a:1,b:3},
-      text:'把数字卡拖进【十位】和【个位】，拼出一个两位数，使它与它的反转数（十位、个位数字互换后得到的新数）的和恰好等于 44。（十位不能为 0）',
-      explain:'两位数 ab = 10a+b，反转数 ba = 10b+a，所以 ab+ba = 11a+11b = 11×(a+b)。要使和为 44，只需 a+b = 4。例如 13+31 = 44。' },
-    { id:'a88', type:'AB', op:'sum', target:88, ext:null, name:'双子数 · 和为88',
-      reveal:{a:1,b:7},
-      text:'把数字卡拖进【十位】和【个位】，拼出一个两位数，使它与它的反转数的和恰好等于 88。（十位不能为 0）',
-      explain:'ab+ba = 11×(a+b) = 88，得 a+b = 8。例如 17+71 = 88，26+62 = 88 也行。' },
-    { id:'a110', type:'AB', op:'sum', target:110, ext:null, name:'双子数 · 和为110',
-      reveal:{a:1,b:9},
-      text:'把数字卡拖进【十位】和【个位】，拼出一个两位数，使它与它的反转数的和恰好等于 110。拼出任意一个满足条件的两位数即可通关！（十位不能为 0）',
-      explain:'11×(a+b) = 110，得 a+b = 10。19+91 = 110、28+82 = 110、55+55 = 110……拼出任意一个都正确！' },
-    { id:'e36', type:'AB', op:'diff', target:36, ext:null, name:'双子数 · 差为36',
-      reveal:{a:5,b:1},
-      text:'把数字卡拖进【十位】和【个位】，拼出一个两位数，使"原数 − 反转数"恰好等于 36。（这一关两张数字卡都不能用 0）',
-      explain:'ab − ba = (10a+b) − (10b+a) = 9a − 9b = 9×(a−b)。差为 36 时 a−b = 4。例如 51−15 = 36。' },
-    { id:'b1234', type:'B', target:1234, name:'数字塔 · 塔高1234',
-      reveal:{a:1,b:1,c:1,d:1},
-      text:'把数字卡拖进千、百、十、个四个位值槽，拼出四位数 abcd，使得 abcd + abc + ab + a 四层数字塔的和恰好等于 1234。（千位不能为 0，数字卡可以重复使用）',
-      explain:'abcd+abc+ab+a = 1111a + 111b + 11c + d。当 a=b=c=d=1 时：1111+111+11+1 = 1234，正好达标！' }
+/* ============================================================
+   三、题库数据（源自教参 docx + 同题型变式）
+   核心方法：轮转数之和 = 数字和 × 111…1（1 的个数 = 位数）
+   ============================================================ */
+const POOLS = {
+  // 初级：三位轮转（教参基础练习1 + 例1 + 变式）
+  easy: [
+    [1,2,3],   // 123+231+312 = 6×111 = 666
+    [5,1,4],   // 514+145+451 = 10×111 = 1110
+    [2,3,5],   // 235+352+523 = 10×111 = 1110（例1）
+    [3,4,5],   // 变式 345+453+534 = 12×111 = 1332
+    [9,8,7],   // 变式 987+879+798 = 24×111 = 2664
+    [2,6,8]    // 变式 268+682+826 = 16×111 = 1776
   ],
-  2:[ /* 中级 · 大师之路（练习级） */
-    { id:'b1137', type:'B', target:1137, name:'数字塔 · 塔高1137',
-      reveal:{a:1,b:0,c:2,d:4},
-      text:'把数字卡拖进千、百、十、个四个位值槽，拼出四位数 abcd，使得 abcd + abc + ab + a 的和恰好等于 1137。（千位不能为 0；数字卡可以重复使用）',
-      explain:'abcd+abc+ab+a = 1111a+111b+11c+d = 1137。a=1 时剩 26；b=0 时 11c+d = 26，得 c=2、d=4。所以 abcd = 1024（1024+102+10+1 = 1137）。' },
-    { id:'a110min', type:'AB', op:'sum', target:110, ext:'min', name:'双子数 · 最小的那一个',
-      reveal:{a:1,b:9},
-      text:'拼出的两位数与它的反转数的和要等于 110，而且必须拼出满足条件的两位数中【最小】的一个才算通关！（十位不能为 0）',
-      explain:'11×(a+b) = 110，得 a+b = 10。满足条件的两位数有 19、28、37、46、55、64、73、82、91，其中最小的是 19（19+91 = 110）。' },
-    { id:'c1332', type:'C', target:1332, name:'六兄弟 · 之和1332',
-      reveal:{a:1,b:2,c:3},
-      text:'把数字卡拖进百、十、个位，拼出三位数 abc（要求数字满足 0<a<b<c，即三个数字互不相同且从小到大排列），使 abc、acb、bac、bca、cab、cba 六个数之和恰好等于 1332。',
-      explain:'六个数相加时，a、b、c 各在百位、十位、个位出现 2 次，总和 = 222×(a+b+c)。222×(a+b+c) = 1332，得 a+b+c = 6；满足 0<a<b<c 的只有 1、2、3：123+132+213+231+312+321 = 1332。' },
-    { id:'a154max', type:'AB', op:'sum', target:154, ext:'max', name:'双子数 · 最大的那一个',
-      reveal:{a:9,b:5},
-      text:'拼出的两位数与它的反转数的和要等于 154，而且必须拼出满足条件的两位数中【最大】的一个才算通关！（十位不能为 0）',
-      explain:'11×(a+b) = 154，得 a+b = 14。满足条件的有 59、68、77、86、95，最大的是 95（95+59 = 154）。' },
-    { id:'b1245', type:'B', target:1245, name:'数字塔 · 塔高1245',
-      reveal:{a:1,b:1,c:2,d:1},
-      text:'把数字卡拖进千、百、十、个四个位值槽，拼出四位数 abcd，使得 abcd + abc + ab + a 的和恰好等于 1245。（千位不能为 0）',
-      explain:'1111a+111b+11c+d = 1245：a=1 剩 134，b=1 剩 23，则 c=2、d=1。所以 abcd = 1121（1121+112+11+1 = 1245）。' },
-    { id:'e27min', type:'AB', op:'diff', target:27, ext:'min', name:'双子数 · 差27且最小',
-      reveal:{a:4,b:1},
-      text:'拼出的两位数减去它的反转数要恰好等于 27，而且必须拼出满足条件的两位数中【最小】的一个。（这一关两张数字卡都不能用 0）',
-      explain:'9×(a−b) = 27，得 a−b = 3。十位越小两位数越小，个位最小取 1（不能用 0），此时十位是 4：41−14 = 27，最小的是 41。' }
+  // 中级：四位轮转（教参基础练习2、3 + 变式）
+  mid: [
+    [1,8,6,5], // 1865+8651+6518+5186 = 20×1111 = 22220
+    [6,7,4,3], // 6743+7436+4367+3674 = 20×1111 = 22220
+    [1,2,0,4], // 1204+2041+412+4120 = 7×1111 = 7777（注意 0412 写作 412）
+    [3,5,6,8], // 变式 3568+5683+6835+8356 = 22×1111 = 24442
+    [2,7,6,1], // 变式 2761+7612+6127+1276 = 16×1111 = 17776
+    [4,0,9,2]  // 变式 4092+924+9240+2409 = 15×1111 = 16665（0924 写作 924）
   ],
-  3:[ /* 高级 · 传奇挑战（变式/综合级） */
-    { id:'d201', type:'D', mult:67, name:'反转天平 · 67倍之谜',
-      reveal:{a:2,b:1},
-      text:'把数字卡拖进【百位】和【个位】（十位已锁定为 0），拼出三位数 a0b，让天平平衡：使 a0b 恰好等于它的各位数字之和的 67 倍，即 a0b = 67×(a+0+b)。（教参原题：一个十位上数字是 0 的三位数，等于它的各位数字之和的 67 倍……）通关后看看魔法反转镜的发现！',
-      explain:'a0b = 100a+b，各位数字之和 = a+b。由 100a+b = 67×(a+b) 得 33a = 66b，即 a = 2b。所以 201、402、603、804 都能让天平平衡！反转后 b0a = 100b+a = 102b，各位数字之和 = 3b，102b÷3b = 34——新三位数总是各位数字之和的 34 倍。' },
-    { id:'c1554', type:'C', target:1554, name:'六兄弟 · 之和1554',
-      reveal:{a:1,b:2,c:4},
-      text:'把数字卡拖进百、十、个位，拼出三位数 abc（要求 0<a<b<c），使 abc、acb、bac、bca、cab、cba 六个数之和恰好等于 1554。（教参原题：已知六数之和为 1554，求 a、b、c）',
-      explain:'六数之和 = 222×(a+b+c) = 1554，得 a+b+c = 7。若 a≥2，最小也是 2+3+4 = 9 > 7，所以 a 只能是 1，则 b+c = 6；只有 b=2、c=4 满足 0<a<b<c。即 a=1、b=2、c=4。' },
-    { id:'b3581', type:'B', target:3581, name:'数字塔 · 塔高3581',
-      reveal:{a:3,b:2,c:2,d:4},
-      text:'把数字卡拖进千、百、十、个四个位值槽，拼出四位数 abcd，使得 abcd + abc + ab + a 的和恰好等于 3581。（千位不能为 0）',
-      explain:'1111a+111b+11c+d = 3581：a=3 剩 248，b=2 剩 26，则 c=2、d=4。所以 abcd = 3224（3224+322+32+3 = 3581）。' },
-    { id:'d405', type:'D', mult:45, name:'反转天平 · 45倍之谜',
-      reveal:{a:4,b:5},
-      text:'把数字卡拖进【百位】和【个位】（十位已锁定为 0），拼出三位数 a0b，让天平平衡：使 a0b 恰好等于它的各位数字之和的 45 倍，即 a0b = 45×(a+0+b)。通关后看看魔法反转镜的发现！',
-      explain:'100a+b = 45×(a+b)，化简得 55a = 44b，即 5a = 4b，取 a=4、b=5：405 = 45×9，天平平衡！反转成 504：504÷(4+0+5) = 56，它是各位数字之和的 56 倍。' },
-    { id:'f585', type:'F', target:585, name:'三镜之谜 · 和为585',
-      reveal:{a:1,b:4,c:4},
-      text:'把数字卡拖进百、十、个位，拼出三位数 abc，使它与它的反转数 cba 的和恰好等于 585。（百位 a 和反转数的百位 c 都不能为 0）',
-      explain:'abc+cba = (100a+10b+c)+(100c+10b+a) = 101×(a+c)+20×b。585−20b 必须是 101 的倍数：只有 b=4 时 585−80 = 505 = 101×5，所以 a+c = 5。例如 144+441 = 585。' },
-    { id:'c1998', type:'C', target:1998, name:'六兄弟 · 之和1998',
-      reveal:{a:1,b:2,c:6},
-      text:'把数字卡拖进百、十、个位，拼出三位数 abc（要求 0<a<b<c），使六个"换位兄弟"abc、acb、bac、bca、cab、cba 之和恰好等于 1998。满足条件的拼法不止一种，拼出任意一种即可通关！',
-      explain:'222×(a+b+c) = 1998，得 a+b+c = 9。满足 0<a<b<c 的有 (1,2,6)、(1,3,5)、(2,3,4)，例如 126+162+216+261+612+621 = 1998。' }
+  // 高级：轮转求和再除（教参例2 + 进阶练习 + 变式，数字和都能被除数整除）
+  hard: [
+    { ds:[1,2,3,4],   d:5  },  // (1234+2341+3412+4123)÷5 = 2×1111 = 2222
+    { ds:[2,8,6,3,5], d:3  },  // (28635+…)÷3 = 8×11111 = 88888
+    { ds:[5,8,3,0],   d:16 },  // (5830+8305+3058+583)÷16 = 1×1111 = 1111
+    { ds:[8,4,6,9,7], d:17 },  // (84697+…)÷17 = 2×11111 = 22222（例2）
+    { ds:[1,2,3,4,5], d:5  },  // 变式 = 3×11111 = 33333
+    { ds:[1,3,5,6,9], d:4  },  // 变式 = 6×11111 = 66666
+    { ds:[2,7,6,1],   d:8  }   // 变式 = 2×1111 = 2222
   ]
 };
 
-/* ---------- 全局状态 ---------- */
-var S = {
-  diff:0, puzzles:[], idx:0, puzzle:null,
-  digits:{}, slotDefs:[], locked:false, revealed:false,
-  stars:0, steps:0, seconds:0, timerId:null,
-  selectedCard:null, palette:PALETTES[0], rulesOpened:false
+/* 生成一个数的全部左轮转排法：rot[k] 表示排头后移 k 位 */
+function rotationsOf(ds){
+  const n = ds.length, out = [];
+  for (let k = 0; k < n; k++){
+    const r = [];
+    for (let i = 0; i < n; i++){ r.push(ds[(k + i) % n]); }
+    out.push(r);
+  }
+  return out;
+}
+/* 数字数组转字符串：开头的 0 去掉（0412 → 412） */
+function numStr(arr){
+  const s = arr.join('').replace(/^0+/, '');
+  return s === '' ? '0' : s;
+}
+/* 数位名称：n=3 → 百位/十位/个位 */
+function placeNames(n){
+  return ['个位','十位','百位','千位','万位'].slice(0, n).reverse();
+}
+/* 由数字组构造一轮回合数据（表达式、数字和、1塔、结果全部派生，保证自洽） */
+function buildRound(def, diff){
+  const ds = def.ds || def;
+  const n  = ds.length;
+  const rots = rotationsOf(ds);
+  const nums = rots.map(numStr);
+  const expr = nums.join('+');
+  const S = ds.reduce((a, b) => a + b, 0);
+  const R = Number('1'.repeat(n));
+  const sum = S * R;
+  const round = { ds, n, rots, nums, expr, S, R, sum, lead0: rots.some(r => r[0] === 0) };
+  if (diff === 'hard'){
+    round.d = def.d;
+    round.divExpr = '(' + expr + ')÷' + def.d;
+    round.final = sum / def.d;   // 题库保证整除
+  }
+  return round;
+}
+
+/* ============================================================
+   四、全局状态
+   ============================================================ */
+const G = {
+  diff: null, rounds: [], ri: 0, round: null,
+  phase: '',                 // explore / breakdown / assemble / workbench / done
+  collected: {},             // 已点亮的轮转数索引
+  wheelK: 0, wheelAngle: 0,
+  grid: null,                // 中级方阵状态
+  bagDigits: [], rPlaced: false, divOrder: 0, // divOrder: 0未放 1先除 2后除
+  steps: 0, stars: 0, awarded: [],
+  revealed: false, running: false,
+  t0: 0, timer: null, zones: []
 };
 
-/* ---------- 随机抽样（反重复机制：每局随机抽 3 关） ---------- */
-function samplePuzzles(diff){
-  var arr = POOLS[diff].slice();
-  for(var i=arr.length-1;i>0;i--){            // Fisher–Yates 洗牌
-    var j = Math.floor(Math.random()*(i+1));
-    var t = arr[i]; arr[i]=arr[j]; arr[j]=t;
-  }
-  return arr.slice(0,3);
+/* ============================================================
+   五、计时 / 步数 / 星星
+   ============================================================ */
+function fmtTime(s){
+  const m = Math.floor(s / 60), r = s % 60;
+  return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
 }
-
-/* ---------- 色板应用 ---------- */
-function applyPalette(){
-  var p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
-  var r = document.documentElement.style;
-  r.setProperty('--bg',p.bg); r.setProperty('--c1',p.c1);
-  r.setProperty('--c2',p.c2); r.setProperty('--c3',p.c3);
-  r.setProperty('--ink',p.ink);
-  S.palette = p;
-  el('hud-pal').textContent = '色板：' + p.name;
-}
-
-/* ---------- HUD：计时 / 步数 / 星星 ---------- */
-function updateHUD(){
-  el('hud-timer').textContent = '计时 ' + pad2(Math.floor(S.seconds/60)) + ':' + pad2(S.seconds%60);
-  el('hud-steps').textContent = '步数 ' + S.steps;
-  el('hud-stars').textContent = '星星 ' + S.stars + '/3';
+function tickTimer(){
+  const s = Math.floor((Date.now() - G.t0) / 1000);
+  $('#st-time').textContent = '时间 ' + fmtTime(s);
 }
 function startTimer(){
-  stopTimer();
-  S.timerId = setInterval(function(){ S.seconds++; updateHUD(); }, 1000);
+  G.t0 = Date.now();
+  if (G.timer) { clearInterval(G.timer); }
+  G.timer = setInterval(tickTimer, 1000);
+  tickTimer();
 }
-function stopTimer(){ if(S.timerId){ clearInterval(S.timerId); S.timerId=null; } }
-
-/* ---------- 槽位定义（按关卡类型生成位值槽） ---------- */
-function slotDefsFor(p){
-  function mk(k,label,mult,locked){ return {k:k,label:label,mult:mult,locked:!!locked}; }
-  if(p.type==='AB') return [mk('a','十位',10), mk('b','个位',1)];
-  if(p.type==='B')  return [mk('a','千位',1000), mk('b','百位',100), mk('c','十位',10), mk('d','个位',1)];
-  if(p.type==='C')  return [mk('a','百位',100), mk('b','十位',10), mk('c','个位',1)];
-  if(p.type==='F')  return [mk('a','百位',100), mk('b','十位',10), mk('c','个位',1)];
-  if(p.type==='D')  return [mk('a','百位',100), mk('z','十位·锁定',10,true), mk('b','个位',1)];
-  return [];
-}
-
-/* ---------- 目标徽章文案 ---------- */
-function targetChipText(p){
-  if(p.type==='AB') return (p.op==='sum' ? '目标：原数+反转数 = ' : '目标：原数−反转数 = ') + p.target + (p.ext==='min'?'（还要最小！）':p.ext==='max'?'（还要最大！）':'');
-  if(p.type==='B')  return '目标：塔高 abcd+abc+ab+a = ' + p.target;
-  if(p.type==='C')  return '目标：六数之和 = ' + p.target + '（要求 0<a<b<c）';
-  if(p.type==='D')  return '目标：a0b = ' + p.mult + '×(a+0+b)';
-  if(p.type==='F')  return '目标：abc + cba = ' + p.target;
-  return '';
+function stopTimer(){ if (G.timer) { clearInterval(G.timer); G.timer = null; } }
+function addStep(){ G.steps++; $('#st-steps').textContent = '步数 ' + G.steps; }
+function addStars(n){ G.stars += n; $('#st-stars').textContent = '星星 ' + G.stars; }
+function setMsg(t){
+  const m = $('#msg');
+  m.textContent = t;
+  m.classList.remove('bump');
+  void m.offsetWidth;           // 触发重排以重启动画
+  m.classList.add('bump');
 }
 
-/* ---------- 渲染一关 ---------- */
-function renderPuzzle(){
-  var p = S.puzzles[S.idx];
-  S.puzzle = p;
-  S.slotDefs = slotDefsFor(p);
-  S.digits = {};
-  S.slotDefs.forEach(function(s){ S.digits[s.k] = s.locked ? 0 : null; });
-  S.locked = false; S.revealed = false; S.selectedCard = null;
-
-  el('puzzle-name').textContent = p.name;
-  el('puzzle-index').textContent = '第 ' + (S.idx+1) + ' / ' + S.puzzles.length + ' 关';
-  el('puzzle-text').textContent = p.text;
-  el('puzzle-target').textContent = targetChipText(p);
-
-  renderProgress();
-  renderSlots();
-  renderPool();
-  renderLive();
-  el('explain-panel').classList.add('hidden');
-  el('balance-wrap').classList.toggle('hidden', p.type!=='D');
-  el('btn-next').classList.add('hidden');
-  el('btn-reveal').disabled = false;
-  if(p.type==='D'){ drawBalance(); }
+/* ============================================================
+   六、通用弹窗
+   ============================================================ */
+function showModal(html){
+  $('#modal-card').innerHTML = html;
+  $('#modal').hidden = false;
 }
+function hideModal(){ $('#modal').hidden = true; }
+$('#modal-card').addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) { hideModal(); }
+});
 
-/* ---------- 关卡进度点 ---------- */
-function renderProgress(){
-  var html = '';
-  for(var i=0;i<S.puzzles.length;i++){
-    html += '<span class="dot ' + (i<S.idx?'done':i===S.idx?'cur':'') + '"></span>';
-  }
-  el('progress-dots').innerHTML = '关卡 ' + html;
-}
-
-/* ---------- 渲染位值槽 ---------- */
-function renderSlots(){
-  var html = '';
-  S.slotDefs.forEach(function(s){
-    var v = S.digits[s.k];
-    var cls = 'slot' + (s.locked?' locked':'') + ((v!==null&&!s.locked)?' filled':'') + (s.locked?' filled':'');
-    html += '<div class="' + cls + '" data-k="' + s.k + '">'
-         +   '<div class="slot-label">' + s.label + '</div>'
-         +   '<div class="slot-mult">×' + s.mult + '</div>'
-         +   '<div class="slot-digit">' + (v===null?'?':v) + '</div>'
-         + '</div>';
-  });
-  el('slots-area').innerHTML = html;
-  // 为每个槽位绑定"点选放置 / 点击取下"
-  var nodes = el('slots-area').querySelectorAll('.slot');
-  for(var i=0;i<nodes.length;i++){
-    nodes[i].addEventListener('click', onSlotClick);
-  }
-}
-
-/* ---------- 渲染数字卡池（0~9，可无限重复使用） ---------- */
-function renderPool(){
-  var html = '';
-  for(var d=0;d<=9;d++){
-    html += '<div class="card" data-d="' + d + '">' + d + '</div>';
-  }
-  el('pool-area').innerHTML = html;
-  var nodes = el('pool-area').querySelectorAll('.card');
-  for(var i=0;i<nodes.length;i++){
-    nodes[i].addEventListener('pointerdown', onCardDown);
-  }
-}
-
-/* =====================================================================
- * 拖拽 + 点选双模式交互（G1：真正的操作交互，触屏可玩）
- * ===================================================================== */
-var drag = null;   // 拖拽状态：{digit, sx, sy, moved, card}
-
-function moveGhost(x,y){
-  var g = el('drag-ghost');
-  g.style.left = x + 'px';
-  g.style.top  = y + 'px';
-}
-function slotElementAt(x,y){
-  var nodes = el('slots-area').querySelectorAll('.slot');
-  for(var i=0;i<nodes.length;i++){
-    var r = nodes[i].getBoundingClientRect();
-    if(x>=r.left-6 && x<=r.right+6 && y>=r.top-6 && y<=r.bottom+6) return nodes[i];
-  }
-  return null;
-}
-function clearHighlights(){
-  var nodes = el('slots-area').querySelectorAll('.slot.drag-over');
-  for(var i=0;i<nodes.length;i++) nodes[i].classList.remove('drag-over');
-}
-
-function onCardDown(e){
-  if(S.locked) return;
+/* ============================================================
+   七、拖拽引擎（Pointer 事件，鼠标 / 触摸通吃）
+   ============================================================ */
+let DRAG = null;
+document.addEventListener('pointerdown', (e) => {
+  const chip = e.target.closest('.drag-chip');
+  if (!chip || chip.classList.contains('chip-locked')) { return; }
   e.preventDefault();
-  var card = e.currentTarget;
-  drag = { digit:+card.dataset.d, sx:e.clientX, sy:e.clientY, moved:false, card:card };
-  var g = el('drag-ghost');
-  g.textContent = drag.digit;
-  g.classList.remove('hidden');
+  const r = chip.getBoundingClientRect();
+  const ghost = chip.cloneNode(true);
+  ghost.classList.add('ghost');
+  ghost.classList.remove('chip-locked');
+  ghost.style.width  = r.width + 'px';
+  ghost.style.height = r.height + 'px';
+  document.body.appendChild(ghost);
+  DRAG = {
+    chip, ghost,
+    ox: e.clientX - r.left, oy: e.clientY - r.top,
+    home: { x: r.left, y: r.top }
+  };
   moveGhost(e.clientX, e.clientY);
+});
+function moveGhost(x, y){
+  DRAG.ghost.style.left = (x - DRAG.ox) + 'px';
+  DRAG.ghost.style.top  = (y - DRAG.oy) + 'px';
 }
-window.addEventListener('pointermove', function(e){
-  if(!drag) return;
-  if(Math.abs(e.clientX-drag.sx)>8 || Math.abs(e.clientY-drag.sy)>8) drag.moved = true;
+document.addEventListener('pointermove', (e) => {
+  if (!DRAG) { return; }
+  e.preventDefault();
   moveGhost(e.clientX, e.clientY);
-  clearHighlights();
-  var s = slotElementAt(e.clientX, e.clientY);
-  if(s && !s.classList.contains('locked')) s.classList.add('drag-over');
+  const z = zoneAt(e.clientX, e.clientY);
+  G.zones.forEach(g => g.el.classList.toggle('dz-hot', g === z && g.accepts(DRAG.chip)));
 });
-window.addEventListener('pointerup', function(e){
-  if(!drag) return;
-  var st = drag; drag = null;
-  el('drag-ghost').classList.add('hidden');
-  clearHighlights();
-  if(st.moved){
-    var s = slotElementAt(e.clientX, e.clientY);
-    if(s && !s.classList.contains('locked')){
-      placeDigit(s.dataset.k, st.digit);
-      return;
-    }
-  }else{
-    // 原地轻点 = 选中卡片（再点槽位放置），适配触屏与不方便拖拽的场景
-    selectCard(st.digit);
-  }
-});
-
-function selectCard(d){
-  S.selectedCard = (S.selectedCard===d) ? null : d;
-  var nodes = el('pool-area').querySelectorAll('.card');
-  for(var i=0;i<nodes.length;i++){
-    nodes[i].classList.toggle('selected', (+nodes[i].dataset.d)===S.selectedCard);
+function endDrag(e, cancelled){
+  if (!DRAG) { return; }
+  const d = DRAG; DRAG = null;
+  G.zones.forEach(g => g.el.classList.remove('dz-hot'));
+  const z = cancelled ? null : zoneAt(e.clientX, e.clientY);
+  if (z && z.accepts(d.chip)){
+    d.ghost.remove();
+    z.drop(d.chip, d);
+  } else {
+    // 没放对位置：积木轻轻弹回托盘
+    d.ghost.style.transition = 'left .25s ease, top .25s ease';
+    d.ghost.style.left = d.home.x + 'px';
+    d.ghost.style.top  = d.home.y + 'px';
+    setTimeout(() => { d.ghost.remove(); }, 260);
+    if (!cancelled) { setMsg('这块积木放在这里不合适哦，再试一试～'); }
   }
 }
+document.addEventListener('pointerup',    (e) => endDrag(e, false));
+document.addEventListener('pointercancel',(e) => endDrag(e, true));
 
-/* 槽位点击：有选中卡则放置；否则若已有数字则取下 */
-function onSlotClick(e){
-  if(S.locked) return;
-  /* 刚完成拖拽放置后 350ms 内的 click 一律忽略，防止误触把刚放的数字取下 */
-  if(typeof S.lastPlaceTs === 'number' && Date.now()-S.lastPlaceTs < 350) return;
-  var k = e.currentTarget.dataset.k;
-  if(e.currentTarget.classList.contains('locked')) return;
-  if(S.selectedCard!==null){
-    var d = S.selectedCard;
-    selectCard(S.selectedCard);   // 取消选中
-    placeDigit(k, d);
-  }else if(S.digits[k]!==null){
-    S.digits[k] = null;
-    renderSlots(); renderLive();
-    if(S.puzzle.type==='D') drawBalance();
-  }
+/* 掉落区注册与查找 */
+function regZone(elm, accepts, drop){
+  elm.classList.add('dropzone');
+  G.zones.push({ el: elm, accepts, drop });
+}
+function clearZones(){
+  G.zones = [];
+  $$('.dropzone').forEach(z => z.classList.remove('dz-hot', 'dropzone'));
+}
+function zoneAt(x, y){
+  const t = document.elementFromPoint(x, y);
+  if (!t) { return null; }
+  const z = t.closest('.dropzone');
+  if (!z) { return null; }
+  return G.zones.find(g => g.el === z) || null;
 }
 
-/* 放置数字：步数 +1，实时刷新算式并判定 */
-function placeDigit(k, d){
-  if(S.locked) return;
-  S.digits[k] = d;
-  S.lastPlaceTs = Date.now();   // 记录放置时刻，供防误触保护使用
-  S.steps++;
-  updateHUD();
-  renderSlots();
-  renderLive();
-  if(S.puzzle.type==='D') drawBalance();
-  var r = checkWin();
-  if(r.ok){ onWin(); }
-  else if(r.note){ toast(r.note); }
+/* ============================================================
+   八、彩纸庆祝引擎（Canvas）
+   ============================================================ */
+const FX = { cv: null, ctx: null, parts: [], raf: 0 };
+function fxInit(){
+  FX.cv  = $('#fx');
+  FX.ctx = FX.cv.getContext('2d');
+  const fit = () => {
+    FX.cv.width  = window.innerWidth;
+    FX.cv.height = window.innerHeight;
+  };
+  fit();
+  window.addEventListener('resize', fit);
 }
-
-/* =====================================================================
- * 实时魔法算式（G2：位值原理的具象化，每放一张卡立即重算）
- * ===================================================================== */
-function lineHtml(eq, val, hit){
-  return '<div class="live-line' + (hit?' hit':'') + '">'
-       + '<span class="live-eq">' + eq + '</span>'
-       + '<span class="live-val">' + val + '</span>'
-       + '</div>';
+function fxColors(){
+  const cs = getComputedStyle(document.documentElement);
+  return [cs.getPropertyValue('--p'), cs.getPropertyValue('--a'),
+          '#43A047', '#E53935', '#1E88E5', '#8E24AA'];
 }
-function renderLive(){
-  var p = S.puzzle, d = S.digits, html = '';
-  html += '<div class="live-title">魔法算式（放一张卡，立刻重算）</div>';
-
-  if(p.type==='AB'){
-    var a=d.a, b=d.b, full=(a!==null&&b!==null);
-    var n1=full?10*a+b:null, n2=full?10*b+a:null;
-    if(p.op==='sum'){
-      var s=full?a+b:null, sv=full?11*s:null;
-      html += lineHtml('原数 ab = 10×a + b = 10×'+q(a)+'+'+q(b)+' =', full?n1:' ? ');
-      html += lineHtml('反转数 ba = 10×b + a = 10×'+q(b)+'+'+q(a)+' =', full?n2:' ? ');
-      html += lineHtml('和 = 11×(a+b) = 11×('+q(a)+'+'+q(b)+') =', full?sv:' ? ', full&&sv===p.target);
-    }else{
-      var df=full?a-b:null, dv=full?9*df:null;
-      html += lineHtml('原数 ab = 10×a + b = 10×'+q(a)+'+'+q(b)+' =', full?n1:' ? ');
-      html += lineHtml('反转数 ba = 10×b + a = 10×'+q(b)+'+'+q(a)+' =', full?n2:' ? ');
-      html += lineHtml('差 = 9×(a−b) = 9×('+q(a)+'−'+q(b)+') =', full?dv:' ? ', full&&dv===p.target);
-    }
-    if(a===0){ html += '<div class="live-note">两位数的十位不能是 0，换一张卡试试！</div>'; }
-    if(p.op==='diff' && b===0){ html += '<div class="live-note">这一关两张卡都不能用 0 哦。</div>'; }
-  }
-
-  else if(p.type==='B'){
-    var a=d.a,b=d.b,c=d.c,dd=d.d;
-    var rows=[
-      {lab:'第4层 abcd', need:[a,b,c,dd], val:(a!==null&&b!==null&&c!==null&&dd!==null)?1000*a+100*b+10*c+dd:null},
-      {lab:'第3层 abc',  need:[a,b,c],    val:(a!==null&&b!==null&&c!==null)?100*a+10*b+c:null},
-      {lab:'第2层 ab',   need:[a,b],      val:(a!==null&&b!==null)?10*a+b:null},
-      {lab:'第1层 a',    need:[a],        val:(a!==null)?a:null}
-    ];
-    var total=null;
-    rows.forEach(function(r){
-      if(r.val!==null){ html += lineHtml(r.lab+' =', r.val); if(total===null) total=0; }
-      else{ html += lineHtml(r.lab+' =', ' ? '); }
-    });
-    total = (rows[0].val!==null) ? rows[0].val+rows[1].val+rows[2].val+rows[3].val : null;
-    html += lineHtml('塔高 = 1111×a + 111×b + 11×c + d =', total!==null?total:' ? ', total!==null&&total===p.target);
-    if(a===0){ html += '<div class="live-note">四位数的千位不能是 0，换一张卡试试！</div>'; }
-  }
-
-  else if(p.type==='C'){
-    var a=d.a,b=d.b,c=d.c, full=(a!==null&&b!==null&&c!==null);
-    if(full){
-      var vals=[100*a+10*b+c, 100*a+10*c+b, 100*b+10*a+c, 100*b+10*c+a, 100*c+10*a+b, 100*c+10*b+a];
-      var labs=['abc','acb','bac','bca','cab','cba'];
-      html += '<div id="perm-grid">';
-      for(var i=0;i<6;i++){
-        html += '<div class="perm-cell"><div class="perm-label">'+labs[i]+'</div><div class="perm-val">'+vals[i]+'</div></div>';
-      }
-      html += '</div>';
-      var sum=222*(a+b+c);
-      html += lineHtml('六数之和 = 222×(a+b+c) = 222×('+a+'+'+b+'+'+c+') =', sum, sum===p.target);
-      if(!(a>=1&&a<b&&b<c)){
-        html += '<div class="live-note">六个数都出来啦！但记得数字要满足 0&lt;a&lt;b&lt;c（从小到大、都不相同）。</div>';
-      }
-    }else{
-      html += '<div class="live-note good">把三张数字卡都放好，六个"换位兄弟"就会现身！</div>';
-    }
-  }
-
-  else if(p.type==='F'){
-    var a=d.a,b=d.b,c=d.c, full=(a!==null&&b!==null&&c!==null);
-    var x=full?100*a+10*b+c:null, y=full?100*c+10*b+a:null;
-    html += lineHtml('原数 abc = 100×a+10×b+c = 100×'+q(a)+'+10×'+q(b)+'+'+q(c)+' =', full?x:' ? ');
-    html += lineHtml('反转数 cba = 100×c+10×b+a = 100×'+q(c)+'+10×'+q(b)+'+'+q(a)+' =', full?y:' ? ');
-    if(full){
-      var sv=101*(a+c)+20*b;
-      html += lineHtml('和 = 101×(a+c) + 20×b = 101×('+a+'+'+c+') + 20×'+b+' =', sv, sv===p.target);
-      if(c===0){ html += '<div class="live-note">反转数 cba 的百位不能是 0（也就是 c 不能为 0）。</div>'; }
-    }else{
-      html += lineHtml('和 = 101×(a+c) + 20×b =', ' ? ');
-    }
-  }
-
-  else if(p.type==='D'){
-    var a=d.a,b=d.b, full=(a!==null&&b!==null);
-    var left=full?100*a+b:null, right=full?p.mult*(a+b):null;
-    html += lineHtml('三位数 a0b = 100×a + b = 100×'+q(a)+'+'+q(b)+' =', full?left:' ? ');
-    html += lineHtml('各位数字之和的'+p.mult+'倍 = '+p.mult+'×(a+0+b) = '+p.mult+'×('+q(a)+'+'+q(b)+') =', full?right:' ? ',
-                     full&&left===right);
-    if(full&&left===right){
-      // 通关后追加：魔法反转镜彩蛋（换位后恰是各位和的整数倍）
-      var flip=100*b+a, ratio=flip/(a+b);
-      html += '<div class="flip-box">魔法反转镜：'+(100*a+b)+' → '+flip+'，而 '+flip+' ÷ ('+a+'+0+'+b+') = '+ratio
-            + ' —— 新三位数正好是各位数字之和的 '+ratio+' 倍！</div>';
-    }
-  }
-
-  el('live-panel').innerHTML = html;
-}
-
-/* =====================================================================
- * 天平绘制（D 类关卡：平衡 = 相等，操作本身即"等式"探索）
- * ===================================================================== */
-function drawBalance(){
-  var p = S.puzzle; if(!p || p.type!=='D') return;
-  var cv = el('balance-canvas'), ctx = cv.getContext('2d');
-  var W = cv.width, H = cv.height, pal = S.palette;
-  ctx.clearRect(0,0,W,H);
-
-  var a=S.digits.a, b=S.digits.b, has=(a!==null&&b!==null);
-  var left = has ? 100*a+b : null;
-  var right = has ? p.mult*(a+b) : null;
-  var diff = has ? left-right : 0;
-  var balanced = has && left===right;
-
-  /* 倾角：差越大倾得越多，平衡时回正 */
-  var ang = has ? Math.max(-0.30, Math.min(0.30, -diff/900*0.6)) : 0;
-
-  var cx=W/2, cy=86, L=140;
-
-  /* 底座与支柱 */
-  ctx.fillStyle = pal.ink;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy); ctx.lineTo(cx-30, H-16); ctx.lineTo(cx+30, H-16); ctx.closePath(); ctx.fill();
-  ctx.fillRect(cx-64, H-16, 128, 10);
-
-  /* 横梁 */
-  ctx.save();
-  ctx.translate(cx, cy); ctx.rotate(ang);
-  ctx.strokeStyle = pal.c1; ctx.lineWidth = 10; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-L, 0); ctx.lineTo(L, 0); ctx.stroke();
-  ctx.fillStyle = pal.c2;
-  ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
-
-  /* 两端吊盘端点（按旋转角计算实际坐标） */
-  var exL = { x: cx - L*Math.cos(ang), y: cy - L*Math.sin(ang) };
-  var exR = { x: cx + L*Math.cos(ang), y: cy + L*Math.sin(ang) };
-
-  function drawPan(ex, val, label, heavy){
-    var sx=ex.x, sy=ex.y, rope=44, panW=118, panH=12;
-    ctx.strokeStyle = '#888'; ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(sx-panW/2+6, sy); ctx.lineTo(sx, sy+rope); ctx.lineTo(sx+panW/2-6, sy);
-    ctx.stroke();
-    ctx.fillStyle = heavy ? pal.c1 : pal.c3;
-    ctx.strokeStyle = pal.ink; ctx.lineWidth = 3;
-    roundRect(ctx, sx-panW/2, sy+rope, panW, panH, 6); ctx.fill(); ctx.stroke();
-    /* 盘上的数字牌 */
-    ctx.fillStyle = '#fff'; ctx.strokeStyle = heavy ? pal.c1 : pal.c3; ctx.lineWidth = 4;
-    roundRect(ctx, sx-56, sy+rope+panH+6, 112, 52, 10); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = pal.ink; ctx.textAlign='center'; ctx.font='700 17px "Microsoft YaHei",sans-serif';
-    ctx.fillText(label, sx, sy+rope+panH+27);
-    ctx.font='900 24px "Microsoft YaHei",sans-serif';
-    ctx.fillStyle = balanced ? '#1d7a4f' : pal.ink;
-    ctx.fillText(val, sx, sy+rope+panH+51);
-  }
-  drawPan(exL, has?String(left):'?', 'a0b = 100a+b', diff>0);
-  drawPan(exR, has?String(right):'?', p.mult+'×(a+0+b)', diff<0);
-
-  /* 顶部状态文字 */
-  ctx.textAlign='center'; ctx.font='900 22px "Microsoft YaHei",sans-serif';
-  if(!has){ ctx.fillStyle=pal.ink; ctx.fillText('拖动数字卡，让天平平衡！', cx, 30); }
-  else if(balanced){
-    ctx.fillStyle='#1d7a4f'; ctx.fillText('天平平衡啦！', cx, 30);
-  }else{
-    ctx.fillStyle=pal.c2;
-    ctx.fillText(diff>0 ? '左边重了，a 太大啦' : '右边重了，调整 a 和 b', cx, 30);
-  }
-}
-function roundRect(ctx,x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
-}
-
-/* =====================================================================
- * 判定通关（含"和达标但未最小/最大"的引导提示）
- * ===================================================================== */
-function validTwoDigits(op, target){    // 枚举满足 和/差=目标 的全部两位数
-  var res=[];
-  for(var a=1;a<=9;a++) for(var b=0;b<=9;b++){
-    if(op==='diff' && b===0) continue;   // 减法关规定两卡均非 0
-    if((op==='sum'?11*(a+b):9*(a-b))===target) res.push(10*a+b);
-  }
-  return res;
-}
-function checkWin(){
-  var p=S.puzzle, d=S.digits;
-  if(p.type==='AB'){
-    var a=d.a,b=d.b;
-    if(a===null||b===null) return {ok:false};
-    if(a===0) return {ok:false};
-    if(p.op==='diff'&&b===0) return {ok:false};
-    var v = p.op==='sum' ? 11*(a+b) : 9*(a-b);
-    if(v!==p.target) return {ok:false};
-    var num=10*a+b;
-    if(p.ext){
-      var res=validTwoDigits(p.op,p.target);
-      var want = p.ext==='min' ? Math.min.apply(null,res) : Math.max.apply(null,res);
-      if(num!==want){
-        return {ok:false, note:'结果达标啦！不过还有更'+(p.ext==='min'?'小':'大')+'的拼法，继续调整！'};
-      }
-    }
-    return {ok:true};
-  }
-  if(p.type==='B'){
-    if(d.a===null||d.b===null||d.c===null||d.d===null) return {ok:false};
-    if(d.a===0) return {ok:false};
-    return {ok: 1111*d.a+111*d.b+11*d.c+d.d===p.target};
-  }
-  if(p.type==='C'){
-    if(d.a===null||d.b===null||d.c===null) return {ok:false};
-    var okc = (d.a>=1&&d.a<d.b&&d.b<d.c);
-    if(!okc) return {ok:false};
-    return {ok: 222*(d.a+d.b+d.c)===p.target};
-  }
-  if(p.type==='D'){
-    if(d.a===null||d.b===null) return {ok:false};
-    if(d.a===0) return {ok:false};
-    return {ok: 100*d.a+d.b===p.mult*(d.a+d.b)};
-  }
-  if(p.type==='F'){
-    if(d.a===null||d.b===null||d.c===null) return {ok:false};
-    if(d.a===0||d.c===0) return {ok:false};
-    return {ok: 101*(d.a+d.c)+20*d.b===p.target};
-  }
-  return {ok:false};
-}
-
-/* =====================================================================
- * 通关流程：锁操作 → 星星 → 彩带 → 解析 → 下一关
- * ===================================================================== */
-function onWin(){
-  S.locked = true;
-  if(!S.revealed) S.stars++;
-  updateHUD();
-  confetti(150);
-  showExplain();
-  el('btn-reveal').disabled = true;
-  var nb = el('btn-next');
-  nb.textContent = (S.idx===S.puzzles.length-1) ? '查看成绩 ➜' : '下一关 ➜';
-  nb.classList.remove('hidden');
-  toast('命中目标，这一关通关啦！');
-}
-function showExplain(){
-  el('explain-body').innerHTML = '<p>' + S.puzzle.explain + '</p>';
-  el('explain-panel').classList.remove('hidden');
-}
-
-/* 揭示答案：按槽位依次亮出答案数字，并展示解析 */
-function revealAnswer(){
-  if(S.locked) return;
-  S.revealed = true; S.locked = true;
-  el('btn-reveal').disabled = true;
-  var keys = S.slotDefs.map(function(s){ return s.k; });
-  var i = 0;
-  (function step(){
-    if(i>=keys.length){
-      renderLive();
-      if(S.puzzle.type==='D') drawBalance();
-      showExplain();
-      var nb=el('btn-next');
-      nb.textContent = (S.idx===S.puzzles.length-1) ? '查看成绩 ➜' : '下一关 ➜';
-      nb.classList.remove('hidden');
-      toast('答案已揭示，读完解析再出发！');
-      return;
-    }
-    var k = keys[i];
-    if(!S.slotDefs[i].locked && Object.prototype.hasOwnProperty.call(S.puzzle.reveal, k)){
-      S.digits[k] = S.puzzle.reveal[k];
-      S.steps++; updateHUD();
-    }
-    renderSlots();
-    i++;
-    setTimeout(step, 260);
-  })();
-}
-
-/* 下一关 / 全部通关 */
-function nextPuzzle(){
-  S.idx++;
-  if(S.idx < S.puzzles.length){ renderPuzzle(); }
-  else { completeRun(); }
-}
-function completeRun(){
-  stopTimer();
-  el('win-stars').textContent = '★★★'.slice(0, S.stars) + '☆☆☆'.slice(0, 3-S.stars);
-  el('win-stats').innerHTML =
-    '获得星星：' + S.stars + ' / 3<br>' +
-    '用时：' + pad2(Math.floor(S.seconds/60)) + ' 分 ' + pad2(S.seconds%60) + ' 秒　·　总步数：' + S.steps;
-  el('win-overlay').classList.remove('hidden');
-  /* 通关大庆祝：连续三波彩带（G5） */
-  confetti(180);
-  setTimeout(function(){ confetti(140); }, 700);
-  setTimeout(function(){ confetti(140); }, 1500);
-}
-
-/* =====================================================================
- * 彩带庆祝（Canvas 粒子系统）
- * ===================================================================== */
-var conf = { parts:[], running:false };
-function confetti(n){
-  var cv = el('confetti');
-  cv.width = window.innerWidth; cv.height = window.innerHeight;
-  var pal = S.palette;
-  var colors = [pal.c1, pal.c2, pal.c3, '#ffffff', pal.ink];
-  for(var i=0;i<n;i++){
-    conf.parts.push({
-      x: Math.random()*cv.width,
-      y: -20 - Math.random()*cv.height*0.3,
-      vx: (Math.random()-0.5)*3,
-      vy: 2 + Math.random()*3.5,
-      w: 6 + Math.random()*8,
-      h: 8 + Math.random()*10,
-      rot: Math.random()*Math.PI*2,
-      vr: (Math.random()-0.5)*0.25,
-      color: colors[Math.floor(Math.random()*colors.length)]
+function fxSpawn(x, y, n, spread){
+  const cols = fxColors();
+  for (let i = 0; i < n; i++){
+    FX.parts.push({
+      x, y,
+      vx: (Math.random() - 0.5) * (spread || 7),
+      vy: -Math.random() * 8 - 3,
+      w: 6 + Math.random() * 7,
+      h: 4 + Math.random() * 6,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.3,
+      c: cols[Math.floor(Math.random() * cols.length)],
+      life: 90 + Math.random() * 50
     });
   }
-  if(!conf.running){ conf.running = true; requestAnimationFrame(confettiLoop); }
+  if (!FX.raf) { FX.raf = requestAnimationFrame(fxLoop); }
 }
-function confettiLoop(){
-  var cv = el('confetti'), ctx = cv.getContext('2d');
-  ctx.clearRect(0,0,cv.width,cv.height);
-  for(var i=conf.parts.length-1;i>=0;i--){
-    var p = conf.parts[i];
-    p.x += p.vx; p.y += p.vy; p.vy += 0.04; p.rot += p.vr;
-    if(p.y > cv.height+30){ conf.parts.splice(i,1); continue; }
-    ctx.save();
-    ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-    ctx.fillStyle = p.color;
-    ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
-    ctx.restore();
+function fxRain(n){
+  const cols = fxColors();
+  for (let i = 0; i < n; i++){
+    FX.parts.push({
+      x: Math.random() * FX.cv.width,
+      y: -20 - Math.random() * FX.cv.height * 0.5,
+      vx: (Math.random() - 0.5) * 2,
+      vy: 2 + Math.random() * 3,
+      w: 6 + Math.random() * 8,
+      h: 5 + Math.random() * 7,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.25,
+      c: cols[Math.floor(Math.random() * cols.length)],
+      life: 260 + Math.random() * 80
+    });
   }
-  if(conf.parts.length>0){ requestAnimationFrame(confettiLoop); }
-  else { conf.running = false; ctx.clearRect(0,0,cv.width,cv.height); }
+  if (!FX.raf) { FX.raf = requestAnimationFrame(fxLoop); }
 }
-window.addEventListener('resize', function(){
-  var cv = el('confetti');
-  cv.width = window.innerWidth; cv.height = window.innerHeight;
-});
-
-/* ---------- 气泡提示 ---------- */
-var toastTimer = null;
-function toast(msg){
-  var t = el('toast');
-  t.textContent = msg;
-  t.classList.remove('hidden');
-  if(toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ t.classList.add('hidden'); }, 2400);
+function fxLoop(){
+  const c = FX.ctx;
+  c.clearRect(0, 0, FX.cv.width, FX.cv.height);
+  FX.parts = FX.parts.filter(p => p.life > 0 && p.y < FX.cv.height + 30);
+  FX.parts.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.18; p.rot += p.vr; p.life--;
+    c.save();
+    c.translate(p.x, p.y);
+    c.rotate(p.rot);
+    c.fillStyle = p.c;
+    c.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    c.restore();
+  });
+  if (FX.parts.length){
+    FX.raf = requestAnimationFrame(fxLoop);
+  } else {
+    FX.raf = 0;
+    c.clearRect(0, 0, FX.cv.width, FX.cv.height);
+  }
+}
+function burstAt(elm, n){
+  if (!elm) { fxSpawn(FX.cv.width / 2, FX.cv.height / 3, n, 9); return; }
+  const r = elm.getBoundingClientRect();
+  fxSpawn(r.left + r.width / 2, r.top + r.height / 2, n, 9);
 }
 
-/* =====================================================================
- * 流程控制：开始一局 / 返回大厅 / 重新开始
- * ===================================================================== */
-function startRun(diff){
-  S.diff = diff;
-  S.puzzles = samplePuzzles(diff);   // 随机抽 3 关（反重复）
-  S.idx = 0; S.stars = 0; S.steps = 0; S.seconds = 0;
-  applyPalette();                    // 随机色板
-  updateHUD();
-  el('screen-menu').classList.add('hidden');
-  el('screen-game').classList.remove('hidden');
-  el('win-overlay').classList.add('hidden');
-  renderPuzzle();
+/* ============================================================
+   九、流程控制：开始游戏 / 回合
+   ============================================================ */
+function startGame(diff){
+  applyPalette();
+  G.diff = diff;
+  G.rounds = sample(POOLS[diff], 3).map(def => buildRound(def, diff));
+  G.ri = 0; G.steps = 0; G.stars = 0; G.awarded = [false, false, false];
+  $('#st-steps').textContent = '步数 0';
+  $('#st-stars').textContent = '星星 0';
+  document.body.classList.remove('in-menu');
+  $('#screen-menu').hidden = true;
+  $('#screen-game').hidden = false;
+  $('#celebrate').hidden = true;
   startTimer();
+  startRound();
+  showModal(rulesHtml(diff, true));
 }
-function showMenu(){
-  stopTimer();
-  S.seconds = 0; S.steps = 0; updateHUD();
-  el('screen-game').classList.add('hidden');
-  el('win-overlay').classList.add('hidden');
-  el('screen-menu').classList.remove('hidden');
-}
-
-/* ---------- 按钮绑定 ---------- */
-(function bindButtons(){
-  var diffs = document.querySelectorAll('.diff-btn');
-  for(var i=0;i<diffs.length;i++){
-    diffs[i].addEventListener('click', function(){ startRun(+this.dataset.diff); });
+function startRound(){
+  const R = G.rounds[G.ri];
+  G.round = R;
+  G.phase = 'explore';
+  G.collected = {};
+  G.bagDigits = []; G.rPlaced = false; G.divOrder = 0;
+  G.revealed = false; G.running = false;
+  clearZones();
+  $('#breakdown').hidden = true;
+  $('#assembly').hidden = true;
+  $('#nextwrap').hidden = true;
+  $('#nextwrap').innerHTML = '';
+  renderTaskCard();
+  renderProgress();
+  $('#stage').innerHTML = '';
+  if (G.diff === 'easy'){
+    G.collected = { 0: true };   // 排头数一开始就点亮
+    buildWheelStage();
+    setMsg('排头数已经点亮啦！拖动摩天轮（或点「转动一格」），找出剩下的轮转伙伴！');
+  } else if (G.diff === 'mid'){
+    buildGridStage();
+    setMsg('把数字卡拖进方阵，让每一行都由同样的数字轮转组成！');
+  } else {
+    G.phase = 'workbench';
+    buildWorkbench();
+    setMsg('先装满「数字和袋子」，再挑一座正确的「1」塔，最后把「÷' + R.d + '」积木放到更轻松的位置！');
   }
-  el('btn-back').addEventListener('click', showMenu);
-  el('btn-win-back').addEventListener('click', showMenu);
-  el('btn-again').addEventListener('click', function(){ startRun(S.diff); });
-  el('btn-restart').addEventListener('click', function(){ startRun(S.diff); toast('新的一局开始，关卡已重新随机！'); });
-  el('btn-reveal').addEventListener('click', revealAnswer);
-  el('btn-next').addEventListener('click', nextPuzzle);
-  el('btn-rules').addEventListener('click', function(){ el('rules-modal').classList.remove('hidden'); });
-  el('btn-rules-menu').addEventListener('click', function(){ el('rules-modal').classList.remove('hidden'); });
-  el('btn-rules-close').addEventListener('click', function(){ el('rules-modal').classList.add('hidden'); });
-})();
+}
+function renderTaskCard(){
+  const R = G.round;
+  $('#task-title').textContent = '第 ' + (G.ri + 1) + ' 轮 / 共 ' + G.rounds.length + ' 轮';
+  if (G.diff === 'hard'){
+    $('#task-goal').textContent = '挑战目标：巧算出商';
+    $('#task-expr').textContent = R.divExpr + ' = ?';
+  } else {
+    $('#task-goal').textContent = '挑战目标：巧算出这组轮转数的和';
+    $('#task-expr').textContent = R.expr + ' = ?';
+  }
+  const note = $('#task-note');
+  if (R.lead0){
+    note.hidden = false;
+    note.textContent = '小贴士：有的轮转数开头是 0，写出来会变短（如 0412 写成 412），但它依然占着 4 个数位哦！';
+  } else {
+    note.hidden = true;
+  }
+}
+function renderProgress(){
+  const box = $('#progress');
+  box.innerHTML = '';
+  G.rounds.forEach((r, i) => {
+    const d = el('div', 'dot' + (i === G.ri ? ' current' : '') + (G.awarded[i] ? ' done' : ''));
+    d.textContent = G.awarded[i] ? '★' : String(i + 1);
+    box.appendChild(d);
+  });
+  const lab = el('span', '', '');
+  lab.textContent = { easy:'初级 · 摩天轮启航', mid:'中级 · 轮转方阵', hard:'高级 · 巧算机器' }[G.diff];
+  box.appendChild(lab);
+}
 
-/* ---------- 启动：应用随机色板，首次进入弹出规则（G6） ---------- */
+/* ============================================================
+   十、初级：摩天轮探索区
+   ============================================================ */
+function buildWheelStage(){
+  const R = G.round, n = R.n;
+  const row = el('div', 'explore-row');
+  const wrap = el('div', 'wheel-wrap');
+  const wheel = el('div', 'wheel');
+  wheel.id = 'wheel';
+  for (let i = 0; i < n; i++){
+    const s = el('div', 'seat');
+    const b = el('div', 'bub');
+    b.textContent = R.ds[i];
+    s.appendChild(b);
+    wheel.appendChild(s);
+  }
+  const hub = el('div', 'hub');
+  hub.textContent = '转';
+  wheel.appendChild(hub);
+  wrap.appendChild(wheel);
+  const marks = el('div', 'marks');
+  const places = placeNames(n);
+  for (let p = 0; p < n; p++){
+    const m = el('div', 'mark pos' + p);
+    m.innerHTML = '<span>' + places[p] + '</span>';
+    marks.appendChild(m);
+  }
+  wrap.appendChild(marks);
+  row.appendChild(wrap);
+
+  const side = el('div', 'side');
+  const readPanel = el('div', 'panel');
+  readPanel.innerHTML = '<h4>当前转到的数（各数位）</h4>';
+  const slots = el('div', '');
+  slots.id = 'read-slots';
+  for (let p = 0; p < n; p++){
+    const s = el('div', 'rslot p' + p);
+    s.innerHTML = '<span class="pl">' + places[p] + '</span><span class="dv">?</span>';
+    slots.appendChild(s);
+  }
+  readPanel.appendChild(slots);
+  const rn = el('div', '');
+  rn.id = 'read-note';
+  rn.textContent = '拖住轮盘转圈圈，松手它会稳稳卡到位～';
+  readPanel.appendChild(rn);
+  side.appendChild(readPanel);
+
+  const shelfPanel = el('div', 'panel');
+  shelfPanel.innerHTML = '<h4>轮转数收集墙（挑战卡上的每一个数）</h4>';
+  const shelf = el('div', 'shelf');
+  R.nums.forEach((num, i) => {
+    const it = el('div', 'shelf-item');
+    it.textContent = G.collected[i] ? num : '?';
+    if (G.collected[i]) { it.classList.add('lit'); }
+    shelf.appendChild(it);
+  });
+  shelfPanel.appendChild(shelf);
+  side.appendChild(shelfPanel);
+
+  const btnRow = el('div', 'wheel-btn-row');
+  const btnStep = el('button', 'btn-main');
+  btnStep.textContent = '转动一格';
+  btnStep.addEventListener('click', () => {
+    if (G.phase !== 'explore' || G.running) { return; }
+    const step = 360 / n;
+    const target = (Math.round(G.wheelAngle / step) + 1) * step;
+    animWheelTo(target, () => applyWheelK(mod(Math.round(target / step), n)));
+  });
+  btnRow.appendChild(btnStep);
+  side.appendChild(btnRow);
+  row.appendChild(side);
+
+  $('#stage').appendChild(row);
+  G.wheelK = 0; G.wheelAngle = 0;
+  attachWheelDrag(wheel);
+  requestAnimationFrame(() => { layoutWheel(0); updateReadingUI(); });
+}
+/* 舱位与位置标记的几何排布（数字始终正立） */
+function layoutWheel(angle){
+  const wheel = $('#wheel');
+  if (!wheel) { return; }
+  const n = G.round.n;
+  const step = 360 / n;
+  const rect = wheel.getBoundingClientRect();
+  const radius = rect.width / 2 - 34;
+  $$('.seat', wheel).forEach((s, i) => {
+    const a = i * step + angle;
+    s.style.transform = 'rotate(' + a + 'deg) translateY(' + (-radius) + 'px) rotate(' + (-a) + 'deg)';
+  });
+  $$('.mark').forEach((m, p) => {
+    const a = p * step;
+    m.style.transform = 'rotate(' + a + 'deg) translateY(' + (-(radius + 26)) + 'px) rotate(' + (-a) + 'deg)';
+  });
+}
+function animWheelTo(target, done){
+  const from = G.wheelAngle, t0 = performance.now(), dur = 420;
+  G.running = true;
+  function frame(t){
+    const u = Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(1 - u, 3);
+    G.wheelAngle = from + (target - from) * e;
+    layoutWheel(G.wheelAngle);
+    if (u < 1) { requestAnimationFrame(frame); }
+    else { G.running = false; if (done) { done(); } }
+  }
+  requestAnimationFrame(frame);
+}
+/* 摩天轮拖拽旋转 */
+function attachWheelDrag(wheel){
+  let wd = null;
+  const angleOf = (x, y, cx, cy) => Math.atan2(x - cx, -(y - cy)) * 180 / Math.PI;
+  wheel.addEventListener('pointerdown', (e) => {
+    if (G.phase !== 'explore') { return; }
+    e.preventDefault();
+    const r = wheel.getBoundingClientRect();
+    wd = {
+      cx: r.left + r.width / 2, cy: r.top + r.height / 2,
+      a0: angleOf(e.clientX, e.clientY, r.left + r.width / 2, r.top + r.height / 2),
+      start: G.wheelAngle, moved: false
+    };
+  });
+  wheel.addEventListener('pointermove', (e) => {
+    if (!wd || G.phase !== 'explore') { return; }
+    wd.moved = true;
+    const a = angleOf(e.clientX, e.clientY, wd.cx, wd.cy);
+    G.wheelAngle = wd.start + (a - wd.a0);
+    layoutWheel(G.wheelAngle);
+  });
+  const finish = () => {
+    if (!wd) { return; }
+    const had = wd.moved; wd = null;
+    if (!had) { setMsg('拖住轮盘转圈圈，或者点「转动一格」也可以哦～'); return; }
+    const step = 360 / G.round.n;
+    const target = Math.round(G.wheelAngle / step) * step;
+    animWheelTo(target, () => applyWheelK(mod(Math.round(target / step), G.round.n)));
+  };
+  wheel.addEventListener('pointerup', finish);
+  wheel.addEventListener('pointercancel', finish);
+}
+/* 应用轮位 k：更新读数并尝试收集 */
+function applyWheelK(k){
+  G.wheelK = k;
+  updateReadingUI();
+  tryCollectReading();
+}
+function currentReading(){
+  const R = G.round, n = R.n;
+  const arr = [];
+  for (let p = 0; p < n; p++){ arr.push(R.ds[(p - G.wheelK + n) % n]); }
+  return arr;
+}
+function updateReadingUI(){
+  const rd = currentReading();
+  $$('#read-slots .rslot').forEach((s, p) => {
+    const dv = $('.dv', s);
+    dv.textContent = rd[p];
+    dv.classList.toggle('lead0', p === 0 && rd[p] === 0);
+  });
+  const note = $('#read-note');
+  if (rd[0] === 0){
+    note.textContent = '开头是 0：这个数写作 ' + numStr(rd) + '，计算时它还是 ' + G.round.n + ' 位数！';
+  } else {
+    note.textContent = '读数方法：看每个数位标记对着的数字。';
+  }
+}
+function tryCollectReading(){
+  if (G.phase !== 'explore') { return; }
+  const val = parseInt(currentReading().join(''), 10);
+  const idx = G.round.rots.findIndex(r => parseInt(r.join(''), 10) === val);
+  if (idx < 0 || G.collected[idx]) { return; }
+  G.collected[idx] = true;
+  addStep();
+  const items = $$('.shelf-item');
+  if (items[idx]){
+    items[idx].textContent = G.round.nums[idx];
+    items[idx].classList.add('lit');
+    burstAt(items[idx], 16);
+  }
+  const got = Object.keys(G.collected).length;
+  if (got >= G.round.n){
+    setMsg('太棒了！轮转数全部集齐，看看每一列藏着的规律～');
+    setTimeout(() => showBreakdown(false), 700);
+  } else {
+    setMsg('点亮了 ' + G.round.nums[idx] + '！还差 ' + (G.round.n - got) + ' 个，继续转～');
+  }
+}
+
+/* ============================================================
+   十一、中级：轮转方阵
+   ============================================================ */
+function buildGridStage(){
+  const R = G.round, n = R.n;
+  const wrap = el('div', 'lgrid-wrap');
+  const grid = el('div', 'lgrid');
+  grid.id = 'lgrid';
+  grid.style.gridTemplateColumns = '92px repeat(' + n + ', auto)';
+  const places = placeNames(n);
+  const corner = el('div', 'lg-corner');
+  corner.textContent = '轮转方阵';
+  grid.appendChild(corner);
+  for (let c = 0; c < n; c++){
+    const h = el('div', 'lg-head');
+    h.textContent = places[c];
+    h.style.background = 'var(--pos' + c + ')';
+    grid.appendChild(h);
+  }
+  G.grid = { values: [], fixed: [], rowDone: [] };
+  for (let r = 0; r < n; r++){
+    G.grid.values.push(R.rots[r].slice());
+    G.grid.fixed.push([]);
+    G.grid.rowDone.push(false);
+    for (let c = 0; c < n; c++){
+      const isBase = (r === 0);
+      let isHint = false;
+      if (!isBase){ isHint = Math.random() < 0.45; }
+      const cell = el('div', 'cell');
+      cell.dataset.r = r; cell.dataset.c = c;
+      if (isBase){
+        cell.classList.add('fixed');
+        cell.textContent = R.rots[r][c];
+        G.grid.fixed[r].push(true);
+      } else if (isHint){
+        cell.classList.add('hint');
+        cell.textContent = R.rots[r][c];
+        G.grid.fixed[r].push(true);
+      } else {
+        G.grid.values[r][c] = null;      // 学生要填的格子
+        G.grid.fixed[r].push(false);
+        regZone(cell,
+          (chip) => chip.dataset.kind === 'digit' && G.phase === 'explore',
+          (chip) => gridDrop(cell, chip)
+        );
+      }
+      grid.appendChild(cell);
+    }
+  }
+  wrap.appendChild(grid);
+
+  const tray = el('div', 'tray');
+  tray.style.width = '100%';
+  tray.innerHTML = '<div class="tray-title">数字卡托盘（每张卡可以反复取用）</div>';
+  const chips = el('div', 'tray-chips');
+  shuffle(R.ds.slice()).forEach(d => {
+    const c = el('div', 'chip chip-digit drag-chip');
+    c.dataset.kind = 'digit';
+    c.dataset.val = String(d);
+    c.textContent = String(d);
+    chips.appendChild(c);
+  });
+  tray.appendChild(chips);
+  wrap.appendChild(tray);
+  $('#stage').appendChild(wrap);
+}
+function renderCell(r, c){
+  const cell = $$('#lgrid .cell').find(x => Number(x.dataset.r) === r && Number(x.dataset.c) === c);
+  if (!cell) { return; }
+  const v = G.grid.values[r][c];
+  if (v === null){
+    cell.textContent = '';
+    cell.classList.remove('filled', 'bad');
+  } else {
+    cell.innerHTML = (c === 0 && v === 0) ? '<span class="lead0cell">0</span>' : String(v);
+    cell.classList.add('filled');
+    cell.classList.remove('bad');
+  }
+}
+function gridDrop(cell, chip){
+  const r = Number(cell.dataset.r), c = Number(cell.dataset.c);
+  G.grid.values[r][c] = Number(chip.dataset.val);
+  renderCell(r, c);
+  addStep();
+  checkGridRow(r);
+}
+function checkGridRow(r){
+  const n = G.round.n;
+  const vals = G.grid.values[r];
+  if (vals.some(v => v === null)) { return; }
+  const sorted = vals.slice().sort((a, b) => a - b).join(',');
+  const target = G.round.ds.slice().sort((a, b) => a - b).join(',');
+  if (sorted !== target){
+    rowShake(r, '这一行用的数字和排头数不一样哦——轮转伙伴必须由完全相同的数字组成，再想想～');
+    return;
+  }
+  const dup = G.grid.rowDone.some((done, i) => done && i !== r && G.grid.values[i].join('') === vals.join(''));
+  if (dup){
+    rowShake(r, '这一行和前面的行重复啦——轮转家族的每个成员都不相同！');
+    return;
+  }
+  G.grid.rowDone[r] = true;
+  for (let c = 0; c < n; c++){
+    const cell = $$('#lgrid .cell').find(x => Number(x.dataset.r) === r && Number(x.dataset.c) === c);
+    if (cell){ cell.classList.add('rowdone'); }
+  }
+  const doneCount = G.grid.rowDone.filter(Boolean).length;
+  if (doneCount >= n){
+    setMsg('方阵完成！现在观察每一列——每个数字是不是恰好出现一次？');
+    setTimeout(() => gridColumnCheck(), 600);
+  } else {
+    setMsg('第 ' + (r + 1) + ' 行拼好啦！还差 ' + (n - doneCount) + ' 行。');
+  }
+}
+function rowShake(r, msg){
+  setMsg(msg);
+  $$('#lgrid .cell').forEach(cell => {
+    if (Number(cell.dataset.r) === r){
+      cell.classList.add('bad');
+      setTimeout(() => {
+        if (!G.grid.fixed[r][Number(cell.dataset.c)]){
+          G.grid.values[r][Number(cell.dataset.c)] = null;
+        }
+        cell.classList.remove('bad');
+        renderCell(r, Number(cell.dataset.c));
+      }, 550);
+    }
+  });
+}
+function gridColumnCheck(){
+  const n = G.round.n;
+  let ci = 0;
+  const step = () => {
+    if (ci >= n){
+      setTimeout(() => showBreakdown(false), 800);
+      return;
+    }
+    $$('#lgrid .cell').forEach(cell => {
+      if (Number(cell.dataset.c) === ci){ cell.classList.add('colglow'); }
+    });
+    ci++;
+    setTimeout(step, 500);
+  };
+  step();
+}
+function fillGridInstant(){
+  const n = G.round.n;
+  for (let r = 0; r < n; r++){
+    for (let c = 0; c < n; c++){
+      G.grid.values[r][c] = G.round.rots[r][c];
+      G.grid.rowDone[r] = true;
+      renderCell(r, c);
+    }
+  }
+}
+
+/* ============================================================
+   十二、竖式分解表（通用：揭示“每列和=数字和”的规律）
+   ============================================================ */
+function showBreakdown(instant){
+  G.phase = 'breakdown';
+  clearZones();
+  const R = G.round, n = R.n;
+  const places = placeNames(n);
+  const box = $('#breakdown');
+  box.hidden = false;
+  box.innerHTML = '<h3>竖式分解：每个数字在每一列恰好出现一次！</h3>';
+  const scroll = el('div', 'bk-scroll');
+  const tb = el('table', 'bk');
+  let head = '<tr><th class="corner">各轮转数</th>';
+  for (let c = 0; c < n; c++){ head += '<th class="h' + c + '">' + places[c] + '</th>'; }
+  head += '</tr>';
+  tb.innerHTML = head;
+  R.rots.forEach(rot => {
+    let tr = '<tr><td class="sumrow" style="font-size:20px;">' + numStr(rot) + '</td>';
+    rot.forEach((d, c) => {
+      tr += '<td data-col="' + c + '"' + (c === 0 && d === 0 ? ' class="lead0"' : '') + '>' + d + '</td>';
+    });
+    tr += '</tr>';
+    tb.innerHTML += tr;
+  });
+  let sum = '<tr><td class="sumrow" style="font-size:16px;">每列的和</td>';
+  for (let c = 0; c < n; c++){ sum += '<td class="sumrow" data-col="' + c + '">' + R.S + '</td>'; }
+  sum += '</tr>';
+  tb.innerHTML += sum;
+  scroll.appendChild(tb);
+  box.appendChild(scroll);
+  const banner = el('div', 'bk-banner');
+  const pv = [];
+  for (let i = n - 1; i >= 0; i--){ pv.push(Math.pow(10, i)); }
+  banner.innerHTML = '每一列的和都是 <b>' + R.S + '</b> → 总和 = ' + R.S + '×(' + pv.join(' + ') +
+                     ') = <b>' + R.S + ' × ' + R.R + '</b>';
+  box.appendChild(banner);
+
+  if (instant){
+    finishBreakdown();
+    return;
+  }
+  /* 逐列点亮动画：先亮数字行，再亮“每列的和”，最后亮横幅 */
+  const tds = $$('td[data-col]', tb);
+  const cols = n;
+  let ci = 0;
+  const step = () => {
+    if (ci >= cols){
+      banner.style.visibility = 'visible';
+      setTimeout(finishBreakdown, 900);
+      return;
+    }
+    tds.forEach(td => { if (Number(td.dataset.col) === ci) { td.classList.add('on'); } });
+    ci++;
+    setTimeout(step, 480);
+  };
+  banner.style.visibility = 'hidden';
+  setTimeout(step, 300);
+}
+function finishBreakdown(){
+  if (G.diff === 'hard'){ return; }   // 高级不走拼装区
+  renderAssembly();
+  $('#assembly').hidden = false;
+  $('#assembly').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  setMsg('规律找到啦！现在把数字卡拖进袋子、挑一座正确的「1」塔，拼出巧算公式！');
+}
+
+/* ============================================================
+   十三、拼装区（初级/中级）：数字和袋子 + 「1」塔 + 公式
+   ============================================================ */
+function towerChipsHtml(R){
+  /* 生成互不相同的「1」塔候选（含正确答案 + 干扰项） */
+  const all = [111, 1111, 11111, 111111].filter(v => v !== R.R);
+  const picks = sample(all, 2);
+  return shuffle([R.R].concat(picks));
+}
+function towerInner(v){
+  const ones = String(v).length;
+  let blocks = '';
+  for (let i = 0; i < ones; i++){ blocks += '<i></i>'; }
+  return '<span class="tstack">' + blocks + '</span><span>' + v + '</span>';
+}
+function renderAssembly(){
+  const R = G.round;
+  G.phase = 'assemble';
+  const box = $('#assembly');
+  box.innerHTML = '<h3>拼出巧算公式：和 = 数字和 × 「1」塔</h3>';
+  const bar = el('div', 'asm-bar');
+  const bag = el('div', 'bag');
+  bag.innerHTML = '<div class="bag-title">数字和袋子（把数字卡都拖进来）</div><div class="bag-expr" id="bag-expr">等待数字卡…</div>';
+  bar.appendChild(bag);
+  const op = el('div', 'asm-op');
+  op.textContent = '×';
+  bar.appendChild(op);
+  const slot = el('div', 'slot');
+  slot.innerHTML = '<div class="slot-title">「1」塔槽（拖入正确层数的塔）</div><div class="slot-body" id="slot-r-body">?</div>';
+  bar.appendChild(slot);
+  box.appendChild(bar);
+
+  const trayRow = el('div', 'tray-row');
+  const trayD = el('div', 'tray');
+  trayD.innerHTML = '<div class="tray-title">数字卡（可反复取用）</div>';
+  const chipsD = el('div', 'tray-chips');
+  shuffle(R.ds.slice()).forEach(d => {
+    const c = el('div', 'chip chip-digit drag-chip');
+    c.dataset.kind = 'digit';
+    c.dataset.val = String(d);
+    c.textContent = String(d);
+    chipsD.appendChild(c);
+  });
+  trayD.appendChild(chipsD);
+  trayRow.appendChild(trayD);
+  const trayT = el('div', 'tray');
+  trayT.innerHTML = '<div class="tray-title">「1」塔（层数 = 位数）</div>';
+  const chipsT = el('div', 'tray-chips');
+  towerChipsHtml(R).forEach(v => {
+    const c = el('div', 'chip chip-tower drag-chip');
+    c.dataset.kind = 'tower';
+    c.dataset.val = String(v);
+    c.innerHTML = towerInner(v);
+    chipsT.appendChild(c);
+  });
+  trayT.appendChild(chipsT);
+  trayRow.appendChild(trayT);
+  box.appendChild(trayRow);
+
+  const formula = el('div', '');
+  formula.id = 'formula';
+  formula.hidden = true;
+  box.appendChild(formula);
+
+  regZone(bag,
+    (chip) => chip.dataset.kind === 'digit' && G.bagDigits.length < R.n && G.phase === 'assemble',
+    (chip) => bagDrop(chip)
+  );
+  regZone(slot,
+    (chip) => chip.dataset.kind === 'tower' && !G.rPlaced && G.phase === 'assemble',
+    (chip, d) => towerDrop(chip, d, slot)
+  );
+}
+function bagDrop(chip, dispEl){
+  const R = G.round;
+  G.bagDigits.push(Number(chip.dataset.val));
+  addStep();
+  const be = (dispEl && $('#bag-expr')) || $('#bag-expr') || (dispEl ? dispEl.querySelector('.wb-cell-b') : null);
+  const target = dispEl || $('#bag-expr');
+  void be; void target;
+  updateBagDisplay();
+  if (G.bagDigits.length >= R.n){
+    setMsg('数字和袋子装满啦：' + R.ds.join('+') + ' = ' + R.S + '！接下来挑「1」塔～');
+    checkAsmReady();
+  } else {
+    setMsg('收到了数字 ' + chip.dataset.val + '，袋子里的数字和正在变大～');
+  }
+}
+function updateBagDisplay(){
+  const R = G.round;
+  const bagExpr = $('#bag-expr');
+  if (bagExpr){
+    if (G.bagDigits.length === 0){
+      bagExpr.textContent = '等待数字卡…';
+    } else {
+      let t = G.bagDigits.join(' + ');
+      if (G.bagDigits.length >= R.n){ t += ' = <b>' + R.S + '</b>'; $('.bag').classList.add('sealed'); }
+      bagExpr.innerHTML = t;
+    }
+  }
+  const wb = $('#wb-s-b');
+  if (wb){
+    if (G.bagDigits.length === 0){
+      wb.textContent = '拖入数字卡';
+    } else {
+      let t = G.bagDigits.join('+');
+      if (G.bagDigits.length >= R.n){ t += '=' + R.S; $('#wb-s').classList.add('sealed'); }
+      wb.textContent = t;
+    }
+  }
+}
+function towerDrop(chip, drag, slotEl){
+  const R = G.round;
+  const v = Number(chip.dataset.val);
+  if (v !== R.R){
+    setMsg('这座塔有 ' + String(v).length + ' 层，可这是 ' + R.n + ' 位数，需要 ' + R.n + ' 层的「1」塔（' + R.R + '）哦！');
+    return;   // 不移除芯片，弹回托盘
+  }
+  G.rPlaced = true;
+  addStep();
+  if (drag){ drag.chip.remove(); }
+  const body = $('#slot-r-body') || slotEl.querySelector('.slot-body');
+  if (body){ body.innerHTML = towerInner(R.R); }
+  const sl = slotEl || $('.slot');
+  if (sl){ sl.classList.add('filled'); }
+  setMsg('「1」塔放好啦！') ;
+  checkAsmReady();
+}
+function checkAsmReady(){
+  const R = G.round;
+  if (G.bagDigits.length >= R.n && G.rPlaced){
+    runFormula();
+  }
+}
+function runFormula(instant){
+  const R = G.round;
+  G.phase = 'done';
+  clearZones();
+  const f = $('#formula');
+  f.hidden = false;
+  f.innerHTML =
+    '<div>和 = <span class="hl">(' + R.ds.join('+') + ')</span> × ' + R.R + '</div>' +
+    '<div>= <span class="hl">' + R.S + '</span> × ' + R.R + '</div>' +
+    '<div>= <span class="hl">' + R.sum + '</span></div>' +
+    '<div class="vf">直接加验证：' + R.expr + ' = ' + R.sum + '，完全一致！</div>';
+  if (instant){
+    finishRound(G.revealed ? 1 : 3);
+    return;
+  }
+  burstAt(f, 40);
+  setMsg('巧算成功！和 = ' + R.S + ' × ' + R.R + ' = ' + R.sum + '！');
+  finishRound(3);
+}
+
+/* ============================================================
+   十四、高级：巧算机器工作台
+   ============================================================ */
+function buildWorkbench(){
+  const R = G.round;
+  const box = $('#assembly');
+  box.hidden = false;
+  box.innerHTML = '<h3>巧算机器工作台：(' + R.ds.join('+') + ') × 「1」塔 ÷ ' + R.d + '</h3>';
+  const strip = el('div', 'wb-strip');
+  const cellS = el('div', 'wb-cell');
+  cellS.id = 'wb-s';
+  cellS.innerHTML = '<div class="wb-cell-t">数字和袋子</div><div class="wb-cell-b" id="wb-s-b">拖入数字卡</div>';
+  strip.appendChild(cellS);
+  const sockA = el('div', 'wb-socket');
+  sockA.id = 'sock-a';
+  sockA.innerHTML = '<span>先算插槽<br/>（放在乘塔前面）</span>';
+  strip.appendChild(sockA);
+  const op = el('div', 'wb-op');
+  op.textContent = '×';
+  strip.appendChild(op);
+  const cellR = el('div', 'wb-cell');
+  cellR.id = 'wb-r';
+  cellR.innerHTML = '<div class="wb-cell-t">「1」塔槽</div><div class="wb-cell-b" id="wb-r-b">拖入1塔</div>';
+  strip.appendChild(cellR);
+  const sockB = el('div', 'wb-socket');
+  sockB.id = 'sock-b';
+  sockB.innerHTML = '<span>后算插槽<br/>（放在乘塔后面）</span>';
+  strip.appendChild(sockB);
+  box.appendChild(strip);
+
+  const trayRow = el('div', 'tray-row');
+  const trayD = el('div', 'tray');
+  trayD.innerHTML = '<div class="tray-title">数字卡（可反复取用）</div>';
+  const chipsD = el('div', 'tray-chips');
+  shuffle(R.ds.slice()).forEach(d => {
+    const c = el('div', 'chip chip-digit drag-chip');
+    c.dataset.kind = 'digit';
+    c.dataset.val = String(d);
+    c.textContent = String(d);
+    chipsD.appendChild(c);
+  });
+  trayD.appendChild(chipsD);
+  trayRow.appendChild(trayD);
+  const trayT = el('div', 'tray');
+  trayT.innerHTML = '<div class="tray-title">「1」塔（层数 = 位数）</div>';
+  const chipsT = el('div', 'tray-chips');
+  towerChipsHtml(R).forEach(v => {
+    const c = el('div', 'chip chip-tower drag-chip');
+    c.dataset.kind = 'tower';
+    c.dataset.val = String(v);
+    c.innerHTML = towerInner(v);
+    chipsT.appendChild(c);
+  });
+  trayT.appendChild(chipsT);
+  trayRow.appendChild(trayT);
+  const trayV = el('div', 'tray');
+  trayV.innerHTML = '<div class="tray-title">「÷' + R.d + '」积木（放到更轻松的位置）</div>';
+  const chipsV = el('div', 'tray-chips');
+  const cDiv = el('div', 'chip chip-div drag-chip');
+  cDiv.dataset.kind = 'divop';
+  cDiv.dataset.val = String(R.d);
+  cDiv.id = 'chip-div';
+  cDiv.textContent = '÷ ' + R.d;
+  chipsV.appendChild(cDiv);
+  trayV.appendChild(chipsV);
+  trayRow.appendChild(trayV);
+  box.appendChild(trayRow);
+
+  const log = el('div', '');
+  log.id = 'machine-log';
+  box.appendChild(log);
+
+  const btn = el('button', 'btn-main');
+  btn.id = 'btn-machine';
+  btn.textContent = '启动机器';
+  btn.disabled = true;
+  btn.addEventListener('click', () => runMachine(false));
+  const btnWrap = el('div', '');
+  btnWrap.style.display = 'flex';
+  btnWrap.style.justifyContent = 'center';
+  btnWrap.appendChild(btn);
+  box.appendChild(btnWrap);
+
+  regZone(cellS,
+    (chip) => chip.dataset.kind === 'digit' && G.bagDigits.length < R.n && G.phase === 'workbench',
+    (chip) => bagDrop(chip)
+  );
+  regZone(cellR,
+    (chip) => chip.dataset.kind === 'tower' && !G.rPlaced && G.phase === 'workbench',
+    (chip, d) => towerDropHard(chip, d, cellR)
+  );
+  regZone(sockA,
+    (chip) => chip.dataset.kind === 'divop' && G.divOrder === 0 && G.phase === 'workbench',
+    (chip, d) => divDrop(chip, d, sockA, 1)
+  );
+  regZone(sockB,
+    (chip) => chip.dataset.kind === 'divop' && G.divOrder === 0 && G.phase === 'workbench',
+    (chip, d) => divDrop(chip, d, sockB, 2)
+  );
+}
+function towerDropHard(chip, drag, cellR){
+  const R = G.round;
+  const v = Number(chip.dataset.val);
+  if (v !== R.R){
+    setMsg('这座塔有 ' + String(v).length + ' 层，可这是 ' + R.n + ' 位数，要 ' + R.n + ' 层的「1」塔（' + R.R + '）哦！');
+    return;
+  }
+  G.rPlaced = true;
+  addStep();
+  if (drag){ drag.chip.remove(); }
+  const body = $('#wb-r-b');
+  if (body){ body.textContent = String(R.R); }
+  cellR.classList.add('sealed');
+  setMsg('「1」塔放好啦！');
+  checkMachineReady();
+}
+function divDrop(chip, drag, sock, which){
+  const R = G.round;
+  G.divOrder = which;
+  addStep();
+  if (drag){ drag.chip.remove(); }
+  const placed = el('div', 'placed');
+  placed.textContent = '÷ ' + R.d;
+  placed.title = '点一下可以拿回去重放';
+  sock.appendChild(placed);
+  const other = which === 1 ? $('#sock-b') : $('#sock-a');
+  if (other){ other.classList.add('off'); }
+  /* 点击已放置的积木可取回重放 */
+  placed.addEventListener('click', () => {
+    if (G.phase !== 'workbench' || G.running) { return; }
+    G.divOrder = 0;
+    placed.remove();
+    if (other){ other.classList.remove('off'); }
+    const trayChips = $('#chip-div');
+    if (!trayChips){
+      const c = el('div', 'chip chip-div drag-chip');
+      c.dataset.kind = 'divop';
+      c.dataset.val = String(R.d);
+      c.id = 'chip-div';
+      c.textContent = '÷ ' + R.d;
+      chip.parentNode.appendChild(c);
+    }
+    setMsg('把「÷' + R.d + '」积木拿回来了，再选一个位置放放看！');
+    checkMachineReady();
+  });
+  setMsg(which === 1
+    ? '放在乘塔前面：先除后乘。看看机器是不是跑得更轻松！'
+    : '放在乘塔后面：先乘出一个大数再除。按下机器试试，再比较一下另一种放法～');
+  checkMachineReady();
+}
+function checkMachineReady(){
+  const R = G.round;
+  const btn = $('#btn-machine');
+  if (!btn) { return; }
+  btn.disabled = !(G.bagDigits.length >= R.n && G.rPlaced && G.divOrder !== 0);
+  if (!btn.disabled){ setMsg('一切就绪！按下「启动机器」，看看巧算的威力！'); }
+}
+function runMachine(instant){
+  const R = G.round;
+  if (!instant && G.running) { return; }
+  G.phase = 'done';
+  G.running = true;
+  clearZones();
+  const btn = $('#btn-machine');
+  if (btn) { btn.disabled = true; }
+  addStep();
+  const log = $('#machine-log');
+  const smart = G.divOrder === 1;      // 先除后乘 = 巧算
+  const steps = smart
+    ? [ R.S + ' ÷ ' + R.d + ' = ' + (R.S / R.d),
+        (R.S / R.d) + ' × ' + R.R + ' = ' + R.final ]
+    : [ R.S + ' × ' + R.R + ' = ' + R.sum,
+        R.sum + ' ÷ ' + R.d + ' = ' + R.final ];
+  const fin = el('div', 'mstep final');
+  fin.textContent = (R.divExpr) + ' = ' + R.final;
+  if (instant){
+    steps.forEach(s => { const d2 = el('div', 'mstep'); d2.textContent = s; log.appendChild(d2); });
+    log.appendChild(fin);
+    finishRound(G.revealed ? 1 : (smart ? 3 : 2));
+    return;
+  }
+  let i = 0;
+  const step = () => {
+    if (i < steps.length){
+      const d2 = el('div', 'mstep');
+      d2.textContent = steps[i];
+      log.appendChild(d2);
+      burstAt(d2, 14);
+      i++;
+      setTimeout(step, 750);
+    } else {
+      log.appendChild(fin);
+      burstAt(fin, 46);
+      if (smart){
+        setMsg('先除后乘，一路轻轻松松——巧算高手就是你！商 = ' + R.final);
+      } else {
+        setMsg('结果正确！不过先乘出了大数 ' + R.sum + ' 再除有点费劲。能整除时先除后乘会更轻松，下次试试～');
+      }
+      finishRound(smart ? 3 : 2);
+    }
+  };
+  step();
+}
+
+/* ============================================================
+   十五、回合收尾与庆祝
+   ============================================================ */
+function finishRound(stars){
+  G.running = false;
+  if (!G.awarded[G.ri]){
+    G.awarded[G.ri] = true;
+    addStars(stars);
+  }
+  renderProgress();
+  const wrap = $('#nextwrap');
+  wrap.hidden = false;
+  wrap.innerHTML = '';
+  const last = (G.ri >= G.rounds.length - 1);
+  const btn = el('button', 'btn-main');
+  btn.textContent = last ? '查看成绩' : '下一轮';
+  btn.addEventListener('click', () => {
+    if (last) { celebrate(); }
+    else { G.ri++; startRound(); }
+  });
+  wrap.appendChild(btn);
+}
+function celebrate(){
+  stopTimer();
+  const s = Math.floor((Date.now() - G.t0) / 1000);
+  $('#cel-stats').innerHTML =
+    '获得星星：<b>' + G.stars + '</b> 颗　·　用时 <b>' + fmtTime(s) + '</b>　·　操作 <b>' + G.steps + '</b> 步<br/>' +
+    '你已经掌握轮转数求和的巧算秘诀：数字和 × 111…1！';
+  $('#celebrate').hidden = false;
+  fxRain(160);
+  setTimeout(() => fxRain(120), 900);
+}
+
+/* ============================================================
+   十六、规则说明与揭示答案
+   ============================================================ */
+function rulesHtml(diff, starting){
+  const base = '<div class="m-body"><p><b>轮转数小秘诀：</b>几个数字轮流当排头，转出一组轮转数（如 235、352、523）。' +
+    '每个数字在每一个数位上恰好各出现一次，所以每一列的和都等于数字和，' +
+    '<b>总和 = 数字和 × 111…1（1 的个数 = 位数）</b>。</p>';
+  let body = '';
+  if (diff === 'easy'){
+    body = '<ol>' +
+      '<li><b>转一转：</b>拖动摩天轮（或点「转动一格」），转出新的排法。</li>' +
+      '<li><b>集一集：</b>每转出一个轮转数，收集墙上对应的数就被点亮，集齐全部过关。</li>' +
+      '<li><b>拼一拼：</b>把数字卡拖进「数字和袋子」算出数字和，再挑一座层数正确的「1」塔放到乘号后面。</li>' +
+      '<li>公式拼对，巧算机器自动算出总和！</li></ol>';
+  } else if (diff === 'mid'){
+    body = '<ol>' +
+      '<li><b>补方阵：</b>把数字卡拖进空格，让每一行都由和排头数完全相同的数字组成（轮转伙伴）。</li>' +
+      '<li>每一行不能重复；开头的 0 也要占一格哦（0412 写作 412，但方阵里还是 4 格）。</li>' +
+      '<li>方阵完成后观察每一列：每个数字恰好出现一次！</li>' +
+      '<li><b>拼一拼：</b>装数字和袋子 + 挑「1」塔，拼出巧算公式。</li></ol>';
+  } else {
+    body = '<ol>' +
+      '<li><b>装袋子：</b>把组成轮转数的数字卡拖进「数字和袋子」，得到数字和。</li>' +
+      '<li><b>挑塔：</b>拖入层数等于位数的「1」塔。</li>' +
+      '<li><b>放积木：</b>把「÷' + (G.round ? G.round.d : '') + '」积木放到一个插槽——放在乘塔前面是先除后乘，放在后面是先乘后除。能整除时先除更轻松（三星奥秘）！</li>' +
+      '<li>按「启动机器」完成巧算！</li></ol>';
+  }
+  const btn = starting ? '开始挑战' : '知道了';
+  return '<h2>玩法规则</h2>' + base + body + '</div>' +
+         '<div class="modal-btns"><button class="btn-main" data-close="1">' + btn + '</button></div>';
+}
+function solutionHtml(){
+  const R = G.round;
+  let lines = '';
+  if (G.diff === 'hard'){
+    lines =
+      '<div class="sol-line">' + R.divExpr + '</div>' +
+      '<div class="sol-line">= (' + R.ds.join('+') + ') × ' + R.R + ' ÷ ' + R.d + '</div>' +
+      '<div class="sol-line">= ' + R.S + ' × ' + R.R + ' ÷ ' + R.d + '</div>' +
+      '<div class="sol-line">= ' + R.S + ' ÷ ' + R.d + ' × ' + R.R + '　（能整除，先除后乘更轻松）</div>' +
+      '<div class="sol-line">= ' + (R.S / R.d) + ' × ' + R.R + '</div>' +
+      '<div class="sol-line">= <b>' + R.final + '</b></div>';
+  } else {
+    lines =
+      '<div class="sol-line">' + R.expr + ' 中每个数字在每个数位上恰好出现一次</div>' +
+      '<div class="sol-line">和 = (' + R.ds.join('+') + ') × ' + R.R + '</div>' +
+      '<div class="sol-line">= ' + R.S + ' × ' + R.R + '</div>' +
+      '<div class="sol-line">= <b>' + R.sum + '</b></div>';
+  }
+  return '<h2>本关完整解法</h2><div class="m-body">' + lines +
+         '<p>小提示：自己动手转一转、拼一拼，会发现更多规律哦！</p></div>' +
+         '<div class="modal-btns"><button class="btn-main" data-close="1">知道了</button></div>';
+}
+function revealRound(){
+  if (!G.round) { return; }
+  if (G.phase === 'done'){
+    showModal(solutionHtml());
+    return;
+  }
+  G.revealed = true;
+  if (G.diff === 'easy'){
+    /* 点亮收集墙全部轮转数 */
+    Object.keys(G.collected).forEach(k => { G.collected[k] = true; });
+    for (let i = 0; i < G.round.n; i++){ G.collected[i] = true; }
+    const items = $$('.shelf-item');
+    items.forEach((it, i) => { it.textContent = G.round.nums[i]; it.classList.add('lit'); });
+    showBreakdown(true);
+    renderAssembly();
+    $('#assembly').hidden = false;
+    G.bagDigits = G.round.ds.slice();
+    updateBagDisplay();
+    G.rPlaced = true;
+    const body = $('#slot-r-body');
+    if (body){ body.innerHTML = towerInner(G.round.R); }
+    const sl = $('.slot');
+    if (sl){ sl.classList.add('filled'); }
+    runFormula(true);
+  } else if (G.diff === 'mid'){
+    fillGridInstant();
+    showBreakdown(true);
+    renderAssembly();
+    $('#assembly').hidden = false;
+    G.bagDigits = G.round.ds.slice();
+    updateBagDisplay();
+    G.rPlaced = true;
+    const body = $('#slot-r-body');
+    if (body){ body.innerHTML = towerInner(G.round.R); }
+    const sl = $('.slot');
+    if (sl){ sl.classList.add('filled'); }
+    runFormula(true);
+  } else {
+    G.bagDigits = G.round.ds.slice();
+    updateBagDisplay();
+    G.rPlaced = true;
+    const rb = $('#wb-r-b');
+    if (rb){ rb.textContent = String(G.round.R); }
+    const cr = $('#wb-r');
+    if (cr){ cr.classList.add('sealed'); }
+    G.divOrder = 1;
+    const sa = $('#sock-a');
+    if (sa){
+      const placed = el('div', 'placed');
+      placed.textContent = '÷ ' + G.round.d;
+      sa.appendChild(placed);
+    }
+    const sb = $('#sock-b');
+    if (sb){ sb.classList.add('off'); }
+    runMachine(true);
+  }
+  showModal(solutionHtml());
+}
+
+/* ============================================================
+   十七、顶部按钮与初始化
+   ============================================================ */
+$$('.menu-card').forEach(card => {
+  card.addEventListener('click', () => startGame(card.dataset.diff));
+});
+$('#btn-rules').addEventListener('click', () => {
+  if (!G.diff) { return; }
+  showModal(rulesHtml(G.diff, false));
+});
+$('#btn-reveal').addEventListener('click', () => {
+  if (!G.diff || !G.round) { return; }
+  revealRound();
+});
+$('#btn-restart').addEventListener('click', () => {
+  if (!G.diff || !G.round) { return; }
+  startRound();
+});
+$('#btn-back').addEventListener('click', () => {
+  stopTimer();
+  G.diff = null; G.round = null;
+  clearZones();
+  document.body.classList.add('in-menu');
+  $('#screen-game').hidden = true;
+  $('#screen-menu').hidden = false;
+  $('#celebrate').hidden = true;
+});
+$('#btn-again').addEventListener('click', () => {
+  const d = G.diff;
+  $('#celebrate').hidden = true;
+  if (d) { startGame(d); }
+});
+$('#btn-tomenu').addEventListener('click', () => {
+  $('#celebrate').hidden = true;
+  $('#btn-back').click();
+});
 applyPalette();
-updateHUD();
-el('rules-modal').classList.remove('hidden');
-})();
+fxInit();
 </script>
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-f/g009", "name": "\u4f4d\u503c\u9b54\u6cd5\u5de5\u574a \u00b7 \u6570\u5b57\u62fc\u88c5\u5927\u95ef\u5173", "file": "g009.html", "jiaocan": "\u301030\u3011\u7b2c30\u8bb2 \u4f4d\u503c\u539f\u7406\uff08\u4e13\u9898\u516b \u8fdb\u4f4d\u5236\u548c\u4f4d\u503c\u539f\u7406\uff09", "unit": "\u7b2c30\u8bb2", "grade": "\u4e94\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.0", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
+var M={"id": "gcol-ps-f/g009", "name": "\u8f6e\u8f6c\u6570\u6469\u5929\u8f6e \u00b7 \u5de7\u7b97\u6311\u6218", "file": "g009.html", "jiaocan": "\u301027\u3011\u7b2c27\u8bb2 \u8f6e\u8f6c\u6570\u6c42\u548c\uff08\u4e13\u9898\u516d \u7279\u6b8a\u6570\u7684\u8ba1\u7b97\uff09", "unit": "\u7b2c27\u8bb2", "grade": "\u56db\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "F\uff1a\u5de7\u89e3\u8ba1\u7b97\u9898", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.3", "hub": "\u5de7\u89e3\u8ba1\u7b97\u9898\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-f"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
