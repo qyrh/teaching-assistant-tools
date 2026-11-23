@@ -90,6 +90,7 @@ p{margin:.5em 0}
 .stat{font-size:1rem;color:var(--muted);white-space:nowrap}
 .stat b{color:var(--ink);font-size:1.2rem;font-variant-numeric:tabular-nums}
 .tb-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media (min-width:1240px){.tb-r{flex-direction:row;align-items:center;gap:18px}}
 .tb-btn{min-height:44px;padding:6px 12px;border-radius:12px;border:3px solid var(--line);background:#fff;color:var(--dark);font-weight:800;font-size:.98rem;white-space:nowrap}
 .tb-btn.hot{border-color:var(--accent);color:var(--accent)}
 @media (max-width:960px){#topbar{position:static}.tb-r{align-items:center;width:100%}.tb-btns{justify-content:center}}
@@ -769,9 +770,10 @@ function titleFor(st) {
     return '白雪公主 · 第1天在A房子 · 之后每天换一个房子：A→B→C→D→E→F→G→F→E→D→C→B→A…';
   }
   if (st.type === 'report') {
-    if (st.cards) { return '数列规则：从第2个数起，每个数 = 前一个数 × ' + st.k + ' 的个位数字'; }
-    if (st.two) { return '报数规则：从第3位起，每一位 = 前两位所报的数相乘的个位'; }
-    return '报数规则：从第2位起，每一位 = 前一位所报的数 × ' + st.k + ' 的个位';
+    const tot = '（一共 ' + st.count + (st.cards ? ' 个数' : ' 位同学') + '）';
+    if (st.cards) { return '数列规则：从第2个数起，每个数 = 前一个数 × ' + st.k + ' 的个位数字' + tot; }
+    if (st.two) { return '报数规则：从第3位起，每一位 = 前两位所报的数相乘的个位' + tot; }
+    return '报数规则：从第2位起，每一位 = 前一位所报的数 × ' + st.k + ' 的个位' + tot;
   }
   if (st.type === 'phrase') { return '“' + st.head + '”后面，“' + st.unitWord + '”依次不断重复'; }
   return '分宝石规则：每天早上，宝石最多的人分给其他三人每人 1 颗';
@@ -820,13 +822,22 @@ function explainLines(prob) {
     const st = buildStage(spec), fp = findPeriod(st);
     if (!fp) { return; }
     const S = st.target, D = S - fp.s, q = Math.floor(D / fp.p), r = D % fp.p;
-    const name = st.type === 'gems' ? '' : '“' + st.valAt(fp.s) + '”';
-    out.push((prob.stages.length > 1 ? (st.who ? st.who + '：' : '第' + (i + 1) + '问：') : '') +
-      '周期：从第 ' + (fp.s + 1) + ' 个记录' + name + ' 开始，每 ' + fp.p + ' ' + st.unit + ' 原样重复一次' +
-      (fp.s > 0 ? '（前面 ' + fp.s + ' 个是不循环的“头部”）' : '') + '。');
+    const who = prob.stages.length > 1 ? (st.who ? st.who + '：' : '第' + (i + 1) + '问：') : '';
+    /* 周期框里的内容 */
+    let cycle;
+    if (st.type === 'gems') { cycle = '（' + fp.keys.slice(fp.s, fp.s + fp.p).map(function (k) { return k.split(',').join('、'); }).join('）（') + '）'; }
+    else if (st.type === 'phrase') { cycle = '“' + fp.keys.slice(fp.s, fp.s + fp.p).join('') + '”'; }
+    else { cycle = '“' + fp.keys.slice(fp.s, fp.s + fp.p).join('、') + '”'; }
+    let headNote = '';
+    if (fp.s > 0) {
+      if (st.type === 'gems') { headNote = '（第 1 天不参与循环，是“头部”）'; }
+      else if (spec.type === 'walk' && spec.scene === 'bus') { headNote = '（第 1 个记录是“出发”，从第 1 次停车开始循环）'; }
+      else { headNote = '（前面 ' + fp.s + ' 个是不循环的“头部”）'; }
+    }
+    const endVal = st.type === 'gems' ? '（' + st.valAt(fp.s + r).join('、') + '）' : '“' + st.valAt(fp.s + r) + '”';
+    out.push(who + '周期：从第 ' + (fp.s + 1) + ' 个记录开始，' + cycle + '每 ' + fp.p + ' ' + st.unit + '原样重复一次' + headNote + '。');
     out.push('从第 ' + (fp.s + 1) + ' 个记录数到目标，一共要往后数 ' + D + ' ' + st.unit + '：' + D + ' ÷ ' + fp.p + ' = ' + q + '……' + r + '。');
-    const last = st.type === 'gems' ? '（甲' + st.valAt(fp.s + r)[0] + '、乙' + st.valAt(fp.s + r)[1] + '、丙' + st.valAt(fp.s + r)[2] + '、丁' + st.valAt(fp.s + r)[3] + '）' : '“' + st.valAt(fp.s + r) + '”';
-    out.push('整组走 ' + q + ' 组后回到' + (st.type === 'gems' ? '这一天的宝石数' + name : name) + '，再往后数 ' + r + ' ' + st.unit + '，落在 ' + last + '。');
+    out.push('整组走 ' + q + ' 组后回到' + cycle + '，再往后数 ' + r + ' ' + st.unit + '，落在 ' + endVal + '。');
   });
   if (prob.finale && prob.finale.kind === 'product') {
     const a = buildStage(prob.stages[0]).valAt(prob.stages[0].target), b = buildStage(prob.stages[1]).valAt(prob.stages[1].target);
@@ -948,7 +959,11 @@ function confirmFrame(force) {
   if (R.phase === 'refuel') { setHint('停车地点的循环找到啦（每 ' + R.p + ' 次停车重复一次）。接下来算一算：第 ' + G.prob.pre.before + ' 次停车前的“上一次加油”，是第几次停车？', 'good'); }
   else {
     let m = '太棒了，周期找到啦：每 ' + R.p + ' ' + st.unit + ' 循环一次！回到起点正式出发——点「+1 组」，看看一组能走多远。';
-    if (R.s > 0) { m = '太棒了！前 ' + R.s + ' 个记录是不循环的“头部”，从第 ' + (R.s + 1) + ' 个开始，每 ' + R.p + ' ' + st.unit + ' 循环一次。回到起点正式出发：先一步一步走过“头部”，再整组整组地前进。'; }
+    if (R.s > 0) {
+      m = (st.type === 'walk' && st.scene === 'bus')
+        ? '太棒了！第 1 个记录是“出发”，从第 1 次停车开始，每 ' + R.p + ' 次停车循环一次。回到起点正式出发：先走 1 次停车，再整组整组地前进。'
+        : '太棒了！前 ' + R.s + ' 个记录是不循环的“头部”，从第 ' + (R.s + 1) + ' 个开始，每 ' + R.p + ' ' + st.unit + ' 循环一次。回到起点正式出发：先一步一步走过“头部”，再整组整组地前进。';
+    }
     setHint(m, 'good');
   }
   if (G.demo) { demoAfterFrame(); }
@@ -1089,7 +1104,7 @@ function giveTo(col) {
   R.counts[g] = R.counts[g] - 1; R.counts[col] = R.counts[col] + 1; R.given[col] = true;
   R.ops = R.ops + 1; G.ops = G.ops + 1; sfx('give');
   let left = 0;
-  for (let j = 0; j < 4; j++) { if (!R.given[j]) { left = left + 1; } }
+  for (let j = 0; j < 4; j++) { if (j !== g && !R.given[j]) { left = left + 1; } }
   if (left === 0) { completeDay(); }
   else { setHint('已经分给「' + R.stage.names[col] + '」1 颗，还有 ' + left + ' 人没分到。', 'info'); }
   renderCounter();
@@ -1112,7 +1127,7 @@ function completeDay() {
   const d = R.L - 1;                         /* 刚记录下来的那一天（0 表示第1天） */
   if (d === 1) { setHint('第2天分完啦：甲7、乙8、丙6、丁5，和书上表格第2行一模一样！接着分第3天。', 'good'); }
   else if (d === 5) { setHint('咦！第6天的宝石数（7、8、6、5）和第2天一模一样！是不是开始循环了？再往下推演几天，验证一下吧。', 'good'); }
-  else if (d >= 8) { setHint('记录够多啦：从第2天起，每 4 天重复一次。拖动小三角，把重复的一组框起来（别忘了第1天这个“头部”），再点「确定周期」。', 'info'); }
+  else if (d >= 8) { setHint('记录够多啦！找找看：从第几天开始，宝石数原样重复了一遍？拖动小三角把重复的一组框起来（注意第1天），再点「确定周期」。', 'info'); }
   else { setHint(gemDayHint(), 'info'); }
 }
 
@@ -1389,16 +1404,17 @@ function cardHTML(st, i) {
   if (R.locked && i >= R.s && i <= R.s + R.p - 1) { inner += '<span class="pn">' + (i - R.s + 1) + '</span>'; }
   return inner;
 }
+function makeCard(st, i) {
+  const c = document.createElement('div');
+  c.className = 'card' + (st.type === 'gems' ? ' wide' : '');
+  c.setAttribute('data-i', String(i));
+  c.innerHTML = cardHTML(st, i);
+  return c;
+}
 function rebuildStrip() {
   const strip = $('#strip');
   strip.innerHTML = '';
-  for (let i = 0; i < R.L; i++) {
-    const c = document.createElement('div');
-    c.className = 'card' + (R.stage.type === 'gems' ? ' wide' : '');
-    c.setAttribute('data-i', String(i));
-    c.innerHTML = cardHTML(R.stage, i);
-    strip.appendChild(c);
-  }
+  for (let i = 0; i < R.L; i++) { strip.appendChild(makeCard(R.stage, i)); }
   renderStrip();
 }
 function curStripIndex() {
@@ -1409,7 +1425,10 @@ function curStripIndex() {
   return i;
 }
 function renderStrip() {
-  const strip = $('#strip'), cards = strip.children, st = R.stage;
+  const strip = $('#strip'), st = R.stage;
+  /* 新记录的卡片：有几张没建，就补建几张 */
+  while (strip.children.length < R.L) { strip.appendChild(makeCard(st, strip.children.length)); }
+  const cards = strip.children;
   const p = R.fe - R.fs + 1, cur = curStripIndex();
   let allOk = false;
   if (!R.locked) { allOk = checkFrame(R.keys, R.fs, R.fe).ok; }
@@ -1435,7 +1454,8 @@ function renderStrip() {
     else { msg += '　·　周期框：第 ' + (R.fs + 1) + '～' + (R.fe + 1) + ' 个（拖动两个小三角调整）'; }
     info.innerHTML = msg;
   } else {
-    info.innerHTML = '周期框：第 <b>' + (R.s + 1) + '～' + (R.s + R.p) + '</b> 个记录，每 <b>' + R.p + '</b> ' + st.unit + ' 循环一次' + (R.s > 0 ? '（前面 ' + R.s + ' 个是“头部”）' : '');
+    const tail = R.s > 0 ? ((st.type === 'walk' && st.scene === 'bus') ? '（第 1 个记录是“出发”）' : '（前面 ' + R.s + ' 个是“头部”）') : '';
+    info.innerHTML = '周期框：第 <b>' + (R.s + 1) + '～' + (R.s + R.p) + '</b> 个记录，每 <b>' + R.p + '</b> ' + st.unit + ' 循环一次' + tail;
   }
 }
 function positionHandles(ok) {
@@ -1467,7 +1487,8 @@ function cacheRects() {
     return { l: r.left - ox, r: r.right - ox, t: r.top - oy, b: r.bottom - oy };
   });
 }
-function locate(x, y) {
+function locate(x, y, which) {
+  /* 卡片按行分组（换行后一行卡片 top 相同） */
   const rows = {};
   for (let i = 0; i < dragRects.length; i++) {
     const k = Math.round(dragRects[i].t / 10);
@@ -1475,12 +1496,23 @@ function locate(x, y) {
     rows[k].push(i);
   }
   const tops = Object.keys(rows).map(Number).sort(function (a, b) { return a - b; });
-  let row = tops[0], best = Infinity;
-  tops.forEach(function (t) {
-    const f = dragRects[rows[t][0]];
-    const d = Math.abs(y - (f.t + f.b) / 2);
-    if (d < best) { best = d; row = t; }
-  });
+  const mid = function (t) { const f = dragRects[rows[t][0]]; return (f.t + f.b) / 2; };
+  let row = tops[0];
+  const inside = tops.filter(function (t) { return y >= dragRects[rows[t][0]].t - 4 && y <= dragRects[rows[t][0]].b + 4; });
+  if (inside.length) {
+    /* 指针正好压在某一行的卡片上：就选这一行 */
+    row = inside[0];
+  } else if (which === 'e') {
+    /* “终点”小三角在卡片下方：优先选指针上方最近的一行 */
+    const above = tops.filter(function (t) { return dragRects[rows[t][0]].b <= y; });
+    if (above.length) { row = above[above.length - 1]; }
+    else { let best = Infinity; tops.forEach(function (t) { const d = Math.abs(y - mid(t)); if (d < best) { best = d; row = t; } }); }
+  } else {
+    /* “起点”小三角在卡片上方：优先选指针下方最近的一行 */
+    const below = tops.filter(function (t) { return dragRects[rows[t][0]].t >= y; });
+    if (below.length) { row = below[0]; }
+    else { let best = Infinity; tops.forEach(function (t) { const d = Math.abs(y - mid(t)); if (d < best) { best = d; row = t; } }); }
+  }
   const idxs = rows[row];
   if (x < dragRects[idxs[0]].l) { return { i: idxs[0], part: 0 }; }
   for (let k = 0; k < idxs.length; k++) {
@@ -1511,7 +1543,7 @@ function bindHandle(el, which) {
 function moveHandle(which, cx, cy) {
   const box = $('#strip-box'), br = box.getBoundingClientRect();
   const x = cx - br.left - box.clientLeft + box.scrollLeft, y = cy - br.top - box.clientTop + box.scrollTop;
-  const loc = locate(x, y), L = R.L;
+  const loc = locate(x, y, which), L = R.L;
   if (which === 's') {
     let s = loc.part === 0 ? loc.i : loc.i + 1;
     s = clamp(s, 0, L - 1);
@@ -1960,10 +1992,6 @@ function drawReportScene(st, top) {
     }
     txt('第 ' + (i + 1) + (st.cards ? ' 个' : ' 位'), x, bodyTop + bodyH + 15, 16, on ? PAL.dark : '#52627a', on ? 900 : 800);
   }
-  const total = st.count;
-  if (cur + 1 < total && n >= 6) {
-    txt('…… 一共 ' + total + (st.cards ? ' 个数' : ' 位同学'), CW - 12, CH - 14, 16, '#52627a', 800, 'right', 'middle');
-  }
 }
 function drawPhraseScene(st, top) {
   const endIdx = R.locked ? R.pos : R.L - 1;
@@ -2023,13 +2051,13 @@ function drawGemsScene(st, top) {
     cx2d.lineWidth = isGiver ? 5 : 3; cx2d.strokeStyle = isGiver ? PAL.accent : '#9fb3c8'; cx2d.stroke();
     if (isReceiver) {
       if (R.given[j]) {
-        rr(t.x + t.w - 62, t.y - 14, 58, 26, 13); cx2d.fillStyle = PAL.ok; cx2d.fill();
-        txt('已分到 1 颗', t.x + t.w - 33, t.y - 1, 15, '#ffffff', 900);
+        rr(t.x + t.w - 104, t.y + 5, 96, 25, 13); cx2d.fillStyle = PAL.ok; cx2d.fill();
+        txt('已分到 1 颗', t.x + t.w - 56, t.y + 18, 15, '#ffffff', 900);
       } else {
-        txt('点这里接收', t.x + t.w - 52, t.y - 1, 15, '#52627a', 800);
+        txt('点这里接收', t.x + t.w - 52, t.y + 18, 15, '#52627a', 800);
       }
     }
-    if (isGiver) { txt('今天由我来分', t.x + 56, t.y - 1, 15, PAL.accent, 900); }
+    if (isGiver) { txt('今天由我来分', t.x + t.w - 56, t.y + 18, 15, PAL.accent, 900); }
     txt(tup[j] + ' 颗', t.x + 40, t.y + 16, 18, '#17212e', 900);
     gemPositions(lay, j, tup[j]).forEach(function (p) { drawGem(p.x, p.y, lay.g, false); });
   }
@@ -2326,8 +2354,7 @@ function selfTest() {
       report.push({ id: prob.id, expect: prob.expect, got: got, frameOk: r.same, s: r.s, p: r.p, L: r.L });
     });
     const exp = prob.expect;
-    let okAll = true;
-    if (exp.length !== got.length) { okAll = false; }
+    let okAll = exp.length === got.length;
     got.forEach(function (v, i) {
       const e = exp[i];
       if (Array.isArray(e)) { okAll = okAll && e.join(',') === v.join(','); } else { okAll = okAll && String(e) === String(v); }
@@ -2338,7 +2365,8 @@ function selfTest() {
       const total = c * Math.floor((st.target + 1 - fp.s) / fp.p);
       let real = 0;
       for (let i = 0; i <= st.target; i++) { if (st.keyAt(i) === prob.finale.value) { real++; } }
-      okAll = okAll && total === real;
+      got.push(total);
+      okAll = okAll && total === real && prob.expect.length === got.length && prob.expect[1] === total;
       report.push({ id: prob.id, countTotal: total, realCount: real });
     }
     if (prob.pre && prob.pre.kind === 'refuel') {
@@ -2355,6 +2383,13 @@ window.__PG = {
   PROBLEMS: PROBLEMS, buildStage: buildStage, checkFrame: checkFrame, findPeriod: findPeriod,
   solveStage: solveStage, bruteTest: bruteTest, selfTest: selfTest, explainLines: explainLines,
   start: function (tier, ids) { closeModal(); startSession(tier, ids); },
+  /* 画布上宝石的位置（自动化测试拖拽用） */
+  gemPoints: function () {
+    const lay = gemLayout(R.stage), g = R.giver;
+    const r = cv.getBoundingClientRect();
+    const src = gemPositions(lay, g, R.counts[g])[0];
+    return { src: { x: src.x + r.left, y: src.y + r.top }, trays: lay.cols.map(function (c) { return { x: c.tray.x + c.tray.w / 2 + r.left, y: c.tray.y + c.tray.h / 2 + r.top }; }) };
+  },
   get R() { return R; }, get G() { return G; }
 };
 })();
@@ -2362,7 +2397,7 @@ window.__PG = {
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-u/g003", "name": "\u5bfb\u627e\u9690\u85cf\u5468\u671f \u00b7 \u5468\u671f\u63a2\u9669\u961f\uff08\u7b2c4\u8bb2 \u4e92\u52a8\u6e38\u620f\uff09", "file": "g003.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u5bfb\u627e\u9690\u85cf\u5468\u671f\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c20\u8bb2\uff09", "unit": "\u7b2c4\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.4", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
+var M={"id": "gcol-ps-u/g003", "name": "\u5bfb\u627e\u9690\u85cf\u5468\u671f \u00b7 \u5468\u671f\u63a2\u9669\u961f\uff08\u7b2c4\u8bb2 \u4e92\u52a8\u6e38\u620f\uff09", "file": "g003.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u5bfb\u627e\u9690\u85cf\u5468\u671f\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c20\u8bb2\uff09", "unit": "\u7b2c4\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.5", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
