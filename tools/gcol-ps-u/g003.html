@@ -928,7 +928,7 @@ function exploreStep() {
   if (!R.frameTouched) { R.fs = R.L - 1; R.fe = R.L - 1; }      /* 还没动过周期框：让小三角跟着最新一张卡片走，始终看得见 */
   R.ops = R.ops + 1; G.ops = G.ops + 1;
   sfx('step');
-  if (R.L === 7 && !G.demo) { setHint('找找看：从哪一张开始，后面的内容又原样出现了一遍？拖动两个小三角把它框起来，再点「确定周期」。', 'info'); }
+  if (R.L === 7 && !G.demo) { setHint('找找看：从哪一张开始，后面的内容又原样出现了一遍？拖动两个小三角把它框起来（也可以先点起点卡片、再点终点卡片），再点「确定周期」。', 'info'); }
   renderStrip(); renderCounter(); scrollStripToEnd();
 }
 
@@ -980,7 +980,7 @@ function confirmFrame(force) {
 function applySingle() {
   if (!R || R.phase !== 'apply') { return; }
   if (R.pos >= R.target) { return; }
-  R.pos = R.pos + 1; R.stack.push(1); R.singles = R.singles + 1; R.applySingles = R.applySingles + 1;
+  R.pos = R.pos + 1; R.stack.push({ g: 0 }); R.singles = R.singles + 1; R.applySingles = R.applySingles + 1;
   R.ops = R.ops + 1; G.ops = G.ops + 1; sfx('step');
   afterMove();
 }
@@ -989,16 +989,16 @@ function applyGroup(n) {
   const st = R.stage;
   if (R.pos < R.s) { setHint('要先一步一步走到周期框的起点（第 ' + (R.s + 1) + ' 个记录），才能整组整组地前进哦。', 'warn'); sfx('bad'); return; }
   if (R.pos + n * R.p > R.target) { setHint('剩下的 ' + (R.target - R.pos) + ' ' + st.unit + '，不够再走 ' + n + ' 组（每组 ' + R.p + ' ' + st.unit + '）啦。换小一点的组，或者一步一步走完吧。', 'warn'); sfx('bad'); return; }
-  R.pos = R.pos + n * R.p; R.stack.push(n); R.groups = R.groups + n;
+  R.pos = R.pos + n * R.p; R.stack.push({ g: n }); R.groups = R.groups + n;
   R.ops = R.ops + 1; G.ops = G.ops + 1; sfx('step');
   afterMove();
 }
 function applyUndo() {
   if (!R || R.phase !== 'apply') { return; }
-  const n = R.stack.pop();
-  if (!n) { setHint('还没有前进过，不用撤销哦。', 'info'); return; }
-  if (n === 1) { R.pos = R.pos - 1; R.singles = R.singles - 1; R.applySingles = R.applySingles - 1; }
-  else { R.pos = R.pos - n * R.p; R.groups = R.groups - n; }
+  const last = R.stack.pop();
+  if (!last) { setHint('还没有前进过，不用撤销哦。', 'info'); return; }
+  if (last.g === 0) { R.pos = R.pos - 1; R.singles = R.singles - 1; R.applySingles = R.applySingles - 1; }
+  else { R.pos = R.pos - last.g * R.p; R.groups = R.groups - last.g; }
   R.ops = R.ops + 1; G.ops = G.ops + 1;
   setHint('已撤销一步，现在是：' + statusText(R.stage, R.pos), 'info');
   afterMove();
@@ -1148,6 +1148,7 @@ function calcStars(ps) {
 }
 function finishProblem() {
   pauseTimer();
+  stopDemo(true);                     /* 自动演示走到终点：结束演示状态，把操作权交还给学生 */
   const stars = calcStars(G.ps);
   G.results.push({ prob: G.prob, stars: stars, revealed: G.ps.revealed });
   showResult(stars);
@@ -1215,9 +1216,9 @@ function startDemo() {
   setHint('自动演示开始：先一步一步试路……', 'info');
   demoExplore();
 }
-function stopDemo() {
+function stopDemo(quiet) {
   G.demoTimers.forEach(clearTimeout); G.demoTimers = [];
-  if (G.demo) { G.demo = false; setHint('演示已停止，可以自己接着操作。', 'info'); }
+  if (G.demo) { G.demo = false; if (!quiet) { setHint('演示已停止，可以自己接着操作。', 'info'); } }
   $('#btn-stopdemo').classList.add('hidden');
 }
 function demoExplore() {
@@ -2308,7 +2309,10 @@ function bindEvents() {
     if (R.phase === 'count') { toggleTap(i); return; }
     if (R.locked || R.phase === 'done') { return; }
     if (e.target.closest('.handle')) { return; }
-    if (i < R.fs) { R.fs = i; } else if (i > R.fe) { R.fe = i; } else { R.fs = i; R.fe = i; }
+    if (!R.frameTouched) { R.fs = i; R.fe = i; }                 /* 第一次点：从这张卡片开始框 */
+    else if (i < R.fs) { R.fs = i; }                              /* 点框前面：起点前移 */
+    else if (i > R.fe) { R.fe = i; }                              /* 点框后面：终点后移 */
+    else { R.fs = i; R.fe = i; }                                  /* 点框里面：重新从这张开始框 */
     R.frameTouched = true;
     R.ops = R.ops + 1; G.ops = G.ops + 1; sfx('step');
     renderStrip();
@@ -2410,6 +2414,11 @@ window.__PG = {
     const src = gemPositions(lay, g, R.counts[g])[0];
     return { src: { x: src.x + r.left, y: src.y + r.top }, trays: lay.cols.map(function (c) { return { x: c.tray.x + c.tray.w / 2 + r.left, y: c.tray.y + c.tray.h / 2 + r.top }; }) };
   },
+  /* 画布上“下一个位置”的中心（自动化测试点击用） */
+  nextNodePoint: function () {
+    const np = nodePoint(R.stage, R.phase === 'explore' ? R.L : R.pos + 1), r = cv.getBoundingClientRect();
+    return { x: np.x + r.left, y: np.y + r.top };
+  },
   get R() { return R; }, get G() { return G; }
 };
 })();
@@ -2417,7 +2426,7 @@ window.__PG = {
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-u/g003", "name": "\u5bfb\u627e\u9690\u85cf\u5468\u671f \u00b7 \u5468\u671f\u63a2\u9669\u961f\uff08\u7b2c4\u8bb2 \u4e92\u52a8\u6e38\u620f\uff09", "file": "g003.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u5bfb\u627e\u9690\u85cf\u5468\u671f\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c20\u8bb2\uff09", "unit": "\u7b2c4\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.6", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
+var M={"id": "gcol-ps-u/g003", "name": "\u5bfb\u627e\u9690\u85cf\u5468\u671f \u00b7 \u5468\u671f\u63a2\u9669\u961f\uff08\u7b2c4\u8bb2 \u4e92\u52a8\u6e38\u620f\uff09", "file": "g003.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u5bfb\u627e\u9690\u85cf\u5468\u671f\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c20\u8bb2\uff09", "unit": "\u7b2c4\u8bb2", "grade": "3\u5e74\u7ea7\u4e0a", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.7", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
