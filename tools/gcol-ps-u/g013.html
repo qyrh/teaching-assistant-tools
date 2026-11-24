@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>巧妙移动 · 搬运小达人</title>
+<style>
+/* ============ 全局：大字号、高对比度、粗线条，适合课堂投影（G9） ============ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;font-family:"Microsoft YaHei","PingFang SC",sans-serif}
+body{background:var(--bg);color:var(--ink);transition:background .5s;user-select:none}
+
+/* ============ 配色随机化（G8）：每局从 4 套预设色板随机选主色 ============ */
+:root{--main:#e74c3c;--main2:#f39c12;--bg:#fdf6ec;--ink:#3a2e2e;--card:#fff;--line:#d9c7b8;--ok:#27ae60;--bad:#c0392b}
+body.p2{--main:#2980b9;--main2:#1abc9c;--bg:#eef6fb;--ink:#22313f;--line:#bcd6e8}
+body.p3{--main:#8e44ad;--main2:#e84393;--bg:#f9f0fb;--ink:#372a3d;--line:#dcc8e6}
+body.p4{--main:#16a085;--main2:#f1c40f;--bg:#eefaf6;--ink:#1e3a32;--line:#bfe3d7}
+
+/* ============ 顶部 HUD：计时器 + 步数（G7，右上角实时显示） ============ */
+#hud{position:fixed;top:0;right:0;left:0;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:var(--card);border-bottom:4px solid var(--main);z-index:50;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+#hud .brand{font-size:clamp(15px,3vw,22px);font-weight:900;color:var(--main);white-space:nowrap}
+#hud .stats{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
+.chip{background:var(--bg);border:2px solid var(--line);border-radius:20px;padding:6px 12px;font-size:clamp(14px,2.5vw,18px);font-weight:700;white-space:nowrap}
+.chip b{color:var(--main);font-size:clamp(15px,2.8vw,20px)}
+
+/* ============ 通用按钮（大、厚、可点） ============ */
+.btn{border:none;border-radius:14px;padding:12px 22px;font-size:clamp(16px,3vw,19px);font-weight:800;cursor:pointer;background:var(--main);color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.15);transition:transform .1s;font-family:inherit}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
+.btn.ghost{background:var(--card);color:var(--main);border:3px solid var(--main)}
+.btn.small{padding:8px 12px;font-size:14px;border-radius:10px}
+
+/* ============ 屏幕切换 ============ */
+.screen{position:fixed;inset:64px 0 0 0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:16px;overflow:auto}
+.screen.active{display:flex}
+
+/* ============ 开始屏：三档难度（G3） ============ */
+#screen-start h1{font-size:clamp(24px,5vw,42px);font-weight:900;text-align:center;color:var(--main);text-shadow:2px 2px 0 rgba(0,0,0,.1)}
+#screen-start .sub{font-size:clamp(15px,2.8vw,19px);text-align:center;opacity:.85;max-width:680px;line-height:1.7}
+.diff-wrap{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;width:100%}
+.diff-btn{flex:1 1 180px;max-width:260px;display:flex;flex-direction:column;gap:6px;padding:20px 14px;font-size:clamp(18px,3.5vw,24px);border-radius:18px;background:var(--card);border:4px solid var(--main);cursor:pointer;transition:transform .15s;font-family:inherit;color:var(--ink)}
+.diff-btn:hover{transform:translateY(-4px)}
+.diff-btn small{font-size:clamp(13px,2.4vw,16px);opacity:.75;font-weight:600}
+.diff-btn b{font-size:1.1em}
+
+/* ============ 游戏屏 ============ */
+#screen-game{justify-content:flex-start}
+#prog{font-size:clamp(14px,2.6vw,17px);font-weight:700;background:var(--card);padding:6px 16px;border-radius:20px;border:2px solid var(--line)}
+#qcard{width:min(96vw,880px);background:var(--card);border:4px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 8px 20px rgba(0,0,0,.08)}
+#qtitle{font-size:clamp(19px,3.6vw,25px);font-weight:900;margin-bottom:10px;color:var(--main)}
+#qstory{font-size:clamp(15px,2.9vw,19px);line-height:1.75;margin-bottom:8px}
+#qask{font-size:clamp(16px,3vw,20px);font-weight:800;background:var(--bg);border-left:6px solid var(--main2);padding:10px 14px;border-radius:8px;margin:10px 0;line-height:1.7}
+#qtip{font-size:clamp(13px,2.4vw,17px);color:#8e6b3c;margin-top:8px;font-style:italic}
+#reveal{width:min(96vw,880px);font-size:clamp(15px,2.8vw,19px);background:var(--bg);border:3px dashed var(--main2);border-radius:14px;padding:12px 16px;line-height:1.8}
+
+/* ============ 操作台：两盘/三盘 + 相差表 ============ */
+#stage{width:min(96vw,880px);display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.plate{flex:1 1 260px;min-height:200px;background:var(--bg);border:4px dashed var(--line);border-radius:18px;padding:12px;position:relative;transition:border-color .2s,background .2s;touch-action:none}
+.plate.hover{border-color:var(--main);background:#ffffffcc}
+.plate h3{text-align:center;font-size:clamp(15px,2.8vw,19px);color:var(--ink);margin-bottom:8px;font-weight:800}
+.plate .cnt{position:absolute;top:8px;right:12px;font-size:clamp(15px,2.8vw,18px);font-weight:900;color:var(--main);background:var(--card);border-radius:12px;padding:2px 10px}
+.items{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-content:flex-start;min-height:110px;padding-top:26px}
+/* ============ 水果/物品：真正的拖拽主体（G1/G2） ============ */
+.item{font-size:clamp(30px,6vw,42px);line-height:1;padding:4px 7px;border-radius:12px;cursor:grab;background:#fff;border:2px solid var(--line);transition:transform .12s;touch-action:none}
+.item:active{transform:scale(1.18)}
+.item.dragging{opacity:.35}
+.ghost{position:fixed;pointer-events:none;z-index:200;font-size:46px;filter:drop-shadow(0 6px 8px rgba(0,0,0,.3))}
+/* ============ 相差表（G2：搬1个相差变2，看得见） ============ */
+#meter{width:min(96vw,880px);text-align:center;font-size:clamp(16px,3vw,21px);font-weight:900;color:var(--main);background:var(--card);border:3px solid var(--main);border-radius:16px;padding:10px 14px}
+#meter .big{font-size:clamp(22px,4.5vw,30px);display:block}
+/* ============ 火柴谜题画布（G1：点小棒拿起→点圆圈放下） ============ */
+#stickzone{width:min(96vw,880px);background:var(--card);border:4px solid var(--line);border-radius:18px;padding:10px}
+#stickzone svg{width:100%;max-width:660px;display:block;margin:0 auto}
+.zone{stroke:var(--main);fill:var(--bg);stroke-width:3;cursor:pointer;transition:fill .15s}
+.zone:hover{fill:#ffffff55}
+.zone.hl{fill:var(--main2)}
+.stick{fill:var(--ink);stroke:var(--line);stroke-width:1.5;cursor:pointer;transition:fill .15s}
+.stick.sel{fill:var(--main2);stroke:var(--main2)}
+.sline{stroke:var(--line);stroke-width:3}
+.zlab{font-size:17px;font-weight:800;fill:var(--ink)}
+.zsum{font-size:17px;font-weight:900;fill:var(--main)}
+.ctrl{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+
+/* ============ 胜利屏：庆祝动画（G5） ============ */
+#screen-win h2{font-size:clamp(22px,5vw,40px);font-weight:900;color:var(--main);text-align:center}
+#screen-win p{font-size:clamp(15px,3vw,20px);text-align:center;line-height:1.8}
+#stars{font-size:clamp(38px,9vw,54px);letter-spacing:8px;text-align:center;animation:pop .6s ease}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.25)}100%{transform:scale(1)}}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:300}
+
+/* ============ 规则说明面板（G6：进入弹出，随时再看） ============ */
+#modal{position:fixed;inset:0;background:rgba(40,25,10,.55);display:none;align-items:center;justify-content:center;z-index:400;padding:16px}
+#modal.show{display:flex}
+#modal .box{background:var(--card);border-radius:20px;max-width:640px;width:100%;padding:24px;border:4px solid var(--main);max-height:84vh;overflow:auto}
+#modal h3{font-size:clamp(19px,4vw,26px);color:var(--main);margin-bottom:12px}
+#modal li{font-size:clamp(14px,2.7vw,18px);line-height:1.9;margin-left:22px}
+#modal .close{margin-top:12px}
+
+/* ============ 移动端适配（G11） ============ */
+@media (max-width:600px){
+  .plate{min-height:170px}
+  .items{min-height:90px;padding-top:22px}
+  #hud{height:56px}
+  .screen{inset:56px 0 0 0}
+}
+</style>
+</head>
+<body>
+
+<!-- HUD：计时器+步数常驻右上角（G7） -->
+<header id="hud">
+  <div class="brand">🍊 巧妙移动</div>
+  <div class="stats">
+    <div class="chip">⏱ <b id="timer">00:00</b></div>
+    <div class="chip">👣 步数 <b id="steps">0</b></div>
+    <button class="btn ghost small" id="btn-rules">📖 规则</button>
+  </div>
+</header>
+
+<!-- 开始屏：选难度（G3） -->
+<section class="screen active" id="screen-start">
+  <h1>🍎 巧妙移动 · 搬运小达人</h1>
+  <p class="sub">数量不一样多怎么办？不用先算答案——亲手拖一拖，把多的搬给少的，玩着玩着就懂了"移多补少"的奥秘！</p>
+  <div class="diff-wrap">
+    <button class="diff-btn" data-lv="初级"><b>🌱 初级</b><small>例题级 · 热身闯关</small></button>
+    <button class="diff-btn" data-lv="中级"><b>🚀 中级</b><small>练习级 · 进阶闯关</small></button>
+    <button class="diff-btn" data-lv="高级"><b>⭐ 高级</b><small>变式综合 · 极限闯关</small></button>
+  </div>
+</section>
+
+<!-- 游戏屏：题目卡 + 操作台 + 控制按钮 -->
+<section class="screen" id="screen-game">
+  <div id="prog">第 <b id="qnum">1</b> / <b id="qtotal">3</b> 关</div>
+  <div id="qcard">
+    <div id="qtitle"></div>
+    <div id="qstory"></div>
+    <div id="qask"></div>
+    <div id="qtip"></div>
+  </div>
+  <div id="stage"></div>
+  <div id="meter" hidden></div>
+  <div id="stickzone" hidden></div>
+  <div class="ctrl">
+    <button class="btn ghost" id="btn-reveal">💡 揭示答案</button>
+    <button class="btn ghost" id="btn-restart">🔄 重新开始</button>
+    <button class="btn ghost" id="btn-back">🏠 返回难度选择</button>
+  </div>
+  <div id="reveal" hidden></div>
+</section>
+
+<!-- 胜利屏（G5 庆祝动画） -->
+<section class="screen" id="screen-win">
+  <div id="stars">⭐⭐⭐</div>
+  <h2>🎉 闯关成功！你是搬运小达人！</h2>
+  <p id="winstat"></p>
+  <div class="ctrl">
+    <button class="btn" id="btn-again">🔄 再玩一次</button>
+    <button class="btn ghost" id="btn-home">🏠 返回难度选择</button>
+  </div>
+</section>
+
+<canvas id="confetti"></canvas>
+
+<!-- 规则面板（G6） -->
+<div id="modal">
+  <div class="box">
+    <h3>📖 游戏规则</h3>
+    <ol>
+      <li>每局从题库随机抽 3 关并打乱顺序，玩多少遍都不重样！</li>
+      <li><b>拖动水果</b>：按住水果拖到另一个盘子，搬运本身就是思考！</li>
+      <li>造相差关卡看<b>相差表</b>：每搬 1 个，相差就会变 2 个！</li>
+      <li>三堆关卡要自由搬运，让三堆数量相等。</li>
+      <li>火柴关：先点一根小棒拿起，再点目标圆圈放下。</li>
+      <li>右上角有<b>计时和步数</b>，又快又省步才是真达人！</li>
+      <li>卡住了就点<b>揭示答案</b>，看懂了解法再来挑战！</li>
+    </ol>
+    <button class="btn close" id="btn-close">明白啦，出发！</button>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   巧妙移动 · 搬运小达人（互动 HTML 游戏）
+   题型来源：docx《第4讲 巧妙移动（应用题专题第5讲）》——移多补少：
+     ① 两堆不一样多 → 把多出的部分平分（搬 差÷2 个），两盘相等；
+     ② 拿走 k 个变相等 → 原来相差 2k 个；
+     ③ 两堆一样多时搬 k 个 → 相差变 2k 个；
+     ④ 三堆数量不同 → 总数平分，多的搬给少的；
+     ⑤ 火柴谜题 → 移 1 根使每条线都是 9 根。
+   所有图形用 emoji/SVG 完整重绘，条件一个不少（G14）。
+   ===================================================================== */
+
+/* ---------- 题库：全部从 docx 提取 + 自创变式，按难度分档 ----------
+   字段说明：
+   lv    所属难度；type 交互类型；name 关卡名；icon 物品图案；
+   left/right 或 each/after 或 piles 或 zones 图形数据；
+   mv 搬运个数；tgt 目标相差；sign 造差方向(+1 第一行更多 / -1 第二行更多)；
+   story 题干（完整条件）；ask 问题；tip 提示；ans 揭示答案（docx 解答原文）。 */
+const POOL = [
+  /* ---------- 初级（例题级） ---------- */
+  { lv:'初级', type:'equalize', name:'苹果巧分盘', icon:'🍎', left:8, right:2,
+    from:'例题1',
+    story:'观察下图：左盘摆了 8 个苹果，右盘摆了 2 个苹果。',
+    ask:'（1）左盘比右盘多几个苹果？（2）从左盘搬几个苹果放到右盘，两盘就能相等？',
+    tip:'试着搬一搬！把多出来的部分平分给少的那边。',
+    ans:'（1）8-2=6，左盘比右盘多 6 个；（2）把 6 个平分，6=3+3，左盘搬 3 个放到右盘，两盘都变成 5 个。' },
+  { lv:'初级', type:'restore', name:'胡萝卜复原记', icon:'🥕', after:3, mv:1, orig1:4, orig2:2,
+    from:'例题2',
+    story:'原来第一行摆了 4 个胡萝卜，从第一行拿 1 个放到第二行后，两行的个数就相等，都有 3 个。',
+    ask:'请把这 1 个胡萝卜拖回第一行，恢复原来的样子！原来第一行比第二行多几个？',
+    tip:'搬回去以后，数一数两行各有几个。',
+    ans:'拖回 1 个：第一行变回 4 个、第二行变回 2 个，原来第一行比第二行多 4-2=2 个。' },
+  { lv:'初级', type:'makeDiff', name:'篮球造相差', icon:'🏀', each:6, mv:1, tgt:2, sign:1, dir:'第二行→第一行',
+    from:'例题3',
+    story:'两行的篮球数量一样多，都是 6 个。',
+    ask:'从第二行拖 1 个篮球给第一行，让第一行比第二行多 2 个！',
+    tip:'每搬 1 个，相差就会变 2 个，看着相差表搬！',
+    ans:'从第二行搬 1 个：第一行 6+1=7，第二行 6-1=5，7-5=2，第一行比第二行多 2 个。' },
+
+  /* ---------- 中级（练习级） ---------- */
+  { lv:'中级', type:'equalize', name:'桃子巧分盘', icon:'🍑', left:6, right:2,
+    from:'练习1',
+    story:'观察下图：左盘摆了 6 个桃子，右盘摆了 2 个桃子。',
+    ask:'（1）左盘比右盘多几个桃子？（2）从左盘搬几个桃子放到右盘，两盘就相等？',
+    tip:'把左边多出来的桃子平分给右边。',
+    ans:'（1）6-2=4，左边比右边多 4 个；（2）把 4 个平分，左边搬 2 个放到右边，两盘都变成 4 个。' },
+  { lv:'中级', type:'restore', name:'棒棒糖复原记', icon:'🍭', after:3, mv:2, orig1:5, orig2:1,
+    from:'练习2',
+    story:'原来第一行摆了 5 个棒棒糖，从第一行拿 2 个放到第二行后，两行相等，都有 3 个。',
+    ask:'把 2 个棒棒糖拖回第一行，恢复原来的样子！原来第一行比第二行多几个？',
+    tip:'复原后再比一比两行的个数。',
+    ans:'拖回 2 个：第一行变回 5 个、第二行变回 1 个，原来第一行比第二行多 5-1=4 个。' },
+  { lv:'中级', type:'makeDiff', name:'椅子造相差', icon:'🪑', each:5, mv:3, tgt:6, sign:1, dir:'第二行→第一行',
+    from:'练习3',
+    story:'两行的椅子数量一样多，都是 5 把。',
+    ask:'从第二行拖 3 把椅子给第一行，让第一行比第二行多 6 把！',
+    tip:'搬 3 把，相差就会变 6 把。',
+    ans:'从第二行搬 3 把：第一行 5+3=8，第二行 5-3=2，8-2=6 把。' },
+  { lv:'中级', type:'makeDiff', name:'排球造相差', icon:'🏐', each:6, mv:2, tgt:4, sign:1, dir:'第二行→第一行',
+    from:'例题4',
+    story:'两行的排球数量一样多，都是 6 个，总数不变。',
+    ask:'要让第一行比第二行多 4 个，应该怎么办呢？从第二行拖排球给第一行试试！',
+    tip:'总数不变时，搬动的个数要平分相差数。',
+    ans:'从第二行搬 2 个给第一行：第一行 6+2=8，第二行 6-2=4，8-4=4 个。' },
+
+  /* ---------- 高级（变式/综合级） ---------- */
+  { lv:'高级', type:'average3', name:'西瓜大平分', icon:'🍉', piles:[12,9,6],
+    from:'例题5',
+    story:'丫丫买了三堆西瓜：第一堆 12 个、第二堆 9 个、第三堆 6 个。',
+    ask:'怎样搬运才能让三堆西瓜的个数相等呢？在三堆之间自由搬运吧！',
+    tip:'三堆中，哪堆最多？哪堆最少？总数平分就知道啦。',
+    ans:'总数 12+9+6=27 个，平分成每堆 9 个：从最多的第一堆搬 3 个放到最少的第三堆（12-3=9，6+3=9）。' },
+  { lv:'高级', type:'makeDiff', name:'网球造相差', icon:'🎾', each:6, mv:4, tgt:8, sign:-1, dir:'第一行→第二行',
+    from:'练习4',
+    story:'两行的网球数量一样多，都是 6 个，总数不变。',
+    ask:'要让第二行比第一行多 8 个，应该怎么办？从第一行拖网球给第二行！',
+    tip:'想让第二行更多，就从第一行往第二行搬。',
+    ans:'从第一行搬 4 个给第二行：第一行 6-4=2，第二行 6+4=10，10-2=8 个。' },
+  { lv:'高级', type:'sticks', name:'火柴巧移动', icon:'🔥', zones:[1,4,5,3,1,4,5], sums:[10,9,8,10],
+    from:'例题6',
+    story:'每条直线上 3 个圆圈中的小棒数量加起来都是 9 根：上行共 10 根、下行共 8 根、左列共 10 根、右列共 9 根。',
+    ask:'只能移动 1 根小棒，让每条线都变成 9 根！先点一根小棒拿起，再点要放到的圆圈。',
+    tip:'移动前每条线上的小棒数量的和是多少呢？上行和左列都多 1 根哦。',
+    ans:'上行（10 根）和左列（10 根）都多 1 根，它们有共同的部分：把左上角圆圈里的 1 根小棒移到下行中间的圆圈，这样四条线都变成 9 根。' },
+  { lv:'高级', type:'restore', name:'饺子复原记', icon:'🥟', after:9, mv:5, origA:14, origB:4,
+    from:'课堂内外',
+    story:'小伦给小柔 5 个饺子后，两人就一样多了，都有 9 个。',
+    ask:'把这 5 个饺子拖回小伦那边，恢复原来的样子！相差表会告诉你原来小伦比小柔多几个！',
+    tip:'小伦给出去 5 个才相等，原来相差是它的 2 倍。',
+    ans:'拖回 5 个：小伦变回 14 个、小柔变回 4 个，原来小伦比小柔多 14-4=10 个。' },
+];
+
+/* ---------- 全局状态 ----------
+   cur    当前难度与题目 {lv, q, idx}
+   queue  本局抽到的题目（随机抽样+打乱，反重复）
+   steps  步数；t0/tick 计时；done 是否已通关               */
+let cur = { lv:null, q:null, idx:-1 };
+let queue = [], steps = 0, t0 = null, tick = null, done = false;
+
+/* ---------- 小工具 ---------- */
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const shuffle = a => { for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const fmt = n => String(n).padStart(2,'0');
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+/* ---------- 配色随机化（G8）：每局随机换一套主色 ---------- */
+function randPalette(){ document.body.className = pick(['','p2','p3','p4']); }
+
+/* ---------- 计时器（G7） ---------- */
+function startTimer(){
+  t0 = Date.now(); done = false;
+  clearInterval(tick);
+  $('#timer').textContent = '00:00';
+  tick = setInterval(()=>{
+    const s = Math.floor((Date.now()-t0)/1000);
+    $('#timer').textContent = fmt(Math.floor(s/60))+':'+fmt(s%60);
+  }, 500);
+}
+function stopTimer(){ clearInterval(tick); return $('#timer').textContent; }
+
+/* ---------- 步数（G7） ---------- */
+function addStep(){ steps++; $('#steps').textContent = steps; }
+
+/* ---------- 开始一局：三档难度（G3）+ 随机抽样反重复 ---------- */
+function startGame(lv){
+  cur = { lv, q:null, idx:-1 };
+  // 反重复机制：该难度全部题目打乱后抽 3 道（不固定用前 3 道）
+  queue = shuffle(POOL.filter(p=>p.lv===lv)).slice(0,3);
+  steps = 0; $('#steps').textContent = 0;
+  randPalette();
+  show('screen-start', false); show('screen-win', false); show('screen-game', true);
+  startTimer();
+  nextQ();
+}
+
+/* ---------- 屏幕切换 ---------- */
+function show(id, on){ $('#'+id).classList.toggle('active', on); }
+
+/* ---------- 出题：完整呈现题干+图形（G14） ---------- */
+function nextQ(){
+  cur.idx++;
+  if (cur.idx >= queue.length) return winGame();
+  const q = queue[cur.idx]; cur.q = q;
+  $('#qnum').textContent = cur.idx+1;
+  $('#qtotal').textContent = queue.length;
+  $('#qtitle').innerHTML = q.icon+' '+q.name+'（'+q.from+'）';
+  $('#qstory').textContent = q.story;
+  $('#qask').innerHTML = q.ask;
+  $('#qtip').textContent = '💡 '+q.tip;
+  $('#reveal').hidden = true; $('#reveal').textContent = '';
+  buildStage(q);
+}
+
+/* ---------- 按题型搭建操作台（全部真拖拽，拒绝换皮选择题 G1/G2） ---------- */
+function buildStage(q){
+  $('#stage').innerHTML = ''; $('#meter').hidden = true; $('#stickzone').hidden = true;
+  if (q.type === 'sticks') return buildSticks(q);
+  if (q.type === 'average3') return buildPiles(q);
+  buildPlates(q);
+}
+
+/* ---------- 两盘式（equalize / restore / makeDiff） ---------- */
+function buildPlates(q){
+  const st = $('#stage');
+  // 盘名与图形数据：restore/makeDiff 用"现在各有 after 个"呈现（G14-1）
+  let a, b, note = '';
+  if (q.type === 'restore'){ a = b = q.after; note = '现在两盘都有 <b>'+q.after+'</b> 个'+q.icon+'。'; }
+  else if (q.type === 'makeDiff'){ a = b = q.each; note = '两盘都是 <b>'+q.each+'</b> 个'+q.icon+'，只能<b>'+q.dir+'</b>搬运。'; }
+  else { a = q.left; b = q.right; }
+  const names = ['左盘','右盘'];
+  st.innerHTML = names.map((n,i)=>`
+    <div class="plate" data-i="${i}">
+      <h3>${n}</h3>
+      <span class="cnt">${i===0?a:b} 个</span>
+      <div class="items" data-i="${i}"></div>
+    </div>`).join('');
+  // 逐个摆放物品（emoji 完整重绘图形，间距≥12px 不遮挡，G14-2）
+  $$('.plate').forEach((p,i)=>{
+    const box = p.querySelector('.items'), n = i===0?a:b;
+    for (let k=0;k<n;k++){
+      const s = document.createElement('div');
+      s.className = 'item'; s.textContent = q.icon; s.dataset.from = i;
+      box.appendChild(s);
+    }
+  });
+  if (note) $('#qask').innerHTML += '<br>'+note;
+  if (q.type === 'makeDiff') buildMeter(q);
+}
+
+/* ---------- 相差表（makeDiff 专属）：实时显示相差（G2） ---------- */
+function buildMeter(q){
+  const m = $('#meter'); m.hidden = false;
+  m.innerHTML = '📊 相差表：<span class="big" id="mdiff">0 个</span>（每搬 1 个，相差变 2 个）';
+  updateMeter(q);
+}
+function updateMeter(q){
+  const plates = $$('.plate');
+  const c1 = plates[0].querySelectorAll('.item').length;
+  const c2 = plates[1].querySelectorAll('.item').length;
+  const d = Math.abs(c1-c2);
+  $('#mdiff').textContent = d+' 个'+((c1!==c2)?(c1>c2?'（左盘更多）':'（右盘更多）'):'');
+}
+
+/* ---------- 三堆式（average3）：西瓜三堆自由搬运 ---------- */
+function buildPiles(q){
+  const st = $('#stage');
+  const names = ['第一堆','第二堆','第三堆'];
+  st.innerHTML = names.map((n,i)=>`
+    <div class="plate" data-i="${i}">
+      <h3>${n}</h3>
+      <span class="cnt">${q.piles[i]} 个</span>
+      <div class="items" data-i="${i}"></div>
+    </div>`).join('');
+  $$('.plate').forEach((p,i)=>{
+    const box = p.querySelector('.items'), n = q.piles[i];
+    for (let k=0;k<n;k++){
+      const s = document.createElement('div');
+      s.className = 'item'; s.textContent = q.icon; s.dataset.from = i;
+      box.appendChild(s);
+    }
+  });
+}
+
+/* ---------- 火柴谜题（sticks）：SVG 圆圈环，点小棒拿起→点圈放下 ---------- */
+function buildSticks(q){
+  const z = $('#stickzone'); z.hidden = false; z.innerHTML = '';
+  // 8 个圆圈摆成方环：上行 3 圈、下行 3 圈、左列 3 圈、右列 3 圈（docx 例题6 图形重绘）
+  const cells = [
+    {x:90, y:80, n:q.zones[0], id:'TL', lab:'左上'},
+    {x:200,y:80, n:q.zones[1], id:'TM', lab:'上中'},
+    {x:310,y:80, n:q.zones[2], id:'TR', lab:'右上'},
+    {x:90, y:290,n:q.zones[6], id:'LM', lab:'左中'},
+    {x:200,y:290,n:q.zones[5], id:'BM', lab:'下中'},
+    {x:310,y:290,n:q.zones[3], id:'RM', lab:'右中'},
+    {x:90, y:185,n:q.zones[7], id:'BL', lab:'左下'},
+    {x:310,y:185,n:q.zones[4], id:'BR', lab:'右下'},
+  ];
+  const svg = document.createElementNS(SVGNS,'svg');
+  svg.setAttribute('viewBox','0 0 400 370'); svg.style.width='100%';
+  // 四条示意线（上行横线、下行横线、左列竖线、右列竖线）
+  const mk = (tag,attrs)=>{ const el=document.createElementNS(SVGNS,tag); for(const k in attrs) el.setAttribute(k,attrs[k]); return el; };
+  svg.appendChild(mk('line',{x1:90,y1:80,x2:310,y2:80,class:'sline'}));
+  svg.appendChild(mk('line',{x1:90,y1:290,x2:310,y2:290,class:'sline'}));
+  svg.appendChild(mk('line',{x1:90,y1:80,x2:90,y2:290,class:'sline'}));
+  svg.appendChild(mk('line',{x1:310,y1:80,x2:310,y2:290,class:'sline'}));
+  cells.forEach(c=>{
+    const g = mk('g',{});
+    g.appendChild(mk('circle',{class:'zone',cx:c.x,cy:c.y,r:36,'data-id':c.id}));
+    const t = mk('text',{class:'zlab',x:c.x,y:c.y-48,'text-anchor':'middle'});
+    t.textContent = c.lab+' '+c.n+' 根'; g.appendChild(t);
+    for (let k=0;k<c.n;k++){
+      const s = mk('rect',{class:'stick','data-zone':c.id,width:11,height:11,rx:3,
+        x:c.x-17+(k%2)*13, y:c.y-9+Math.floor(k/2)*15});
+      g.appendChild(s);
+    }
+    svg.appendChild(g);
+  });
+  z.appendChild(svg);
+  // 四条线的"和"实时刷新（移动前每条线上小棒数量的和，docx 原数）
+  refreshSums(q);
+  // 交互：点小棒拿起（高亮），点圆圈放下，每搬一次步数+1
+  let held = null;
+  svg.addEventListener('click', e=>{
+    if (done) return;
+    const stk = e.target.closest('.stick'), zn = e.target.closest('.zone');
+    if (stk && !held){ held = stk; stk.classList.add('sel'); addStep(); return; }
+    if (held && zn && zn.dataset.id !== held.dataset.zone){
+      const from = held.dataset.zone, to = zn.dataset.id;
+      held.remove(); held = null; addStep();
+      // 目标圈 +1 根：按圈里已有根数错开摆放，保证间距≥12px 不遮挡（G14-2）
+      const cnt = svg.querySelectorAll('.stick[data-zone="'+to+'"]').length;
+      const s = mk('rect',{class:'stick','data-zone':to,width:11,height:11,rx:3,
+        x:+zn.getAttribute('cx')-17+(cnt%2)*13, y:+zn.getAttribute('cy')-9+Math.floor(cnt/2)*15});
+      zn.parentNode.appendChild(s);
+      refreshSums(q); checkDone(q);
+    } else if (held){ held.classList.remove('sel'); held = null; }
+  });
+}
+
+/* 每条线上 3 个圆圈的小棒和（上行 TL+TM+TR / 右列 TR+RM+BR / 下行 BL+BM+BR / 左列 TL+LM+BL） */
+function refreshSums(q){
+  const svg = $('#stickzone svg');
+  const cnt = id => svg.querySelectorAll('.stick[data-zone="'+id+'"]').length;
+  const sums = {
+    '上行': cnt('TL')+cnt('TM')+cnt('TR'),
+    '右列': cnt('TR')+cnt('RM')+cnt('BR'),
+    '下行': cnt('BL')+cnt('BM')+cnt('BR'),
+    '左列': cnt('TL')+cnt('LM')+cnt('BL'),
+  };
+  svg.querySelectorAll('.zsum').forEach(t=>t.remove());
+  const labs = [['上行',200,34],['右列',330,190],['下行',200,336],['左列',60,190]];
+  const mk = (tag,attrs,txt)=>{ const el=document.createElementNS(SVGNS,tag); for(const k in attrs) el.setAttribute(k,attrs[k]); el.textContent=txt; return el; };
+  labs.forEach(l=> svg.appendChild(mk('text',{class:'zsum',x:l[1],y:l[2],'text-anchor':'middle'}, l[0]+' '+sums[l[0]]+' 根')));
+}
+
+/* ---------- 判定通关（G14-4：只看页面信息即可唯一确定对错） ---------- */
+function checkDone(q){
+  const plates = $$('.plate');
+  const nums = [...plates].map(p=>p.querySelectorAll('.item').length);
+  let ok = false;
+  if (q.type === 'equalize') ok = nums[0] === nums[1];
+  else if (q.type === 'restore') ok = (nums[0]-nums[1]) === 2*q.mv && nums[0] > nums[1];
+  else if (q.type === 'makeDiff') ok = (nums[0]-nums[1]) === q.sign*q.tgt;
+  else if (q.type === 'average3') ok = nums[0]===nums[1] && nums[1]===nums[2];
+  else ok = [...$$('#stickzone .zsum')].every(t=>t.textContent.includes(' 9 根'));
+  if (ok) winGame();
+}
+
+/* ---------- 揭示答案（G4）：呈现 docx 解答原文 ---------- */
+function revealAns(){
+  const q = cur.q;
+  const r = $('#reveal'); r.hidden = false;
+  r.innerHTML = '📖 <b>'+q.from+' 解答：</b>'+q.ans;
+}
+
+/* ---------- 重新开始 / 返回难度（G4） ---------- */
+function restart(){ startGame(cur.lv); }
+function goHome(){ show('screen-game', false); show('screen-win', false); show('screen-start', true); }
+
+/* ---------- 通关庆祝（G5）：星星 + Canvas 彩纸 ---------- */
+function winGame(){
+  done = true;
+  const t = stopTimer();
+  show('screen-game', false);
+  $('#winstat').innerHTML = '用时 <b>'+t+'</b>，共 <b>'+steps+'</b> 步，太棒啦！';
+  show('screen-win', true);
+  confetti();
+}
+
+/* ---------- Canvas 彩纸：120 片彩色纸屑飘落（G5） ---------- */
+function confetti(){
+  const cv = $('#confetti'), ctx = cv.getContext('2d');
+  cv.width = innerWidth; cv.height = innerHeight;
+  const ps = Array.from({length:120},()=>({
+    x:Math.random()*cv.width, y:-20-Math.random()*cv.height,
+    r:6+Math.random()*8, c:'hsl('+Math.random()*360+',90%,60%)',
+    v:2+Math.random()*3, w:.1-Math.random()*.2
+  }));
+  (function fall(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ps.forEach(p=>{
+      p.y+=p.v; p.x+=Math.sin(p.w);
+      ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
+      if (p.y>cv.height) p.y=-20;
+    });
+    if ($('#screen-win').classList.contains('active')) requestAnimationFrame(fall);
+  })();
+}
+
+/* ---------- 事件绑定（只绑一次，避免重复监听） ---------- */
+$$('.diff-btn').forEach(b=>b.addEventListener('click',()=>startGame(b.dataset.lv)));
+$('#btn-reveal').addEventListener('click', revealAns);
+$('#btn-restart').addEventListener('click', restart);
+$('#btn-back').addEventListener('click', goHome);
+$('#btn-again').addEventListener('click', restart);
+$('#btn-home').addEventListener('click', goHome);
+$('#btn-rules').addEventListener('click', ()=>$('#modal').classList.add('show'));
+$('#btn-close').addEventListener('click', ()=>$('#modal').classList.remove('show'));
+
+/* 拖拽引擎：pointer 事件统一处理，兼容触摸（G1/G11），只绑一次 */
+let ghost = null;
+document.addEventListener('pointerdown', e=>{
+  const it = e.target.closest('.item');
+  if (!it || done) return;
+  ghost = it.cloneNode(true); ghost.className = 'ghost';
+  it.classList.add('dragging');
+  document.body.appendChild(ghost); moveGhost(e);
+  e.preventDefault();
+});
+document.addEventListener('pointermove', e=>{ if (ghost) moveGhost(e); });
+document.addEventListener('pointerup', e=>{
+  if (!ghost) return;
+  const from = document.querySelector('.item.dragging');
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const plate = el && el.closest('.plate');
+  ghost.remove(); ghost = null;
+  if (plate && plate !== from.closest('.plate')){
+    // 真正的搬运：物品换盘 + 步数+1（G1）
+    from.remove(); plate.querySelector('.items').appendChild(from);
+    addStep();
+    const q = cur.q;
+    if (q.type === 'makeDiff') updateMeter(q);
+    if (q.type !== 'sticks') refreshCnt(q);
+    checkDone(q);
+  } else from.classList.remove('dragging');
+});
+function moveGhost(e){
+  ghost.style.left = (e.clientX-24)+'px';
+  ghost.style.top = (e.clientY-30)+'px';
+}
+
+/* 两盘/三盘搬运后刷新计数（G14 呈现） */
+function refreshCnt(q){
+  $$('.plate').forEach(p=>{
+    p.querySelector('.cnt').textContent = p.querySelectorAll('.item').length+' 个';
+  });
+}
+
+/* 进入即弹出规则面板（G6） */
+window.addEventListener('load', ()=>$('#modal').classList.add('show'));
+/* 窗口变化时重绘彩纸与火柴画布 */
+addEventListener('resize', ()=>{ if ($('#screen-win').classList.contains('active')) confetti(); });
+</script>
+<script>
+(function(){
+if(window.__TAFB__)return;window.__TAFB__=1;
+var M={"id": "gcol-ps-u/g013", "name": "\u5de7\u5999\u79fb\u52a8 \u00b7 \u642c\u8fd0\u5c0f\u8fbe\u4eba", "file": "g013.html", "jiaocan": "\u30104\u3011\u7b2c4\u8bb2 \u5de7\u5999\u79fb\u52a8\uff08\u5e94\u7528\u9898\u4e13\u9898\u7b2c5\u8bb2\uff09", "unit": "\u7b2c4\u8bb2", "grade": "1\u5e74\u7ea7\u4e0b", "stage": "\u5c0f\u5b66", "series": "U\uff1a\u5c0f\u5b66\u5965\u6570U", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.12", "hub": "\u5c0f\u5b66\u5965\u6570U\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-u"};
+var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
+css('.tafb-btn{position:fixed;right:12px;bottom:12px;z-index:2147483000;width:44px;height:44px;border-radius:50%;'
+ +'background:rgba(60,90,170,.82);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;'
+ +'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);user-select:none;opacity:.9}'
+ +'.tafb-mask{position:fixed;inset:0;z-index:2147483600;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif}'
+ +'.tafb-box{background:#fff;border-radius:12px;width:min(400px,92vw);max-height:86vh;overflow:auto;padding:18px 18px 14px;color:#333;box-shadow:0 8px 30px rgba(0,0,0,.3)}'
+ +'.tafb-box h3{margin:0 0 4px;font-size:16px}.tafb-box .g{font-size:12px;color:#888;margin-bottom:10px}'
+ +'.tafb-box select,.tafb-box textarea,.tafb-box input{width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}'
+ +'.tafb-box textarea{height:90px;resize:vertical}.tafb-row{display:flex;gap:8px}.tafb-row a,.tafb-row button{flex:1;text-align:center;padding:9px 0;border-radius:8px;border:none;font-size:14px;cursor:pointer;text-decoration:none}'
+ +'.tafb-ok{background:#3a7bd5;color:#fff}.tafb-cp{background:#eef3fb;color:#3a7bd5}.tafb-x{float:right;cursor:pointer;color:#999;font-size:18px;line-height:1;padding:2px 6px}');
+var b=el("div","tafb-btn","💬");b.title="对这个游戏提意见";
+b.onclick=function(){openBox();};
+function ready(){(document.body?document.body.appendChild(b):setTimeout(ready,300));}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ready);}else{ready();}
+function openBox(){
+ var mask=el("div","tafb-mask"),box=el("div","tafb-box");
+ box.appendChild(el("h3",null,"意见反馈"));
+ var x=el("span",null,"✕");x.className="tafb-x";x.onclick=function(){mask.remove();};box.appendChild(x);
+ box.appendChild(el("div","g","游戏："+M.name+"（"+M.id+" v"+M.ver+"）"));
+ var sel=el("select");
+ ["题目或答案有错","操作不顺畅/点不到","界面显示问题","太简单/太难","功能建议","其他"].forEach(function(t){var o=el("option",null,t);o.value=t;sel.appendChild(o);});
+ box.appendChild(sel);
+ var ta=el("textarea");ta.placeholder="说说哪里有问题、希望怎么改（写清第几关/哪道题更好）";box.appendChild(ta);
+ var ct=el("input");ct.placeholder="联系方式（可选，方便回访）";box.appendChild(ct);
+ function payload(){
+  var cat=sel.value,txt=ta.value.trim()||"（未填写具体内容）";
+  var title="[反馈]["+M.id+" v"+M.ver+"] "+cat+"："+txt.slice(0,40);
+  var body="【游戏】"+M.name+"\n【标识】"+M.id+" v"+M.ver+"\n【教参】"+M.jiaocan+"\n【学段/年级】"+M.stage+" / "+(M.grade||"通用")+"\n【系列】"+M.series
+   +"\n【问题类型】"+cat+"\n【问题描述】"+txt+"\n【联系】"+(ct.value.trim()||"无")+"\n【时间】"+new Date().toLocaleString()+"\n【环境】"+navigator.userAgent;
+  return {title:title,body:body,plain:body};
+ }
+ var row=el("div","tafb-row");
+ var cp=el("button","tafb-cp","复制反馈内容");
+ cp.onclick=function(){
+  var p=payload();
+  var done=function(){cp.textContent="已复制 ✔";setTimeout(function(){cp.textContent="复制反馈内容";},1600);};
+  function fallback(){var t=el("textarea");t.value=p.plain;document.body.appendChild(t);t.select();try{document.execCommand("copy");done();}catch(e){}t.remove();}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.plain).then(done,fallback);}else{fallback();}
+ };
+ var ok=el("a","tafb-ok","提交（打开网页）");ok.target="_blank";ok.rel="noopener";ok.href="#";
+ ok.onclick=function(e){e.preventDefault();var p=payload();
+  var u=ISS+encodeURIComponent(p.title)+"&body="+encodeURIComponent(p.body);
+  var a=el("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();};
+ row.appendChild(cp);row.appendChild(ok);box.appendChild(row);
+ var tip=el("div","g","「提交」会用系统浏览器打开 GitHub 反馈页（需登录），提交即建一条带游戏标识的建议；不方便登录就「复制反馈内容」发给作者。");
+ tip.style.marginTop="10px";box.appendChild(tip);
+ mask.appendChild(box);mask.onclick=function(e){if(e.target===mask)mask.remove();};
+ document.documentElement.appendChild(mask);
+}
+})();
+</script></body>
+</html>
