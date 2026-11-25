@@ -352,7 +352,7 @@ const AXIS_OF = { px: 0, nx: 0, py: 1, ny: 1, pz: 2, nz: 2 };
 const FACE_CN = { px: '右面', nx: '左面', ny: '前面', py: '后面', pz: '上面', nz: '底面' };
 const POS_KEY = ['px', 'py', 'pz'], NEG_KEY = ['nx', 'ny', 'nz'];
 const CUT_NAME = ['平行于宽（竖直切）', '平行于长（竖直切）', '水平切'];
-let SEQ = 0;
+let SEQ = 0, GRP = 0;
 
 function newScene() {
   return {
@@ -360,18 +360,19 @@ function newScene() {
     k: 60, kT: 60, cenx: 0, ceny: 0, cx: 0, cy: 0,
     hover: null, ghost: null, dims: null, cuts: [], handle: false, handlePt: null, handleScr: null,
     preview: null, topGrid: 0, bounds: null, notes: null, glue: null, labels: null,
-    cutCenter: null, spread: false, time: 0, pad: 0.8
+    cutCenter: null, spread: false, time: 0, pad: 0.74
   };
 }
 /* 创建一个长方体：位置 (x,y,z) 与尺寸 (w 长, dep 宽, h 高) */
 function makeBox(x, y, z, w, dep, h, extra) {
-  const b = { x: x, y: y, z: z, w: w, dep: dep, h: h, id: ++SEQ, tag: 'body', color: null, faces: {}, off: [0, 0, 0], tgt: [0, 0, 0], side: {}, size: 0, born: -99 };
+  // grp：属于哪一块"整体"。切开出来的各块各归各；粘上去的正方体和底座算同一块（贴住的面才不算表面积）
+  const b = { x: x, y: y, z: z, w: w, dep: dep, h: h, id: ++SEQ, grp: ++GRP, tag: 'body', color: null, faces: {}, off: [0, 0, 0], tgt: [0, 0, 0], side: {}, size: 0, born: -99 };
   if (extra) Object.assign(b, extra);
   return b;
 }
 function cloneBox(b) {
   const n = Object.assign({}, b);
-  n.id = ++SEQ; n.faces = Object.assign({}, b.faces); n.off = b.off.slice(); n.tgt = b.tgt.slice(); n.side = Object.assign({}, b.side);
+  n.id = ++SEQ; n.grp = ++GRP; n.faces = Object.assign({}, b.faces); n.off = b.off.slice(); n.tgt = b.tgt.slice(); n.side = Object.assign({}, b.side);
   return n;
 }
 function boxMin(b, a) { return a === 0 ? b.x : (a === 1 ? b.y : b.z); }
@@ -648,7 +649,6 @@ function drawGlue(S, ctx, P) {
     if (cam[d] < 0) { seg(p00, p10); anchor = p00; } else { seg(p01, p11); anchor = p01; }
     let side = null;
     if (cam[b] > 0) { seg(p10, p11); side = p10; } else { seg(p00, p01); side = p00; }
-    const cen = P((p00.x + p11.x) / 2 / 1, 0, 0);   // 仅用于求中心的占位计算（下一行重新计算）
     const cxm = (p00.x + p11.x) / 2, cym = (p00.y + p11.y) / 2;
     const mx = (anchor.x + side.x) / 2, my = (anchor.y + side.y) / 2;
     let dx = mx - cxm, dy = my - cym;
@@ -657,7 +657,7 @@ function drawGlue(S, ctx, P) {
   }
 }
 /* 带引线的文字标注（如"无盖""表面积增加了一圈"） */
-function drawNotes(S, ctx, P, W) {
+function drawNotes(S, ctx, P, W, H) {
   if (!S.notes) return;
   for (let i = 0; i < S.notes.length; i++) {
     const n = S.notes[i];
@@ -665,7 +665,7 @@ function drawNotes(S, ctx, P, W) {
     const p = P(n.at[0], n.at[1], n.at[2]);
     ctx.font = 'bold 20px ' + FONT;
     const tw = ctx.measureText(n.text).width;
-    const tx = clamp(p.x + n.dx, tw / 2 + 8, W - tw / 2 - 8), ty = p.y + n.dy;
+    const tx = clamp(p.x + n.dx, tw / 2 + 8, W - tw / 2 - 8), ty = clamp(p.y + n.dy, 18, H - 18);   // 不让标注跑出画布
     ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(tx, ty); ctx.stroke();
     ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, 6.2832); ctx.fillStyle = '#333'; ctx.fill();
@@ -678,22 +678,25 @@ function renderScene(S, ctx, W, H) {
   S.pitch = lerp(S.pitch, S.pitchT, 0.22);
   fitScene(S, W, H);
   S.k = lerp(S.k, S.kT, 0.16);
-  S.cx = W / 2 - S.cenx * S.k; S.cy = H / 2 - S.ceny * S.k;
+  // 竖直方向：uy 越大屏幕 y 越小，所以这里要"加" ceny，才是把场景中心摆到画布中央
+  S.cx = W / 2 - S.cenx * S.k; S.cy = H / 2 + S.ceny * S.k + (S.oy || 0);
   const P = makeProj(S);
-  const order = sortBoxes(S.boxes, cam);
+  const order = sortBoxes(S.boxes, P.cam);
   for (let i = 0; i < order.length; i++) {
     const b = order[i];
     for (let a = 0; a < 3; a++) b.off[a] = lerp(b.off[a], b.tgt[a], 0.16);
     drawBox(S, ctx, P, b);
   }
-  drawTraces(S, ctx, P);
+  if (!S.spread) {            // 分开看的时候各块挪了位置，刀口和尺寸标注留在原地会飘在半空
+    drawTraces(S, ctx, P);
+    drawDims(S, ctx, P);
+  }
   drawGlue(S, ctx, P);
-  drawDims(S, ctx, P);
-  drawNotes(S, ctx, P, W);
+  drawNotes(S, ctx, P, W, H);
   drawGhost(S, ctx, P);
   drawHover(S, ctx, P);
   drawPreview(S, ctx, P);
-  drawHandle(S, ctx, P);
+  drawHandle(S, ctx, P, W);
 }
 function drawGhost(S, ctx, P) {
   const g = S.ghost;
@@ -726,9 +729,10 @@ function drawPreview(S, ctx, P) {
   const pts = tracePts(P, S, pv.axis, pv.t);
   poly(ctx, pts); ctx.fillStyle = 'rgba(255,189,74,.22)'; ctx.fill();
   ctx.setLineDash([10, 6]); ctx.lineWidth = 3; ctx.strokeStyle = pv.done ? C.bad : C.cutLine; ctx.stroke(); ctx.setLineDash([]);
-  pill(ctx, pv.mx, pv.my - 30, pv.done ? '这一刀已经切过啦' : pv.name, '#ffffff', pv.done ? C.bad : C.cutLine, pv.done ? C.bad : C.cutLine);
+  const cx = (pts[0].x + pts[2].x) / 2, cy = (pts[0].y + pts[2].y) / 2;
+  pill(ctx, cx, cy - 30, pv.done ? '这一刀已经切过啦' : pv.name, '#ffffff', pv.done ? C.bad : C.cutLine, pv.done ? C.bad : C.cutLine);
 }
-function drawHandle(S, ctx, P) {
+function drawHandle(S, ctx, P, W) {
   S.handleScr = null;
   if (!S.handle || !S.handlePt) return;
   const p = P(S.handlePt[0], S.handlePt[1], S.handlePt[2]);
@@ -741,17 +745,10 @@ function drawHandle(S, ctx, P) {
   ctx.moveTo(hx, hy - 13); ctx.lineTo(hx + 12, hy + 2); ctx.lineTo(hx + 5, hy + 2); ctx.lineTo(hx + 5, hy + 13);
   ctx.lineTo(hx - 5, hy + 13); ctx.lineTo(hx - 5, hy + 2); ctx.lineTo(hx - 12, hy + 2); ctx.closePath();
   ctx.fillStyle = '#fff'; ctx.fill();
-  const W = cv.clientWidth;
   const lx = hx + 150 > W - 10 ? hx - 118 : hx + 118;
   labelBox(ctx, lx, hy, '拖我加高', 21, C.bandLine);
-  return;
-  function unused() {}
+  S.handleScr = [hx, hy];   // 手柄在屏幕上的位置：按下时用它判断是不是抓住了手柄
 }
-/* 拾取：屏幕坐标下最靠近相机的那一个面 */
-function drawHandleEnd() {}
-function drawHandleEnd2() {}
-function drawHandleEnd3() {}
-function drawHandleEnd4() {}
 /* 拾取：屏幕坐标下最靠近相机的那一个面 */
 function pickFace(S, P, mx, my) {
   const order = sortBoxes(S.boxes, P.cam).reverse();
@@ -765,19 +762,1324 @@ function pickFace(S, P, mx, my) {
     }
   }
 }
-```
+/* ======================================================================
+   4. 关卡与订单
+   ====================================================================== */
+const UNITS = ['厘米', '分米', '米'];
+const SRC_NAMES = ['蛋糕店', '文具店', '玩具厂', '礼品店', '饼干厂', '糖果屋', '书店', '鞋店', '快递站'];
+const KIND_NAME = { wrap: '包纸盒', raise: '加加高', cut: '切一切', glue: '粘一粘' };
+const BLANK = '<span class="blank" id="ansBlank">？</span>';
+const LEVELS = [
+  { id: 'easy', name: '入门 · 学徒工', sub: '公式起步', desc: '给纸盒包纸、给盒子加高，先把表面积公式用熟。', menu: ['wrap', 'wrap', 'raise', 'raise'] },
+  { id: 'mid', name: '进阶 · 熟练工', sub: '切一切 · 粘一粘', desc: '切开多出几个面？粘上藏起几个面？动手做一做就明白。', menu: ['wrap', 'raise', 'cut1', 'cut2', 'glueTop', 'glueSide'] },
+  { id: 'hard', name: '挑战 · 大师傅', sub: '综合订单', desc: '多刀切割、多个正方体粘连，用「变化」的眼光看表面积。', menu: ['wrap', 'raise2', 'cut3', 'cut24', 'cutMid', 'glueTop', 'glueMulti'] }
+];
 
-框
+function rint(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+function pick1(list) { return list[rint(0, list.length - 1)]; }
+/* 三个互不相等、从大到小的整数（长＞宽＞高）：三种面的形状各不相同 */
+function dims3(lo, hi) {
+  for (let i = 0; i < 80; i++) {
+    const a = [rint(lo, hi), rint(lo, hi), rint(lo, hi)];
+    if (a[0] !== a[1] && a[1] !== a[2] && a[0] !== a[2]) return a.sort(function (p, q) { return q - p; });
+  }
+  return [hi, hi - 1, hi - 2];
+}
+function dimsTxt(L, W, H, u) { return L + ' ' + u + '、' + W + ' ' + u + '、' + H + ' ' + u; }
 
-文件内容被意外截断了，因为刚才的输出达到了长度上限。我需要分部分来编写该文件：先写第一部分，再用后续的追加操作补齐其余内容。请等待我重新开始，并一次性完整地发送整个文件。
+/* ---------- 订单生成：每类订单数字随机 ---------- */
+function genWrap(hard) {
+  const u = pick1(UNITS), src = pick1(SRC_NAMES);
+  const d = hard ? dims3(6, 12) : dims3(4, 9);
+  const L = d[0], W = d[1], H = d[2];
+  const noLid = Math.random() < 0.5;
+  const full = 2 * (L * W + L * H + W * H);
+  return {
+    kind: 'wrap', src: src, unit: u, L: L, W: W, H: H, noLid: noLid, full: full, ans: noLid ? full - L * W : full,
+    text: src + '要做一个' + (noLid ? '<b>无盖</b>的' : '有盖的') + '长方体纸盒（厚度不计），长、宽、高分别是 ' + dimsTxt(L, W, H, u) + '，至少需要' + BLANK + ' 平方' + u + ' 的纸。',
+    goal: '动手做：把包装纸拖到纸盒上形状相同的面' + (noLid ? '（没有盖子，上面不用包）' : '') + '，全部包好后再报数。'
+  };
+}
+function genRaise(hard) {
+  const u = pick1(UNITS), src = pick1(SRC_NAMES);
+  const d = hard ? dims3(6, 12) : dims3(3, 9);
+  const L = d[0], W = d[1], H = rint(2, hard ? 6 : 4), add = rint(1, hard ? 4 : 3);
+  const base = 2 * (L * W + L * H + W * H), inc = (L + W) * 2 * add;
+  return {
+    kind: 'raise', src: src, unit: u, L: L, W: W, H: H, delta: add, ask: hard ? 'total' : 'inc', base: base, ans: hard ? base + inc : inc,
+    text: src + '的礼盒是一个长方体，长、宽分别是 ' + L + ' ' + u + '、' + W + ' ' + u + '，高 ' + H + ' ' + u + '。如果高增加 ' + add + ' ' + u + '，' + (hard ? '表面积变成' : '表面积增加') + BLANK + ' 平方' + u + '。',
+    goal: '动手做：拖动画布上的绿色手柄（或点 ＋ － 按钮），把高加到订单要求的长度，再报数。'
+  };
+}
+function cutGoal(need) {
+  const parts = [];
+  for (let a = 0; a < 3; a++) if (need[a]) parts.push('「' + CUT_NAME[a] + '」' + need[a] + ' 刀');
+  return parts.join('、');
+}
+function genCut(v) {
+  const u = pick1(UNITS), src = pick1(SRC_NAMES);
+  const need = { 0: 0, 1: 0, 2: 0 };
+  let total = 0, midAxis = -1, ask = 'total', text = '', goal = '';
+  const d = dims3(3, 9);
+  let L = d[0], W = d[1], H = d[2];
+  if (v === 'cut1') {
+    need[0] = need[1] = need[2] = 1; total = 1; ask = 'inc';
+    text = src + '有一个长方体木块，长、宽、高分别是 ' + dimsTxt(L, W, H, u) + '。请<b>任意切一刀</b>（竖切、水平切都行），表面积会增加' + BLANK + ' 平方' + u + '。';
+    goal = '动手做：选一种切法，拖滑块定好位置，点「切一刀」，再报数。';
+  } else if (v === 'cut2') {
+    need[0] = need[1] = 1; total = 2;
+    text = src + '有一个长方体木块，长、宽、高分别是 ' + dimsTxt(L, W, H, u) + '。平行于宽、平行于长各竖直切 1 刀，分成 4 个小长方体。这 4 个小长方体的表面积总和是' + BLANK + ' 平方' + u + '。';
+    goal = '动手做：两种切法各切 1 刀（位置随意），再报数。';
+  } else if (v === 'cut3') {
+    need[0] = need[1] = need[2] = 1; total = 3;
+    text = src + '有一个长方体木块，长、宽、高分别是 ' + dimsTxt(L, W, H, u) + '。分别平行于三个面各切 1 刀，分成 8 个小长方体。这 8 个小长方体的表面积总和是' + BLANK + ' 平方' + u + '。';
+    goal = '动手做：三种切法各切 1 刀（位置随意），再报数。';
+  } else if (v === 'cut24') {
+    const n = rint(4, 6), pq = shuffle([0, 1]);
+    L = W = H = n;
+    need[2] = 1; need[pq[0]] = 2; need[pq[1]] = 3; total = 6;
+    text = src + '有一个正方体木块，棱长 ' + n + ' ' + u + '。沿着水平方向锯成 2 片，每片又锯成 3 长条，每条又锯成 4 小块，共得到 24 块长方体。这 24 块长方体的表面积之和是' + BLANK + ' 平方' + u + '。';
+    goal = '动手做：一共锯 6 刀——' + cutGoal(need) + '（位置随意、不能切在同一个地方），再报数。';
+  } else {
+    midAxis = pick1([0, 1]);
+    if (midAxis === 0) { L = 2 * rint(3, 5); W = rint(2, L - 2); H = rint(2, W - 1); }
+    else { W = 2 * rint(2, 4); L = rint(W + 1, 10); H = rint(2, W - 1); }
+    need[midAxis] = 1; total = 1;
+    text = src + '有一个长方体木块，长、宽、高分别是 ' + dimsTxt(L, W, H, u) + '。从正中间' + (midAxis === 0 ? '平行于宽' : '平行于长') + '竖直切开，分成两个完全一样的长方体。这两个长方体的表面积总和是' + BLANK + ' 平方' + u + '。';
+    goal = '动手做：切法选「' + CUT_NAME[midAxis] + '」，把滑块拖到正中间（' + [L, W, H][midAxis] / 2 + ' ' + u + ' 处），点「切一刀」，再报数。';
+  }
+  const base = 2 * (L * W + L * H + W * H);
+  const inc = 2 * (need[0] * W * H + need[1] * L * H + need[2] * L * W);
+  return { kind: 'cut', v: v, src: src, unit: u, L: L, W: W, H: H, need: need, total: total, midAxis: midAxis, ask: ask, base: base, ans: ask === 'total' ? base + inc : inc, text: text, goal: goal };
+}
+/* 能不能把这些棱长的正方体，互不接触地摆到 E×E 的顶面上：能就返回摆放位置，不能返回 null */
+function packCubes(E, sizes) {
+  const out = [];
+  const okAt = function (x, y, s) {
+    if (x + s > E || y + s > E) return false;
+    for (let i = 0; i < out.length; i++) {
+      const q = out[i];
+      if (x < q.x + q.s + 1 && q.x < x + s + 1 && y < q.y + q.s + 1 && q.y < y + s + 1) return false;
+    }
+    return true;
+  };
+  const go = function (i) {
+    if (i === sizes.length) return true;
+    const s = sizes[i];
+    for (let y = 0; y + s <= E; y++) {
+      for (let x = 0; x + s <= E; x++) {
+        if (!okAt(x, y, s)) continue;
+        out.push({ x: x, y: y, s: s });
+        if (go(i + 1)) return true;
+        out.pop();
+      }
+    }
+    return false;
+  };
+  return go(0) ? out : null;
+}
+function genGlue(v) {
+  const u = pick1(UNITS), src = pick1(SRC_NAMES);
+  let E = 0, sizes = [], mode = 'top', text = '', goal = '';
+  if (v === 'glueTop') {
+    E = rint(4, 6);
+    const a = rint(1, E - 1);
+    sizes = [a];
+    text = src + '把一个棱长 ' + a + ' ' + u + ' 的小正方体，放在棱长 ' + E + ' ' + u + ' 的大正方体上面，构成的组合体的表面积是' + BLANK + ' 平方' + u + '。';
+    goal = '动手做：从托盘里挑出订单要的正方体，拖到大正方体的上面放好，再报数。';
+  } else if (v === 'glueSide') {
+    mode = 'side';
+    if (Math.random() < 0.5) {
+      E = rint(2, 5); sizes = [E];
+      text = src + '把两个棱长 ' + E + ' ' + u + ' 的正方体粘在一起，拼成一个长方体。这个长方体的表面积是' + BLANK + ' 平方' + u + '。';
+    } else {
+      E = rint(4, 6);
+      const a = rint(1, E - 2);
+      sizes = [a];
+      text = src + '把棱长 ' + a + ' ' + u + ' 和棱长 ' + E + ' ' + u + ' 的两个正方体粘在一起（小正方体的一个面，贴在大正方体的一个侧面上）。这个立体图形的表面积是' + BLANK + ' 平方' + u + '。';
+    }
+    goal = '动手做：从托盘里挑出订单要的正方体，拖到大正方体的侧面（前、后、左、右都行），再报数。';
+  } else {
+    mode = 'multi';
+    let pos = null;
+    for (let i = 0; i < 80 && !pos; i++) {
+      E = rint(5, 7);
+      sizes = shuffle([1, 2, 3]).slice(0, rint(2, 3));
+      pos = packCubes(E, sizes.slice().sort(function (p, q) { return q - p; }));
+    }
+    sizes.sort(function (p, q) { return p - q; });
+    text = src + '要把棱长 ' + sizes.join('、') + ' ' + u + ' 的小正方体，都放到棱长 ' + E + ' ' + u + ' 的大正方体上面（小正方体之间互不接触），得到的立体图形的表面积是' + BLANK + ' 平方' + u + '。';
+    goal = '动手做：把托盘里的小正方体逐个拖到大正方体上面，彼此之间留一条缝（不能碰在一起），再报数。';
+  }
+  const ans = 6 * E * E + sizes.reduce(function (s, a) { return s + 4 * a * a; }, 0);
+  return { kind: 'glue', v: v, src: src, unit: u, E: E, sizes: sizes, mode: mode, ans: ans, text: text, goal: goal };
+}
+function makeOrder(v) {
+  if (v === 'wrap') return genWrap(false);
+  if (v === 'raise') return genRaise(false);
+  if (v === 'raise2') return genRaise(true);
+  if (v.indexOf('cut') === 0) return genCut(v);
+  return genGlue(v);
+}
+/* 每局 3 单：类型尽量不重复 */
+function drawOrders(level) {
+  const pool = shuffle(level.menu);
+  const out = [];
+  for (let i = 0; i < pool.length && out.length < 3; i++) {
+    const o = makeOrder(pool[i]);
+    if (!out.some(function (x) { return x.kind === o.kind; })) out.push(o);
+  }
+  for (let i = 0; pool.length && out.length < 3; i++) out.push(makeOrder(pool[i % pool.length]));
+  return out;
+}
 
-<function_results>
-The Write tool call was interrupted before completion — the file was not written.
-</function_results>EOF
+/* 立体图形的表面积：按单位小面一个一个数（任意拼法都算得对） */
+function surfaceOf(list) {
+  let n = 0;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    if (b.w <= 1e-6 || b.dep <= 1e-6 || b.h <= 1e-6) continue;
+    for (let j = 0; j < FACE_DEFS.length; j++) {
+      const fd = FACE_DEFS[j], a = AXIS_OF[fd.key], pos = POS_KEY.indexOf(fd.key) >= 0;
+      const o1 = (a + 1) % 3, o2 = (a + 2) % 3;
+      const cell = pos ? boxMax(b, a) : boxMin(b, a) - 1;   // 紧贴在这个面外侧的那一层单位格
+      for (let u = boxMin(b, o1); u < boxMax(b, o1) - 1e-6; u++) {
+        for (let v = boxMin(b, o2); v < boxMax(b, o2) - 1e-6; v++) {
+          if (!faceCovered(list, b, a, cell, u + 0.5, v + 0.5, o1, o2)) n++;
+        }
+      }
+    }
+  }
+  return n;
+}
+function faceCovered(list, self, a, cell, p, q, o1, o2) {
+  for (let i = 0; i < list.length; i++) {
+    const o = list[i];
+    if (o === self || o.grp !== self.grp) continue;      // 切开的两块虽然挨着，但各是各的表面
+    if (boxMin(o, a) <= cell + 1e-6 && boxMax(o, a) >= cell + 1 - 1e-6 &&
+        boxMin(o, o1) < p - 1e-6 && boxMax(o, o1) > p + 1e-6 &&
+        boxMin(o, o2) < q - 1e-6 && boxMax(o, o2) > q + 1e-6) return true;
+  }
+  return false;
+}
+
+/* ======================================================================
+   5. 界面元素与全局状态
+   ====================================================================== */
+const cv = $('#cv3d'), ctx = cv.getContext('2d');
+const scrMenu = $('#scrMenu'), scrGame = $('#scrGame');
+const diffRow = $('#diffRow'), opsCard = $('#opsCard'), viewBtns = $('#viewBtns'), legend = $('#legend'), triWrap = $('#triWrap');
+const dialRow = $('#dialRow'), fb = $('#fb'), toastEl = $('#toast');
+const modalMask = $('#modalMask'), modalBox = $('#modalBox'), dragGhost = $('#dragGhost');
+const fx = $('#fx'), fctx = fx.getContext('2d');
+const PLACE = ['个', '十', '百', '千', '万'];
+const VIEWS = [['正面', 0, 0.32], ['右前', 0.62, 0.52], ['左前', -0.62, 0.52], ['后面', 3.14, 0.4], ['顶上', 0.62, 1.25], ['仰视', 0.62, -1.1]];
+const LEGEND = { wrap: [['paper', '包装纸']], raise: [['band', '加高的部分']], cut: [['cut', '新截面（切出来的面）']], glue: [['glue', '粘合处']] };
+
+let S = null;                 // 当前 3D 场景
+const G = { levelIdx: 0, level: null, orders: [], idx: 0, ord: null, steps: 0, wrong: 0, tries: 0, stars: 0,
+  elapsed: 0, since: 0, running: false, dial: [], drag: null, mode: null, autoOK: false, revealed: false };
+
+let toastTimer = 0;
+function toast(msg, ms) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 1800);
+}
+function pauseTimer() {
+  if (!G.running) return;
+  G.elapsed += (Date.now() - G.since) / 1000;
+  G.running = false;
+}
+function resumeTimer() { G.since = Date.now(); G.running = true; }
+function tick() {
+  if (G.running) $('#gTime').textContent = fmtTime(Math.floor(G.elapsed + (Date.now() - G.since) / 1000));
+}
+function updHud() { $('#gSteps').textContent = G.steps; }
+
+/* ======================================================================
+   6. 场景搭建：每类订单一个工作台
+   ====================================================================== */
+function buildScene() {
+  const o = G.ord;
+  S = newScene();
+  S.kind = o.kind;
+  S.glueTime = -99;
+  S.cubes = [];
+  if (o.kind === 'wrap') {
+    S.body = makeBox(0, 0, 0, o.L, o.W, o.H, { tag: 'body' });
+    S.boxes = [S.body];
+    setBounds(S, 0, 0, 0, o.L, o.W, o.H);
+    S.dims = { mode: 'box', L: o.L, W: o.W, H: o.H, unit: o.unit };
+    if (o.noLid) S.notes = [{ at: [o.L / 2, o.W / 2, o.H], dx: 40, dy: -90, text: '无盖：上面不贴纸' }];
+    S.tray = makeWrapTray(o);
+  } else if (o.kind === 'raise') {
+    S.boxes = [makeBox(0, 0, 0, o.L, o.W, o.H, { tag: 'body' })];
+    setBounds(S, 0, 0, 0, o.L, o.W, o.H);
+    S.dims = { mode: 'raise', L: o.L, W: o.W, H: o.H, unit: o.unit, delta: 0, zb: o.H };
+    S.handle = true;
+    S.handlePt = [o.L / 2, o.W / 2, o.H];
+    S.delta = 0;
+    S.maxDelta = o.delta + 2;
+    S.pad = 0.7;          // 上面要留出手柄和"拖我加高"的位置
+    S.oy = 10;
+  } else if (o.kind === 'cut') {
+    S.boxes = [makeBox(0, 0, 0, o.L, o.W, o.H, { tag: 'body' })];
+    setBounds(S, 0, 0, 0, o.L, o.W, o.H);
+    S.dims = { mode: 'box', L: o.L, W: o.W, H: o.H, unit: o.unit };
+    S.done = { 0: 0, 1: 0, 2: 0 };
+    S.selAxis = o.need[0] ? 0 : (o.need[1] ? 1 : 2);
+  } else {
+    const base = makeBox(0, 0, 0, o.E, o.E, o.E, { tag: 'base', size: o.E });
+    S.boxes = [base];
+    S.base = base;
+    setBounds(S, 0, 0, 0, o.E, o.E, o.E);
+    S.dims = { mode: 'cube', E: o.E, unit: o.unit };
+    S.topGrid = o.mode === 'side' ? 0 : base.id;     // 顶面画单位方格，提示正方体按格摆放
+    S.labels = 'cube';
+    S.glue = [];
+    S.tray = makeCubeTray(o);
+  }
+}
+/* 包装纸：长×宽、长×高、宽×高各 2 张（无盖时长×宽只有 1 张，给底面用） */
+function makeWrapTray(o) {
+  const groups = [
+    { g: 'zw', lab: '长×宽', d: [o.L, o.W], faces: ['pz', 'nz'] },
+    { g: 'ch', lab: '长×高', d: [o.L, o.H], faces: ['py', 'ny'] },
+    { g: 'kh', lab: '宽×高', d: [o.W, o.H], faces: ['px', 'nx'] }
+  ];
+  const out = [];
+  groups.forEach(function (gr) {
+    const n = (o.noLid && gr.g === 'zw') ? 1 : 2;
+    for (let i = 0; i < n; i++) {
+      out.push({ id: out.length, g: gr.g, lab: gr.lab, d: gr.d, faces: (o.noLid && gr.g === 'zw') ? ['nz'] : gr.faces, used: false });
+    }
+  });
+  return shuffle(out);
+}
+/* 托盘里的正方体：订单要的那一个 + 两个干扰项（"都放上去"的订单没有干扰项） */
+function makeCubeTray(o) {
+  let sizes;
+  if (o.mode === 'multi') sizes = o.sizes.slice();
+  else {
+    const pool = [];
+    for (let s = 1; s < o.E; s++) if (s !== o.sizes[0]) pool.push(s);
+    sizes = [o.sizes[0]].concat(shuffle(pool).slice(0, 2));
+  }
+  return shuffle(sizes).map(function (s, i) { return { id: i, s: s, used: false }; });
+}
+/* 沿第 a 个方向切，截面的"长×宽" */
+function crossDims(o, a) { return a === 0 ? [o.W, o.H] : (a === 1 ? [o.L, o.H] : [o.L, o.W]); }
+function crossName(a) { return a === 0 ? '宽×高' : (a === 1 ? '长×高' : '长×宽'); }
+function crossArea(o, a) { const d = crossDims(o, a); return d[0] * d[1]; }
+/* 按工作台上"现在的样子"算答案 */
+function answerNow() {
+  const o = G.ord;
+  if (o.kind === 'wrap') return o.ans;
+  if (o.kind === 'raise') {
+    const inc = (o.L + o.W) * 2 * S.delta;
+    return o.ask === 'total' ? o.base + inc : inc;
+  }
+  if (o.kind === 'cut') {
+    let inc = 0;
+    S.cuts.forEach(function (c) { inc += 2 * crossArea(o, c.axis); });
+    return o.ask === 'total' ? o.base + inc : inc;
+  }
+  return surfaceOf(S.boxes);
+}
+/* ======================================================================
+   7. 操作台与参考图
+   ====================================================================== */
+function refHtml(lab, text) {
+  return '<div class="ref"><div class="ref-lab">' + lab + '</div><canvas id="cvRef"></canvas><div class="ref-text">' + text + '</div></div>';
+}
+function trayHtml(p, cls) {
+  if (p.d) {
+    const sc = 54 / Math.max(p.d[0], p.d[1]);
+    return '<div class="item ' + cls + '" data-id="' + p.id + '"><div class="shape" style="width:' + Math.round(p.d[0] * sc) + 'px;height:' + Math.round(p.d[1] * sc) + 'px"></div><div class="lab">' + p.lab + '</div><div class="sub">' + p.d[0] + '×' + p.d[1] + '</div></div>';
+  }
+  return '<div class="item cube ' + cls + '" data-id="' + p.id + '"><div class="shape"></div><div class="lab">棱长 ' + p.s + '</div><div class="sub">正方体</div></div>';
+}
+function renderTray() {
+  const box = $('#tray');
+  if (!box) return;
+  box.innerHTML = S.tray.map(function (p) { return trayHtml(p, p.used ? 'disabled' : ''); }).join('');
+  $$('.item', box).forEach(function (el) {
+    const it = S.tray[+el.getAttribute('data-id')];
+    if (!it.used) el.addEventListener('pointerdown', function (e) { startDrag(e, it); });
+  });
+}
+function syncCounts() {
+  const wn = $('#wrapN'); if (wn) wn.textContent = S.tray.length - S.tray.filter(function (q) { return !q.used; }).length;
+  const cn = $('#cubeN'); if (cn) cn.textContent = placedInfo()[0];
+}
+function buildOps() {
+  const o = G.ord;
+  triWrap.classList.remove('on');
+  triWrap.innerHTML = '';
+  viewBtns.innerHTML = VIEWS.map(function (v) {
+    return '<button type="button" class="btn small ghost vbtn" data-yaw="' + v[1] + '" data-pitch="' + v[2] + '">' + v[0] + '</button>';
+  }).join('') + (o.kind === 'cut' ? '<button type="button" class="btn small ghost" id="btnSpread">分开看</button>' : '');
+  $$('.vbtn', viewBtns).forEach(function (b) {
+    b.addEventListener('click', function () {
+      S.yawT = parseFloat(b.getAttribute('data-yaw'));
+      S.pitchT = parseFloat(b.getAttribute('data-pitch'));
+    });
+  });
+  const sp = $('#btnSpread');
+  if (sp) {
+    sp.addEventListener('click', function () {
+      S.spread = !S.spread;
+      sp.textContent = S.spread ? '合拢' : '分开看';
+      sp.classList.toggle('on', S.spread);
+      applySpread();
+    });
+  }
+  legend.innerHTML = LEGEND[o.kind].map(function (l) { return '<span><i class="sw ' + l[0] + '"></i>' + l[1] + '</span>'; }).join('');
+  if (o.kind === 'wrap') opsWrap();
+  else if (o.kind === 'raise') opsRaise();
+  else if (o.kind === 'cut') opsCut();
+  else opsGlue();
+  drawRef();
+}
+function opsWrap() {
+  const o = G.ord;
+  opsCard.innerHTML = '<h3>操作台 · 包纸盒</h3>' +
+    '<p class="hint">把包装纸拖到纸盒上<b>形状相同</b>的面上。拖动画布空白处可以转动纸盒（底面也要包哦）。</p>' +
+    '<div class="tray" id="tray"></div>' +
+    '<p class="count">已包好 <b id="wrapN">0</b> / ' + S.tray.length + ' 个面</p>' +
+    refHtml('参考图 · 展开图', '把纸盒沿棱剪开摊平：相对的两个面完全相同。' + (o.noLid ? '这个盒子无盖，只有 5 个面。' : '一共 6 个面，三组相对的面两两相同。'));
+  renderTray();
+}
+function opsRaise() {
+  const o = G.ord;
+  opsCard.innerHTML = '<h3>操作台 · 加加高</h3>' +
+    '<p class="hint">拖动画布上的绿色手柄，或者点下面的按钮，把盒子加高。</p>' +
+    '<div class="ops-btns"><button type="button" class="btn small" id="hUp">＋ 1 ' + o.unit + '</button>' +
+    '<button type="button" class="btn small ghost" id="hDown">－ 1 ' + o.unit + '</button></div>' +
+    '<p class="count">现在的高：<b id="hNow">' + o.H + '</b> ' + o.unit + '<span class="empty">（原高 ' + o.H + '，订单要求加 ' + o.delta + '）</span></p>' +
+    refHtml('参考图 · 加高的一圈', '高增加后，上面和下面没有变，只是四周多了一圈。把这一圈展开，是一个长方形。');
+  $('#hUp').addEventListener('click', function () { SND.init(); setDelta(S.delta + 1); G.steps++; updHud(); drawRef(); });
+  $('#hDown').addEventListener('click', function () { SND.init(); setDelta(S.delta - 1); G.steps++; updHud(); drawRef(); });
+}
+function opsCut() {
+  const o = G.ord, len = [o.L, o.W, o.H];
+  let h = '<h3>操作台 · 切一切</h3><p class="hint">每一种切法一行：拖滑块定好位置（橙色虚线就是刀口），再点「切一刀」。</p>';
+  for (let a = 0; a < 3; a++) {
+    if (!o.need[a]) continue;
+    const cd = crossDims(o, a);
+    h += '<div class="saw-row" data-axis="' + a + '">' +
+      '<div class="saw-name">' + CUT_NAME[a] + '</div>' +
+      '<input type="range" min="1" max="' + (len[a] - 1) + '" step="1" value="' + Math.round(len[a] / 2) + '" aria-label="' + CUT_NAME[a] + '的刀口位置">' +
+      '<div class="saw-val">截面 ' + cd[0] + '×' + cd[1] + '，刀口在 <b class="sv"></b> ' + o.unit + ' 处</div>' +
+      '<div class="ops-btns"><button type="button" class="btn small">切一刀</button><span class="count cutn"></span></div>' +
+      '</div>';
+  }
+  h += refHtml('参考图 · 截面', '切一刀，会多出 2 个一模一样的截面。刀口切在哪里不影响截面的大小，只跟"怎么切"有关。');
+  opsCard.innerHTML = h;
+  $$('.saw-row', opsCard).forEach(function (row) {
+    const a = +row.getAttribute('data-axis'), sl = $('input', row);
+    sl.addEventListener('input', function () { S.selAxis = a; syncSaw(); });
+    $('button', row).addEventListener('click', function () { S.selAxis = a; doCut(a, +sl.value, false); });
+  });
+  syncSaw();
+}
+function syncSaw() {
+  const o = G.ord;
+  $$('.saw-row', opsCard).forEach(function (row) {
+    const a = +row.getAttribute('data-axis'), sl = $('input', row);
+    const full = S.done[a] >= o.need[a] || S.cuts.length >= o.total;
+    sl.disabled = full;
+    $('button', row).disabled = full;
+    $('.sv', row).textContent = sl.value;
+    $('.cutn', row).textContent = '已切 ' + S.done[a] + ' / ' + o.need[a] + ' 刀';
+  });
+  updatePreview();
+}
+function updatePreview() {
+  let row = null;
+  $$('.saw-row', opsCard).forEach(function (r) { if (+r.getAttribute('data-axis') === S.selAxis) row = r; });
+  if (!row || S.cuts.length >= G.ord.total) { S.preview = null; return; }     // 切完了就不再提示刀口
+  const t = +$('input', row).value;
+  S.preview = {
+    axis: S.selAxis, t: t, name: CUT_NAME[S.selAxis],
+    done: S.cuts.some(function (c) { return c.axis === S.selAxis && c.t === t; })
+  };
+  drawRef();
+}
+function opsGlue() {
+  const o = G.ord;
+  const hint = o.mode === 'side'
+    ? '从托盘里挑出订单要的正方体，拖到大正方体的<b>侧面</b>（前、后、左、右都行）。'
+    : (o.mode === 'multi'
+      ? '把托盘里的小正方体都拖到大正方体的<b>上面</b>，它们之间要留一条缝（不能碰在一起）。'
+      : '从托盘里挑出订单要的正方体，拖到大正方体的<b>上面</b>。');
+  opsCard.innerHTML = '<h3>操作台 · 粘一粘</h3><p class="hint">' + hint + '</p><div class="tray" id="tray"></div>' +
+    '<p class="count">已放好 <b id="cubeN">0</b> / ' + placedInfo()[1] + ' 个</p>' +
+    refHtml('参考图 · 粘合面', '正方体粘上去，贴住的两个面就看不见了：粘一次，表面积减少 2 个粘合面。');
+  renderTray();
+}
+
+/* ---------- 参考图（右侧那张 2D 小图） ---------- */
+function drawRef() {
+  const c = $('#cvRef');
+  if (!c) return;
+  const r = c.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(60, Math.round(r.width)), H = Math.max(60, Math.round(r.height));
+  c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+  const g = c.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const o = G.ord;
+  if (o.kind === 'wrap') refNet(g, W, H);
+  else if (o.kind === 'raise') refRing(g, W, H);
+  else if (o.kind === 'cut') refCut(g, W, H);
+  else refGlue(g, W, H);
+}
+/* 一个带标注的小矩形 */
+function refRect(g, x, y, w, h, fill, stroke, lines, dashed) {
+  g.beginPath();
+  if (dashed) g.setLineDash([6, 5]);
+  g.rect(x, y, w, h);
+  g.fillStyle = fill; g.fill();
+  g.lineWidth = 2; g.strokeStyle = stroke; g.stroke();
+  g.setLineDash([]);
+  const fs = Math.min(17, Math.max(11, Math.min(w / 4.2, h / (1.2 + lines.length * 0.9))));
+  g.font = 'bold ' + fs + 'px ' + FONT;
+  g.fillStyle = '#1f1f1f'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  lines.forEach(function (t, i) { g.fillText(t, x + w / 2, y + h / 2 + (i - (lines.length - 1) / 2) * (fs + 3), w - 6); });
+}
+function refCaption(g, W, H, text) {
+  g.font = 'bold 15px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#1f1f1f';
+  g.fillText(text, W / 2, H - 14, W - 16);
+}
+/* 展开图：下排 左 前 右 后，往上是 下、上 */
+function refNet(g, W, H) {
+  const o = G.ord, L = o.L, Wd = o.W, Hh = o.H;
+  const tw = 2 * L + 2 * Wd, th = 2 * Wd + Hh;
+  const sc = Math.min((W - 36) / tw, (H - 58) / th);
+  const ox = (W - tw * sc) / 2, oy = 10;
+  const y3 = oy + 2 * Wd * sc, h3 = Hh * sc;
+  refRect(g, ox, y3, Wd * sc, h3, C.paper, C.paperLine, ['左', Wd + '×' + Hh]);
+  refRect(g, ox + Wd * sc, y3, L * sc, h3, C.paper, C.paperLine, ['前', L + '×' + Hh]);
+  refRect(g, ox + (Wd + L) * sc, y3, Wd * sc, h3, C.paper, C.paperLine, ['右', Wd + '×' + Hh]);
+  refRect(g, ox + (2 * Wd + L) * sc, y3, L * sc, h3, C.paper, C.paperLine, ['后', L + '×' + Hh]);
+  refRect(g, ox + Wd * sc, oy + Wd * sc, L * sc, Wd * sc, C.paper, C.paperLine, ['下', L + '×' + Wd]);
+  refRect(g, ox + Wd * sc, oy, L * sc, Wd * sc, o.noLid ? 'rgba(255,255,255,.55)' : C.paper, o.noLid ? '#b0b0b0' : C.paperLine,
+    [o.noLid ? '无盖' : '上', o.noLid ? '不用纸' : L + '×' + Wd], o.noLid);
+  refCaption(g, W, H, '长 ' + L + '、宽 ' + Wd + '、高 ' + Hh + '（单位：' + o.unit + '）');
+}
+/* 加高的一圈：展开是一个长方形，长 =（长 + 宽）× 2，宽 = 增加的高 */
+function refRing(g, W, H) {
+  const o = G.ord, d = Math.max(1, S.delta), tw = 2 * (o.L + o.W);
+  const sc = Math.min((W - 36) / tw, (H - 76) / d);
+  const ox = (W - tw * sc) / 2, oy = 34, hh = d * sc;
+  const segs = [[o.L, '长'], [o.W, '宽'], [o.L, '长'], [o.W, '宽']];
+  let x = 0;
+  segs.forEach(function (s, i) {
+    refRect(g, ox + x * sc, oy, s[0] * sc, hh, i % 2 ? C.band : C.paper, i % 2 ? C.bandLine : C.paperLine, [s[1] + ' ' + s[0]]);
+    x += s[0];
+  });
+  g.font = 'bold 15px ' + FONT; g.fillStyle = '#1f1f1f'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText((S.delta ? '' : '（先把盒子加高，这里会画出那一圈）'), W / 2, 14);
+  refCaption(g, W, H, '长 =（' + o.L + ' + ' + o.W + '）× 2 = ' + tw + '，宽 = 增加的高 ' + d);
+}
+/* 截面：一刀多出两个一样的面 */
+function refCut(g, W, H) {
+  const o = G.ord, a = S.selAxis, cd = crossDims(o, a);
+  const sc = Math.min((W - 110) / (2 * cd[0]), (H - 70) / cd[1]);
+  const rw = cd[0] * sc, rh = cd[1] * sc, x0 = (W - (2 * rw + 30)) / 2, y0 = 26;
+  refRect(g, x0, y0, rw, rh, C.cut, C.cutLine, [cd[0] + '×' + cd[1]]);
+  refRect(g, x0 + rw + 30, y0, rw, rh, C.cut, C.cutLine, [cd[0] + '×' + cd[1]]);
+  g.font = 'bold 24px ' + FONT; g.fillStyle = '#1f1f1f'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('+', x0 + rw + 15, y0 + rh / 2);
+  g.font = 'bold 15px ' + FONT;
+  g.fillText('新截面 × 2', W / 2, 13);
+  refCaption(g, W, H, CUT_NAME[a] + '：截面是 ' + crossName(a) + '，切一刀多出 2 个');
+}
+/* 粘合面：贴住的两个面藏起来了 */
+function refGlue(g, W, H) {
+  const o = G.ord, a = o.sizes[0], E = o.E;
+  const sc = Math.min((W - 60) / (E + a + 0.4), (H - 70) / E);
+  const x0 = (W - (E + a + 0.4) * sc) / 2, y0 = 28;
+  refRect(g, x0, y0, E * sc, E * sc, C.body, '#555555', ['棱长 ' + E, E + '×' + E]);
+  refRect(g, x0 + (E + 0.4) * sc, y0, a * sc, a * sc, PAL.cubes[0], '#555555', ['棱长 ' + a, a + '×' + a]);
+  g.lineWidth = 3.5; g.strokeStyle = C.glue;
+  g.strokeRect(x0 + (E - a) * sc, y0, a * sc, a * sc);
+  g.strokeRect(x0 + (E + 0.4) * sc, y0, a * sc, a * sc);
+  refCaption(g, W, H, '粉色的是粘合面 ' + a + '×' + a + '，贴上去就藏起 2 个');
+}
+/* 包好之后：把三组对面盘一遍 */
+function showTri() {
+  const o = G.ord;
+  const rows = [
+    [o.noLid ? '底面 1 个' : '上、下 2 个', o.L, o.W],
+    ['前、后 2 个', o.L, o.H],
+    ['左、右 2 个', o.W, o.H]
+  ];
+  triWrap.innerHTML = rows.map(function (r) {
+    return '<div class="tv"><canvas width="380" height="208" data-w="' + r[1] + '" data-h="' + r[2] + '"></canvas><div class="cap">' + r[0] + '：' + r[1] + '×' + r[2] + '</div></div>';
+  }).join('');
+  $$('canvas', triWrap).forEach(function (c) {
+    const g = c.getContext('2d'), w = +c.getAttribute('data-w'), h = +c.getAttribute('data-h');
+    const sc = Math.min(300 / w, 130 / h);
+    refRect(g, (380 - w * sc) / 2, (208 - h * sc) / 2, w * sc, h * sc, C.paper, C.paperLine, [w + '×' + h]);
+  });
+  triWrap.classList.add('on');
+}
+/* ======================================================================
+   8. 交互：托盘拖放 / 转动缩放 / 切割 / 加高
+   ====================================================================== */
+/* 屏幕坐标 → 工作台上被指到的那个面（指到画布外面返回 null） */
+function faceAt(cx, cy) {
+  if (!S) return null;
+  const r = cv.getBoundingClientRect();
+  if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+  const mx = cx - r.left, my = cy - r.top;
+  return { hit: pickFace(S, makeProj(S), mx, my), mx: mx, my: my };
+}
+/* 已知顶面所在的高度 z，把屏幕坐标换回顶面上的 (x, y) */
+function unprojTop(mx, my, z) {
+  const cy = Math.cos(S.yaw), sy = Math.sin(S.yaw), sp = Math.sin(S.pitch), cp = Math.cos(S.pitch);
+  if (sp < 0.08) return null;      // 几乎平视，顶面看不出来
+  const X = (mx - S.cx) / S.k, Y = (-(my - S.cy) / S.k - z * cp) / sp;
+  return [X * cy - Y * sy, X * sy + Y * cy];
+}
+
+/* ---------- 托盘拖放（包装纸、小正方体都走这里） ---------- */
+function startDrag(e, it) {
+  SND.init();
+  G.drag = { it: it, el: e.currentTarget };
+  e.currentTarget.classList.add('dragging');
+  dragGhost.textContent = it.d ? it.lab + ' ' + it.d[0] + '×' + it.d[1] : '棱长 ' + it.s + ' 的正方体';
+  dragGhost.style.display = 'flex';
+  moveDrag(e);
+  e.preventDefault();
+}
+function moveDrag(e) {
+  const d = G.drag;
+  if (!d || !S) return;
+  dragGhost.style.left = e.clientX + 'px';
+  dragGhost.style.top = e.clientY + 'px';
+  S.hover = null;
+  S.ghost = null;
+  const f = faceAt(e.clientX, e.clientY), o = G.ord;
+  if (!f || !f.hit) return;
+  const key = f.hit.key;
+  if (o.kind === 'wrap' && f.hit.box === S.body) {
+    S.hover = { box: S.body, key: key, ok: wrapFit(d.it, key) === '' };
+  } else if (o.kind === 'glue' && f.hit.box === S.base) {
+    const g = ghostFor(d.it, key, f.mx, f.my);
+    if (g.ok) { S.ghost = g; S.hover = { box: S.base, key: key, ok: true }; }
+    else S.hover = { box: S.base, key: key, ok: false };
+  }
+}
+function endDrag(e) {
+  const d = G.drag;
+  if (!d) return;
+  G.drag = null;
+  d.el.classList.remove('dragging');
+  dragGhost.style.display = 'none';
+  S.hover = null;
+  S.ghost = null;
+  const f = faceAt(e.clientX, e.clientY), o = G.ord;
+  if (!f || !f.hit) return;
+  if (o.kind === 'wrap' && f.hit.box === S.body) dropWrap(d.it, f.hit.key);
+  else if (o.kind === 'glue' && f.hit.box === S.base) dropCube(d.it, f.hit.key, f.mx, f.my);
+}
+window.addEventListener('pointermove', moveDrag);
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
+/* 放错了：记一次失误，提示原因 */
+function wrongAct(msg) {
+  G.wrong++; G.steps++;
+  updHud();
+  SND.play('no');
+  toast(msg, 2600);
+}
+
+/* ---------- 包纸盒 ---------- */
+/* 这张纸能不能贴到这个面上：能就返回空串，不能就返回原因 */
+function wrapFit(p, key) {
+  if (G.ord.noLid && key === 'pz') return '这个纸盒没有盖子，上面不用包纸';
+  if (S.body.faces[key]) return '这个面已经包好啦';
+  if (p.faces.indexOf(key) < 0) {
+    return '形状对不上：' + FACE_CN[key] + '是 ' + faceDims(S.body, key).join('×') + '，这张纸是 ' + p.d.join('×');
+  }
+  return '';
+}
+function dropWrap(p, key) {
+  const why = wrapFit(p, key);
+  if (why) { wrongAct(why); return; }
+  p.used = true;
+  S.body.faces[key] = 'wrap';
+  SND.play('ok');
+  G.steps++; updHud();
+  renderTray(); syncCounts();
+  if (S.tray.every(function (q) { return q.used; })) {
+    S.labels = 'wrap';
+    showTri();
+    toast('全部包好啦！算一算，到下面报数 →', 2800);
+  }
+}
+
+/* ---------- 粘一粘 ---------- */
+/* 顶面上两块小正方体挨着（哪怕只挨着一条棱）就算"碰到一起"。a 是准备放的（棱长 s），b 是已放好的（棱长 size） */
+function touching(a, b) {
+  const bs = b.size;
+  return !(a.x + a.s + 1 <= b.x || b.x + bs + 1 <= a.x || a.y + a.s + 1 <= b.y || b.y + bs + 1 <= a.y);
+}
+/* 小正方体放到 key 这个面上会落在哪：ok=false 时带一句原因 */
+function ghostFor(it, key, mx, my) {
+  const o = G.ord, E = o.E, s = it.s, top = key === 'pz';
+  if (o.mode !== 'multi' && s !== o.sizes[0]) {
+    return { ok: false, msg: '订单要的是棱长 ' + o.sizes[0] + ' 的正方体，你拿的是棱长 ' + s + ' 的' };
+  }
+  if (o.mode !== 'side' && !top) return { ok: false, msg: '这次要放在大正方体的上面' };
+  if (o.mode === 'side' && (top || key === 'nz')) return { ok: false, msg: '这次要贴在侧面' };
+  if (top) {
+    const xy = unprojTop(mx, my, E);
+    if (!xy) return { ok: false, msg: '换「顶上」或「右前」的角度看一下上面' };
+    const g = { x: clamp(Math.round(xy[0] - s / 2), 0, E - s), y: clamp(Math.round(xy[1] - s / 2), 0, E - s), z: E, s: s };
+    if (S.cubes.some(function (c) { return touching(g, c); })) {
+      return { ok: false, msg: '小正方体之间要留一条缝，不能碰在一起' };
+    }
+    return Object.assign(g, { ok: true });
+  }
+  const off = Math.floor((E - s) / 2);      // 贴侧面：放在这个面的正中，和底面一样高
+  if (key === 'ny') return { x: off, y: -s, z: 0, s: s, ok: true };
+  if (key === 'py') return { x: off, y: E, z: 0, s: s, ok: true };
+  if (key === 'px') return { x: E, y: off, z: 0, s: s, ok: true };
+  return { x: -s, y: off, z: 0, s: s, ok: true };
+}
+function placeCube(g, key) {
+  const side = key !== 'pz';
+  const front = key === 'ny' || key === 'py';
+  const c = makeBox(g.x, g.y, g.z, g.s, g.s, g.s, { tag: 'cube', size: g.s, color: PAL.cubes[S.cubes.length % PAL.cubes.length] });
+  c.born = S.time;
+  c.grp = S.base.grp;             // 粘上去的正方体和底座是一体
+  S.boxes.push(c);
+  S.cubes.push(c);
+  const lo1 = side && !front ? g.y : g.x;
+  S.glue.push({
+    a: side ? (front ? 1 : 0) : 2, t: side ? ((key === 'ny' || key === 'nx') ? 0 : G.ord.E) : G.ord.E,
+    b: side ? (front ? 0 : 1) : 0, d: side ? 2 : 1,
+    lo1: lo1, hi1: lo1 + g.s, lo2: side ? g.z : g.y, hi2: (side ? g.z : g.y) + g.s, w1: g.s, w2: g.s
+  });
+  S.glueTime = S.time;
+  SND.play('ok');
+  G.steps++; updHud();
+}
+function dropCube(it, key, mx, my) {
+  const g = ghostFor(it, key, mx, my);
+  if (!g.ok) { wrongAct(g.msg); return; }
+  it.used = true;
+  placeCube(g, key);
+  renderTray(); syncCounts();
+}
+
+/* ---------- 切一刀 ---------- */
+/* 切开后把各块沿"离开中心"的方向推开一点，看得出是几块（合拢时回到原位） */
+function applySpread() {
+  const list = S.boxes, solid = function (b) { return b.w > 1e-6 && b.dep > 1e-6 && b.h > 1e-6; };
+  if (!S.spread) {
+    list.forEach(function (b) { b.tgt = [0, 0, 0]; });
+    return;
+  }
+  const c = [0, 0, 0];
+  let n = 0;
+  list.forEach(function (b) {
+    if (!solid(b)) return;
+    c[0] += b.x + b.w / 2; c[1] += b.y + b.dep / 2; c[2] += b.z + b.h / 2; n++;
+  });
+  if (!n) return;
+  list.forEach(function (b) {
+    if (!solid(b)) { b.tgt = [0, 0, 0]; return; }
+    b.tgt = [(b.x + b.w / 2 - c[0] / n) * 0.35, (b.y + b.dep / 2 - c[1] / n) * 0.35, (b.z + b.h / 2 - c[2] / n) * 0.35];
+  });
+}
+function doCut(axis, t, quiet) {
+  const o = G.ord;
+  if (!quiet) SND.init();
+  if (S.cuts.length >= o.total || S.done[axis] >= o.need[axis]) {
+    if (!quiet) toast('这种切法已经切够啦');
+    return false;
+  }
+  if (S.cuts.some(function (c) { return c.axis === axis && c.t === t; })) {
+    if (!quiet) { SND.play('no'); toast('这里已经切过啦，换个位置'); }
+    return false;
+  }
+  const add = [];
+  for (let i = 0; i < S.boxes.length; i++) {
+    const b = S.boxes[i];
+    if (boxMin(b, axis) >= t - 1e-6 || boxMax(b, axis) <= t + 1e-6) continue;    // 刀口没碰到这一块
+    const hi = boxMax(b, axis);
+    setSpan(b, axis, boxMin(b, axis), t);
+    const n = cloneBox(b);
+    setSpan(n, axis, t, hi);
+    b.faces[POS_KEY[axis]] = 'fresh';     // 新切出来的面：橙色，刚切时会闪两下
+    n.faces[NEG_KEY[axis]] = 'fresh';
+    b.born = S.time; n.born = S.time;
+    add.push(n);
+  }
+  if (!add.length) {
+    if (!quiet) toast('这个位置切不到东西');
+    return false;
+  }
+  S.boxes = S.boxes.concat(add);
+  S.cuts.forEach(function (c) { c.label = false; });          // 只给最新一刀挂标签，多刀时不叠在一起
+  S.cuts.push({ axis: axis, t: t, label: true, dims: crossDims(o, axis) });
+  S.done[axis]++;
+  applySpread();
+  syncSaw();
+  if (quiet) return true;
+  G.steps++; updHud();
+  SND.play('cut');
+  const cd = crossDims(o, axis);
+  const left = o.total - S.cuts.length;
+  toast('切好！多出 2 个截面 ' + cd[0] + '×' + cd[1] + (left ? '，还要切 ' + left + ' 刀' : '，去报数吧 →'), 2200);
+  return true;
+}
+
+/* ---------- 加高 ---------- */
+function setDelta(d) {
+  const o = G.ord;
+  d = clamp(d, 0, S.maxDelta);
+  if (d === S.delta) return;
+  S.delta = d;
+  if (!S.add) {
+    S.add = makeBox(0, 0, o.H, o.L, o.W, 0, { tag: 'add' });
+    FACE_DEFS.forEach(function (f) { S.add.faces[f.key] = 'band'; });
+    S.boxes.push(S.add);
+  }
+  S.add.h = d;                 // 高度为 0 时画不出来，正好当作"还没加高"
+  S.dims.delta = d;
+  S.handlePt = [o.L / 2, o.W / 2, o.H + d];
+  const el = $('#hNow');
+  if (el) el.textContent = o.H + d;
+  drawRef();                   // 右侧"加高的一圈"跟着变
+  SND.play('tap');
+}
+
+/* ---------- 工作台画布：拖动旋转、滚轮缩放、拖手柄加高 ---------- */
+cv.addEventListener('pointerdown', function (e) {
+  if (!S) return;
+  SND.init();
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (S.kind === 'raise' && S.handleScr && Math.hypot(mx - S.handleScr[0], my - S.handleScr[1]) <= 38) {
+    G.mode = { t: 'handle', y0: e.clientY, d0: S.delta };
+  } else {
+    G.mode = { t: 'orbit', x: e.clientX, y: e.clientY };
+  }
+  try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 不支持指针捕获时照样能拖 */ }
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', function (e) {
+  const m = G.mode;
+  if (!m || !S) return;
+  if (m.t === 'orbit') {
+    S.yawT -= (e.clientX - m.x) * 0.008;
+    S.pitchT = clamp(S.pitchT + (e.clientY - m.y) * 0.006, -1.3, 1.3);
+    m.x = e.clientX; m.y = e.clientY;
+  } else {
+    // 屏幕上 1 个单位的高度 = cos(俯角) × 缩放：按这个把手柄拖动的距离换成加高的长度
+    const perUnit = Math.max(24, Math.cos(S.pitch) * S.k);
+    setDelta(Math.round(m.d0 + (m.y0 - e.clientY) / perUnit));
+  }
+});
+function endCanvas() {
+  if (G.mode && G.mode.t === 'handle') { G.steps++; updHud(); drawRef(); }
+  G.mode = null;
+}
+cv.addEventListener('pointerup', endCanvas);
+cv.addEventListener('pointercancel', endCanvas);
+cv.addEventListener('wheel', function (e) {
+  if (!S) return;
+  e.preventDefault();
+  S.pad = clamp(S.pad * (e.deltaY > 0 ? 0.92 : 1.08), 0.35, 2.2);
+}, { passive: false });
+
+/* ---------- 数位器 ---------- */
+function buildDial() {
+  const o = G.ord;
+  const top = o.kind === 'cut'
+    ? o.base + 2 * Math.max(crossArea(o, 0), crossArea(o, 1), crossArea(o, 2)) * Math.max(o.need[0], o.need[1], o.need[2])
+    : o.ans;
+  const nd = Math.max(3, String(top).length);
+  G.dial = [];
+  for (let i = 0; i < nd; i++) G.dial.push(0);
+  dialRow.innerHTML = G.dial.map(function (_, i) {
+    return '<div class="dial"><button type="button" class="dial-btn" data-i="' + i + '" data-d="1" aria-label="' + PLACE[nd - 1 - i] + '位加一">▲</button>' +
+      '<div class="dial-num" data-i="' + i + '">0</div><div class="dial-lab">' + PLACE[nd - 1 - i] + '位</div></div>';
+  }).join('');
+}
+function syncDial() {
+  $$('.dial-num', dialRow).forEach(function (n) { n.textContent = G.dial[+n.getAttribute('data-i')]; });
+}
+function readDial() { return G.dial.reduce(function (s, d) { return s * 10 + d; }, 0); }
+function dialStep(i, d) {
+  SND.init();
+  SND.play('tap');
+  G.dial[i] = (G.dial[i] + d + 10) % 10;
+  syncDial();
+}
+dialRow.addEventListener('click', function (e) {
+  const b = e.target.closest('.dial-btn');
+  if (b) dialStep(+b.getAttribute('data-i'), +b.getAttribute('data-d'));
+});
+let dialDrag = null;
+dialRow.addEventListener('pointerdown', function (e) {
+  const n = e.target.closest('.dial-num');
+  if (!n) return;
+  dialDrag = { i: +n.getAttribute('data-i'), y: e.clientY, acc: 0 };
+  e.preventDefault();
+});
+window.addEventListener('pointermove', function (e) {
+  if (!dialDrag) return;
+  dialDrag.acc += dialDrag.y - e.clientY;
+  dialDrag.y = e.clientY;
+  while (dialDrag.acc >= 34) { dialStep(dialDrag.i, 1); dialDrag.acc -= 34; }
+  while (dialDrag.acc <= -34) { dialStep(dialDrag.i, -1); dialDrag.acc += 34; }
+});
+window.addEventListener('pointerup', function () { dialDrag = null; });
+window.addEventListener('pointercancel', function () { dialDrag = null; });
+
+/* ======================================================================
+   9. 报数、判定与结算
+   ====================================================================== */
+/* 操作还没做完时返回原因（空串 = 可以报数了） */
+function readyMsg() {
+  const o = G.ord;
+  if (o.kind === 'wrap') {
+    const left = S.tray.filter(function (q) { return !q.used; }).length;
+    return left ? '还有 ' + left + ' 个面没包好纸' : '';
+  }
+  if (o.kind === 'raise') {
+    if (S.delta === o.delta) return '';
+    return S.delta < o.delta ? '再加高 ' + (o.delta - S.delta) + ' ' + o.unit + '，才到订单要求的长度' : '加得太多了，降回到 ' + (o.H + o.delta) + ' ' + o.unit;
+  }
+  if (o.kind === 'cut') {
+    if (S.cuts.length < o.total) return '还差 ' + (o.total - S.cuts.length) + ' 刀没切';
+    if (o.midAxis >= 0) {
+      const len = [o.L, o.W, o.H][o.midAxis];
+      if (S.cuts[0].t !== len / 2) return '这一刀要从正中间切（在 ' + (len / 2) + ' ' + o.unit + ' 处）';
+    }
+    return '';
+  }
+  const info = placedInfo();
+  return info[0] < info[1] ? '还有 ' + (info[1] - info[0]) + ' 个小正方体没放上去' : '';
+}
+/* 粘一粘：已经放好几个、一共要放几个（托盘里另有干扰项，不用都放上去） */
+function placedInfo() {
+  const o = G.ord;
+  if (o.mode === 'multi') return [S.tray.filter(function (q) { return q.used; }).length, S.tray.length];
+  const it = S.tray.filter(function (q) { return q.s === o.sizes[0]; })[0];
+  return [it && it.used ? 1 : 0, 1];
+}
+function onCommit() {
+  const o = G.ord;
+  SND.init();
+  const why = readyMsg();
+  if (why) { SND.play('no'); toast(why, 2600); return; }
+  const ans = answerNow(), v = readDial();
+  if (!G.autoOK && v !== ans) { fail(); return; }
+  succeed(ans);
+}
+function hintOf(o, n) {
+  if (n >= 3) return '还没对？点「揭示答案」看看完整思路，这一单还能得 1 颗星。';
+  if (o.kind === 'wrap') {
+    return n === 1 ? '不对哦。对照右边的展开图，每个面的长和宽分别是多少？'
+      : (o.noLid ? '再检查一下：这是无盖纸盒，只有 5 个面，底面只有 1 个。' : '再检查一下：相对的两个面完全相同，每组都要算 2 个面。');
+  }
+  if (o.kind === 'raise') {
+    return n === 1 ? '不对哦。高增加后，上面和下面变大了吗？变的是哪一圈？'
+      : '四周多了一圈：展开是一个长方形，长 =（长 + 宽）× 2，宽 = 增加的高。';
+  }
+  if (o.kind === 'cut') {
+    const cd = crossDims(o, S.selAxis);
+    return n === 1 ? '不对哦。切一刀多出几个面？每个面有多大？'
+      : '「' + CUT_NAME[S.selAxis] + '」的截面是 ' + crossName(S.selAxis) + ' = ' + cd[0] + '×' + cd[1] + '，一刀多出 2 个这样的面' +
+        (o.ask === 'total' ? '，最后别忘了加上原来的表面积。' : '。');
+  }
+  return n === 1 ? '不对哦。粘合处有几个面被藏起来了？' : '先把几个正方体的表面积加起来，再减去 2 个粘合面。';
+}
+function fail() {
+  G.wrong++; G.tries++; G.steps++;
+  updHud();
+  SND.play('no');
+  fb.className = 'feedback on bad';
+  fb.innerHTML = hintOf(G.ord, G.tries);
+  const card = dialRow.parentNode;
+  card.classList.remove('shake');
+  void card.offsetWidth;          // 强制重排，让抖动动画能重新播放
+  card.classList.add('shake');
+}
+function starsOf() {
+  if (G.revealed) return 1;
+  const bad = G.wrong - G.wrong0;
+  return bad === 0 ? 3 : (bad <= 2 ? 2 : 1);
+}
+function starsHtml(n, max) {
+  let s = '';
+  for (let i = 0; i < max; i++) s += '<span' + (i < n ? '' : ' class="off"') + '>★</span>';
+  return '<div class="stars">' + s + '</div>';
+}
+function fillBlank(ans) {
+  const b = $('#ansBlank');
+  if (b) b.textContent = ans;
+}
+function succeed(ans) {
+  const o = G.ord, st = starsOf(), last = G.idx === G.orders.length - 1;
+  pauseTimer();
+  G.stars += st;
+  fillBlank(ans);
+  SND.play('win');
+  confetti(last ? 150 : 60);
+  let h = '<h2>第 ' + (G.idx + 1) + ' 单 · 完成！</h2>' + starsHtml(st, 3) +
+    '<div class="ansline">答案：' + ans + ' 平方' + o.unit + '</div>' + solutionHtml(o);
+  if (G.revealed) h += '<p class="kp">这一单看了答案，记 1 颗星。下一单自己试试！</p>';
+  h += '<div class="btn-row"><button type="button" class="btn" id="mNext">' + (last ? '看看成绩 →' : '下一单 →') + '</button></div>';
+  showModal(h, false);
+  $('#mNext').addEventListener('click', function () {
+    closeModal();
+    if (last) finish();
+    else loadOrder(G.idx + 1);
+  });
+}
+function finish() {
+  const h = '<h2>🎉 三单全部完成！</h2>' + starsHtml(G.stars, 9) +
+    '<div class="sum"><span>用时 <b>' + fmtTime(Math.floor(G.elapsed)) + '</b></span><span>操作 <b>' + G.steps + '</b> 步</span><span>出错 <b>' + G.wrong + '</b> 次</span></div>' +
+    '<p class="kp">口诀：长方体、正方体表面积，基本公式要牢记；切、割、粘合正相反，增加减少相对面。</p>' +
+    '<div class="btn-row"><button type="button" class="btn" id="mAgain">再玩一局</button><button type="button" class="btn ghost" id="mHome">返回难度选择</button></div>';
+  showModal(h, false);
+  SND.play('win');
+  confetti(220);
+  $('#mAgain').addEventListener('click', function () { closeModal(); startLevel(G.levelIdx); });
+  $('#mHome').addEventListener('click', function () { closeModal(); goHome(); });
+}
+/* 完整解法（过关弹窗和"揭示答案"共用） */
+function solutionHtml(o) {
+  const U = '（平方' + o.unit + '）';
+  if (o.kind === 'wrap') {
+    const L = o.L, W = o.W, H = o.H, LW = L * W, LH = L * H, WH = W * H;
+    if (o.noLid) {
+      return '<p>这个纸盒<b>没有盖子</b>，上面不用纸，只要求 5 个面的面积：</p>' +
+        '<ul><li>底面 1 个：长×宽 = ' + L + '×' + W + ' = ' + LW + '</li>' +
+        '<li>前、后 2 个：长×高 = ' + L + '×' + H + ' = ' + LH + '，共 ' + (2 * LH) + '</li>' +
+        '<li>左、右 2 个：宽×高 = ' + W + '×' + H + ' = ' + WH + '，共 ' + (2 * WH) + '</li></ul>' +
+        '<p class="formula">' + LW + ' + ' + (2 * LH) + ' + ' + (2 * WH) + ' = ' + o.ans + U + '</p>' +
+        '<p class="kp">小窍门：先按有盖算（长×宽 + 长×高 + 宽×高）× 2 = ' + o.full + '，再减去一个盖 ' + LW + '：' + o.full + ' − ' + LW + ' = ' + o.ans + '。</p>';
+    }
+    return '<p>长方体有 6 个面，相对的两个面完全相同：</p>' +
+      '<ul><li>上、下 2 个：长×宽 = ' + L + '×' + W + ' = ' + LW + '，共 ' + (2 * LW) + '</li>' +
+      '<li>前、后 2 个：长×高 = ' + L + '×' + H + ' = ' + LH + '，共 ' + (2 * LH) + '</li>' +
+      '<li>左、右 2 个：宽×高 = ' + W + '×' + H + ' = ' + WH + '，共 ' + (2 * WH) + '</li></ul>' +
+      '<p class="formula">表面积 =（长×宽 + 长×高 + 宽×高）× 2 =（' + LW + ' + ' + LH + ' + ' + WH + '）× 2 = ' + o.ans + U + '</p>';
+  }
+  if (o.kind === 'raise') {
+    const d = S && S.delta > 0 ? S.delta : o.delta, ring = (o.L + o.W) * 2, inc = ring * d;
+    let h = '<p>高增加后，上面和下面<b>没有变</b>，只是四周<b>增加了一圈</b>。把这一圈展开，是一个长方形：</p>' +
+      '<ul><li>长 =（长 + 宽）× 2 =（' + o.L + ' + ' + o.W + '）× 2 = ' + ring + '</li><li>宽 = 增加的高 = ' + d + '</li></ul>' +
+      '<p class="formula">增加的面积 =（长 + 宽）× 2 × 增加的高 = ' + ring + ' × ' + d + ' = ' + inc + U + '</p>';
+    if (o.ask === 'total') {
+      h += '<p>原来的表面积 =（' + o.L + '×' + o.W + ' + ' + o.L + '×' + o.H + ' + ' + o.W + '×' + o.H + '）× 2 = ' + o.base + '</p>' +
+        '<p class="formula">加高后 = ' + o.base + ' + ' + inc + ' = ' + (o.base + inc) + U + '</p>';
+    }
+    return h;
+  }
+  if (o.kind === 'cut') {
+    const cnt = [0, 0, 0];
+    if (S && S.cuts.length) S.cuts.forEach(function (c) { cnt[c.axis]++; });
+    else for (let a = 0; a < 3; a++) cnt[a] = o.need[a];
+    let inc = 0;
+    let h = '<p>切一刀，会多出 <b>2 个</b>一模一样的截面：</p><ul>';
+    for (let a = 0; a < 3; a++) {
+      if (!cnt[a]) continue;
+      const cd = crossDims(o, a), ar = cd[0] * cd[1], add = 2 * cnt[a] * ar;
+      inc += add;
+      h += '<li>' + CUT_NAME[a] + ' ' + cnt[a] + ' 刀：截面是 ' + crossName(a) + ' = ' + cd[0] + '×' + cd[1] + '，' +
+        (cnt[a] > 1 ? '每刀多出 ' + (2 * ar) + '，共 ' + add : '多出 2 × ' + ar + ' = ' + add) + '</li>';
+    }
+    h += '</ul>';
+    if (o.ask === 'total') {
+      h += '<p>原来的表面积 =（' + o.L + '×' + o.W + ' + ' + o.L + '×' + o.H + ' + ' + o.W + '×' + o.H + '）× 2 = ' + o.base + '</p>' +
+        '<p class="formula">表面积总和 = ' + o.base + ' + ' + inc + ' = ' + (o.base + inc) + U + '</p>';
+    } else {
+      h += '<p class="formula">表面积增加 ' + inc + U + '</p>';
+    }
+    return h;
+  }
+  const E = o.E;
+  let sum = 6 * E * E, cut = 0;
+  let h = '<p>正方体粘在一起，贴住的 <b>2 个面</b>就藏起来了（两个正方体各藏一个）。</p><ul>' +
+    '<li>棱长 ' + E + ' 的正方体：6 × ' + E + '×' + E + ' = ' + (6 * E * E) + '</li>';
+  o.sizes.forEach(function (a) {
+    sum += 6 * a * a; cut += 2 * a * a;
+    h += '<li>棱长 ' + a + ' 的正方体：6 × ' + a + '×' + a + ' = ' + (6 * a * a) + '</li>';
+  });
+  h += '</ul>';
+  if (o.sizes.length === 1) h += '<p>粘合面 ' + o.sizes[0] + '×' + o.sizes[0] + '：减少 2 × ' + (o.sizes[0] * o.sizes[0]) + ' = ' + (2 * o.sizes[0] * o.sizes[0]) + '</p>';
+  else h += '<p>' + o.sizes.length + ' 个粘合面一共减少 ' + cut + '</p>';
+  return h + '<p class="formula">' + sum + ' − ' + cut + ' = ' + o.ans + U + '</p>';
+}
+
+/* ---------- 弹窗 ---------- */
+let modalDismiss = true;
+function showModal(html, dismissible) {
+  modalDismiss = !!dismissible;
+  modalBox.innerHTML = modalDismiss ? html + '<div class="btn-row"><button type="button" class="btn" id="mClose">知道了</button></div>' : html;
+  modalMask.classList.add('on');
+  modalBox.scrollTop = 0;
+  const b = $('#mClose');
+  if (b) b.addEventListener('click', closeModalResume);
+}
+function closeModal() { modalMask.classList.remove('on'); }
+function closeModalResume() {
+  closeModal();
+  if (scrGame.classList.contains('on') && G.ord) resumeTimer();
+}
+modalMask.addEventListener('click', function (e) { if (e.target === modalMask && modalDismiss) closeModalResume(); });
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && modalMask.classList.contains('on') && modalDismiss) closeModalResume();
+});
+function rulesHtml() {
+  return '<h2>玩法说明</h2>' +
+    '<ol><li>每局有 <b>3 张订单</b>：先在 3D 工作台上<b>动手操作</b>，再到「报数区」拨出答案，点「完成这一单」。</li>' +
+    '<li>拖动画布空白处可以转动立体图形，滚轮缩放；也可以点画布下面的视角按钮。</li>' +
+    '<li>数位器：点 ▲ ▼，或者按住数字往上往下拖。</li>' +
+    '<li>一次做对得 3 颗星；看「揭示答案」这一单得 1 颗星。</li></ol>' +
+    '<h3>四类订单</h3><ul>' +
+    '<li><b>包纸盒</b>：把包装纸拖到形状相同的面上。无盖的纸盒，上面不用包。</li>' +
+    '<li><b>加加高</b>：拖动绿色手柄把盒子加高，表面积会增加"一圈"。</li>' +
+    '<li><b>切一切</b>：选切法、拖滑块定位置、点「切一刀」。切一刀，多出 2 个截面。</li>' +
+    '<li><b>粘一粘</b>：把小正方体拖到大正方体的面上。粘一次，藏起 2 个粘合面。</li></ul>' +
+    '<h3>口诀</h3><p class="formula">长方体、正方体表面积，基本公式要牢记；切、割、粘合正相反，增加减少相对面。</p>';
+}
+function openRules(inGame) {
+  SND.init();
+  if (inGame) pauseTimer();
+  showModal(rulesHtml(), true);
+}
+function onReveal() {
+  const o = G.ord;
+  SND.init();
+  if (G.revealed) {                     // 已经揭示过：只是把解法再看一遍
+    pauseTimer();
+    showModal('<h2>思路揭秘</h2>' + solutionHtml(o), true);
+    return;
+  }
+  G.revealed = true;
+  G.autoOK = true;
+  autoFinish();
+  pauseTimer();
+  showModal('<h2>思路揭秘</h2>' + solutionHtml(o) +
+    '<p class="kp">工作台已经帮你做好了。回到报数区拨出答案（或直接点「完成这一单」），这一单记 1 颗星。</p>', true);
+}
+/* 揭示答案时，把还没做完的操作替学生做完，画面和算式对得上 */
+function autoFinish() {
+  const o = G.ord;
+  if (o.kind === 'wrap') {
+    S.tray.forEach(function (p) {
+      if (p.used) return;
+      const key = p.faces.filter(function (k) { return !S.body.faces[k]; })[0];
+      if (key) { p.used = true; S.body.faces[key] = 'wrap'; }
+    });
+    S.notes = null;
+    S.labels = 'wrap';
+    renderTray(); syncCounts(); showTri();
+  } else if (o.kind === 'raise') {
+    setDelta(o.delta);
+  } else if (o.kind === 'cut') {
+    for (let a = 0; a < 3; a++) {
+      const len = [o.L, o.W, o.H][a];
+      while (S.done[a] < o.need[a]) {
+        let t = len / 2, best = -1;
+        if (o.midAxis !== a) {
+          // 在还没有切口的位置里，挑离已有切口最远的那个（均匀一些好看）
+          t = 0;
+          for (let c = 1; c < len; c++) {
+            if (S.cuts.some(function (x) { return x.axis === a && x.t === c; })) continue;
+            let gap = Infinity;
+            S.cuts.forEach(function (x) { if (x.axis === a) gap = Math.min(gap, Math.abs(x.t - c)); });
+            if (gap > best) { best = gap; t = c; }
+          }
+        }
+        if (!doCut(a, t, true)) break;
+      }
+    }
+  } else {
+    const isMulti = o.mode === 'multi';
+    const need = S.tray.filter(function (p) { return !p.used && (isMulti || p.s === o.sizes[0]); });
+    const order = need.slice().sort(function (p, q) { return q.s - p.s; });      // 大的先摆，小的见缝插针
+    const pos = isMulti ? packCubes(o.E, order.map(function (p) { return p.s; })) : null;
+    order.forEach(function (p, i) {
+      p.used = true;
+      if (o.mode === 'side') {
+        const faces = ['ny', 'px', 'py', 'nx'];
+        for (let k = 0; k < faces.length; k++) {
+          const g = ghostFor(p, faces[k], 0, 0);
+          if (g.ok) { placeCube(g, faces[k]); break; }
+        }
+      } else if (pos && pos[i]) {
+        placeCube({ x: pos[i].x, y: pos[i].y, z: o.E, s: p.s }, 'pz');
+      } else {
+        const off = Math.floor((o.E - p.s) / 2);       // 只有一块：放在顶面正中
+        placeCube({ x: off, y: off, z: o.E, s: p.s }, 'pz');
+      }
+    });
+    renderTray(); syncCounts();
+  }
+}
+
+/* ---------- 礼花 ---------- */
+let parts = [], fxRun = false;
+function confetti(n) {
+  const W = window.innerWidth, H = window.innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  fx.width = Math.round(W * dpr); fx.height = Math.round(H * dpr);
+  fx.style.display = 'block';
+  const colors = [PAL.main, PAL.accent, '#f5a623', '#8ecbfa', '#f9a8c9'].concat(PAL.cubes);
+  for (let i = 0; i < n; i++) {
+    parts.push({ x: W / 2 + (Math.random() - 0.5) * 260, y: H * 0.38, vx: (Math.random() - 0.5) * 16, vy: -(7 + Math.random() * 10),
+      r: 4 + Math.random() * 6, a: Math.random() * 6.28, va: (Math.random() - 0.5) * 0.4, c: pick1(colors) });
+  }
+  if (!fxRun) { fxRun = true; requestAnimationFrame(fxFrame); }
+}
+function fxFrame() {
+  const W = window.innerWidth, H = window.innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  fctx.clearRect(0, 0, W, H);
+  parts = parts.filter(function (p) { return p.y < H + 40; });
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    p.vy += 0.35; p.vx *= 0.992; p.x += p.vx; p.y += p.vy; p.a += p.va;
+    fctx.save();
+    fctx.translate(p.x, p.y);
+    fctx.rotate(p.a);
+    fctx.fillStyle = p.c;
+    fctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
+    fctx.restore();
+  }
+  if (parts.length) requestAnimationFrame(fxFrame);
+  else { fxRun = false; fx.style.display = 'none'; }
+}
+
+/* ======================================================================
+   10. 主循环与初始化
+   ====================================================================== */
+function frame() {
+  requestAnimationFrame(frame);
+  if (!S || !scrGame.classList.contains('on')) return;
+  const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (!w || !h) return;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  S.time = performance.now() / 1000;
+  renderScene(S, ctx, w, h);
+}
+function startLevel(i) {
+  SND.init();
+  closeModal();
+  applyPalette();                 // 每局换一套主色
+  G.levelIdx = i;
+  G.level = LEVELS[i];
+  G.orders = drawOrders(G.level);
+  G.steps = 0; G.wrong = 0; G.stars = 0; G.elapsed = 0;
+  scrMenu.classList.remove('on');
+  scrGame.classList.add('on');
+  $('#gTitle').textContent = G.level.name;
+  window.scrollTo(0, 0);
+  loadOrder(0);
+}
+function loadOrder(i) {
+  G.idx = i;
+  G.ord = G.orders[i];
+  G.tries = 0; G.autoOK = false; G.revealed = false;
+  G.drag = null; G.mode = null;
+  G.wrong0 = G.wrong;
+  const o = G.ord;
+  $('#gNo').textContent = i + 1;
+  $('#oNo').textContent = i + 1;
+  $('#oSrc').textContent = '来自：' + o.src;
+  $('#oText').innerHTML = o.text;
+  $('#oGoal').textContent = o.goal;
+  $('#unitChip').textContent = '单位：平方' + o.unit;
+  $('#gTitle').textContent = G.level.name + ' · ' + KIND_NAME[o.kind];
+  fb.className = 'feedback';
+  fb.innerHTML = '';
+  dragGhost.style.display = 'none';
+  buildScene();
+  buildOps();
+  buildDial();
+  updHud();
+  resumeTimer();
+}
+function goHome() {
+  pauseTimer();
+  closeModal();
+  S = null;
+  G.ord = null;
+  scrGame.classList.remove('on');
+  scrMenu.classList.add('on');
+  window.scrollTo(0, 0);
+}
+function buildMenu() {
+  diffRow.innerHTML = LEVELS.map(function (lv, i) {
+    return '<div class="diff-card" role="button" tabindex="0" data-lv="' + i + '" aria-label="' + lv.name + '">' +
+      '<div class="dname">' + lv.name + '</div><span class="dsub">' + lv.sub + '</span><p>' + lv.desc + '</p><div class="dgo">开始接单 →</div></div>';
+  }).join('');
+  diffRow.addEventListener('click', function (e) {
+    const c = e.target.closest('.diff-card');
+    if (c) startLevel(+c.getAttribute('data-lv'));
+  });
+  diffRow.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const c = e.target.closest('.diff-card');
+    if (c) { e.preventDefault(); startLevel(+c.getAttribute('data-lv')); }
+  });
+}
+
+/* ---------- 按钮绑定与启动 ---------- */
+$('#btnMenuRules').addEventListener('click', function () { openRules(false); });
+$('#btnRules').addEventListener('click', function () { openRules(true); });
+$('#btnBack').addEventListener('click', goHome);
+$('#btnBack2').addEventListener('click', goHome);
+$('#btnReveal').addEventListener('click', onReveal);
+$('#btnCommit').addEventListener('click', onCommit);
+$('#btnRestart').addEventListener('click', function () {
+  startLevel(G.levelIdx);
+  toast('已重新开始，换了 3 张新订单', 2200);
+});
+window.addEventListener('resize', drawRef);
+setInterval(tick, 1000);
+/* 自动化测试用：地址带 #debug 时把内部函数挂到 window.__box（正常打开不受影响） */
+if (location.hash === '#debug') {
+  window.__box = {
+    state: function () { return S; },
+    game: G,
+    make: { wrap: genWrap, raise: genRaise, cut: genCut, glue: genGlue, orders: drawOrders },
+    start: function (list) { startLevel(0); G.orders = list; G.idx = 0; loadOrder(0); },
+    answer: answerNow, surface: surfaceOf, ready: readyMsg, commit: onCommit, pack: packCubes,
+    proj: function () { return makeProj(S); },
+    sync: function (n) { for (let i = 0; i < (n || 30); i++) renderScene(S, ctx, cv.clientWidth, cv.clientHeight); },
+    doCut: doCut, setDelta: setDelta, wrapFit: wrapFit, dropWrap: dropWrap, ghostFor: ghostFor, dropCube: dropCube,
+    reveal: onReveal, autoFinish: autoFinish
+  };
+}
+applyPalette();
+buildMenu();
+requestAnimationFrame(frame);
+})();
+</script>
 <script>
 (function(){
 if(window.__TAFB__)return;window.__TAFB__=1;
-var M={"id": "gcol-ps-j/g007", "name": "\u7eb8\u76d2\u5de5\u574a \u00b7 \u8868\u9762\u79ef\u516c\u5f0f\u7684\u57fa\u672c\u5e94\u7528\uff08\u7b2c11\u8bb2 \u79d8\u7c4d1\uff09", "file": "g007.html", "jiaocan": "\u301040\u3011\u7b2c11\u8bb2 \u957f\u65b9\u4f53\u3001\u6b63\u65b9\u4f53\u7684\u8868\u9762\u79ef\uff1a\u79d8\u7c4d1\u8868\u9762\u79ef\u516c\u5f0f\u7684\u57fa\u672c\u5e94\u7528", "unit": "\u7b2c11\u8bb2", "grade": "\u4e94\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "J\uff1a\u51e0\u4f55\u4e13\u9879", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.2", "hub": "\u51e0\u4f55\u4e13\u9879\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-j"};
+var M={"id": "gcol-ps-j/g007", "name": "\u7eb8\u76d2\u5de5\u574a \u00b7 \u8868\u9762\u79ef\u516c\u5f0f\u7684\u57fa\u672c\u5e94\u7528\uff08\u7b2c11\u8bb2 \u79d8\u7c4d1\uff09", "file": "g007.html", "jiaocan": "\u301040\u3011\u7b2c11\u8bb2 \u957f\u65b9\u4f53\u3001\u6b63\u65b9\u4f53\u7684\u8868\u9762\u79ef\uff1a\u79d8\u7c4d1\u8868\u9762\u79ef\u516c\u5f0f\u7684\u57fa\u672c\u5e94\u7528", "unit": "\u7b2c11\u8bb2", "grade": "\u4e94\u5e74\u7ea7", "stage": "\u5c0f\u5b66", "series": "J\uff1a\u51e0\u4f55\u4e13\u9879", "kind": "\u6e38\u620f", "kinds": [], "ver": "1.0.3", "hub": "\u51e0\u4f55\u4e13\u9879\u00b7\u6e38\u620f\u5408\u96c6", "hub_id": "gcol-ps-j"};
 var ISS="https://github.com/qyrh/teaching-assistant-tools/issues/new?title=";
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function css(s){var e=el("style");e.textContent=s;document.head.appendChild(e);}
@@ -830,4 +2132,6 @@ function openBox(){
  document.documentElement.appendChild(mask);
 }
 })();
-</script>
+</script></body>
+</html>
+
