@@ -954,7 +954,7 @@ function rebuildDiv(){
   state.grids = [{ rows: g.rows, blanks: new Set(), title: '' }];
 
   const parts = ['除法：'];
-  if(c.k > 0) parts.push(`被除数和除数的小数点同时向右移动 <b>${c.k}</b> 位，化成 ${c.A} ÷ ${c.B}；`);
+  if(c.k > 0) parts.push(`被除数和除数的小数点同时向右移动 <b>${c.k}</b> 位，化成 ${c.A * 10n ** BigInt(c.g)} ÷ ${c.B * 10n ** BigInt(c.g)}；`);
   if(c.g > 0) parts.push(`再同时划去末尾的 <b>${c.g}</b> 个 0，得 ${c.A} ÷ ${c.B}；`);
   parts.push(`按整数竖式逐位试商。`);
 
@@ -971,8 +971,9 @@ function rebuildDiv(){
     }
   }
 
-  // 余数要换算回原题：竖式里算到第 d 位小数时，余数相当于缩小了 10^d 倍
-  const remShown = remToText(g.lastRem, c.g, g.decShown);
+  // 余数要换算回原题：原题 a ÷ b，竖式里算的是 A ÷ B（A = a×10^k ÷ 10^g，B 同理），
+  // 算到第 d 位小数时余数 R 满足 A×10^d = 商×B + R，所以原题的余数 = R × 10^(g − k − d)
+  const remShown = remToText(g.lastRem, c.g - c.k, g.decShown);
   if(g.decShown === 0){
     if(g.lastRem === 0n) parts.push(`\n整除，余数为 0。`);
     else parts.push(`\n除不尽：商 <span class="num">${quotientText(c, 0)}</span>，余数 <span class="num">${remShown}</span>。点「再算一位」继续算小数。`);
@@ -984,12 +985,16 @@ function rebuildDiv(){
   setStatus(parts.join(''));
 }
 
-/* 竖式里的余数 → 原题的余数：值 = R × 10^(g − 已算小数位数) */
-function remToText(R, g, decShown){
-  const k = decShown - g;
+/* 竖式里的余数 → 原题的余数。
+   shift = g − k：k 是小数点右移的位数，g 是划掉的末尾 0 的个数；decShown 是已经算了几位小数。
+   原题的余数 = R × 10^(shift − decShown)。
+   例：1.2 ÷ 0.7 化成 12 ÷ 7（k=1，g=0），商 1 余 5，原题的余数是 5 × 10^(0−1−0) = 0.5；
+       13 ÷ 6 算到小数第 1 位（商 2.1）余 4，原题的余数是 4 × 10^(0−0−1) = 0.4 */
+function remToText(R, shift, decShown){
+  const k = decShown - shift;
   if(R === 0n) return '0';
   if(k <= 0) return (R * 10n ** BigInt(-k)).toString();
-  return scaledToString(R, k);        // 算到的小数位比划去的 0 还多 → 余数本身是小数
+  return scaledToString(R, k);        // 算到的小数位比 shift 还多 → 余数本身是小数
 }
 
 /* 当前显示的商（含小数点） */
@@ -1426,8 +1431,9 @@ function verifySolutions(){
   // 出现在"最高位"的符号不能是 0（式子里存的是原始数字，要先翻译成符号）
   const leading = new Set();
   for(const s of [...operands, result]){
-    const c0 = s.replace(/^-/, '')[0];
-    if(c0 !== undefined && state.symbolMap.has(c0)) leading.add(state.symbolMap.get(c0));
+    const t = s.replace(/^-/, '');
+    // 只有整数部分不止一位时，最高位才不能是 0；像 0.5 这样整数部分就是一个 0 的数，那个 0 本来就可以是 0
+    if(t.length > 1 && t[1] !== '.' && state.symbolMap.has(t[0])) leading.add(state.symbolMap.get(t[0]));
   }
 
   const solutions = [];
