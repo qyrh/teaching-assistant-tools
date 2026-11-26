@@ -136,7 +136,7 @@ button.chk.all.on{background:#b45309;color:#fff}
   border:1px solid rgba(255,255,255,.78);
   box-shadow:var(--shadow);
 }
-.tray-label{font-size:11px;color:var(--muted);line-height:1.45;min-width:150px;max-width:240px}
+.tray-label{font-size:12px;color:var(--muted);line-height:1.45;min-width:150px;max-width:240px}
 .tray-label b{display:block;font-size:13px;color:#3a5474;font-weight:700;margin-bottom:1px}
 .tray-beads{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;overflow:visible}
 .tray-bead{flex:0 1 42px;min-width:16px;height:auto;aspect-ratio:3/2;cursor:grab;touch-action:none}
@@ -161,9 +161,16 @@ button.chk.all.on{background:#b45309;color:#fff}
   max-width:80vw;text-align:center;
 }
 .toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.undo{pointer-events:auto}
+.toast-undo{
+  font:700 13px/1.4 inherit;font-family:inherit;margin-left:10px;padding:3px 13px;border-radius:999px;
+  background:rgba(255,255,255,.22);color:#fff;border:0;box-shadow:none;
+}
+.toast-undo:hover{background:rgba(255,255,255,.36);box-shadow:none}
+.toast-undo:active{transform:none}
 @media (max-width:1360px){
   .tray{gap:12px}
-  .tray-label{max-width:190px}
+  .tray-label{max-width:220px}
   .tray-bead{flex:0 1 34px}
   .quick input{width:132px}
 }
@@ -223,8 +230,8 @@ button.chk.all.on{background:#b45309;color:#fff}
     </div>
     <div class="tray-beads" id="trayBeads"></div>
     <div class="quick">
-      <label for="quickInput">快速填数</label>
-      <input id="quickInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="输入数字" autocomplete="off" spellcheck="false">
+      <label for="quickInput" title="也可以不用点输入框，直接按键盘数字键接着填；退格去掉末位，Delete 清零（可撤销），← → 调位数">快速填数</label>
+      <input id="quickInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="输入或直接按数字键" autocomplete="off" spellcheck="false">
     </div>
     <button id="btn3d" class="view-btn" title="切换到立体视角 / 回到正视">3D 视角</button>
     <button id="btnView" class="view-btn" title="复位视角（也可在空白处双击）">复位视角</button>
@@ -317,11 +324,32 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function clampNum(v, lo, hi){ return v < lo ? lo : (v > hi ? hi : v); }
 
+  /* ---------- 提示条 ---------- */
+
+  function hideToast(){
+    clearTimeout(toastTimer);
+    dom.toast.classList.remove('show', 'undo');
+  }
+
   function toast(msg){
+    hideToast();
     dom.toast.textContent = msg;
     dom.toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ dom.toast.classList.remove('show'); }, 2000);
+    toastTimer = setTimeout(hideToast, 2000);
+  }
+
+  /* 带「撤销」按钮的提示条（清零之后用）：fn 点撤销时执行 */
+  function toastUndo(msg, fn){
+    hideToast();
+    dom.toast.textContent = msg;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-undo';
+    b.textContent = '撤销';
+    b.addEventListener('click', function(){ hideToast(); fn(); });
+    dom.toast.appendChild(b);
+    dom.toast.classList.add('show', 'undo');
+    toastTimer = setTimeout(hideToast, 8000);
   }
 
   /* ---------- 声音 ---------- */
@@ -869,8 +897,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
           var halo = new THREE.Sprite(haloMat);
           halo.raycast = function(){};
           beadGroup.add(halo);
-          mesh.userData.halo = halo;
-          mesh.userData = { born: now, place: p, idx: j, sx: L.rx, sy: L.ry, sz: L.rz };
+          mesh.userData = { born: now, place: p, idx: j, sx: L.rx, sy: L.ry, sz: L.rz, halo: halo };   // halo 必须放在这里：另起一行赋值会把它覆盖掉
           beadGroup.add(mesh);
           list.push(mesh);
           mesh.scale.set(L.rx * 0.2, L.ry * 0.2, L.rz * 0.2);
@@ -1487,9 +1514,37 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function clearAll(){
+    if (totalValue() === 0) return;           // 本来就是 0：不用清，也不覆盖上一份撤销记录
+    var keep = snapshot();
     for (var p = 0; p < MAX_DIGITS; p++) state.beads[p] = [];
     playSound('clear');
     render();
+    toastUndo('已清零', function(){
+      state.digits = keep.digits;
+      for (var q = 0; q < MAX_DIGITS; q++) state.beads[q] = keep.beads[q].slice();
+      playSound('click');
+      render();
+      updateDigitButtons();
+      toast('已恢复清零前的样子');
+    });
+  }
+
+  /* 现在的位数和每档珠子的颜色（清零前存一份，撤销时原样放回） */
+  function snapshot(){
+    return { digits: state.digits, beads: state.beads.map(function(a){ return a.slice(); }) };
+  }
+
+  /* 把一串数字摆到算盘上（快速填数和键盘输入共用）；空串 = 全部取下 */
+  function applyNumber(s){
+    if (s.length > state.digits) state.digits = s.length;
+    for (var p = 0; p < MAX_DIGITS; p++) state.beads[p] = [];
+    for (var i = 0; i < s.length; i++){
+      var place = s.length - 1 - i;
+      var d = Number(s.charAt(i));
+      for (var k = 0; k < d; k++) state.beads[place].push(hueFor(place));
+    }
+    render();
+    updateDigitButtons();
   }
 
   function setDigits(n){
@@ -1628,9 +1683,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       playSound('click');
     });
 
+    /* 焦点不在输入框时的键盘：数字键像计算器一样接在末尾；退格去掉末位；Delete 清零（可撤销）；← → 调位数 */
     document.addEventListener('keydown', function(e){
       if (document.activeElement === dom.quickInput) return;
-      if (e.key === 'Backspace' || e.key === 'Delete'){
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'Backspace'){
+        e.preventDefault();
+        applyNumber(String(Math.floor(totalValue() / 10)));
+      } else if (e.key === 'Delete'){
         e.preventDefault();
         clearAll();
       } else if (e.key === 'ArrowLeft'){
@@ -1639,10 +1699,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         setDigits(state.digits + 1);
       } else if (/^[0-9]$/.test(e.key)){
         e.preventDefault();
-        for (var zz = 0; zz < MAX_DIGITS; zz++) state.beads[zz] = [];
-        var dv = Number(e.key);
-        for (var kk = 0; kk < dv; kk++) state.beads[0].push(hueFor(0));
-        render();
+        var cur = String(totalValue());
+        applyNumber(cur === '0' ? e.key : (cur + e.key).slice(0, MAX_DIGITS));
       }
     });
 
@@ -1662,20 +1720,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var s = dom.quickInput.value.replace(/[^\d]/g, '').slice(0, MAX_DIGITS);
     s = s.replace(/^0+(?=\d)/, '');
     if (s !== dom.quickInput.value) dom.quickInput.value = s;
-    if (s === ''){
-      for (var z = 0; z < MAX_DIGITS; z++) state.beads[z] = [];
-      render();
-      return;
-    }
-    if (s.length > state.digits) state.digits = s.length;
-    for (var p0 = 0; p0 < MAX_DIGITS; p0++) state.beads[p0] = [];
-    for (var i = 0; i < s.length; i++){
-      var place = s.length - 1 - i;
-      var d = Number(s.charAt(i));
-      for (var k = 0; k < d; k++) state.beads[place].push(hueFor(place));
-    }
-    render();
-    updateDigitButtons();
+    applyNumber(s);
   }
 
   /* ---------- 启动 ---------- */
@@ -1702,6 +1747,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     setDigits: setDigits,
     layout: function(){ return L; },
     _board: function(){ return boardGroup; },
+    _beads: function(){ return beadGroup; },
     setView: function(y, p){ orbit.vy = 0; orbit.vp = 0; camAnim = null; orbit.yaw = y; orbit.pitch = p; applyCamera(); },
     probe: function(place, wy){
       var col = L && L.colByPlace[place];
