@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>草稿纸生成器</title>
+    <style>
+        :root {
+            --color-bg: #f5f5f5;
+            --color-white: #ffffff;
+            --color-text: #333333;
+            --color-primary: #4a90d9;
+            --color-border: #ddd;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            padding: 20px;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .settings {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .preview {
+            flex: 2;
+            min-width: 500px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            width: 100%;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .row .form-group {
+            flex: 1;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        /* A4纸张样式 - 全版面 */
+        .a4-page {
+            width: 210mm;
+            height: 297mm;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .page-header {
+            padding: 5mm 10mm;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 15mm;
+            font-size: 14px;
+        }
+        
+        .header-info {
+            flex: 1;
+        }
+        
+        .header-info p {
+            margin-bottom: 2px;
+        }
+        
+        .grid-container {
+            padding: 0;
+            display: grid;
+            width: 100%;
+            height: calc(100% - 15mm);
+            gap: 1px;
+            background-color: #e0e0e0;
+        }
+        
+        .grid-cell {
+            background-color: white;
+            min-height: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .print-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .print-controls button {
+            flex: 1;
+        }
+        
+        .btn-primary {
+            background-color: #3498db;
+        }
+        
+        .btn-success {
+            background-color: #27ae60;
+        }
+        
+        .btn-warning {
+            background-color: #e67e22;
+        }
+        
+        /* 打印样式 */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            .a4-page {
+                width: 210mm;
+                height: 297mm;
+                box-shadow: none;
+                margin: 0;
+                position: relative;
+            }
+
+            .a4-page:not(:first-child) {
+                page-break-before: always;
+            }
+            
+            .preview {
+                box-shadow: none;
+                padding: 0;
+                max-height: none;
+                overflow: visible;
+            }
+            
+            #previewContainer {
+                display: block;
+            }
+            
+            .grid-container {
+                background-color: #e0e0e0;
+            }
+            
+            .grid-cell {
+                border: 1px solid #e0e0e0;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .settings, .preview {
+                min-width: 100%;
+            }
+            
+            .row {
+                flex-direction: column;
+                gap: 0;
+            }
+        }
+        
+        .instructions {
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .instructions ul {
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 5px;
+        }
+        
+        .compact-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .compact-controls .form-group {
+            flex: 1;
+            margin-bottom: 10px;
+        }
+
+        /* 历史记录下拉列表样式 */
+        .history-wrapper {
+            position: relative;
+        }
+
+        .history-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .history-list.show {
+            display: block;
+        }
+
+        .history-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-item:hover {
+            background-color: #f0f7ff;
+        }
+
+        .history-item .name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .history-item .config {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .history-item .delete-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .history-item .delete-btn:hover {
+            background: #c0392b;
+        }
+
+        .history-empty {
+            padding: 15px;
+            text-align: center;
+            color: #999;
+        }
+
+        .clear-history-btn {
+            background: #95a5a6;
+            font-size: 12px;
+            padding: 5px 10px;
+            margin: 10px;
+        }
+
+        .clear-history-btn:hover {
+            background: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="no-print">草稿纸生成器</h1>
+        
+        <div class="settings no-print">
+            <div class="instructions">
+                <h3>使用说明</h3>
+                <ul>
+                    <li>填写学生信息（可留空）</li>
+                    <li>自定义行数和列数</li>
+                    <li>设置需要生成的页数</li>
+                    <li>点击"生成草稿纸"预览效果</li>
+                    <li>点击"打印草稿纸"进行打印（建议选择双面打印）</li>
+                </ul>
+            </div>
+            
+            <div class="row">
+                <div class="form-group">
+                    <label for="studentName">学生姓名</label>
+                    <div class="history-wrapper">
+                        <input type="text" id="studentName" placeholder="可留空" autocomplete="off">
+                        <div id="historyList" class="history-list"></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="className">班级</label>
+                    <input type="text" id="className" placeholder="可留空">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="form-group">
+                    <label for="schoolName">学校名称</label>
+                    <input type="text" id="schoolName" placeholder="可留空">
+                </div>
+                
+                <!-- 科目输入框已删除 -->
+            </div>
+            
+            <div class="compact-controls">
+                <div class="form-group">
+                    <label for="rows">行数</label>
+                    <input type="number" id="rows" min="1" max="50" value="4">
+                </div>
+                
+                <div class="form-group">
+                    <label for="columns">列数</label>
+                    <input type="number" id="columns" min="1" max="30" value="2">
+                </div>
+                
+                <div class="form-group">
+                    <label for="pageCount">页数</label>
+                    <input type="number" id="pageCount" min="1" max="100" value="10">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button id="generateBtn" class="btn-primary">生成草稿纸</button>
+            </div>
+            
+            <div class="print-controls">
+                <button id="printBtn" class="btn-success">打印草稿纸</button>
+            </div>
+        </div>
+        
+        <div class="preview">
+            <div id="previewContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        'use strict';
+        // 缓存DOM元素引用
+        const elements = {
+            generateBtn: null,
+            printBtn: null,
+            previewContainer: null,
+            studentName: null,
+            className: null,
+            schoolName: null,
+            rows: null,
+            columns: null,
+            pageCount: null,
+            historyList: null
+        };
+
+        // 历史记录存储key
+        const HISTORY_KEY = 'draftPaper_history';
+
+        // 获取历史记录
+        function getHistory() {
+            try {
+                const data = localStorage.getItem(HISTORY_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        // 保存历史记录
+        function saveHistory(history) {
+            try {
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            } catch (e) {
+                console.warn('无法保存历史记录:', e);
+            }
+        }
+
+        // 添加新记录到历史
+        function addToHistory(config) {
+            if (!config.studentName && !config.className) return;
+
+            const history = getHistory();
+            const key = `${config.studentName || ''}_${config.className || ''}`;
+
+            // 查找是否已存在相同姓名和班级的记录
+            const existingIndex = history.findIndex(item =>
+                item.studentName === config.studentName && item.className === config.className
+            );
+
+            const record = {
+                studentName: config.studentName,
+                className: config.className,
+                schoolName: config.schoolName,
+                rows: config.rows,
+                columns: config.columns,
+                pageCount: config.pageCount,
+                lastUsed: Date.now()
+            };
+
+            if (existingIndex >= 0) {
+                // 更新现有记录
+                history[existingIndex] = record;
+            } else {
+                // 添加新记录
+                history.unshift(record);
+            }
+
+            // 最多保存50条记录
+            if (history.length > 50) {
+                history.pop();
+            }
+
+            saveHistory(history);
+        }
+
+        // 删除历史记录
+        function deleteHistoryItem(index, event) {
+            event.stopPropagation();
+            const history = getHistory();
+            history.splice(index, 1);
+            saveHistory(history);
+            renderHistoryList();
+        }
+
+        // 清空所有历史记录
+        function clearAllHistory() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                saveHistory([]);
+                renderHistoryList();
+            }
+        }
+
+        // 渲染历史记录列表
+        function renderHistoryList(filter = '') {
+            const history = getHistory();
+            const filteredHistory = filter
+                ? history.filter(item => {
+                    const n = item.studentName || '';
+                    const c = item.className || '';
+                    return n.includes(filter) || c.includes(filter);
+                })
+                : history;
+
+            if (filteredHistory.length === 0) {
+                elements.historyList.innerHTML = `
+                    <div class="history-empty">
+                        ${filter ? '没有匹配的记录' : '暂无历史记录'}
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            filteredHistory.forEach((item, index) => {
+                const displayName = item.studentName || '(无姓名)';
+                const configText = `${item.className || ''} | ${item.rows}行${item.columns}列 | ${item.pageCount}页`;
+                const originalIndex = history.indexOf(item);
+
+                html += `
+                    <div class="history-item" data-index="${originalIndex}">
+                        <div>
+                            <span class="name">${escapeHtml(displayName)}</span>
+                            <span class="config">${escapeHtml(configText)}</span>
+                        </div>
+                        <button class="delete-btn" onclick="deleteHistoryItem(${originalIndex}, event)">删除</button>
+                    </div>
+                `;
+            });
+
+            html += `<button class="clear-history-btn" onclick="clearAllHistory()">清空所有记录</button>`;
+            elements.historyList.innerHTML = html;
+
+            // 绑定点击事件
+            elements.historyList.querySelectorAll('.history-item').forEach(item => {
+                item.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('delete-btn')) return;
+                    const index = parseInt(this.dataset.index);
+                    applyHistoryConfig(history[index]);
+                });
+            });
+        }
+
+        // 应用历史配置
+        function applyHistoryConfig(config) {
+            elements.studentName.value = config.studentName || '';
+            elements.className.value = config.className || '';
+            elements.schoolName.value = config.schoolName || '';
+            elements.rows.value = config.rows || 4;
+            elements.columns.value = config.columns || 2;
+            elements.pageCount.value = config.pageCount || 10;
+
+            // 隐藏历史列表
+            elements.historyList.classList.remove('show');
+
+            // 重新生成预览
+            generateNotebook();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化DOM引用
+            elements.generateBtn = document.getElementById('generateBtn');
+            elements.printBtn = document.getElementById('printBtn');
+            elements.previewContainer = document.getElementById('previewContainer');
+            elements.studentName = document.getElementById('studentName');
+            elements.className = document.getElementById('className');
+            elements.schoolName = document.getElementById('schoolName');
+            elements.rows = document.getElementById('rows');
+            elements.columns = document.getElementById('columns');
+            elements.pageCount = document.getElementById('pageCount');
+            elements.historyList = document.getElementById('historyList');
+
+            // 生成草稿纸
+            elements.generateBtn.addEventListener('click', function() {
+                // 保存当前配置到历史记录
+                addToHistory({
+                    studentName: elements.studentName.value,
+                    className: elements.className.value,
+                    schoolName: elements.schoolName.value,
+                    rows: parseInt(elements.rows.value) || 4,
+                    columns: parseInt(elements.columns.value) || 2,
+                    pageCount: parseInt(elements.pageCount.value) || 10
+                });
+                generateNotebook();
+            });
+
+            // 打印草稿纸
+            elements.printBtn.addEventListener('click', function() {
+                // 保存当前配置到历史记录
+                addToHistory({
+                    studentName: elements.studentName.value,
+                    className: elements.className.value,
+                    schoolName: elements.schoolName.value,
+                    rows: parseInt(elements.rows.value) || 4,
+                    columns: parseInt(elements.columns.value) || 2,
+                    pageCount: parseInt(elements.pageCount.value) || 10
+                });
+                generateNotebook();
+                requestAnimationFrame(() => window.print());
+            });
+
+            // 姓名输入框 - 显示历史记录
+            elements.studentName.addEventListener('focus', function() {
+                renderHistoryList(this.value);
+                elements.historyList.classList.add('show');
+            });
+
+            // 姓名输入框 - 筛选历史记录
+            elements.studentName.addEventListener('input', function() {
+                renderHistoryList(this.value);
+                elements.historyList.classList.add('show');
+            });
+
+            // 点击其他地方关闭历史列表
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.history-wrapper')) {
+                    elements.historyList.classList.remove('show');
+                }
+            });
+
+            // 初始生成
+            generateNotebook();
+        });
+        
+        // 安全转义HTML，防止XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 使用DocumentFragment优化批量DOM操作
+        function generateNotebook() {
+            const studentName = elements.studentName.value;
+            const className = elements.className.value;
+            const schoolName = elements.schoolName.value;
+            const rows = Math.max(1, Math.min(50, parseInt(elements.rows.value) || 4));
+            const columns = Math.max(1, Math.min(30, parseInt(elements.columns.value) || 2));
+            const pageCount = Math.max(1, Math.min(100, parseInt(elements.pageCount.value) || 10));
+            
+            // 使用DocumentFragment提升性能
+            const fragment = document.createDocumentFragment();
+            
+            for (let i = 0; i < pageCount; i++) {
+                const page = document.createElement('div');
+                page.className = 'a4-page';
+                
+                // 创建页眉
+                const header = document.createElement('div');
+                header.className = 'page-header';
+                
+                const headerInfo = document.createElement('div');
+                headerInfo.className = 'header-info';
+                
+                // 安全构建页眉信息（textContent 已自动转义，勿再 escape 否则实体会被原样显示）
+                const studentInfo = (className ? className + ' ' : '') + 
+                                   (studentName ? studentName : '');
+                if (studentInfo) {
+                    const p = document.createElement('p');
+                    const strong = document.createElement('strong');
+                    strong.textContent = studentInfo;
+                    p.appendChild(strong);
+                    headerInfo.appendChild(p);
+                }
+                
+                if (schoolName) {
+                    const p = document.createElement('p');
+                    p.textContent = schoolName;
+                    headerInfo.appendChild(p);
+                }
+                
+                header.appendChild(headerInfo);
+                
+                // 添加页码
+                const pageInfo = document.createElement('div');
+                const pageText = document.createElement('p');
+                pageText.textContent = `第 ${i+1} 页 / 共 ${pageCount} 页`;
+                pageInfo.appendChild(pageText);
+                header.appendChild(pageInfo);
+                
+                // 创建网格
+                const grid = document.createElement('div');
+                grid.className = 'grid-container';
+                grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+                grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+                
+                // 使用DocumentFragment批量添加单元格
+                const cellFragment = document.createDocumentFragment();
+                const totalCells = rows * columns;
+                for (let j = 0; j < totalCells; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cellFragment.appendChild(cell);
+                }
+                grid.appendChild(cellFragment);
+                
+                page.appendChild(header);
+                page.appendChild(grid);
+                fragment.appendChild(page);
+            }
+            
+            // 一次性更新DOM
+            elements.previewContainer.innerHTML = '';
+            elements.previewContainer.appendChild(fragment);
+        }
+    </script>
+</body>
+</html>
